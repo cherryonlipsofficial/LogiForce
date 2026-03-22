@@ -1,8 +1,8 @@
 module.exports = {
   ROLES: {
     ADMIN: 'admin',
-    MANAGER: 'manager',
-    USER: 'user',
+    ACCOUNTANT: 'accountant',
+    OPS: 'ops',
   },
   PAGINATION: {
     DEFAULT_PAGE: 1,

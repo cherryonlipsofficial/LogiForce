@@ -1,7 +1,9 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/layout/ProtectedRoute';
+import Login from './pages/Login';
 import Dashboard from './pages/Dashboard/Dashboard';
 import Drivers from './pages/Drivers/Drivers';
 import Attendance from './pages/Attendance/Attendance';
@@ -19,14 +21,16 @@ const App = () => {
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/drivers" element={<Drivers />} />
-            <Route path="/attendance" element={<Attendance />} />
-            <Route path="/salary" element={<Salary />} />
-            <Route path="/invoices" element={<Invoices />} />
-            <Route path="/clients" element={<Clients />} />
-            <Route path="/suppliers" element={<Suppliers />} />
-            <Route path="/reports" element={<Reports />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/drivers" element={<ProtectedRoute><Drivers /></ProtectedRoute>} />
+            <Route path="/attendance" element={<ProtectedRoute roles={['admin', 'ops']}><Attendance /></ProtectedRoute>} />
+            <Route path="/salary" element={<ProtectedRoute roles={['admin', 'accountant']}><Salary /></ProtectedRoute>} />
+            <Route path="/invoices" element={<ProtectedRoute roles={['admin', 'accountant']}><Invoices /></ProtectedRoute>} />
+            <Route path="/clients" element={<ProtectedRoute roles={['admin', 'accountant']}><Clients /></ProtectedRoute>} />
+            <Route path="/suppliers" element={<ProtectedRoute roles={['admin']}><Suppliers /></ProtectedRoute>} />
+            <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
           </Routes>
         </BrowserRouter>
         <Toaster position="top-right" />

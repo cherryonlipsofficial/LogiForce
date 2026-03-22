@@ -24,7 +24,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-// app.use('/api/auth', require('./src/routes/auth'));
+app.use('/api/auth', require('./src/routes/auth.routes'));
 // app.use('/api/drivers', require('./src/routes/drivers'));
 // app.use('/api/attendance', require('./src/routes/attendance'));
 // app.use('/api/salary', require('./src/routes/salary'));
