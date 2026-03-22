@@ -14,7 +14,10 @@ const app = express();
 connectDB();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'https://logi-force.vercel.app',
+  credentials: true,
+}));
 app.use(helmet());
 app.use(morgan('dev'));
 app.use(express.json());
