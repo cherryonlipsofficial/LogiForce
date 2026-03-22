@@ -32,9 +32,9 @@ app.use('/api/drivers', require('./src/routes/drivers.routes'));
 app.use('/api/clients', require('./src/routes/clients.routes'));
 app.use('/api/suppliers', require('./src/routes/suppliers.routes'));
 app.use('/api/attendance', require('./src/routes/attendance.routes'));
-// app.use('/api/salary', require('./src/routes/salary'));
-// app.use('/api/invoices', require('./src/routes/invoices'));
-// app.use('/api/reports', require('./src/routes/reports'));
+app.use('/api/invoices', require('./src/routes/invoices.routes'));
+app.use('/api/reports', require('./src/routes/reports.routes'));
+app.use('/api/advances', require('./src/routes/advances.routes'));
 
 // Health check
 app.get('/api/health', (req, res) => {
