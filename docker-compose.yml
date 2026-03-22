@@ -1,19 +1,10 @@
 services:
-  mongodb:
-    image: mongo:7
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo-data:/data/db
-
   server:
     build: ./server
     ports:
       - "5000:5000"
-    depends_on:
-      - mongodb
     environment:
-      - MONGODB_URI=mongodb://mongodb:27017/logiforce
+      - MONGODB_URI=mongodb+srv://nbharde:nbharde@cluster-aws.oi55br0.mongodb.net/logiforce?appName=Cluster-aws
       - PORT=5000
       - JWT_SECRET=your_jwt_secret_here
       - JWT_EXPIRES_IN=7d
@@ -27,6 +18,3 @@ services:
       - server
     environment:
       - VITE_API_URL=http://localhost:5000/api
-
-volumes:
-  mongo-data:
