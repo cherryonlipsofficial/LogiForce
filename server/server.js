@@ -23,14 +23,17 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Serve uploaded files
+app.use('/uploads', express.static('uploads'));
+
 // Routes
 app.use('/api/auth', require('./src/routes/auth.routes'));
-// app.use('/api/drivers', require('./src/routes/drivers'));
-// app.use('/api/attendance', require('./src/routes/attendance'));
+app.use('/api/drivers', require('./src/routes/drivers.routes'));
+app.use('/api/clients', require('./src/routes/clients.routes'));
+app.use('/api/suppliers', require('./src/routes/suppliers.routes'));
+app.use('/api/attendance', require('./src/routes/attendance.routes'));
 // app.use('/api/salary', require('./src/routes/salary'));
 // app.use('/api/invoices', require('./src/routes/invoices'));
-// app.use('/api/clients', require('./src/routes/clients'));
-// app.use('/api/suppliers', require('./src/routes/suppliers'));
 // app.use('/api/reports', require('./src/routes/reports'));
 
 // Health check
