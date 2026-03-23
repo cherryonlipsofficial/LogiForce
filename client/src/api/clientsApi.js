@@ -11,3 +11,6 @@ export const createClient = (data) =>
 
 export const updateClient = (id, data) =>
   axiosInstance.put(`/clients/${id}`, data).then(r => r.data);
+
+export const deleteClient = (id) =>
+  axiosInstance.delete(`/clients/${id}`).then(r => r.data);
