@@ -13,10 +13,10 @@ import { useAuth } from '../../context/AuthContext';
 import { getSuppliers, createSupplier, updateSupplier, deleteSupplier } from '../../api/suppliersApi';
 
 const fallbackSuppliers = [
-  { _id: 'SUP-001', name: 'Belhasa', contactPerson: 'Rashed Al Maktoum', email: 'rashed@belhasa.ae', phone: '+971 4 567 8901', status: 'active', vehicleCount: 180, driverCount: 165, serviceType: 'Full fleet', monthlyRate: 'AED 1,200/vehicle', contractEnd: '2027-06-30' },
-  { _id: 'SUP-002', name: 'EasyLease', contactPerson: 'Maria Santos', email: 'maria@easylease.ae', phone: '+971 4 678 9012', status: 'active', vehicleCount: 120, driverCount: 108, serviceType: 'Lease only', monthlyRate: 'AED 950/vehicle', contractEnd: '2026-12-31' },
-  { _id: 'SUP-003', name: 'LeasePlan', contactPerson: 'David Chen', email: 'david@leaseplan.ae', phone: '+971 4 789 0123', status: 'active', vehicleCount: 85, driverCount: 72, serviceType: 'Lease + maintenance', monthlyRate: 'AED 1,400/vehicle', contractEnd: '2027-03-31' },
-  { _id: 'SUP-004', name: 'Own vehicle', contactPerson: '—', email: '—', phone: '—', status: 'active', vehicleCount: 371, driverCount: 371, serviceType: 'Driver-owned', monthlyRate: '—', contractEnd: '—' },
+  { _id: 'SUP-001', name: 'Belhasa', contactName: 'Rashed Al Maktoum', contactEmail: 'rashed@belhasa.ae', contactPhone: '+971 4 567 8901', status: 'active', vehicleCount: 180, driverCount: 165, serviceType: 'Full fleet', monthlyRate: 'AED 1,200/vehicle', contractEnd: '2027-06-30' },
+  { _id: 'SUP-002', name: 'EasyLease', contactName: 'Maria Santos', contactEmail: 'maria@easylease.ae', contactPhone: '+971 4 678 9012', status: 'active', vehicleCount: 120, driverCount: 108, serviceType: 'Lease only', monthlyRate: 'AED 950/vehicle', contractEnd: '2026-12-31' },
+  { _id: 'SUP-003', name: 'LeasePlan', contactName: 'David Chen', contactEmail: 'david@leaseplan.ae', contactPhone: '+971 4 789 0123', status: 'active', vehicleCount: 85, driverCount: 72, serviceType: 'Lease + maintenance', monthlyRate: 'AED 1,400/vehicle', contractEnd: '2027-03-31' },
+  { _id: 'SUP-004', name: 'Own vehicle', contactName: '—', contactEmail: '—', contactPhone: '—', status: 'active', vehicleCount: 371, driverCount: 371, serviceType: 'Driver-owned', monthlyRate: '—', contractEnd: '—' },
 ];
 
 const isSupplierActive = (s) => s.isActive !== undefined ? s.isActive : s.status === 'active';
@@ -113,8 +113,8 @@ const Suppliers = () => {
                       <div style={{ fontSize: 13, fontWeight: 500 }}>{s.name}</div>
                     </td>
                     <td style={{ padding: '11px 14px' }}>
-                      <div style={{ fontSize: 12 }}>{s.contactPerson}</div>
-                      <div style={{ fontSize: 10, color: 'var(--text3)' }}>{s.email}</div>
+                      <div style={{ fontSize: 12 }}>{s.contactName}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text3)' }}>{s.contactEmail}</div>
                     </td>
                     <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--text2)' }}>{s.serviceType}</td>
                     <td style={{ padding: '11px 14px' }}>
@@ -165,9 +165,9 @@ const SupplierDetail = ({ supplier, onClose, onEdit, onDelete, role }) => {
       </div>
       <div style={{ padding: 24, overflowY: 'auto', flex: 1 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
-          <InfoRow label="Contact person" value={supplier.contactPerson} />
-          <InfoRow label="Email" value={supplier.email} />
-          <InfoRow label="Phone" value={supplier.phone} />
+          <InfoRow label="Contact person" value={supplier.contactName} />
+          <InfoRow label="Email" value={supplier.contactEmail} />
+          <InfoRow label="Phone" value={supplier.contactPhone} />
           <InfoRow label="Service type" value={supplier.serviceType} />
           <InfoRow label="Vehicles" value={supplier.vehicleCount} />
           <InfoRow label="Drivers" value={supplier.driverCount} />
@@ -191,9 +191,9 @@ const SupplierFormModal = ({ supplier, onClose }) => {
   const { register, handleSubmit, formState: { errors } } = useForm({
     defaultValues: isEdit ? {
       name: supplier.name || '',
-      contactPerson: supplier.contactPerson || '',
-      email: supplier.email || '',
-      phone: supplier.phone || '',
+      contactName: supplier.contactName || '',
+      contactEmail: supplier.contactEmail || '',
+      contactPhone: supplier.contactPhone || '',
       serviceType: supplier.serviceType || 'Lease only',
       monthlyRate: supplier.monthlyRate || '',
       isActive: isSupplierActive(supplier) ? 'true' : 'false',
@@ -234,15 +234,15 @@ const SupplierFormModal = ({ supplier, onClose }) => {
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Contact person</label>
-            <input {...register('contactPerson')} placeholder="John Doe" />
+            <input {...register('contactName')} placeholder="John Doe" />
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Email</label>
-            <input type="email" {...register('email')} placeholder="contact@company.com" />
+            <input type="email" {...register('contactEmail')} placeholder="contact@company.com" />
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Phone</label>
-            <input {...register('phone')} placeholder="+971 4 123 4567" />
+            <input {...register('contactPhone')} placeholder="+971 4 123 4567" />
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Service type</label>
