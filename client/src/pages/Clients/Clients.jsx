@@ -167,6 +167,7 @@ const ClientDetail = ({ client, onClose, onEdit, onDelete }) => {
           <InfoRow label="Email" value={client.contactEmail} />
           <InfoRow label="Phone" value={client.contactPhone} />
           <InfoRow label="VAT / TRN" value={client.vatNo} />
+          <InfoRow label="Trade licence no." value={client.tradeLicenceNo} />
           <InfoRow label="Rate per driver" value={client.ratePerDriver ? formatCurrencyFull(client.ratePerDriver) : '—'} />
           <InfoRow label="Billing currency" value={client.billingCurrency || 'AED'} />
           <InfoRow label="Payment terms" value={client.paymentTerms} />
@@ -194,13 +195,14 @@ const ClientFormModal = ({ client, onClose }) => {
       contactPhone: client.contactPhone || '',
       paymentTerms: client.paymentTerms || 'Net 30',
       vatNo: client.vatNo || '',
+      tradeLicenceNo: client.tradeLicenceNo || '',
       ratePerDriver: client.ratePerDriver || '',
       billingCurrency: client.billingCurrency || 'AED',
-      isActive: client.isActive !== undefined ? client.isActive : true,
+      isActive: client.isActive !== undefined ? String(client.isActive) : 'true',
     } : {
       paymentTerms: 'Net 30',
       billingCurrency: 'AED',
-      isActive: true,
+      isActive: 'true',
     },
   });
   const qc = useQueryClient();
@@ -268,10 +270,14 @@ const ClientFormModal = ({ client, onClose }) => {
             <input {...register('vatNo')} placeholder="TRN-XXXXXXXXXX" />
           </div>
           <div style={fieldStyle}>
+            <label style={labelStyle}>Trade licence no.</label>
+            <input {...register('tradeLicenceNo')} placeholder="TL-2024-XXX-001" />
+          </div>
+          <div style={fieldStyle}>
             <label style={labelStyle}>Status</label>
             <select {...register('isActive')}>
-              <option value={true}>Active</option>
-              <option value={false}>Inactive</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
             </select>
           </div>
         </div>
