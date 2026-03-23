@@ -188,20 +188,40 @@ const Drivers = () => {
 };
 
 const AddDriverModal = ({ onClose }) => {
-  const { register, handleSubmit, formState: { errors } } = useForm();
+  const { register, handleSubmit, formState: { errors }, setError } = useForm();
+  const [submitting, setSubmitting] = useState(false);
 
-  const onSubmit = async (data) => {
+  const onSubmit = async (formData) => {
+    setSubmitting(true);
     try {
-      await createDriver(data);
+      const payload = {
+        fullName: formData.fullName,
+        nationality: formData.nationality,
+        phoneUae: formData.phoneUae,
+        baseSalary: Number(formData.baseSalary),
+        payStructure: formData.payStructure,
+        emiratesId: formData.emiratesId || undefined,
+      };
+      await createDriver(payload);
       toast.success('Driver created successfully');
       onClose();
-    } catch {
-      toast.error('Failed to create driver');
+    } catch (err) {
+      const apiErrors = err?.response?.data?.errors;
+      if (apiErrors && Array.isArray(apiErrors)) {
+        apiErrors.forEach(({ field, message }) => {
+          setError(field, { type: 'server', message });
+        });
+      } else {
+        toast.error(err?.response?.data?.message || 'Failed to create driver');
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const fieldStyle = { marginBottom: 14 };
   const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 4 };
+  const errorStyle = { color: '#f87171', fontSize: 11, marginTop: 2, display: 'block' };
 
   return (
     <Modal title="Add new driver" onClose={onClose} width={520}>
@@ -209,52 +229,81 @@ const AddDriverModal = ({ onClose }) => {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div style={fieldStyle}>
             <label style={labelStyle}>Full name *</label>
-            <input {...register('name', { required: true })} placeholder="Mohamed Al Farsi" />
-            {errors.name && <span style={{ color: '#f87171', fontSize: 11 }}>Required</span>}
+            <input
+              {...register('fullName', {
+                required: 'Full name is required',
+                minLength: { value: 2, message: 'Must be at least 2 characters' },
+                maxLength: { value: 200, message: 'Must be under 200 characters' },
+              })}
+              placeholder="Mohamed Al Farsi"
+            />
+            {errors.fullName && <span style={errorStyle}>{errors.fullName.message}</span>}
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>Employee code</label>
-            <input {...register('employeeCode')} placeholder="DRV-00XXX" />
+            <label style={labelStyle}>Nationality *</label>
+            <input
+              {...register('nationality', { required: 'Nationality is required' })}
+              placeholder="Emirati"
+            />
+            {errors.nationality && <span style={errorStyle}>{errors.nationality.message}</span>}
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>Nationality</label>
-            <input {...register('nationality')} placeholder="Emirati" />
+            <label style={labelStyle}>UAE Phone *</label>
+            <input
+              {...register('phoneUae', {
+                required: 'UAE phone number is required',
+                pattern: {
+                  value: /^\+971\d{9}$/,
+                  message: 'Must match format +971XXXXXXXXX',
+                },
+              })}
+              placeholder="+971501234567"
+            />
+            {errors.phoneUae && <span style={errorStyle}>{errors.phoneUae.message}</span>}
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>Phone</label>
-            <input {...register('phone')} placeholder="+971 55 123 4567" />
-          </div>
-          <div style={fieldStyle}>
-            <label style={labelStyle}>Client *</label>
-            <select {...register('client', { required: true })}>
-              <option value="">Select client</option>
-              <option value="Amazon UAE">Amazon UAE</option>
-              <option value="Noon">Noon</option>
-              <option value="Talabat">Talabat</option>
+            <label style={labelStyle}>Pay structure *</label>
+            <select
+              {...register('payStructure', { required: 'Pay structure is required' })}
+            >
+              <option value="">Select pay structure</option>
+              <option value="MONTHLY_FIXED">Monthly fixed</option>
+              <option value="DAILY_RATE">Daily rate</option>
+              <option value="PER_TRIP">Per trip</option>
             </select>
-          </div>
-          <div style={fieldStyle}>
-            <label style={labelStyle}>Supplier</label>
-            <select {...register('supplier')}>
-              <option value="">Select supplier</option>
-              <option value="Own vehicle">Own vehicle</option>
-              <option value="Belhasa">Belhasa</option>
-              <option value="EasyLease">EasyLease</option>
-              <option value="LeasePlan">LeasePlan</option>
-            </select>
+            {errors.payStructure && <span style={errorStyle}>{errors.payStructure.message}</span>}
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Base salary *</label>
-            <input type="number" {...register('baseSalary', { required: true })} placeholder="2800" />
+            <input
+              type="number"
+              {...register('baseSalary', {
+                required: 'Base salary is required',
+                min: { value: 1, message: 'Must be a positive number' },
+              })}
+              placeholder="2800"
+            />
+            {errors.baseSalary && <span style={errorStyle}>{errors.baseSalary.message}</span>}
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Emirates ID</label>
-            <input {...register('emiratesId')} placeholder="784-XXXX-XXXXXXX-X" />
+            <input
+              {...register('emiratesId', {
+                pattern: {
+                  value: /^784-\d{4}-\d{7}-\d{1}$/,
+                  message: 'Must match format 784-XXXX-XXXXXXX-X',
+                },
+              })}
+              placeholder="784-XXXX-XXXXXXX-X"
+            />
+            {errors.emiratesId && <span style={errorStyle}>{errors.emiratesId.message}</span>}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-          <Btn variant="primary" type="submit">Create driver</Btn>
+          <Btn variant="primary" type="submit" disabled={submitting}>
+            {submitting ? 'Creating...' : 'Create driver'}
+          </Btn>
         </div>
       </form>
     </Modal>
