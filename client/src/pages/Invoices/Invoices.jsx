@@ -8,6 +8,7 @@ import Modal from '../../components/ui/Modal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
+import ClientSelect from '../../components/ui/ClientSelect';
 import { getInvoices, generateInvoice, updateStatus, addCreditNote, downloadPdf } from '../../api/invoicesApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
 
@@ -220,6 +221,7 @@ const InfoRow = ({ label, value }) => (
 const CreditNoteModal = ({ invoiceId, onClose }) => {
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
+  const [driverId, setDriverId] = useState('');
   const qc = useQueryClient();
 
   const { mutate: add, isLoading } = useMutation({
@@ -229,13 +231,13 @@ const CreditNoteModal = ({ invoiceId, onClose }) => {
       qc.invalidateQueries(['invoices']);
       onClose();
     },
-    onError: () => toast.error('Failed to add credit note'),
+    onError: (err) => toast.error(err.response?.data?.message || 'Failed to add credit note'),
   });
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!amount || !reason) { toast.error('Please fill all fields'); return; }
-    add({ amount: Number(amount), reason });
+    if (!amount || !reason || !driverId) { toast.error('Please fill all fields'); return; }
+    add({ driverId, amount: Number(amount), reason });
   };
 
   const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 4 };
@@ -243,6 +245,10 @@ const CreditNoteModal = ({ invoiceId, onClose }) => {
   return (
     <Modal title="Add credit note" onClose={onClose} width={400}>
       <form onSubmit={handleSubmit}>
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>Driver ID *</label>
+          <input value={driverId} onChange={(e) => setDriverId(e.target.value)} placeholder="Driver ObjectId" />
+        </div>
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>Amount (AED) *</label>
           <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="4500" />
@@ -261,8 +267,10 @@ const CreditNoteModal = ({ invoiceId, onClose }) => {
 };
 
 const GenerateInvoiceModal = ({ onClose }) => {
-  const [client, setClient] = useState('');
-  const [period, setPeriod] = useState('Mar 2026');
+  const [clientId, setClientId] = useState('');
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
   const qc = useQueryClient();
 
   const { mutate: generate, isLoading } = useMutation({
@@ -272,13 +280,13 @@ const GenerateInvoiceModal = ({ onClose }) => {
       qc.invalidateQueries(['invoices']);
       onClose();
     },
-    onError: () => toast.error('Failed to generate invoice'),
+    onError: (err) => toast.error(err.response?.data?.message || 'Failed to generate invoice'),
   });
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!client) { toast.error('Please select a client'); return; }
-    generate({ client, period });
+    if (!clientId) { toast.error('Please select a client'); return; }
+    generate({ clientId, year: Number(year), month: Number(month) });
   };
 
   const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 4 };
@@ -288,16 +296,21 @@ const GenerateInvoiceModal = ({ onClose }) => {
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>Client *</label>
-          <select value={client} onChange={(e) => setClient(e.target.value)} style={{ width: '100%' }}>
-            <option value="">Select client</option>
-            <option value="Amazon UAE">Amazon UAE</option>
-            <option value="Noon">Noon</option>
-            <option value="Talabat">Talabat</option>
-          </select>
+          <ClientSelect value={clientId} onChange={setClientId} />
         </div>
-        <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>Period *</label>
-          <input value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="Mar 2026" />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+          <div>
+            <label style={labelStyle}>Year *</label>
+            <input type="number" value={year} onChange={(e) => setYear(e.target.value)} />
+          </div>
+          <div>
+            <label style={labelStyle}>Month *</label>
+            <select value={month} onChange={(e) => setMonth(e.target.value)} style={{ width: '100%' }}>
+              {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                <option key={m} value={i + 1}>{m}</option>
+              ))}
+            </select>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>

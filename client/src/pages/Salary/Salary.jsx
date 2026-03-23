@@ -8,6 +8,7 @@ import Modal from '../../components/ui/Modal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
+import ClientSelect from '../../components/ui/ClientSelect';
 import { getRuns, runPayroll, approveRun, getWpsFile } from '../../api/salaryApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
 
@@ -147,11 +148,13 @@ const RunDetail = ({ run, onClose }) => {
 
   const handleWpsDownload = async () => {
     try {
-      const blob = await getWpsFile(run._id);
+      const year = run.period?.year || new Date().getFullYear();
+      const month = run.period?.month || (new Date().getMonth() + 1);
+      const blob = await getWpsFile({ year, month, clientId: run.clientId });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `WPS_${run.client}_${run.period}.sif`;
+      a.download = `WPS_${run.client || run.clientName}_${year}_${month}.sif`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success('WPS file downloaded');
@@ -203,8 +206,10 @@ const InfoRow = ({ label, value }) => (
 );
 
 const RunPayrollModal = ({ onClose }) => {
-  const [client, setClient] = useState('');
-  const [period, setPeriod] = useState('Mar 2026');
+  const [clientId, setClientId] = useState('');
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
   const qc = useQueryClient();
 
   const { mutate: run, isLoading } = useMutation({
@@ -214,16 +219,16 @@ const RunPayrollModal = ({ onClose }) => {
       qc.invalidateQueries(['salary-runs']);
       onClose();
     },
-    onError: () => toast.error('Failed to run payroll'),
+    onError: (err) => toast.error(err.response?.data?.message || 'Failed to run payroll'),
   });
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!client) {
+    if (!clientId) {
       toast.error('Please select a client');
       return;
     }
-    run({ client, period });
+    run({ clientId, year: Number(year), month: Number(month) });
   };
 
   const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 4 };
@@ -233,16 +238,21 @@ const RunPayrollModal = ({ onClose }) => {
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>Client *</label>
-          <select value={client} onChange={(e) => setClient(e.target.value)} style={{ width: '100%' }}>
-            <option value="">Select client</option>
-            <option value="Amazon UAE">Amazon UAE</option>
-            <option value="Noon">Noon</option>
-            <option value="Talabat">Talabat</option>
-          </select>
+          <ClientSelect value={clientId} onChange={setClientId} />
         </div>
-        <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>Period *</label>
-          <input value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="Mar 2026" />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+          <div>
+            <label style={labelStyle}>Year *</label>
+            <input type="number" value={year} onChange={(e) => setYear(e.target.value)} />
+          </div>
+          <div>
+            <label style={labelStyle}>Month *</label>
+            <select value={month} onChange={(e) => setMonth(e.target.value)} style={{ width: '100%' }}>
+              {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                <option key={m} value={i + 1}>{m}</option>
+              ))}
+            </select>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>

@@ -44,12 +44,19 @@ const fallbackCostPerDriver = [
 
 const COLORS = ['#4f8ef7', '#7c5ff0', '#1DB388', '#fbbf24'];
 
+const periodOptions = [
+  { label: 'Mar 2026', year: 2026, month: 3 },
+  { label: 'Feb 2026', year: 2026, month: 2 },
+  { label: 'Jan 2026', year: 2026, month: 1 },
+];
+
 const Reports = () => {
-  const [period, setPeriod] = useState('Mar 2026');
+  const [periodIdx, setPeriodIdx] = useState(0);
+  const selected = periodOptions[periodIdx];
 
   const { data: payrollData, isLoading: loadingPayroll } = useQuery({
-    queryKey: ['reports-payroll', period],
-    queryFn: () => getPayrollSummary({ period }),
+    queryKey: ['reports-payroll', selected.year, selected.month],
+    queryFn: () => getPayrollSummary({ year: selected.year, month: selected.month }),
     retry: 1,
   });
 
@@ -60,14 +67,45 @@ const Reports = () => {
   });
 
   const { data: costData, isLoading: loadingCost } = useQuery({
-    queryKey: ['reports-cost'],
-    queryFn: () => getCostPerDriver(),
+    queryKey: ['reports-cost', selected.year],
+    queryFn: () => getCostPerDriver({ year: selected.year }),
     retry: 1,
   });
 
-  const payroll = payrollData?.data || fallbackPayroll;
-  const aging = agingData?.data || fallbackAging;
-  const costPerDriver = costData?.data || fallbackCostPerDriver;
+  // Backend returns array of {clientName, totalGross, totalNet, totalDeductions, driverCount}
+  // Aggregate into summary for KPI cards
+  const payrollRaw = payrollData?.data;
+  const payroll = payrollRaw && payrollRaw.length > 0
+    ? {
+        totalGross: payrollRaw.reduce((s, r) => s + (r.totalGross || 0), 0),
+        totalNet: payrollRaw.reduce((s, r) => s + (r.totalNet || 0), 0),
+        totalDeductions: payrollRaw.reduce((s, r) => s + (r.totalDeductions || 0), 0),
+        avgCostPerDriver: Math.round(
+          payrollRaw.reduce((s, r) => s + (r.totalGross || 0), 0) /
+          Math.max(1, payrollRaw.reduce((s, r) => s + (r.driverCount || 0), 0))
+        ),
+        trends: fallbackPayroll.trends,
+      }
+    : fallbackPayroll;
+
+  // Backend returns {current_0_30, overdue_31_60, overdue_61_90, overdue_90_plus} buckets
+  const agingRaw = agingData?.data;
+  const aging = agingRaw
+    ? {
+        buckets: [
+          { name: 'Current', value: agingRaw.current_0_30?.total || 0, color: '#4ade80' },
+          { name: '31-60 days', value: agingRaw.overdue_31_60?.total || 0, color: '#fbbf24' },
+          { name: '61-90 days', value: agingRaw.overdue_61_90?.total || 0, color: '#f97316' },
+          { name: '90+ days', value: agingRaw.overdue_90_plus?.total || 0, color: '#f87171' },
+        ],
+      }
+    : fallbackAging;
+
+  // Backend returns array of {clientName, avgCostPerDriver, driverCount, totalCost}
+  const costRaw = costData?.data;
+  const costPerDriver = costRaw && costRaw.length > 0
+    ? costRaw.map((c) => ({ client: c.clientName, avgCost: c.avgCostPerDriver, driverCount: c.driverCount }))
+    : fallbackCostPerDriver;
 
   const isLoading = loadingPayroll || loadingAging || loadingCost;
 
@@ -93,10 +131,10 @@ const Reports = () => {
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 500 }}>Payroll trend (6 months)</div>
-              <select value={period} onChange={(e) => setPeriod(e.target.value)} style={{ height: 30, fontSize: 12 }}>
-                <option value="Mar 2026">Mar 2026</option>
-                <option value="Feb 2026">Feb 2026</option>
-                <option value="Jan 2026">Jan 2026</option>
+              <select value={periodIdx} onChange={(e) => setPeriodIdx(Number(e.target.value))} style={{ height: 30, fontSize: 12 }}>
+                {periodOptions.map((p, i) => (
+                  <option key={p.label} value={i}>{p.label}</option>
+                ))}
               </select>
             </div>
             <ResponsiveContainer width="100%" height={280}>

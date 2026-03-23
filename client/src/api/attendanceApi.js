@@ -11,5 +11,5 @@ export const uploadFile = (formData) =>
 export const getBatch = (id) =>
   axiosInstance.get(`/attendance/batches/${id}`).then(r => r.data);
 
-export const approveBatch = (id, data) =>
-  axiosInstance.post(`/attendance/batches/${id}/approve`, data).then(r => r.data);
+export const approveBatch = (id) =>
+  axiosInstance.put(`/attendance/batches/${id}/approve`).then(r => r.data);
