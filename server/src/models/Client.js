@@ -49,8 +49,10 @@ const clientSchema = new mongoose.Schema(
       type: Date,
     },
     contractFile: {
-      fileKey: { type: String },
+      data: { type: Buffer },
+      contentType: { type: String },
       originalName: { type: String },
+      size: { type: Number },
       uploadedAt: { type: Date },
     },
     isActive: {
