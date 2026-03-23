@@ -7,12 +7,12 @@ const supplierSchema = new mongoose.Schema(
       required: [true, 'Supplier name is required'],
       trim: true,
     },
-    type: {
+    serviceType: {
       type: String,
-      enum: ['vehicle_leasing', 'telecom', 'other'],
+      enum: ['Lease only', 'Full fleet', 'Lease + maintenance', 'Driver-owned'],
     },
     monthlyRate: {
-      type: Number,
+      type: String,
     },
     paymentTerms: {
       type: String,
@@ -24,6 +24,17 @@ const supplierSchema = new mongoose.Schema(
       type: String,
     },
     contactPhone: {
+      type: String,
+    },
+    vehicleCount: {
+      type: Number,
+      default: 0,
+    },
+    driverCount: {
+      type: Number,
+      default: 0,
+    },
+    contractEnd: {
       type: String,
     },
     isActive: {

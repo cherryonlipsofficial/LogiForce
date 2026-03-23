@@ -5,12 +5,9 @@ const createSupplierValidation = [
     .trim()
     .notEmpty().withMessage('Supplier name is required')
     .isLength({ min: 2, max: 200 }).withMessage('Name must be 2-200 characters'),
-  body('type')
-    .notEmpty().withMessage('Supplier type is required')
-    .isIn(['vehicle_leasing', 'telecom', 'other']).withMessage('Type must be vehicle_leasing, telecom, or other'),
-  body('monthlyRate')
+  body('serviceType')
     .optional()
-    .isFloat({ min: 0 }).withMessage('Monthly rate must be a positive number'),
+    .isIn(['Lease only', 'Full fleet', 'Lease + maintenance', 'Driver-owned']).withMessage('Invalid service type'),
   body('contactEmail')
     .optional()
     .isEmail().withMessage('Must be a valid email'),
@@ -21,12 +18,12 @@ const updateSupplierValidation = [
     .optional()
     .trim()
     .isLength({ min: 2, max: 200 }).withMessage('Name must be 2-200 characters'),
-  body('type')
+  body('serviceType')
     .optional()
-    .isIn(['vehicle_leasing', 'telecom', 'other']).withMessage('Type must be vehicle_leasing, telecom, or other'),
-  body('monthlyRate')
+    .isIn(['Lease only', 'Full fleet', 'Lease + maintenance', 'Driver-owned']).withMessage('Invalid service type'),
+  body('contactEmail')
     .optional()
-    .isFloat({ min: 0 }).withMessage('Monthly rate must be a positive number'),
+    .isEmail().withMessage('Must be a valid email'),
 ];
 
 module.exports = { createSupplierValidation, updateSupplierValidation };
