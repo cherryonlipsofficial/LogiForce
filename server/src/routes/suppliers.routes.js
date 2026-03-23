@@ -3,6 +3,8 @@ const router = express.Router();
 const { protect, restrictTo } = require('../middleware/auth');
 const { Supplier } = require('../models');
 const { sendSuccess, sendError } = require('../utils/responseHelper');
+const validate = require('../middleware/validate');
+const { createSupplierValidation, updateSupplierValidation } = require('../middleware/validators/supplier.validators');
 
 // All routes are protected and admin only
 router.use(protect);
@@ -15,7 +17,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/suppliers
-router.post('/', async (req, res) => {
+router.post('/', validate(createSupplierValidation), async (req, res) => {
   const supplier = await Supplier.create(req.body);
   sendSuccess(res, supplier, 'Supplier created', 201);
 });
@@ -28,7 +30,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // PUT /api/suppliers/:id
-router.put('/:id', async (req, res) => {
+router.put('/:id', validate(updateSupplierValidation), async (req, res) => {
   const supplier = await Supplier.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
     runValidators: true,

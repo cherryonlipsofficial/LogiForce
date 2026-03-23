@@ -5,6 +5,9 @@ const upload = require('../middleware/upload');
 const driverService = require('../services/driver.service');
 const { Driver, DriverDocument, SalaryRun } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
+const validate = require('../middleware/validate');
+const { createDriverValidation, updateDriverValidation, changeStatusValidation } = require('../middleware/validators/driver.validators');
+const auditLogger = require('../utils/auditLogger');
 
 // All routes are protected
 router.use(protect);
@@ -27,7 +30,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/drivers — create (ops, admin)
-router.post('/', restrictTo('ops', 'admin'), async (req, res) => {
+router.post('/', restrictTo('ops', 'admin'), validate(createDriverValidation), async (req, res) => {
   const driver = await driverService.create(req.body, req.user._id);
   sendSuccess(res, driver, 'Driver created', 201);
 });
@@ -39,7 +42,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // PUT /api/drivers/:id — update (ops, admin)
-router.put('/:id', restrictTo('ops', 'admin'), async (req, res) => {
+router.put('/:id', restrictTo('ops', 'admin'), validate(updateDriverValidation), async (req, res) => {
   const driver = await driverService.update(req.params.id, req.body);
   sendSuccess(res, driver, 'Driver updated');
 });
@@ -82,9 +85,8 @@ router.post('/:id/documents', restrictTo('ops', 'admin'), upload.single('file'),
 });
 
 // PUT /api/drivers/:id/status — change status with reason
-router.put('/:id/status', restrictTo('ops', 'admin'), async (req, res) => {
+router.put('/:id/status', restrictTo('ops', 'admin'), validate(changeStatusValidation), async (req, res) => {
   const { status, reason } = req.body;
-  if (!status) return sendError(res, 'Status is required', 400);
 
   const driver = await Driver.findById(req.params.id);
   if (!driver) return sendError(res, 'Driver not found', 404);
@@ -92,6 +94,9 @@ router.put('/:id/status', restrictTo('ops', 'admin'), async (req, res) => {
   const previousStatus = driver.status;
   driver.status = status;
   await driver.save();
+
+  // Audit log
+  await auditLogger.logChange('Driver', driver._id, 'status', previousStatus, status, req.user._id, 'status_change');
 
   // Create a ledger entry as a status log
   const { DriverLedger } = require('../models');

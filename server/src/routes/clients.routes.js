@@ -4,6 +4,8 @@ const { protect, restrictTo } = require('../middleware/auth');
 const { Client, Driver } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
+const validate = require('../middleware/validate');
+const { createClientValidation, updateClientValidation } = require('../middleware/validators/client.validators');
 
 // All routes are protected
 router.use(protect);
@@ -15,7 +17,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/clients — create (admin)
-router.post('/', restrictTo('admin'), async (req, res) => {
+router.post('/', restrictTo('admin'), validate(createClientValidation), async (req, res) => {
   const client = await Client.create(req.body);
   sendSuccess(res, client, 'Client created', 201);
 });
@@ -33,7 +35,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // PUT /api/clients/:id — update (admin)
-router.put('/:id', restrictTo('admin'), async (req, res) => {
+router.put('/:id', restrictTo('admin'), validate(updateClientValidation), async (req, res) => {
   const client = await Client.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
     runValidators: true,

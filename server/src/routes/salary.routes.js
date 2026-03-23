@@ -5,19 +5,18 @@ const salaryService = require('../services/salary.service');
 const { SalaryRun } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
+const validate = require('../middleware/validate');
+const { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation } = require('../middleware/validators/salary.validators');
+const auditLogger = require('../utils/auditLogger');
 
 // All routes are protected
 router.use(protect);
 
 // POST /api/salary/run — trigger payroll run for client/period
-router.post('/run', restrictTo('admin'), async (req, res) => {
+router.post('/run', restrictTo('admin'), validate(runSalaryValidation), async (req, res) => {
   const { clientId, year, month } = req.body;
 
-  if (!clientId || !year || !month) {
-    return sendError(res, 'clientId, year, and month are required', 400);
-  }
-
-  // Check for existing runs in this period
+  // Check for existing runs in this period (duplicate check)
   const existingRuns = await SalaryRun.find({
     clientId,
     'period.year': parseInt(year),
@@ -38,6 +37,9 @@ router.post('/run', restrictTo('admin'), async (req, res) => {
     parseInt(month),
     req.user._id
   );
+
+  // Audit log
+  await auditLogger.logChange('SalaryRun', null, 'payroll', null, `${year}-${month} for client ${clientId}`, req.user._id, 'salary_run');
 
   sendSuccess(res, result, 'Payroll run completed', 201);
 });
@@ -87,20 +89,16 @@ router.get('/runs/:id', async (req, res) => {
 // PUT /api/salary/runs/:id/approve — approve single run
 router.put('/runs/:id/approve', restrictTo('admin', 'accountant'), async (req, res) => {
   const run = await salaryService.approveSalaryRun(req.params.id, req.user._id);
+
+  // Audit log
+  await auditLogger.logChange('SalaryRun', req.params.id, 'status', 'draft', 'approved', req.user._id, 'salary_approval');
+
   sendSuccess(res, run, 'Salary run approved');
 });
 
 // PUT /api/salary/runs/:id/adjust — add manual adjustment with reason
-router.put('/runs/:id/adjust', restrictTo('admin', 'accountant'), async (req, res) => {
+router.put('/runs/:id/adjust', restrictTo('admin', 'accountant'), validate(adjustSalaryValidation), async (req, res) => {
   const { type, amount, reason } = req.body;
-
-  if (!type || amount === undefined || !reason) {
-    return sendError(res, 'type, amount, and reason are required', 400);
-  }
-
-  if (!['allowance', 'deduction', 'bonus', 'correction'].includes(type)) {
-    return sendError(res, 'type must be one of: allowance, deduction, bonus, correction', 400);
-  }
 
   const run = await SalaryRun.findById(req.params.id);
   if (!run) return sendError(res, 'Salary run not found', 404);
@@ -140,12 +138,8 @@ router.put('/runs/:id/adjust', restrictTo('admin', 'accountant'), async (req, re
 });
 
 // POST /api/salary/runs/:id/dispute — raise dispute on a salary run
-router.post('/runs/:id/dispute', async (req, res) => {
+router.post('/runs/:id/dispute', validate(disputeSalaryValidation), async (req, res) => {
   const { reason } = req.body;
-
-  if (!reason) {
-    return sendError(res, 'Dispute reason is required', 400);
-  }
 
   const run = await SalaryRun.findById(req.params.id);
   if (!run) return sendError(res, 'Salary run not found', 404);
