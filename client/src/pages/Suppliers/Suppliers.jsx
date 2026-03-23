@@ -9,7 +9,8 @@ import Modal from '../../components/ui/Modal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
-import { getSuppliers, createSupplier } from '../../api/suppliersApi';
+import { useAuth } from '../../context/AuthContext';
+import { getSuppliers, createSupplier, updateSupplier, deleteSupplier } from '../../api/suppliersApi';
 
 const fallbackSuppliers = [
   { _id: 'SUP-001', name: 'Belhasa', contactPerson: 'Rashed Al Maktoum', email: 'rashed@belhasa.ae', phone: '+971 4 567 8901', status: 'active', vehicleCount: 180, driverCount: 165, serviceType: 'Full fleet', monthlyRate: 'AED 1,200/vehicle', contractEnd: '2027-06-30' },
@@ -18,15 +19,32 @@ const fallbackSuppliers = [
   { _id: 'SUP-004', name: 'Own vehicle', contactPerson: '—', email: '—', phone: '—', status: 'active', vehicleCount: 371, driverCount: 371, serviceType: 'Driver-owned', monthlyRate: '—', contractEnd: '—' },
 ];
 
+const isSupplierActive = (s) => s.isActive !== undefined ? s.isActive : s.status === 'active';
+
+const canEdit = (role) => role === 'admin' || role === 'accountant';
+
 const Suppliers = () => {
   const [search, setSearch] = useState('');
-  const [selectedSupplier, setSelectedSupplier] = useState(null);
+  const [selectedSupplierId, setSelectedSupplierId] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingSupplierId, setEditingSupplierId] = useState(null);
+  const { role } = useAuth();
+  const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ['suppliers'],
     queryFn: () => getSuppliers(),
     retry: 1,
+  });
+
+  const { mutate: doDelete } = useMutation({
+    mutationFn: (id) => deleteSupplier(id),
+    onSuccess: () => {
+      toast.success('Supplier deleted');
+      qc.invalidateQueries(['suppliers']);
+      setSelectedSupplierId(null);
+    },
+    onError: () => toast.error('Failed to delete supplier'),
   });
 
   const suppliers = data?.data || fallbackSuppliers;
@@ -35,11 +53,25 @@ const Suppliers = () => {
   const totalVehicles = suppliers.reduce((s, sp) => s + (sp.vehicleCount || 0), 0);
   const totalDrivers = suppliers.reduce((s, sp) => s + (sp.driverCount || 0), 0);
 
+  const selectedSupplier = selectedSupplierId ? suppliers.find((s) => s._id === selectedSupplierId) || null : null;
+  const editingSupplier = editingSupplierId ? suppliers.find((s) => s._id === editingSupplierId) || null : null;
+
+  const handleEdit = (supplier) => {
+    setSelectedSupplierId(null);
+    setEditingSupplierId(supplier._id);
+  };
+
+  const handleDelete = (supplier) => {
+    if (window.confirm(`Are you sure you want to delete "${supplier.name}"? This action cannot be undone.`)) {
+      doDelete(supplier._id);
+    }
+  };
+
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
         <KpiCard label="Total suppliers" value={suppliers.length} />
-        <KpiCard label="Active" value={suppliers.filter((s) => s.status === 'active').length} color="#4ade80" />
+        <KpiCard label="Active" value={suppliers.filter((s) => isSupplierActive(s)).length} color="#4ade80" />
         <KpiCard label="Total vehicles" value={totalVehicles.toLocaleString()} />
         <KpiCard label="Total drivers" value={totalDrivers.toLocaleString()} />
       </div>
@@ -48,7 +80,7 @@ const Suppliers = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search suppliers..." style={{ width: 260, height: 34 }} />
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <Btn small variant="primary" onClick={() => setShowAddModal(true)}>+ Add supplier</Btn>
+            {canEdit(role) && <Btn small variant="primary" onClick={() => setShowAddModal(true)}>+ Add supplier</Btn>}
           </div>
         </div>
 
@@ -72,7 +104,7 @@ const Suppliers = () => {
                 {filtered.map((s) => (
                   <tr
                     key={s._id}
-                    onClick={() => setSelectedSupplier(s)}
+                    onClick={() => setSelectedSupplierId(s._id)}
                     style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: 'background .1s' }}
                     onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
@@ -93,7 +125,7 @@ const Suppliers = () => {
                     </td>
                     <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--text2)' }}>{s.monthlyRate}</td>
                     <td style={{ padding: '11px 14px' }}>
-                      <Badge variant={s.status === 'active' ? 'success' : 'default'}>{s.status === 'active' ? 'Active' : 'Inactive'}</Badge>
+                      <Badge variant={isSupplierActive(s) ? 'success' : 'default'}>{isSupplierActive(s) ? 'Active' : 'Inactive'}</Badge>
                     </td>
                   </tr>
                 ))}
@@ -107,23 +139,29 @@ const Suppliers = () => {
         </div>
       </div>
 
-      {selectedSupplier && <SupplierDetail supplier={selectedSupplier} onClose={() => setSelectedSupplier(null)} />}
-      {showAddModal && <AddSupplierModal onClose={() => setShowAddModal(false)} />}
+      {selectedSupplier && <SupplierDetail supplier={selectedSupplier} onClose={() => setSelectedSupplierId(null)} onEdit={handleEdit} onDelete={handleDelete} role={role} />}
+      {showAddModal && <SupplierFormModal onClose={() => setShowAddModal(false)} />}
+      {editingSupplier && <SupplierFormModal supplier={editingSupplier} onClose={() => setEditingSupplierId(null)} />}
     </div>
   );
 };
 
-const SupplierDetail = ({ supplier, onClose }) => {
+const SupplierDetail = ({ supplier, onClose, onEdit, onDelete, role }) => {
+  const active = isSupplierActive(supplier);
   return (
     <SidePanel onClose={onClose}>
       <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontSize: 16, fontWeight: 500 }}>{supplier.name}</div>
           <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
-            <Badge variant={supplier.status === 'active' ? 'success' : 'default'}>{supplier.status === 'active' ? 'Active' : 'Inactive'}</Badge>
+            <Badge variant={active ? 'success' : 'default'}>{active ? 'Active' : 'Inactive'}</Badge>
           </div>
         </div>
-        <button onClick={onClose} style={{ background: 'var(--surface3)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 8, padding: '4px 10px', fontSize: 16 }}>&times;</button>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {canEdit(role) && <Btn small variant="ghost" onClick={() => onEdit(supplier)}>Edit</Btn>}
+          {role === 'admin' && <Btn small variant="ghost" onClick={() => onDelete(supplier)} style={{ color: '#f87171' }}>Delete</Btn>}
+          <button onClick={onClose} style={{ background: 'var(--surface3)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 8, padding: '4px 10px', fontSize: 16 }}>&times;</button>
+        </div>
       </div>
       <div style={{ padding: 24, overflowY: 'auto', flex: 1 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
@@ -144,30 +182,50 @@ const SupplierDetail = ({ supplier, onClose }) => {
 const InfoRow = ({ label, value }) => (
   <div>
     <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 2 }}>{label}</div>
-    <div style={{ fontSize: 13 }}>{value}</div>
+    <div style={{ fontSize: 13 }}>{value || '—'}</div>
   </div>
 );
 
-const AddSupplierModal = ({ onClose }) => {
-  const { register, handleSubmit, formState: { errors } } = useForm();
+const SupplierFormModal = ({ supplier, onClose }) => {
+  const isEdit = !!supplier;
+  const { register, handleSubmit, formState: { errors } } = useForm({
+    defaultValues: isEdit ? {
+      name: supplier.name || '',
+      contactPerson: supplier.contactPerson || '',
+      email: supplier.email || '',
+      phone: supplier.phone || '',
+      serviceType: supplier.serviceType || 'Lease only',
+      monthlyRate: supplier.monthlyRate || '',
+      isActive: isSupplierActive(supplier) ? 'true' : 'false',
+    } : {
+      serviceType: 'Lease only',
+      isActive: 'true',
+    },
+  });
   const qc = useQueryClient();
 
-  const { mutate: create, isLoading } = useMutation({
-    mutationFn: (data) => createSupplier(data),
+  const { mutate: save, isLoading } = useMutation({
+    mutationFn: (data) => {
+      const payload = {
+        ...data,
+        isActive: data.isActive === true || data.isActive === 'true',
+      };
+      return isEdit ? updateSupplier(supplier._id, payload) : createSupplier(payload);
+    },
     onSuccess: () => {
-      toast.success('Supplier created');
+      toast.success(isEdit ? 'Supplier updated' : 'Supplier created');
       qc.invalidateQueries(['suppliers']);
       onClose();
     },
-    onError: () => toast.error('Failed to create supplier'),
+    onError: (err) => toast.error(err?.response?.data?.message || (isEdit ? 'Failed to update supplier' : 'Failed to create supplier')),
   });
 
   const fieldStyle = { marginBottom: 14 };
   const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 4 };
 
   return (
-    <Modal title="Add new supplier" onClose={onClose} width={520}>
-      <form onSubmit={handleSubmit((data) => create(data))}>
+    <Modal title={isEdit ? 'Edit supplier' : 'Add new supplier'} onClose={onClose} width={520}>
+      <form onSubmit={handleSubmit((data) => save(data))}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div style={fieldStyle}>
             <label style={labelStyle}>Company name *</label>
@@ -199,10 +257,19 @@ const AddSupplierModal = ({ onClose }) => {
             <label style={labelStyle}>Monthly rate</label>
             <input {...register('monthlyRate')} placeholder="AED 1,200/vehicle" />
           </div>
+          {isEdit && (
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Status</label>
+              <select {...register('isActive')}>
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+              </select>
+            </div>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-          <Btn variant="primary" type="submit" disabled={isLoading}>{isLoading ? 'Creating...' : 'Create supplier'}</Btn>
+          <Btn variant="primary" type="submit" disabled={isLoading}>{isLoading ? (isEdit ? 'Saving...' : 'Creating...') : (isEdit ? 'Save changes' : 'Create supplier')}</Btn>
         </div>
       </form>
     </Modal>
