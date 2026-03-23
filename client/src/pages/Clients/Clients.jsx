@@ -33,9 +33,9 @@ const canEdit = (role) => role === 'admin' || role === 'accountant';
 
 const Clients = () => {
   const [search, setSearch] = useState('');
-  const [selectedClient, setSelectedClient] = useState(null);
+  const [selectedClientId, setSelectedClientId] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [editingClient, setEditingClient] = useState(null);
+  const [editingClientId, setEditingClientId] = useState(null);
   const { role } = useAuth();
   const qc = useQueryClient();
 
@@ -50,7 +50,7 @@ const Clients = () => {
     onSuccess: () => {
       toast.success('Client deleted');
       qc.invalidateQueries(['clients']);
-      setSelectedClient(null);
+      setSelectedClientId(null);
     },
     onError: () => toast.error('Failed to delete client'),
   });
@@ -62,9 +62,13 @@ const Clients = () => {
   const totalBilling = clients.reduce((s, c) => s + (c.monthlyBilling || 0), 0);
   const activeCount = clients.filter((c) => isClientActive(c)).length;
 
+  // Derive selected/editing client from fresh query data
+  const selectedClient = selectedClientId ? clients.find((c) => c._id === selectedClientId) || null : null;
+  const editingClient = editingClientId ? clients.find((c) => c._id === editingClientId) || null : null;
+
   const handleEdit = (client) => {
-    setSelectedClient(null);
-    setEditingClient(client);
+    setSelectedClientId(null);
+    setEditingClientId(client._id);
   };
 
   const handleDelete = (client) => {
@@ -112,7 +116,7 @@ const Clients = () => {
                   return (
                     <tr
                       key={c._id}
-                      onClick={() => setSelectedClient(c)}
+                      onClick={() => setSelectedClientId(c._id)}
                       style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: 'background .1s' }}
                       onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
                       onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
@@ -148,9 +152,9 @@ const Clients = () => {
         </div>
       </div>
 
-      {selectedClient && <ClientDetail client={selectedClient} onClose={() => setSelectedClient(null)} onEdit={handleEdit} onDelete={handleDelete} role={role} />}
+      {selectedClient && <ClientDetail client={selectedClient} onClose={() => setSelectedClientId(null)} onEdit={handleEdit} onDelete={handleDelete} role={role} />}
       {showAddModal && <ClientFormModal onClose={() => setShowAddModal(false)} />}
-      {editingClient && <ClientFormModal client={editingClient} onClose={() => setEditingClient(null)} />}
+      {editingClient && <ClientFormModal client={editingClient} onClose={() => setEditingClientId(null)} />}
     </div>
   );
 };
