@@ -10,6 +10,8 @@ const validate = require('../middleware/validate');
 const { createClientValidation, updateClientValidation } = require('../middleware/validators/client.validators');
 const upload = require('../middleware/upload');
 
+const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
+
 // All routes are protected
 router.use(protect);
 
@@ -63,7 +65,7 @@ router.post('/:id/contract', restrictTo('admin', 'accountant'), upload.single('f
 
   // Delete old file if exists
   if (client.contractFile?.fileKey) {
-    const oldPath = path.join('uploads', client.contractFile.fileKey);
+    const oldPath = path.join(uploadsDir, client.contractFile.fileKey);
     if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
   }
 
@@ -83,7 +85,7 @@ router.get('/:id/contract', async (req, res) => {
   if (!client) return sendError(res, 'Client not found', 404);
   if (!client.contractFile?.fileKey) return sendError(res, 'No contract file found', 404);
 
-  const filePath = path.join('uploads', client.contractFile.fileKey);
+  const filePath = path.join(uploadsDir, client.contractFile.fileKey);
   if (!fs.existsSync(filePath)) return sendError(res, 'File not found on server', 404);
 
   const disposition = req.query.download === 'true' ? 'attachment' : 'inline';
@@ -98,7 +100,7 @@ router.delete('/:id/contract', restrictTo('admin', 'accountant'), async (req, re
   if (!client) return sendError(res, 'Client not found', 404);
   if (!client.contractFile?.fileKey) return sendError(res, 'No contract file found', 404);
 
-  const filePath = path.join('uploads', client.contractFile.fileKey);
+  const filePath = path.join(uploadsDir, client.contractFile.fileKey);
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
   client.contractFile = undefined;
