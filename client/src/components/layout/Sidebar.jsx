@@ -1,15 +1,15 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 const navItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: '📊', roles: null },
-  { path: '/drivers', label: 'Drivers', icon: '🚛', roles: null },
-  { path: '/attendance', label: 'Attendance', icon: '📋', roles: ['admin', 'ops'] },
-  { path: '/salary', label: 'Salary', icon: '💰', roles: ['admin', 'accountant'] },
-  { path: '/invoices', label: 'Invoices', icon: '🧾', roles: ['admin', 'accountant'] },
-  { path: '/clients', label: 'Clients', icon: '🤝', roles: ['admin', 'accountant'] },
-  { path: '/suppliers', label: 'Suppliers', icon: '📦', roles: ['admin'] },
-  { path: '/reports', label: 'Reports', icon: '📈', roles: null },
+  { path: '/dashboard', label: 'Dashboard', icon: '▦', roles: null },
+  { path: '/drivers', label: 'Drivers', icon: '◈', roles: null },
+  { path: '/attendance', label: 'Attendance', icon: '◉', roles: ['admin', 'ops'] },
+  { path: '/salary', label: 'Salary runs', icon: '◎', roles: ['admin', 'accountant'] },
+  { path: '/invoices', label: 'Invoices', icon: '◳', roles: ['admin', 'accountant'] },
+  { path: '/clients', label: 'Clients', icon: '◐', roles: ['admin', 'accountant'] },
+  { path: '/suppliers', label: 'Suppliers', icon: '◑', roles: ['admin'] },
+  { path: '/reports', label: 'Reports', icon: '◫', roles: null },
 ];
 
 const Sidebar = () => {
@@ -20,143 +20,154 @@ const Sidebar = () => {
   );
 
   return (
-    <aside style={styles.sidebar}>
-      <div style={styles.logo}>
-        <span style={styles.logoText}>LogiForce</span>
+    <aside
+      style={{
+        width: 'var(--sidebar-w)',
+        background: 'var(--surface)',
+        borderRight: '1px solid var(--border)',
+        height: '100vh',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        zIndex: 50,
+      }}
+    >
+      <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              background: 'linear-gradient(135deg,var(--accent),var(--accent2))',
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 14,
+              fontWeight: 600,
+              color: '#fff',
+              flexShrink: 0,
+            }}
+          >
+            L
+          </div>
+          <div>
+            <div style={{ fontFamily: 'var(--display)', fontSize: 15, fontWeight: 600, letterSpacing: '-0.3px' }}>
+              LogiForce
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text3)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              Workforce Platform
+            </div>
+          </div>
+        </div>
       </div>
 
-      <nav style={styles.nav}>
-        {visibleItems.map((item) => (
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+        <div
+          style={{
+            background: 'rgba(79,142,247,0.12)',
+            border: '1px solid rgba(79,142,247,0.25)',
+            borderRadius: 6,
+            padding: '6px 10px',
+            fontSize: 11,
+            color: 'var(--accent)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)' }} />
+          {role ? `${role.charAt(0).toUpperCase() + role.slice(1)}` : 'Admin'} · {user?.name || 'Finance Director'}
+        </div>
+      </div>
+
+      <nav style={{ flex: 1, overflowY: 'auto', padding: '8px 10px' }}>
+        {visibleItems.map((item, i) => (
           <NavLink
             key={item.path}
             to={item.path}
             style={({ isActive }) => ({
-              ...styles.navLink,
-              ...(isActive ? styles.navLinkActive : {}),
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              width: '100%',
+              padding: '9px 12px',
+              borderRadius: 8,
+              background: isActive ? 'rgba(79,142,247,0.12)' : 'transparent',
+              color: isActive ? 'var(--accent)' : 'var(--text2)',
+              fontWeight: isActive ? 500 : 400,
+              fontSize: 13,
+              marginBottom: 2,
+              textAlign: 'left',
+              textDecoration: 'none',
+              border: isActive ? '1px solid rgba(79,142,247,0.2)' : '1px solid transparent',
+              transition: 'all .15s',
+              animation: `slideIn 0.2s ease ${i * 0.04}s both`,
             })}
           >
-            <span style={styles.icon}>{item.icon}</span>
+            <span style={{ fontSize: 15, width: 18, textAlign: 'center', flexShrink: 0 }}>
+              {item.icon}
+            </span>
             {item.label}
           </NavLink>
         ))}
       </nav>
 
-      <div style={styles.userSection}>
-        <div style={styles.userInfo}>
-          <div style={styles.avatar}>
-            {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <div
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: '50%',
+              background: 'var(--surface3)',
+              border: '1px solid var(--border2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 11,
+              fontWeight: 500,
+              color: 'var(--accent)',
+            }}
+          >
+            {user?.name?.split(' ').map((n) => n[0]).join('') || 'FD'}
           </div>
-          <div style={styles.userDetails}>
-            <span style={styles.userName}>{user?.name || 'User'}</span>
-            <span style={styles.userRole}>{role}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 500,
+                color: 'var(--text)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {user?.name || 'Finance Director'}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text3)' }}>LogiForce Admin</div>
           </div>
         </div>
-        <button onClick={logout} style={styles.logoutBtn}>
-          Logout
+        <button
+          onClick={logout}
+          style={{
+            width: '100%',
+            padding: '6px',
+            borderRadius: 6,
+            border: '1px solid var(--border2)',
+            background: 'transparent',
+            color: 'var(--text3)',
+            fontSize: 11,
+            cursor: 'pointer',
+          }}
+        >
+          Sign out
         </button>
       </div>
     </aside>
   );
-};
-
-const styles = {
-  sidebar: {
-    width: '240px',
-    minHeight: '100vh',
-    background: '#1a1a2e',
-    color: '#fff',
-    display: 'flex',
-    flexDirection: 'column',
-    position: 'fixed',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    zIndex: 100,
-  },
-  logo: {
-    padding: '24px 20px',
-    borderBottom: '1px solid rgba(255,255,255,0.1)',
-  },
-  logoText: {
-    fontSize: '22px',
-    fontWeight: 700,
-    letterSpacing: '-0.5px',
-    color: '#c084fc',
-  },
-  nav: {
-    flex: 1,
-    padding: '12px 10px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
-    overflowY: 'auto',
-  },
-  navLink: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    padding: '10px 14px',
-    borderRadius: '8px',
-    color: 'rgba(255,255,255,0.65)',
-    textDecoration: 'none',
-    fontSize: '14px',
-    fontWeight: 500,
-    transition: 'background 0.15s, color 0.15s',
-  },
-  navLinkActive: {
-    background: 'rgba(192, 132, 252, 0.2)',
-    color: '#c084fc',
-  },
-  icon: {
-    fontSize: '18px',
-  },
-  userSection: {
-    padding: '16px',
-    borderTop: '1px solid rgba(255,255,255,0.1)',
-  },
-  userInfo: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    marginBottom: '12px',
-  },
-  avatar: {
-    width: '36px',
-    height: '36px',
-    borderRadius: '50%',
-    background: '#c084fc',
-    color: '#fff',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontWeight: 700,
-    fontSize: '14px',
-  },
-  userDetails: {
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  userName: {
-    fontSize: '13px',
-    fontWeight: 600,
-    color: '#fff',
-  },
-  userRole: {
-    fontSize: '11px',
-    color: 'rgba(255,255,255,0.5)',
-    textTransform: 'capitalize',
-  },
-  logoutBtn: {
-    width: '100%',
-    padding: '8px',
-    borderRadius: '6px',
-    border: '1px solid rgba(255,255,255,0.15)',
-    background: 'transparent',
-    color: 'rgba(255,255,255,0.7)',
-    cursor: 'pointer',
-    fontSize: '13px',
-    fontWeight: 500,
-  },
 };
 
 export default Sidebar;

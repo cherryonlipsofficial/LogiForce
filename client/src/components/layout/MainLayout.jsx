@@ -1,30 +1,29 @@
+import { useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import Topbar from './Topbar';
 
 const MainLayout = ({ children }) => {
+  const location = useLocation();
+  const page = location.pathname.split('/')[1] || 'dashboard';
+
   return (
-    <div style={styles.layout}>
+    <div style={{ display: 'flex', minHeight: '100vh' }}>
       <Sidebar />
-      <main style={styles.main}>
-        <div style={styles.content}>{children}</div>
+      <Topbar page={page} />
+      <main
+        style={{
+          marginLeft: 'var(--sidebar-w)',
+          marginTop: 'var(--topbar-h)',
+          flex: 1,
+          padding: 24,
+          minHeight: 'calc(100vh - var(--topbar-h))',
+          background: 'var(--bg)',
+        }}
+      >
+        {children}
       </main>
     </div>
   );
-};
-
-const styles = {
-  layout: {
-    display: 'flex',
-    minHeight: '100vh',
-  },
-  main: {
-    flex: 1,
-    marginLeft: '240px',
-    background: '#f5f5f7',
-    minHeight: '100vh',
-  },
-  content: {
-    padding: '24px 32px',
-  },
 };
 
 export default MainLayout;
