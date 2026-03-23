@@ -1,8 +1,257 @@
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
+import KpiCard from '../../components/ui/KpiCard';
+import Badge from '../../components/ui/Badge';
+import Btn from '../../components/ui/Btn';
+import Modal from '../../components/ui/Modal';
+import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import EmptyState from '../../components/ui/EmptyState';
+import SidePanel from '../../components/ui/SidePanel';
+import { getRuns, runPayroll, approveRun, getWpsFile } from '../../api/salaryApi';
+import { formatDate, formatCurrencyFull } from '../../utils/formatters';
+
+const fallbackRuns = [
+  { _id: 'SAL-001', client: 'Amazon UAE', period: 'Mar 2026', status: 'draft', totalGross: 856200, totalDeductions: 124800, totalNet: 731400, driverCount: 342, createdAt: '2026-03-21T08:00:00Z', approvedBy: null },
+  { _id: 'SAL-002', client: 'Noon', period: 'Mar 2026', status: 'approved', totalGross: 534000, totalDeductions: 78500, totalNet: 455500, driverCount: 218, createdAt: '2026-03-20T14:00:00Z', approvedBy: 'Finance Manager' },
+  { _id: 'SAL-003', client: 'Talabat', period: 'Mar 2026', status: 'approved', totalGross: 374400, totalDeductions: 52100, totalNet: 322300, driverCount: 156, createdAt: '2026-03-19T10:30:00Z', approvedBy: 'Finance Manager' },
+  { _id: 'SAL-004', client: 'Amazon UAE', period: 'Feb 2026', status: 'paid', totalGross: 849000, totalDeductions: 121500, totalNet: 727500, driverCount: 340, createdAt: '2026-02-20T08:00:00Z', approvedBy: 'Finance Manager' },
+  { _id: 'SAL-005', client: 'Noon', period: 'Feb 2026', status: 'paid', totalGross: 527000, totalDeductions: 76200, totalNet: 450800, driverCount: 215, createdAt: '2026-02-19T09:00:00Z', approvedBy: 'Finance Manager' },
+];
+
+const statusMap = {
+  draft: { label: 'Draft', variant: 'warning' },
+  approved: { label: 'Approved', variant: 'success' },
+  paid: { label: 'Paid', variant: 'info' },
+  cancelled: { label: 'Cancelled', variant: 'danger' },
+};
+
 const Salary = () => {
+  const [showRunModal, setShowRunModal] = useState(false);
+  const [selectedRun, setSelectedRun] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('all');
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['salary-runs'],
+    queryFn: () => getRuns(),
+    retry: 1,
+  });
+
+  const runs = data?.data || fallbackRuns;
+  const filtered = statusFilter === 'all' ? runs : runs.filter((r) => r.status === statusFilter);
+
+  const totalGross = runs.reduce((s, r) => s + (r.totalGross || 0), 0);
+  const totalNet = runs.reduce((s, r) => s + (r.totalNet || 0), 0);
+  const draftCount = runs.filter((r) => r.status === 'draft').length;
+
   return (
-    <div>
-      <h1>Salary</h1>
+    <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+        <KpiCard label="Total runs" value={runs.length} />
+        <KpiCard label="Gross payroll" value={formatCurrencyFull(totalGross)} />
+        <KpiCard label="Net payout" value={formatCurrencyFull(totalNet)} color="#4ade80" />
+        <KpiCard label="Pending approval" value={draftCount} color={draftCount > 0 ? '#fbbf24' : '#4ade80'} />
+      </div>
+
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ width: 180, height: 34 }}>
+            <option value="all">All statuses</option>
+            <option value="draft">Draft</option>
+            <option value="approved">Approved</option>
+            <option value="paid">Paid</option>
+          </select>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            <Btn small variant="primary" onClick={() => setShowRunModal(true)}>Run payroll</Btn>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <LoadingSpinner />
+        ) : filtered.length === 0 ? (
+          <EmptyState title="No salary runs" message="Run a payroll to get started." />
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%' }}>
+              <thead>
+                <tr>
+                  {['Run ID', 'Client', 'Period', 'Drivers', 'Gross', 'Deductions', 'Net', 'Status', 'Created'].map((h) => (
+                    <th key={h} style={{ padding: '9px 14px', fontSize: 11, color: 'var(--text3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'left', background: 'var(--surface2)' }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((r) => {
+                  const st = statusMap[r.status] || statusMap.draft;
+                  return (
+                    <tr
+                      key={r._id}
+                      onClick={() => setSelectedRun(r)}
+                      style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: 'background .1s' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <td style={{ padding: '11px 14px' }}>
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>{r._id}</span>
+                      </td>
+                      <td style={{ padding: '11px 14px', fontSize: 12 }}>{r.client}</td>
+                      <td style={{ padding: '11px 14px', fontSize: 12 }}>{r.period}</td>
+                      <td style={{ padding: '11px 14px' }}>
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{r.driverCount}</span>
+                      </td>
+                      <td style={{ padding: '11px 14px' }}>
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{formatCurrencyFull(r.totalGross)}</span>
+                      </td>
+                      <td style={{ padding: '11px 14px' }}>
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#f87171' }}>{formatCurrencyFull(r.totalDeductions)}</span>
+                      </td>
+                      <td style={{ padding: '11px 14px' }}>
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#4ade80' }}>{formatCurrencyFull(r.totalNet)}</span>
+                      </td>
+                      <td style={{ padding: '11px 14px' }}><Badge variant={st.variant}>{st.label}</Badge></td>
+                      <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--text3)' }}>{formatDate(r.createdAt)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text3)' }}>
+          Showing {filtered.length} of {runs.length} runs
+        </div>
+      </div>
+
+      {selectedRun && <RunDetail run={selectedRun} onClose={() => setSelectedRun(null)} />}
+      {showRunModal && <RunPayrollModal onClose={() => setShowRunModal(false)} />}
     </div>
+  );
+};
+
+const RunDetail = ({ run, onClose }) => {
+  const qc = useQueryClient();
+  const st = statusMap[run.status] || statusMap.draft;
+
+  const { mutate: approve, isLoading: approving } = useMutation({
+    mutationFn: () => approveRun(run._id),
+    onSuccess: () => {
+      toast.success('Payroll run approved');
+      qc.invalidateQueries(['salary-runs']);
+      onClose();
+    },
+    onError: () => toast.error('Failed to approve run'),
+  });
+
+  const handleWpsDownload = async () => {
+    try {
+      const blob = await getWpsFile(run._id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `WPS_${run.client}_${run.period}.sif`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('WPS file downloaded');
+    } catch {
+      toast.error('Failed to download WPS file');
+    }
+  };
+
+  return (
+    <SidePanel onClose={onClose}>
+      <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 500 }}>Payroll {run._id}</div>
+          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{run.client} &middot; {run.period}</div>
+        </div>
+        <button onClick={onClose} style={{ background: 'var(--surface3)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 8, padding: '4px 10px', fontSize: 16 }}>&times;</button>
+      </div>
+      <div style={{ padding: 24, overflowY: 'auto', flex: 1 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+          <InfoRow label="Status" value={<Badge variant={st.variant}>{st.label}</Badge>} />
+          <InfoRow label="Drivers" value={run.driverCount} />
+          <InfoRow label="Gross payroll" value={formatCurrencyFull(run.totalGross)} />
+          <InfoRow label="Total deductions" value={formatCurrencyFull(run.totalDeductions)} />
+          <InfoRow label="Net payout" value={<span style={{ color: '#4ade80' }}>{formatCurrencyFull(run.totalNet)}</span>} />
+          <InfoRow label="Created" value={formatDate(run.createdAt)} />
+          {run.approvedBy && <InfoRow label="Approved by" value={run.approvedBy} />}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {run.status === 'draft' && (
+            <Btn variant="primary" onClick={() => approve()} disabled={approving}>
+              {approving ? 'Approving...' : 'Approve run'}
+            </Btn>
+          )}
+          {(run.status === 'approved' || run.status === 'paid') && (
+            <Btn variant="ghost" onClick={handleWpsDownload}>Download WPS</Btn>
+          )}
+        </div>
+      </div>
+    </SidePanel>
+  );
+};
+
+const InfoRow = ({ label, value }) => (
+  <div>
+    <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 2 }}>{label}</div>
+    <div style={{ fontSize: 13 }}>{value}</div>
+  </div>
+);
+
+const RunPayrollModal = ({ onClose }) => {
+  const [client, setClient] = useState('');
+  const [period, setPeriod] = useState('Mar 2026');
+  const qc = useQueryClient();
+
+  const { mutate: run, isLoading } = useMutation({
+    mutationFn: (data) => runPayroll(data),
+    onSuccess: () => {
+      toast.success('Payroll run started');
+      qc.invalidateQueries(['salary-runs']);
+      onClose();
+    },
+    onError: () => toast.error('Failed to run payroll'),
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!client) {
+      toast.error('Please select a client');
+      return;
+    }
+    run({ client, period });
+  };
+
+  const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 4 };
+
+  return (
+    <Modal title="Run payroll" onClose={onClose} width={420}>
+      <form onSubmit={handleSubmit}>
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>Client *</label>
+          <select value={client} onChange={(e) => setClient(e.target.value)} style={{ width: '100%' }}>
+            <option value="">Select client</option>
+            <option value="Amazon UAE">Amazon UAE</option>
+            <option value="Noon">Noon</option>
+            <option value="Talabat">Talabat</option>
+          </select>
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>Period *</label>
+          <input value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="Mar 2026" />
+        </div>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+          <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+          <Btn variant="primary" type="submit" disabled={isLoading}>
+            {isLoading ? 'Running...' : 'Run payroll'}
+          </Btn>
+        </div>
+      </form>
+    </Modal>
   );
 };
 

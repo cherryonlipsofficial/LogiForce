@@ -22,104 +22,100 @@ const Login = () => {
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <h1 style={styles.title}>LogiForce</h1>
-        <p style={styles.subtitle}>Sign in to your account</p>
-        <form onSubmit={handleSubmit(onSubmit)} style={styles.form}>
-          <div style={styles.field}>
-            <label style={styles.label}>Email</label>
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--bg)',
+      }}
+    >
+      <div
+        style={{
+          width: 380,
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '40px 32px',
+        }}
+      >
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div
+            style={{
+              fontSize: 24,
+              fontWeight: 700,
+              letterSpacing: '-0.5px',
+              marginBottom: 4,
+              background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >
+            LogiForce
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--text3)' }}>Sign in to your account</div>
+        </div>
+
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 6 }}>
+              Email
+            </label>
             <input
               type="email"
               {...register('email', { required: 'Email is required' })}
-              style={styles.input}
-              placeholder="you@example.com"
+              placeholder="admin@logiforce.ae"
+              style={{ width: '100%', height: 40, fontSize: 13 }}
+              autoComplete="email"
             />
-            {errors.email && <span style={styles.error}>{errors.email.message}</span>}
+            {errors.email && (
+              <span style={{ color: '#f87171', fontSize: 11, marginTop: 2, display: 'block' }}>
+                {errors.email.message}
+              </span>
+            )}
           </div>
-          <div style={styles.field}>
-            <label style={styles.label}>Password</label>
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 6 }}>
+              Password
+            </label>
             <input
               type="password"
               {...register('password', { required: 'Password is required' })}
-              style={styles.input}
-              placeholder="••••••••"
+              placeholder="Enter your password"
+              style={{ width: '100%', height: 40, fontSize: 13 }}
+              autoComplete="current-password"
             />
-            {errors.password && <span style={styles.error}>{errors.password.message}</span>}
+            {errors.password && (
+              <span style={{ color: '#f87171', fontSize: 11, marginTop: 2, display: 'block' }}>
+                {errors.password.message}
+              </span>
+            )}
           </div>
-          <button type="submit" disabled={isSubmitting} style={styles.button}>
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            style={{
+              width: '100%',
+              height: 42,
+              background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
+              border: 'none',
+              borderRadius: 8,
+              color: '#fff',
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: isSubmitting ? 'not-allowed' : 'pointer',
+              opacity: isSubmitting ? 0.6 : 1,
+              transition: 'opacity .15s',
+            }}
+          >
             {isSubmitting ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
       </div>
     </div>
   );
-};
-
-const styles = {
-  container: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f3f4f6',
-  },
-  card: {
-    backgroundColor: '#fff',
-    padding: '2rem',
-    borderRadius: '8px',
-    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-    width: '100%',
-    maxWidth: '400px',
-  },
-  title: {
-    fontSize: '1.5rem',
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: '0.25rem',
-  },
-  subtitle: {
-    textAlign: 'center',
-    color: '#6b7280',
-    marginBottom: '1.5rem',
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
-  },
-  field: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.25rem',
-  },
-  label: {
-    fontSize: '0.875rem',
-    fontWeight: '500',
-    color: '#374151',
-  },
-  input: {
-    padding: '0.5rem 0.75rem',
-    border: '1px solid #d1d5db',
-    borderRadius: '6px',
-    fontSize: '1rem',
-    outline: 'none',
-  },
-  error: {
-    color: '#ef4444',
-    fontSize: '0.75rem',
-  },
-  button: {
-    padding: '0.625rem',
-    backgroundColor: '#2563eb',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '6px',
-    fontSize: '1rem',
-    fontWeight: '500',
-    cursor: 'pointer',
-    marginTop: '0.5rem',
-  },
 };
 
 export default Login;
