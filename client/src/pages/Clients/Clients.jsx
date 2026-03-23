@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -9,7 +9,8 @@ import Modal from '../../components/ui/Modal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
-import { getClients, createClient, updateClient, deleteClient } from '../../api/clientsApi';
+import { useAuth } from '../../context/AuthContext';
+import { getClients, createClient, updateClient, deleteClient, uploadContract, deleteContract } from '../../api/clientsApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
 
 const fallbackClients = [
@@ -21,11 +22,21 @@ const fallbackClients = [
 
 const isClientActive = (c) => c.isActive !== undefined ? c.isActive : c.status === 'active';
 
+const toDateInput = (val) => {
+  if (!val) return '';
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return '';
+  return d.toISOString().split('T')[0];
+};
+
+const canEdit = (role) => role === 'admin' || role === 'accountant';
+
 const Clients = () => {
   const [search, setSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
+  const { role } = useAuth();
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -75,7 +86,7 @@ const Clients = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search clients..." style={{ width: 260, height: 34 }} />
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <Btn small variant="primary" onClick={() => setShowAddModal(true)}>+ Add client</Btn>
+            {canEdit(role) && <Btn small variant="primary" onClick={() => setShowAddModal(true)}>+ Add client</Btn>}
           </div>
         </div>
 
@@ -137,15 +148,92 @@ const Clients = () => {
         </div>
       </div>
 
-      {selectedClient && <ClientDetail client={selectedClient} onClose={() => setSelectedClient(null)} onEdit={handleEdit} onDelete={handleDelete} />}
+      {selectedClient && <ClientDetail client={selectedClient} onClose={() => setSelectedClient(null)} onEdit={handleEdit} onDelete={handleDelete} role={role} />}
       {showAddModal && <ClientFormModal onClose={() => setShowAddModal(false)} />}
       {editingClient && <ClientFormModal client={editingClient} onClose={() => setEditingClient(null)} />}
     </div>
   );
 };
 
-const ClientDetail = ({ client, onClose, onEdit, onDelete }) => {
+const ClientDetail = ({ client, onClose, onEdit, onDelete, role }) => {
   const active = isClientActive(client);
+  const qc = useQueryClient();
+
+  const { mutate: doUpload, isLoading: uploading } = useMutation({
+    mutationFn: (file) => uploadContract(client._id, file),
+    onSuccess: () => {
+      toast.success('Contract uploaded');
+      qc.invalidateQueries(['clients']);
+    },
+    onError: () => toast.error('Failed to upload contract'),
+  });
+
+  const { mutate: doDeleteContract } = useMutation({
+    mutationFn: () => deleteContract(client._id),
+    onSuccess: () => {
+      toast.success('Contract removed');
+      qc.invalidateQueries(['clients']);
+    },
+    onError: () => toast.error('Failed to remove contract'),
+  });
+
+  const fileInputRef = useRef(null);
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf') {
+      toast.error('Only PDF files are allowed');
+      return;
+    }
+    doUpload(file);
+    e.target.value = '';
+  };
+
+  const handleViewContract = () => {
+    const token = localStorage.getItem('token');
+    const base = import.meta.env.VITE_API_URL || 'https://logiforce.onrender.com/api';
+    const url = `${base}/clients/${client._id}/contract`;
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch');
+        return res.blob();
+      })
+      .then(blob => {
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, '_blank');
+      })
+      .catch(() => toast.error('Failed to load contract'));
+  };
+
+  const handleDownloadContract = () => {
+    const token = localStorage.getItem('token');
+    const base = import.meta.env.VITE_API_URL || 'https://logiforce.onrender.com/api';
+    const url = `${base}/clients/${client._id}/contract?download=true`;
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch');
+        return res.blob();
+      })
+      .then(blob => {
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = client.contractFile?.originalName || 'contract.pdf';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+      })
+      .catch(() => toast.error('Failed to download contract'));
+  };
+
+  const handleRemoveContract = () => {
+    if (window.confirm('Remove the contract file? This cannot be undone.')) {
+      doDeleteContract();
+    }
+  };
+
   return (
     <SidePanel onClose={onClose}>
       <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -156,8 +244,8 @@ const ClientDetail = ({ client, onClose, onEdit, onDelete }) => {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <Btn small variant="ghost" onClick={() => onEdit(client)}>Edit</Btn>
-          <Btn small variant="ghost" onClick={() => onDelete(client)} style={{ color: '#f87171' }}>Delete</Btn>
+          {canEdit(role) && <Btn small variant="ghost" onClick={() => onEdit(client)}>Edit</Btn>}
+          {role === 'admin' && <Btn small variant="ghost" onClick={() => onDelete(client)} style={{ color: '#f87171' }}>Delete</Btn>}
           <button onClick={onClose} style={{ background: 'var(--surface3)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 8, padding: '4px 10px', fontSize: 16 }}>&times;</button>
         </div>
       </div>
@@ -171,7 +259,45 @@ const ClientDetail = ({ client, onClose, onEdit, onDelete }) => {
           <InfoRow label="Rate per driver" value={client.ratePerDriver ? formatCurrencyFull(client.ratePerDriver) : '—'} />
           <InfoRow label="Billing currency" value={client.billingCurrency || 'AED'} />
           <InfoRow label="Payment terms" value={client.paymentTerms} />
+          <InfoRow label="Contract start" value={formatDate(client.contractStart)} />
+          <InfoRow label="Contract end" value={formatDate(client.contractEnd)} />
           <InfoRow label="Driver count" value={client.driverCount} />
+        </div>
+
+        {/* Contract file section */}
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10 }}>Contract document</div>
+          {client.contractFile?.fileKey ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'var(--surface2)', borderRadius: 8, border: '1px solid var(--border)' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#f87171', flexShrink: 0 }}>
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+              </svg>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{client.contractFile.originalName}</div>
+                {client.contractFile.uploadedAt && <div style={{ fontSize: 10, color: 'var(--text3)' }}>Uploaded {formatDate(client.contractFile.uploadedAt)}</div>}
+              </div>
+              <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                <Btn small variant="ghost" onClick={handleViewContract}>View</Btn>
+                <Btn small variant="ghost" onClick={handleDownloadContract}>Download</Btn>
+                {canEdit(role) && <Btn small variant="ghost" onClick={handleRemoveContract} style={{ color: '#f87171' }}>Remove</Btn>}
+              </div>
+            </div>
+          ) : (
+            <div style={{ padding: '14px', background: 'var(--surface2)', borderRadius: 8, border: '1px dashed var(--border2)', textAlign: 'center' }}>
+              <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 6 }}>No contract uploaded</div>
+              {canEdit(role) && (
+                <>
+                  <input ref={fileInputRef} type="file" accept=".pdf" onChange={handleFileSelect} style={{ display: 'none' }} />
+                  <Btn small variant="primary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                    {uploading ? 'Uploading...' : 'Upload contract PDF'}
+                  </Btn>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </SidePanel>
@@ -198,6 +324,8 @@ const ClientFormModal = ({ client, onClose }) => {
       tradeLicenceNo: client.tradeLicenceNo || '',
       ratePerDriver: client.ratePerDriver || '',
       billingCurrency: client.billingCurrency || 'AED',
+      contractStart: toDateInput(client.contractStart),
+      contractEnd: toDateInput(client.contractEnd),
       isActive: client.isActive !== undefined ? String(client.isActive) : 'true',
     } : {
       paymentTerms: 'Net 30',
@@ -209,7 +337,13 @@ const ClientFormModal = ({ client, onClose }) => {
 
   const { mutate: save, isLoading } = useMutation({
     mutationFn: (data) => {
-      const payload = { ...data, ratePerDriver: Number(data.ratePerDriver), isActive: data.isActive === true || data.isActive === 'true' };
+      const payload = {
+        ...data,
+        ratePerDriver: Number(data.ratePerDriver),
+        isActive: data.isActive === true || data.isActive === 'true',
+        contractStart: data.contractStart || null,
+        contractEnd: data.contractEnd || null,
+      };
       return isEdit ? updateClient(client._id, payload) : createClient(payload);
     },
     onSuccess: () => {
@@ -272,6 +406,14 @@ const ClientFormModal = ({ client, onClose }) => {
           <div style={fieldStyle}>
             <label style={labelStyle}>Trade licence no.</label>
             <input {...register('tradeLicenceNo')} placeholder="TL-2024-XXX-001" />
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Contract start</label>
+            <input type="date" {...register('contractStart')} />
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Contract end</label>
+            <input type="date" {...register('contractEnd')} />
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Status</label>

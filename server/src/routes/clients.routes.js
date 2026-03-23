@@ -1,11 +1,14 @@
 const express = require('express');
 const router = express.Router();
+const path = require('path');
+const fs = require('fs');
 const { protect, restrictTo } = require('../middleware/auth');
 const { Client, Driver } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
 const validate = require('../middleware/validate');
 const { createClientValidation, updateClientValidation } = require('../middleware/validators/client.validators');
+const upload = require('../middleware/upload');
 
 // All routes are protected
 router.use(protect);
@@ -16,8 +19,8 @@ router.get('/', async (req, res) => {
   sendSuccess(res, clients);
 });
 
-// POST /api/clients — create (admin)
-router.post('/', restrictTo('admin'), validate(createClientValidation), async (req, res) => {
+// POST /api/clients — create (admin, accountant)
+router.post('/', restrictTo('admin', 'accountant'), validate(createClientValidation), async (req, res) => {
   const client = await Client.create(req.body);
   sendSuccess(res, client, 'Client created', 201);
 });
@@ -34,8 +37,8 @@ router.get('/:id', async (req, res) => {
   sendSuccess(res, result);
 });
 
-// PUT /api/clients/:id — update (admin)
-router.put('/:id', restrictTo('admin'), validate(updateClientValidation), async (req, res) => {
+// PUT /api/clients/:id — update (admin, accountant)
+router.put('/:id', restrictTo('admin', 'accountant'), validate(updateClientValidation), async (req, res) => {
   const client = await Client.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
     runValidators: true,
@@ -49,6 +52,59 @@ router.delete('/:id', restrictTo('admin'), async (req, res) => {
   const client = await Client.findByIdAndDelete(req.params.id);
   if (!client) return sendError(res, 'Client not found', 404);
   sendSuccess(res, null, 'Client deleted');
+});
+
+// POST /api/clients/:id/contract — upload contract PDF (admin, accountant)
+router.post('/:id/contract', restrictTo('admin', 'accountant'), upload.single('file'), async (req, res) => {
+  if (!req.file) return sendError(res, 'No file uploaded');
+
+  const client = await Client.findById(req.params.id);
+  if (!client) return sendError(res, 'Client not found', 404);
+
+  // Delete old file if exists
+  if (client.contractFile?.fileKey) {
+    const oldPath = path.join('uploads', client.contractFile.fileKey);
+    if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+  }
+
+  client.contractFile = {
+    fileKey: req.file.filename,
+    originalName: req.file.originalname,
+    uploadedAt: new Date(),
+  };
+  await client.save();
+
+  sendSuccess(res, client, 'Contract uploaded');
+});
+
+// GET /api/clients/:id/contract — download/view contract PDF (all authenticated users)
+router.get('/:id/contract', async (req, res) => {
+  const client = await Client.findById(req.params.id);
+  if (!client) return sendError(res, 'Client not found', 404);
+  if (!client.contractFile?.fileKey) return sendError(res, 'No contract file found', 404);
+
+  const filePath = path.join('uploads', client.contractFile.fileKey);
+  if (!fs.existsSync(filePath)) return sendError(res, 'File not found on server', 404);
+
+  const disposition = req.query.download === 'true' ? 'attachment' : 'inline';
+  res.setHeader('Content-Disposition', `${disposition}; filename="${client.contractFile.originalName}"`);
+  res.setHeader('Content-Type', 'application/pdf');
+  fs.createReadStream(filePath).pipe(res);
+});
+
+// DELETE /api/clients/:id/contract — remove contract file (admin, accountant)
+router.delete('/:id/contract', restrictTo('admin', 'accountant'), async (req, res) => {
+  const client = await Client.findById(req.params.id);
+  if (!client) return sendError(res, 'Client not found', 404);
+  if (!client.contractFile?.fileKey) return sendError(res, 'No contract file found', 404);
+
+  const filePath = path.join('uploads', client.contractFile.fileKey);
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+  client.contractFile = undefined;
+  await client.save();
+
+  sendSuccess(res, client, 'Contract removed');
 });
 
 // GET /api/clients/:id/drivers — list drivers for this client

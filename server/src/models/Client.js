@@ -42,6 +42,17 @@ const clientSchema = new mongoose.Schema(
       requireLabourCard: { type: Boolean, default: true },
       gracePeriodDays: { type: Number, default: 0 },
     },
+    contractStart: {
+      type: Date,
+    },
+    contractEnd: {
+      type: Date,
+    },
+    contractFile: {
+      fileKey: { type: String },
+      originalName: { type: String },
+      uploadedAt: { type: Date },
+    },
     isActive: {
       type: Boolean,
       default: true,
