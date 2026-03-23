@@ -163,20 +163,29 @@ const ClientDetail = ({ client, onClose, onEdit, onDelete, role }) => {
   const active = isClientActive(client);
   const qc = useQueryClient();
 
+  const updateClientInCache = (updatedClient) => {
+    qc.setQueryData(['clients'], (old) => {
+      if (!old?.data) return old;
+      return { ...old, data: old.data.map((c) => (c._id === updatedClient._id ? { ...c, ...updatedClient } : c)) };
+    });
+  };
+
   const { mutate: doUpload, isLoading: uploading } = useMutation({
     mutationFn: (file) => uploadContract(client._id, file),
-    onSuccess: () => {
+    onSuccess: (res) => {
       toast.success('Contract uploaded');
-      qc.invalidateQueries(['clients']);
+      if (res?.data) updateClientInCache(res.data);
+      else qc.invalidateQueries(['clients']);
     },
     onError: () => toast.error('Failed to upload contract'),
   });
 
   const { mutate: doDeleteContract } = useMutation({
     mutationFn: () => deleteContract(client._id),
-    onSuccess: () => {
+    onSuccess: (res) => {
       toast.success('Contract removed');
-      qc.invalidateQueries(['clients']);
+      if (res?.data) updateClientInCache(res.data);
+      else qc.invalidateQueries(['clients']);
     },
     onError: () => toast.error('Failed to remove contract'),
   });
