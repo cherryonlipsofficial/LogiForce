@@ -44,6 +44,13 @@ router.put('/:id', restrictTo('admin'), validate(updateClientValidation), async 
   sendSuccess(res, client, 'Client updated');
 });
 
+// DELETE /api/clients/:id — delete (admin)
+router.delete('/:id', restrictTo('admin'), async (req, res) => {
+  const client = await Client.findByIdAndDelete(req.params.id);
+  if (!client) return sendError(res, 'Client not found', 404);
+  sendSuccess(res, null, 'Client deleted');
+});
+
 // GET /api/clients/:id/drivers — list drivers for this client
 router.get('/:id/drivers', async (req, res) => {
   const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;

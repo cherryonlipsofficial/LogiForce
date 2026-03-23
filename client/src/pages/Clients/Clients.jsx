@@ -9,20 +9,24 @@ import Modal from '../../components/ui/Modal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
-import { getClients, createClient, updateClient } from '../../api/clientsApi';
+import { getClients, createClient, updateClient, deleteClient } from '../../api/clientsApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
 
 const fallbackClients = [
-  { _id: 'CLI-001', name: 'Amazon UAE', contactPerson: 'Ahmad Hassan', email: 'ahmad@amazon.ae', phone: '+971 4 123 4567', status: 'active', driverCount: 342, monthlyBilling: 892400, contractStart: '2024-01-01', contractEnd: '2026-12-31', paymentTerms: 'Net 30', trn: 'TRN-100234567890003' },
-  { _id: 'CLI-002', name: 'Noon', contactPerson: 'Fatima Al Zahra', email: 'fatima@noon.com', phone: '+971 4 234 5678', status: 'active', driverCount: 218, monthlyBilling: 558700, contractStart: '2024-06-01', contractEnd: '2026-05-31', paymentTerms: 'Net 30', trn: 'TRN-100345678901234' },
-  { _id: 'CLI-003', name: 'Talabat', contactPerson: 'Khalid Mustafa', email: 'khalid@talabat.com', phone: '+971 4 345 6789', status: 'active', driverCount: 156, monthlyBilling: 389200, contractStart: '2025-01-01', contractEnd: '2027-12-31', paymentTerms: 'Net 45', trn: 'TRN-100456789012345' },
-  { _id: 'CLI-004', name: 'Careem', contactPerson: 'Layla Ibrahim', email: 'layla@careem.com', phone: '+971 4 456 7890', status: 'inactive', driverCount: 0, monthlyBilling: 0, contractStart: '2023-01-01', contractEnd: '2025-12-31', paymentTerms: 'Net 30', trn: 'TRN-100567890123456' },
+  { _id: 'CLI-001', name: 'Amazon UAE', contactName: 'Ahmad Hassan', contactEmail: 'ahmad@amazon.ae', contactPhone: '+971 4 123 4567', isActive: true, driverCount: 342, monthlyBilling: 892400, contractStart: '2024-01-01', contractEnd: '2026-12-31', paymentTerms: 'Net 30', vatNo: 'TRN-100234567890003', ratePerDriver: 2600, billingCurrency: 'AED' },
+  { _id: 'CLI-002', name: 'Noon', contactName: 'Fatima Al Zahra', contactEmail: 'fatima@noon.com', contactPhone: '+971 4 234 5678', isActive: true, driverCount: 218, monthlyBilling: 558700, contractStart: '2024-06-01', contractEnd: '2026-05-31', paymentTerms: 'Net 30', vatNo: 'TRN-100345678901234', ratePerDriver: 2563, billingCurrency: 'AED' },
+  { _id: 'CLI-003', name: 'Talabat', contactName: 'Khalid Mustafa', contactEmail: 'khalid@talabat.com', contactPhone: '+971 4 345 6789', isActive: true, driverCount: 156, monthlyBilling: 389200, contractStart: '2025-01-01', contractEnd: '2027-12-31', paymentTerms: 'Net 45', vatNo: 'TRN-100456789012345', ratePerDriver: 2495, billingCurrency: 'AED' },
+  { _id: 'CLI-004', name: 'Careem', contactName: 'Layla Ibrahim', contactEmail: 'layla@careem.com', contactPhone: '+971 4 456 7890', isActive: false, driverCount: 0, monthlyBilling: 0, contractStart: '2023-01-01', contractEnd: '2025-12-31', paymentTerms: 'Net 30', vatNo: 'TRN-100567890123456', ratePerDriver: 2400, billingCurrency: 'AED' },
 ];
+
+const isClientActive = (c) => c.isActive !== undefined ? c.isActive : c.status === 'active';
 
 const Clients = () => {
   const [search, setSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingClient, setEditingClient] = useState(null);
+  const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ['clients'],
@@ -30,12 +34,33 @@ const Clients = () => {
     retry: 1,
   });
 
+  const { mutate: doDelete } = useMutation({
+    mutationFn: (id) => deleteClient(id),
+    onSuccess: () => {
+      toast.success('Client deleted');
+      qc.invalidateQueries(['clients']);
+      setSelectedClient(null);
+    },
+    onError: () => toast.error('Failed to delete client'),
+  });
+
   const clients = data?.data || fallbackClients;
-  const filtered = clients.filter((c) => c.name?.toLowerCase().includes(search.toLowerCase()) || c.contactPerson?.toLowerCase().includes(search.toLowerCase()));
+  const filtered = clients.filter((c) => c.name?.toLowerCase().includes(search.toLowerCase()) || c.contactName?.toLowerCase().includes(search.toLowerCase()));
 
   const totalDrivers = clients.reduce((s, c) => s + (c.driverCount || 0), 0);
   const totalBilling = clients.reduce((s, c) => s + (c.monthlyBilling || 0), 0);
-  const activeCount = clients.filter((c) => c.status === 'active').length;
+  const activeCount = clients.filter((c) => isClientActive(c)).length;
+
+  const handleEdit = (client) => {
+    setSelectedClient(null);
+    setEditingClient(client);
+  };
+
+  const handleDelete = (client) => {
+    if (window.confirm(`Are you sure you want to delete "${client.name}"? This action cannot be undone.`)) {
+      doDelete(client._id);
+    }
+  };
 
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -63,7 +88,7 @@ const Clients = () => {
             <table style={{ width: '100%' }}>
               <thead>
                 <tr>
-                  {['Client', 'Contact', 'Drivers', 'Monthly billing', 'Payment terms', 'Contract end', 'Status'].map((h) => (
+                  {['Client', 'Contact', 'Drivers', 'Rate/Driver', 'Payment terms', 'Contract end', 'Status'].map((h) => (
                     <th key={h} style={{ padding: '9px 14px', fontSize: 11, color: 'var(--text3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'left', background: 'var(--surface2)' }}>
                       {h}
                     </th>
@@ -71,34 +96,37 @@ const Clients = () => {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((c) => (
-                  <tr
-                    key={c._id}
-                    onClick={() => setSelectedClient(c)}
-                    style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: 'background .1s' }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <td style={{ padding: '11px 14px' }}>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{c.name}</div>
-                    </td>
-                    <td style={{ padding: '11px 14px' }}>
-                      <div style={{ fontSize: 12 }}>{c.contactPerson}</div>
-                      <div style={{ fontSize: 10, color: 'var(--text3)' }}>{c.email}</div>
-                    </td>
-                    <td style={{ padding: '11px 14px' }}>
-                      <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{c.driverCount}</span>
-                    </td>
-                    <td style={{ padding: '11px 14px' }}>
-                      <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{formatCurrencyFull(c.monthlyBilling)}</span>
-                    </td>
-                    <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--text2)' }}>{c.paymentTerms}</td>
-                    <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--text3)' }}>{formatDate(c.contractEnd)}</td>
-                    <td style={{ padding: '11px 14px' }}>
-                      <Badge variant={c.status === 'active' ? 'success' : 'default'}>{c.status === 'active' ? 'Active' : 'Inactive'}</Badge>
-                    </td>
-                  </tr>
-                ))}
+                {filtered.map((c) => {
+                  const active = isClientActive(c);
+                  return (
+                    <tr
+                      key={c._id}
+                      onClick={() => setSelectedClient(c)}
+                      style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: 'background .1s' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <td style={{ padding: '11px 14px' }}>
+                        <div style={{ fontSize: 13, fontWeight: 500 }}>{c.name}</div>
+                      </td>
+                      <td style={{ padding: '11px 14px' }}>
+                        <div style={{ fontSize: 12 }}>{c.contactName}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text3)' }}>{c.contactEmail}</div>
+                      </td>
+                      <td style={{ padding: '11px 14px' }}>
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{c.driverCount}</span>
+                      </td>
+                      <td style={{ padding: '11px 14px' }}>
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{c.ratePerDriver ? formatCurrencyFull(c.ratePerDriver) : '—'}</span>
+                      </td>
+                      <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--text2)' }}>{c.paymentTerms}</td>
+                      <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--text3)' }}>{formatDate(c.contractEnd)}</td>
+                      <td style={{ padding: '11px 14px' }}>
+                        <Badge variant={active ? 'success' : 'default'}>{active ? 'Active' : 'Inactive'}</Badge>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -109,35 +137,40 @@ const Clients = () => {
         </div>
       </div>
 
-      {selectedClient && <ClientDetail client={selectedClient} onClose={() => setSelectedClient(null)} />}
-      {showAddModal && <AddClientModal onClose={() => setShowAddModal(false)} />}
+      {selectedClient && <ClientDetail client={selectedClient} onClose={() => setSelectedClient(null)} onEdit={handleEdit} onDelete={handleDelete} />}
+      {showAddModal && <ClientFormModal onClose={() => setShowAddModal(false)} />}
+      {editingClient && <ClientFormModal client={editingClient} onClose={() => setEditingClient(null)} />}
     </div>
   );
 };
 
-const ClientDetail = ({ client, onClose }) => {
+const ClientDetail = ({ client, onClose, onEdit, onDelete }) => {
+  const active = isClientActive(client);
   return (
     <SidePanel onClose={onClose}>
       <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontSize: 16, fontWeight: 500 }}>{client.name}</div>
           <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
-            <Badge variant={client.status === 'active' ? 'success' : 'default'}>{client.status === 'active' ? 'Active' : 'Inactive'}</Badge>
+            <Badge variant={active ? 'success' : 'default'}>{active ? 'Active' : 'Inactive'}</Badge>
           </div>
         </div>
-        <button onClick={onClose} style={{ background: 'var(--surface3)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 8, padding: '4px 10px', fontSize: 16 }}>&times;</button>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <Btn small variant="ghost" onClick={() => onEdit(client)}>Edit</Btn>
+          <Btn small variant="ghost" onClick={() => onDelete(client)} style={{ color: '#f87171' }}>Delete</Btn>
+          <button onClick={onClose} style={{ background: 'var(--surface3)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 8, padding: '4px 10px', fontSize: 16 }}>&times;</button>
+        </div>
       </div>
       <div style={{ padding: 24, overflowY: 'auto', flex: 1 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
-          <InfoRow label="Contact person" value={client.contactPerson} />
-          <InfoRow label="Email" value={client.email} />
-          <InfoRow label="Phone" value={client.phone} />
-          <InfoRow label="TRN" value={client.trn} />
+          <InfoRow label="Contact person" value={client.contactName} />
+          <InfoRow label="Email" value={client.contactEmail} />
+          <InfoRow label="Phone" value={client.contactPhone} />
+          <InfoRow label="VAT / TRN" value={client.vatNo} />
+          <InfoRow label="Rate per driver" value={client.ratePerDriver ? formatCurrencyFull(client.ratePerDriver) : '—'} />
+          <InfoRow label="Billing currency" value={client.billingCurrency || 'AED'} />
           <InfoRow label="Payment terms" value={client.paymentTerms} />
           <InfoRow label="Driver count" value={client.driverCount} />
-          <InfoRow label="Monthly billing" value={formatCurrencyFull(client.monthlyBilling)} />
-          <InfoRow label="Contract start" value={formatDate(client.contractStart)} />
-          <InfoRow label="Contract end" value={formatDate(client.contractEnd)} />
         </div>
       </div>
     </SidePanel>
@@ -147,30 +180,50 @@ const ClientDetail = ({ client, onClose }) => {
 const InfoRow = ({ label, value }) => (
   <div>
     <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 2 }}>{label}</div>
-    <div style={{ fontSize: 13 }}>{value}</div>
+    <div style={{ fontSize: 13 }}>{value || '—'}</div>
   </div>
 );
 
-const AddClientModal = ({ onClose }) => {
-  const { register, handleSubmit, formState: { errors } } = useForm();
+const ClientFormModal = ({ client, onClose }) => {
+  const isEdit = !!client;
+  const { register, handleSubmit, formState: { errors } } = useForm({
+    defaultValues: isEdit ? {
+      name: client.name || '',
+      contactName: client.contactName || '',
+      contactEmail: client.contactEmail || '',
+      contactPhone: client.contactPhone || '',
+      paymentTerms: client.paymentTerms || 'Net 30',
+      vatNo: client.vatNo || '',
+      ratePerDriver: client.ratePerDriver || '',
+      billingCurrency: client.billingCurrency || 'AED',
+      isActive: client.isActive !== undefined ? client.isActive : true,
+    } : {
+      paymentTerms: 'Net 30',
+      billingCurrency: 'AED',
+      isActive: true,
+    },
+  });
   const qc = useQueryClient();
 
-  const { mutate: create, isLoading } = useMutation({
-    mutationFn: (data) => createClient(data),
+  const { mutate: save, isLoading } = useMutation({
+    mutationFn: (data) => {
+      const payload = { ...data, ratePerDriver: Number(data.ratePerDriver), isActive: data.isActive === true || data.isActive === 'true' };
+      return isEdit ? updateClient(client._id, payload) : createClient(payload);
+    },
     onSuccess: () => {
-      toast.success('Client created');
+      toast.success(isEdit ? 'Client updated' : 'Client created');
       qc.invalidateQueries(['clients']);
       onClose();
     },
-    onError: () => toast.error('Failed to create client'),
+    onError: (err) => toast.error(err?.response?.data?.message || (isEdit ? 'Failed to update client' : 'Failed to create client')),
   });
 
   const fieldStyle = { marginBottom: 14 };
   const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 4 };
 
   return (
-    <Modal title="Add new client" onClose={onClose} width={520}>
-      <form onSubmit={handleSubmit((data) => create(data))}>
+    <Modal title={isEdit ? 'Edit client' : 'Add new client'} onClose={onClose} width={520}>
+      <form onSubmit={handleSubmit((data) => save(data))}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div style={fieldStyle}>
             <label style={labelStyle}>Company name *</label>
@@ -178,17 +231,29 @@ const AddClientModal = ({ onClose }) => {
             {errors.name && <span style={{ color: '#f87171', fontSize: 11 }}>Required</span>}
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>Contact person *</label>
-            <input {...register('contactPerson', { required: true })} placeholder="John Doe" />
-            {errors.contactPerson && <span style={{ color: '#f87171', fontSize: 11 }}>Required</span>}
+            <label style={labelStyle}>Contact person</label>
+            <input {...register('contactName')} placeholder="John Doe" />
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Email</label>
-            <input type="email" {...register('email')} placeholder="contact@company.com" />
+            <input type="email" {...register('contactEmail')} placeholder="contact@company.com" />
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Phone</label>
-            <input {...register('phone')} placeholder="+971 4 123 4567" />
+            <input {...register('contactPhone')} placeholder="+971 4 123 4567" />
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Rate per driver *</label>
+            <input type="number" step="any" {...register('ratePerDriver', { required: true, min: 0 })} placeholder="2500" />
+            {errors.ratePerDriver && <span style={{ color: '#f87171', fontSize: 11 }}>Required (positive number)</span>}
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Billing currency</label>
+            <select {...register('billingCurrency')}>
+              <option value="AED">AED</option>
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+            </select>
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Payment terms</label>
@@ -199,13 +264,20 @@ const AddClientModal = ({ onClose }) => {
             </select>
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>TRN</label>
-            <input {...register('trn')} placeholder="TRN-XXXXXXXXXX" />
+            <label style={labelStyle}>VAT / TRN</label>
+            <input {...register('vatNo')} placeholder="TRN-XXXXXXXXXX" />
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Status</label>
+            <select {...register('isActive')}>
+              <option value={true}>Active</option>
+              <option value={false}>Inactive</option>
+            </select>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-          <Btn variant="primary" type="submit" disabled={isLoading}>{isLoading ? 'Creating...' : 'Create client'}</Btn>
+          <Btn variant="primary" type="submit" disabled={isLoading}>{isLoading ? (isEdit ? 'Saving...' : 'Creating...') : (isEdit ? 'Save changes' : 'Create client')}</Btn>
         </div>
       </form>
     </Modal>
