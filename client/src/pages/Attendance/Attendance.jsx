@@ -8,6 +8,7 @@ import Modal from '../../components/ui/Modal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
+import ClientSelect from '../../components/ui/ClientSelect';
 import { getBatches, uploadFile, getBatch, approveBatch } from '../../api/attendanceApi';
 import { formatDate } from '../../utils/formatters';
 
@@ -140,7 +141,7 @@ const BatchDetail = ({ batch, onClose }) => {
   const qc = useQueryClient();
 
   const { mutate: approve, isLoading: approving } = useMutation({
-    mutationFn: () => approveBatch(batch._id, { status: 'approved' }),
+    mutationFn: () => approveBatch(batch._id),
     onSuccess: () => {
       toast.success('Batch approved');
       qc.invalidateQueries(['attendance-batches']);
@@ -202,8 +203,10 @@ const InfoRow = ({ label, value }) => (
 
 const UploadModal = ({ onClose }) => {
   const fileRef = useRef(null);
-  const [client, setClient] = useState('');
-  const [period, setPeriod] = useState('');
+  const [clientId, setClientId] = useState('');
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
   const [file, setFile] = useState(null);
   const qc = useQueryClient();
 
@@ -214,19 +217,21 @@ const UploadModal = ({ onClose }) => {
       qc.invalidateQueries(['attendance-batches']);
       onClose();
     },
-    onError: () => toast.error('Upload failed'),
+    onError: (err) => toast.error(err.response?.data?.message || 'Upload failed'),
   });
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!file || !client) {
+    if (!file || !clientId) {
       toast.error('Please select a client and file');
       return;
     }
     const fd = new FormData();
     fd.append('file', file);
-    fd.append('client', client);
-    fd.append('period', period);
+    fd.append('clientId', clientId);
+    fd.append('year', year);
+    fd.append('month', month);
+    fd.append('columnMapping', JSON.stringify({ employeeCode: 'employee_code', workingDays: 'working_days', overtimeHours: 'overtime_hours' }));
     upload(fd);
   };
 
@@ -237,16 +242,21 @@ const UploadModal = ({ onClose }) => {
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>Client *</label>
-          <select value={client} onChange={(e) => setClient(e.target.value)} style={{ width: '100%' }}>
-            <option value="">Select client</option>
-            <option value="Amazon UAE">Amazon UAE</option>
-            <option value="Noon">Noon</option>
-            <option value="Talabat">Talabat</option>
-          </select>
+          <ClientSelect value={clientId} onChange={setClientId} />
         </div>
-        <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>Period</label>
-          <input value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="Mar 2026" />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+          <div>
+            <label style={labelStyle}>Year *</label>
+            <input type="number" value={year} onChange={(e) => setYear(e.target.value)} />
+          </div>
+          <div>
+            <label style={labelStyle}>Month *</label>
+            <select value={month} onChange={(e) => setMonth(e.target.value)} style={{ width: '100%' }}>
+              {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                <option key={m} value={i + 1}>{m}</option>
+              ))}
+            </select>
+          </div>
         </div>
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>Attendance file (CSV / Excel) *</label>

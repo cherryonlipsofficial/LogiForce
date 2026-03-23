@@ -10,10 +10,10 @@ export const getInvoice = (id) =>
   axiosInstance.get(`/invoices/${id}`).then(r => r.data);
 
 export const updateStatus = (id, data) =>
-  axiosInstance.patch(`/invoices/${id}/status`, data).then(r => r.data);
+  axiosInstance.put(`/invoices/${id}/status`, data).then(r => r.data);
 
 export const addCreditNote = (id, data) =>
-  axiosInstance.post(`/invoices/${id}/credit-notes`, data).then(r => r.data);
+  axiosInstance.post(`/invoices/${id}/credit-note`, data).then(r => r.data);
 
 export const downloadPdf = (id) =>
   axiosInstance.get(`/invoices/${id}/pdf`, { responseType: 'blob' }).then(r => r.data);

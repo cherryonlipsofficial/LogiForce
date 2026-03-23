@@ -79,9 +79,10 @@ const ChartTip = ({ active, payload, label }) => {
 };
 
 const Dashboard = () => {
+  const now = new Date();
   const { data: summaryData, isLoading: summaryLoading } = useQuery({
-    queryKey: ['payrollSummary'],
-    queryFn: () => getPayrollSummary(),
+    queryKey: ['payrollSummary', now.getFullYear(), now.getMonth() + 1],
+    queryFn: () => getPayrollSummary({ year: now.getFullYear(), month: now.getMonth() + 1 }),
     retry: 1,
     onError: () => toast.error('Failed to load payroll summary'),
   });

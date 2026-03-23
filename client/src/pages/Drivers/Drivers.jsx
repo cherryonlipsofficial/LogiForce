@@ -31,8 +31,8 @@ const Drivers = () => {
   const [clientFilter, setClientFilter] = useState('all');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['drivers', { search, status: statusFilter, client: clientFilter }],
-    queryFn: () => getDrivers({ search, status: statusFilter !== 'all' ? statusFilter : undefined, client: clientFilter !== 'all' ? clientFilter : undefined }),
+    queryKey: ['drivers', { search, status: statusFilter, clientId: clientFilter }],
+    queryFn: () => getDrivers({ search, status: statusFilter !== 'all' ? statusFilter : undefined, clientId: clientFilter !== 'all' ? clientFilter : undefined }),
     retry: 1,
     onError: () => toast.error('Failed to load drivers'),
   });
