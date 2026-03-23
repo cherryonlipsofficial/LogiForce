@@ -5,6 +5,8 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const fs = require('fs');
+const path = require('path');
 const connectDB = require('./src/config/db');
 const errorHandler = require('./src/middleware/errorHandler');
 
@@ -19,7 +21,19 @@ app.use(cors({
   credentials: true,
 }));
 app.use(helmet());
-app.use(morgan('dev'));
+
+// Morgan logging: combined format to file in production, dev format to console otherwise
+if (process.env.NODE_ENV === 'production') {
+  const logDir = path.join(__dirname, 'logs');
+  if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true });
+  }
+  const accessLogStream = fs.createWriteStream(path.join(logDir, 'access.log'), { flags: 'a' });
+  app.use(morgan('combined', { stream: accessLogStream }));
+} else {
+  app.use(morgan('dev'));
+}
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

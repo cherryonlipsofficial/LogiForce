@@ -6,6 +6,8 @@ const attendanceService = require('../services/attendance.service');
 const { AttendanceBatch, AttendanceRecord } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
+const validate = require('../middleware/validate');
+const { uploadAttendanceValidation, overrideRecordValidation } = require('../middleware/validators/attendance.validators');
 
 // All routes are protected
 router.use(protect);
@@ -36,13 +38,10 @@ router.get('/batches', async (req, res) => {
 });
 
 // POST /api/attendance/upload — upload attendance file
-router.post('/upload', restrictTo('ops', 'admin'), upload.single('file'), async (req, res) => {
+router.post('/upload', restrictTo('ops', 'admin'), upload.single('file'), validate(uploadAttendanceValidation), async (req, res) => {
   if (!req.file) return sendError(res, 'No file uploaded', 400);
 
   const { clientId, year, month, columnMapping } = req.body;
-  if (!clientId || !year || !month) {
-    return sendError(res, 'clientId, year, and month are required', 400);
-  }
 
   let mapping;
   try {
@@ -170,9 +169,8 @@ router.get('/:driverId/:year/:month', async (req, res) => {
 });
 
 // PUT /api/attendance/records/:id/override — override a flagged record
-router.put('/records/:id/override', restrictTo('admin', 'accountant'), async (req, res) => {
+router.put('/records/:id/override', restrictTo('admin', 'accountant'), validate(overrideRecordValidation), async (req, res) => {
   const { reason, workingDays, overtimeHours } = req.body;
-  if (!reason) return sendError(res, 'Override reason is required', 400);
 
   const record = await AttendanceRecord.findById(req.params.id);
   if (!record) return sendError(res, 'Attendance record not found', 404);

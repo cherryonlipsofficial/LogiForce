@@ -92,8 +92,8 @@ const DataTable = ({
           )}
         </div>
       )}
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%' }}>
+      <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table style={{ width: '100%', minWidth: 600 }}>
           <thead>
             <tr>
               {columns.map((col) => (

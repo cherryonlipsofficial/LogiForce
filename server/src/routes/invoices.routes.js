@@ -6,16 +6,15 @@ const { Invoice, Client } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { generateInvoicePDF } = require('../utils/pdfGenerator');
 const { PAGINATION } = require('../config/constants');
+const validate = require('../middleware/validate');
+const { generateInvoiceValidation, updateInvoiceStatusValidation, creditNoteValidation } = require('../middleware/validators/invoice.validators');
 
 // All routes are protected
 router.use(protect);
 
 // POST /api/invoices/generate — generate invoice for client/period
-router.post('/generate', restrictTo('admin', 'accountant'), async (req, res) => {
+router.post('/generate', restrictTo('admin', 'accountant'), validate(generateInvoiceValidation), async (req, res) => {
   const { clientId, year, month } = req.body;
-  if (!clientId || !year || !month) {
-    return sendError(res, 'clientId, year, and month are required', 400);
-  }
 
   const invoice = await invoiceService.generateInvoice(
     clientId,
@@ -65,12 +64,8 @@ router.get('/:id', async (req, res) => {
 });
 
 // PUT /api/invoices/:id/status — update status
-router.put('/:id/status', restrictTo('admin', 'accountant'), async (req, res) => {
+router.put('/:id/status', restrictTo('admin', 'accountant'), validate(updateInvoiceStatusValidation), async (req, res) => {
   const { status } = req.body;
-  const validStatuses = ['sent', 'paid', 'cancelled'];
-  if (!validStatuses.includes(status)) {
-    return sendError(res, `Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400);
-  }
 
   const invoice = await Invoice.findById(req.params.id);
   if (!invoice) return sendError(res, 'Invoice not found', 404);
@@ -87,11 +82,8 @@ router.put('/:id/status', restrictTo('admin', 'accountant'), async (req, res) =>
 });
 
 // POST /api/invoices/:id/credit-note — add credit note
-router.post('/:id/credit-note', restrictTo('admin', 'accountant'), async (req, res) => {
+router.post('/:id/credit-note', restrictTo('admin', 'accountant'), validate(creditNoteValidation), async (req, res) => {
   const { driverId, amount, reason } = req.body;
-  if (!driverId || !amount || !reason) {
-    return sendError(res, 'driverId, amount, and reason are required', 400);
-  }
 
   const invoice = await invoiceService.addCreditNote(
     req.params.id,

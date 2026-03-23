@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useUserPrefs } from '../../hooks/useUserPrefs.jsx';
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: '▦', roles: null },
@@ -14,6 +15,7 @@ const navItems = [
 
 const Sidebar = () => {
   const { user, role, logout } = useAuth();
+  const { arabicNumerals, toggleArabicNumerals } = useUserPrefs();
 
   const visibleItems = navItems.filter(
     (item) => !item.roles || item.roles.includes(role)
@@ -115,7 +117,28 @@ const Sidebar = () => {
         ))}
       </nav>
 
-      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
+      <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)' }}>
+        <button
+          onClick={toggleArabicNumerals}
+          style={{
+            width: '100%',
+            padding: '6px 10px',
+            borderRadius: 6,
+            border: '1px solid var(--border2)',
+            background: arabicNumerals ? 'rgba(79,142,247,0.12)' : 'transparent',
+            color: arabicNumerals ? 'var(--accent)' : 'var(--text3)',
+            fontSize: 11,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <span>Arabic numerals</span>
+          <span>{arabicNumerals ? 'ON' : 'OFF'}</span>
+        </button>
+      </div>
+      <div style={{ padding: '8px 16px 12px', borderTop: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
           <div
             style={{

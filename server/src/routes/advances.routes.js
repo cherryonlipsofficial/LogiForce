@@ -4,16 +4,16 @@ const { protect, restrictTo } = require('../middleware/auth');
 const { Advance, DriverLedger } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
+const validate = require('../middleware/validate');
+const { issueAdvanceValidation, recoverAdvanceValidation } = require('../middleware/validators/advance.validators');
+const auditLogger = require('../utils/auditLogger');
 
 // All routes are protected
 router.use(protect);
 
 // POST /api/advances — issue advance to driver
-router.post('/', restrictTo('admin', 'accountant'), async (req, res) => {
+router.post('/', restrictTo('admin', 'accountant'), validate(issueAdvanceValidation), async (req, res) => {
   const { driverId, amountIssued, notes } = req.body;
-  if (!driverId || !amountIssued) {
-    return sendError(res, 'driverId and amountIssued are required', 400);
-  }
 
   const advance = await Advance.create({
     driverId,
@@ -38,6 +38,9 @@ router.post('/', restrictTo('admin', 'accountant'), async (req, res) => {
     referenceId: advance._id.toString(),
     createdBy: req.user._id,
   });
+
+  // Audit log for ledger manual entry
+  await auditLogger.logChange('DriverLedger', advance._id, 'advance_issued', null, amountIssued, req.user._id, 'ledger_manual_entry');
 
   sendSuccess(res, advance, 'Advance issued successfully', 201);
 });
@@ -66,9 +69,8 @@ router.get('/', async (req, res) => {
 });
 
 // PUT /api/advances/:id/recover — manual recovery entry
-router.put('/:id/recover', restrictTo('admin', 'accountant'), async (req, res) => {
+router.put('/:id/recover', restrictTo('admin', 'accountant'), validate(recoverAdvanceValidation), async (req, res) => {
   const { amount, salaryRunId } = req.body;
-  if (!amount) return sendError(res, 'amount is required', 400);
 
   const advance = await Advance.findById(req.params.id);
   if (!advance) return sendError(res, 'Advance not found', 404);

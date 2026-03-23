@@ -1,20 +1,35 @@
 services:
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=logiforce
+
   server:
     build: ./server
     ports:
       - "5000:5000"
+    depends_on:
+      - mongo
+    env_file:
+      - .env
     environment:
-      - MONGODB_URI=mongodb+srv://nbharde:nbharde@cluster-aws.oi55br0.mongodb.net/logiforce?appName=Cluster-aws
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongo:27017/logiforce}
       - PORT=5000
-      - JWT_SECRET=your_jwt_secret_here
-      - JWT_EXPIRES_IN=7d
-      - NODE_ENV=development
+      - JWT_SECRET=${JWT_SECRET:-change_me_in_production}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - NODE_ENV=${NODE_ENV:-production}
+      - CLIENT_URL=${CLIENT_URL:-http://localhost}
 
   client:
     build: ./client
     ports:
-      - "5173:5173"
+      - "80:80"
     depends_on:
       - server
-    environment:
-      - VITE_API_URL=http://localhost:5000/api
+
+volumes:
+  mongo_data:

@@ -1,0 +1,34 @@
+const { body } = require('express-validator');
+
+const generateInvoiceValidation = [
+  body('clientId')
+    .notEmpty().withMessage('clientId is required')
+    .isMongoId().withMessage('clientId must be a valid ID'),
+  body('year')
+    .notEmpty().withMessage('Year is required')
+    .isInt({ min: 2020, max: 2100 }).withMessage('Year must be between 2020 and 2100'),
+  body('month')
+    .notEmpty().withMessage('Month is required')
+    .isInt({ min: 1, max: 12 }).withMessage('Month must be between 1 and 12'),
+];
+
+const updateInvoiceStatusValidation = [
+  body('status')
+    .notEmpty().withMessage('Status is required')
+    .isIn(['sent', 'paid', 'cancelled']).withMessage('Status must be sent, paid, or cancelled'),
+];
+
+const creditNoteValidation = [
+  body('driverId')
+    .notEmpty().withMessage('driverId is required')
+    .isMongoId().withMessage('driverId must be a valid ID'),
+  body('amount')
+    .notEmpty().withMessage('Amount is required')
+    .isFloat({ min: 0.01 }).withMessage('Amount must be a positive number'),
+  body('reason')
+    .trim()
+    .notEmpty().withMessage('Reason is required')
+    .isLength({ min: 3, max: 500 }).withMessage('Reason must be 3-500 characters'),
+];
+
+module.exports = { generateInvoiceValidation, updateInvoiceStatusValidation, creditNoteValidation };
