@@ -26,7 +26,7 @@ const createDriverValidation = [
     .optional()
     .isIn(['employment', 'investor', 'family', 'visit']).withMessage('Visa type must be employment, investor, family, or visit'),
   body('clientId')
-    .optional()
+    .notEmpty().withMessage('Client is required')
     .isMongoId().withMessage('clientId must be a valid ID'),
   body('supplierId')
     .optional()
