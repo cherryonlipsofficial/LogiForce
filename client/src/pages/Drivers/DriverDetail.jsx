@@ -37,9 +37,9 @@ const getExpiryStatus = (dateVal) => {
   const now = new Date();
   const exp = new Date(dateVal);
   if (exp < now) return 'danger';
-  const thirtyDays = new Date();
-  thirtyDays.setDate(thirtyDays.getDate() + 30);
-  if (exp < thirtyDays) return 'warning';
+  const sixtyDays = new Date();
+  sixtyDays.setDate(sixtyDays.getDate() + 60);
+  if (exp < sixtyDays) return 'warning';
   return 'success';
 };
 
@@ -673,9 +673,10 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
               <label style={labelStyle}>Base salary *</label>
               <input
                 type="number"
+                step="any"
                 {...register('baseSalary', {
                   required: 'Base salary is required',
-                  min: { value: 1, message: 'Must be a positive number' },
+                  min: { value: 0.01, message: 'Must be a positive number' },
                 })}
               />
               {errors.baseSalary && <span style={errorStyle}>{errors.baseSalary.message}</span>}

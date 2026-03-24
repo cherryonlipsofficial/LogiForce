@@ -312,9 +312,10 @@ const AddDriverModal = ({ onClose }) => {
             <label style={labelStyle}>Base salary *</label>
             <input
               type="number"
+              step="any"
               {...register('baseSalary', {
                 required: 'Base salary is required',
-                min: { value: 1, message: 'Must be a positive number' },
+                min: { value: 0.01, message: 'Must be a positive number' },
               })}
               placeholder="2800"
             />
