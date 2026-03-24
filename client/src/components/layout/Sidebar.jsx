@@ -10,6 +10,7 @@ const navItems = [
   { path: '/invoices', label: 'Invoices', icon: '◳', roles: ['admin', 'accountant'] },
   { path: '/clients', label: 'Clients', icon: '◐', roles: ['admin', 'accountant'] },
   { path: '/suppliers', label: 'Suppliers', icon: '◑', roles: ['admin'] },
+  { path: '/vehicles', label: 'Vehicles', icon: '◧', roles: ['admin', 'ops'] },
   { path: '/reports', label: 'Reports', icon: '◫', roles: null },
 ];
 

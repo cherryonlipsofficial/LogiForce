@@ -15,6 +15,7 @@ import Invoices from './pages/Invoices/Invoices';
 import Clients from './pages/Clients/Clients';
 import Suppliers from './pages/Suppliers/Suppliers';
 import Reports from './pages/Reports/Reports';
+import Vehicles from './pages/Vehicles/Vehicles';
 import NotFound from './pages/NotFound';
 
 const queryClient = new QueryClient();
@@ -42,6 +43,7 @@ const App = () => {
               <Route path="/invoices" element={<ProtectedPage roles={['admin', 'accountant']}><Invoices /></ProtectedPage>} />
               <Route path="/clients" element={<ProtectedPage roles={['admin', 'accountant']}><Clients /></ProtectedPage>} />
               <Route path="/suppliers" element={<ProtectedPage roles={['admin']}><Suppliers /></ProtectedPage>} />
+              <Route path="/vehicles" element={<ProtectedPage roles={['admin', 'ops']}><Vehicles /></ProtectedPage>} />
               <Route path="/reports" element={<ProtectedPage><Reports /></ProtectedPage>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
