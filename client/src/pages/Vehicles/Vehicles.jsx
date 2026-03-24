@@ -10,7 +10,7 @@ import Modal from '../../components/ui/Modal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
-import { getVehicles, createVehicle, updateVehicle, deleteVehicle } from '../../api/vehiclesApi';
+import { getVehicles, createVehicle, updateVehicle, deleteVehicle, exportVehicles } from '../../api/vehiclesApi';
 import { getSuppliers } from '../../api/suppliersApi';
 
 const fallbackVehicles = [
@@ -90,6 +90,24 @@ const Vehicles = () => {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      const params = {};
+      if (statusFilter !== 'all') params.status = statusFilter;
+      if (search) params.search = search;
+      const blob = await exportVehicles(params);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `vehicles_export_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Vehicles exported');
+    } catch {
+      toast.error('Failed to export vehicles');
+    }
+  };
+
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
@@ -115,6 +133,7 @@ const Vehicles = () => {
             <option value="off_hired">Off-hired</option>
           </select>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            <Btn small variant="ghost" onClick={handleExport}>Export CSV</Btn>
             <Btn small variant="primary" onClick={() => setShowAddModal(true)}>+ Add vehicle</Btn>
           </div>
         </div>
