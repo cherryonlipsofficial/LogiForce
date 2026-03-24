@@ -212,6 +212,14 @@ const AddDriverModal = ({ onClose }) => {
         payStructure: formData.payStructure,
         clientId: formData.clientId,
         emiratesId: formData.emiratesId || undefined,
+        joinDate: formData.joinDate || undefined,
+        passportNumber: formData.passportNumber || undefined,
+        passportExpiry: formData.passportExpiry || undefined,
+        visaNumber: formData.visaNumber || undefined,
+        visaType: formData.visaType || undefined,
+        visaExpiry: formData.visaExpiry || undefined,
+        labourCardNo: formData.labourCardNo || undefined,
+        labourCardExpiry: formData.labourCardExpiry || undefined,
       };
       await createDriver(payload);
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
@@ -235,10 +243,14 @@ const AddDriverModal = ({ onClose }) => {
   const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 4 };
   const errorStyle = { color: '#f87171', fontSize: 11, marginTop: 2, display: 'block' };
 
+  const sectionStyle = { fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', gridColumn: '1/-1', marginTop: 6, marginBottom: -4 };
+
   return (
-    <Modal title="Add new driver" onClose={onClose} width={520}>
-      <form onSubmit={handleSubmit(onSubmit)}>
+    <Modal title="Add new driver" onClose={onClose} width={560}>
+      <form onSubmit={handleSubmit(onSubmit)} style={{ maxHeight: '70vh', overflowY: 'auto', paddingRight: 4 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          {/* Personal info */}
+          <div style={sectionStyle}>Personal information</div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Full name *</label>
             <input
@@ -274,10 +286,34 @@ const AddDriverModal = ({ onClose }) => {
             {errors.phoneUae && <span style={errorStyle}>{errors.phoneUae.message}</span>}
           </div>
           <div style={fieldStyle}>
+            <label style={labelStyle}>Emirates ID</label>
+            <input
+              {...register('emiratesId', {
+                pattern: {
+                  value: /^784-\d{4}-\d{7}-\d{1}$/,
+                  message: 'Must match format 784-XXXX-XXXXXXX-X',
+                },
+              })}
+              placeholder="784-XXXX-XXXXXXX-X"
+            />
+            {errors.emiratesId && <span style={errorStyle}>{errors.emiratesId.message}</span>}
+          </div>
+
+          {/* Employment */}
+          <div style={sectionStyle}>Employment</div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Client *</label>
+            <select {...register('clientId', { required: 'Client is required' })}>
+              <option value="">Select client</option>
+              {clients.map((c) => (
+                <option key={c._id} value={c._id}>{c.name}</option>
+              ))}
+            </select>
+            {errors.clientId && <span style={errorStyle}>{errors.clientId.message}</span>}
+          </div>
+          <div style={fieldStyle}>
             <label style={labelStyle}>Pay structure *</label>
-            <select
-              {...register('payStructure', { required: 'Pay structure is required' })}
-            >
+            <select {...register('payStructure', { required: 'Pay structure is required' })}>
               <option value="">Select pay structure</option>
               <option value="MONTHLY_FIXED">Monthly fixed</option>
               <option value="DAILY_RATE">Daily rate</option>
@@ -298,32 +334,48 @@ const AddDriverModal = ({ onClose }) => {
             {errors.baseSalary && <span style={errorStyle}>{errors.baseSalary.message}</span>}
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>Client *</label>
-            <select
-              {...register('clientId', { required: 'Client is required' })}
-            >
-              <option value="">Select client</option>
-              {clients.map((c) => (
-                <option key={c._id} value={c._id}>{c.name}</option>
-              ))}
-            </select>
-            {errors.clientId && <span style={errorStyle}>{errors.clientId.message}</span>}
+            <label style={labelStyle}>Joining date</label>
+            <input type="date" {...register('joinDate')} />
+          </div>
+
+          {/* Documents */}
+          <div style={sectionStyle}>Documents</div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Passport number</label>
+            <input {...register('passportNumber')} placeholder="AB1234567" />
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>Emirates ID</label>
-            <input
-              {...register('emiratesId', {
-                pattern: {
-                  value: /^784-\d{4}-\d{7}-\d{1}$/,
-                  message: 'Must match format 784-XXXX-XXXXXXX-X',
-                },
-              })}
-              placeholder="784-XXXX-XXXXXXX-X"
-            />
-            {errors.emiratesId && <span style={errorStyle}>{errors.emiratesId.message}</span>}
+            <label style={labelStyle}>Passport expiry</label>
+            <input type="date" {...register('passportExpiry')} />
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Visa number</label>
+            <input {...register('visaNumber')} placeholder="Visa number" />
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Visa type</label>
+            <select {...register('visaType')}>
+              <option value="">Select visa type</option>
+              <option value="employment">Employment</option>
+              <option value="investor">Investor</option>
+              <option value="family">Family</option>
+              <option value="visit">Visit</option>
+            </select>
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Visa expiry</label>
+            <input type="date" {...register('visaExpiry')} />
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Labour card no.</label>
+            <input {...register('labourCardNo')} placeholder="Labour card number" />
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Labour card expiry</label>
+            <input type="date" {...register('labourCardExpiry')} />
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
           <Btn variant="primary" type="submit" disabled={submitting}>
             {submitting ? 'Creating...' : 'Create driver'}

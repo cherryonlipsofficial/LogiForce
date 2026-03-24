@@ -154,12 +154,18 @@ const DriverDetail = ({ driver, onClose }) => {
               ['Nationality', d.nationality || '—'],
               ['Emirates ID', d.emiratesId || '—'],
               ['Phone (UAE)', d.phoneUae || d.phone || '—'],
-              ['Join date', d.joinDate || '—'],
-              ['Visa expiry', d.visaExpiry || '—'],
               ['Client', driverClient || '—'],
               ['Supplier', driverSupplier || '—'],
-              ['Pay structure', d.payStructure || 'Monthly fixed'],
+              ['Pay structure', d.payStructure || '—'],
               ['Base salary', `AED ${(d.baseSalary || 0).toLocaleString()}`],
+              ['Join date', d.joinDate ? new Date(d.joinDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'],
+              ['Passport number', d.passportNumber || '—'],
+              ['Passport expiry', d.passportExpiry ? new Date(d.passportExpiry).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'],
+              ['Visa number', d.visaNumber || '—'],
+              ['Visa type', d.visaType || '—'],
+              ['Visa expiry', d.visaExpiry ? new Date(d.visaExpiry).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'],
+              ['Labour card no.', d.labourCardNo || '—'],
+              ['Labour card expiry', d.labourCardExpiry ? new Date(d.labourCardExpiry).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'],
               ['Vehicle plate', d.vehiclePlate || d.vehicle || '—'],
             ].map(([l, v]) => (
               <div
@@ -314,6 +320,13 @@ const DriverDetail = ({ driver, onClose }) => {
   );
 };
 
+const toDateInput = (val) => {
+  if (!val) return '';
+  const d = new Date(val);
+  if (isNaN(d)) return '';
+  return d.toISOString().split('T')[0];
+};
+
 const EditDriverModal = ({ driver, onClose, onSaved }) => {
   const { register, handleSubmit, formState: { errors } } = useForm({
     defaultValues: {
@@ -324,6 +337,14 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
       payStructure: driver.payStructure || '',
       emiratesId: driver.emiratesId || '',
       clientId: driver.clientId?._id || driver.clientId || '',
+      joinDate: toDateInput(driver.joinDate),
+      passportNumber: driver.passportNumber || '',
+      passportExpiry: toDateInput(driver.passportExpiry),
+      visaNumber: driver.visaNumber || '',
+      visaType: driver.visaType || '',
+      visaExpiry: toDateInput(driver.visaExpiry),
+      labourCardNo: driver.labourCardNo || '',
+      labourCardExpiry: toDateInput(driver.labourCardExpiry),
     },
   });
   const [submitting, setSubmitting] = useState(false);
@@ -345,6 +366,14 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
         payStructure: formData.payStructure,
         clientId: formData.clientId,
         emiratesId: formData.emiratesId || undefined,
+        joinDate: formData.joinDate || undefined,
+        passportNumber: formData.passportNumber || undefined,
+        passportExpiry: formData.passportExpiry || undefined,
+        visaNumber: formData.visaNumber || undefined,
+        visaType: formData.visaType || undefined,
+        visaExpiry: formData.visaExpiry || undefined,
+        labourCardNo: formData.labourCardNo || undefined,
+        labourCardExpiry: formData.labourCardExpiry || undefined,
       });
       toast.success('Driver updated successfully');
       onSaved();
@@ -358,11 +387,14 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
   const fieldStyle = { marginBottom: 14 };
   const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 4 };
   const errorStyle = { color: '#f87171', fontSize: 11, marginTop: 2, display: 'block' };
+  const sectionStyle = { fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', gridColumn: '1/-1', marginTop: 6, marginBottom: -4 };
 
   return (
-    <Modal title="Edit driver" onClose={onClose} width={520}>
-      <form onSubmit={handleSubmit(onSubmit)}>
+    <Modal title="Edit driver" onClose={onClose} width={560}>
+      <form onSubmit={handleSubmit(onSubmit)} style={{ maxHeight: '70vh', overflowY: 'auto', paddingRight: 4 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          {/* Personal info */}
+          <div style={sectionStyle}>Personal information</div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Full name *</label>
             <input
@@ -389,6 +421,29 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
             {errors.phoneUae && <span style={errorStyle}>{errors.phoneUae.message}</span>}
           </div>
           <div style={fieldStyle}>
+            <label style={labelStyle}>Emirates ID</label>
+            <input
+              {...register('emiratesId', {
+                pattern: { value: /^784-\d{4}-\d{7}-\d{1}$/, message: 'Must match format 784-XXXX-XXXXXXX-X' },
+              })}
+              placeholder="784-XXXX-XXXXXXX-X"
+            />
+            {errors.emiratesId && <span style={errorStyle}>{errors.emiratesId.message}</span>}
+          </div>
+
+          {/* Employment */}
+          <div style={sectionStyle}>Employment</div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Client *</label>
+            <select {...register('clientId', { required: 'Client is required' })}>
+              <option value="">Select client</option>
+              {clients.map((c) => (
+                <option key={c._id} value={c._id}>{c.name}</option>
+              ))}
+            </select>
+            {errors.clientId && <span style={errorStyle}>{errors.clientId.message}</span>}
+          </div>
+          <div style={fieldStyle}>
             <label style={labelStyle}>Pay structure *</label>
             <select {...register('payStructure', { required: 'Pay structure is required' })}>
               <option value="">Select pay structure</option>
@@ -410,27 +465,48 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
             {errors.baseSalary && <span style={errorStyle}>{errors.baseSalary.message}</span>}
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>Client *</label>
-            <select {...register('clientId', { required: 'Client is required' })}>
-              <option value="">Select client</option>
-              {clients.map((c) => (
-                <option key={c._id} value={c._id}>{c.name}</option>
-              ))}
-            </select>
-            {errors.clientId && <span style={errorStyle}>{errors.clientId.message}</span>}
+            <label style={labelStyle}>Joining date</label>
+            <input type="date" {...register('joinDate')} />
+          </div>
+
+          {/* Documents */}
+          <div style={sectionStyle}>Documents</div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Passport number</label>
+            <input {...register('passportNumber')} placeholder="AB1234567" />
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>Emirates ID</label>
-            <input
-              {...register('emiratesId', {
-                pattern: { value: /^784-\d{4}-\d{7}-\d{1}$/, message: 'Must match format 784-XXXX-XXXXXXX-X' },
-              })}
-              placeholder="784-XXXX-XXXXXXX-X"
-            />
-            {errors.emiratesId && <span style={errorStyle}>{errors.emiratesId.message}</span>}
+            <label style={labelStyle}>Passport expiry</label>
+            <input type="date" {...register('passportExpiry')} />
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Visa number</label>
+            <input {...register('visaNumber')} placeholder="Visa number" />
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Visa type</label>
+            <select {...register('visaType')}>
+              <option value="">Select visa type</option>
+              <option value="employment">Employment</option>
+              <option value="investor">Investor</option>
+              <option value="family">Family</option>
+              <option value="visit">Visit</option>
+            </select>
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Visa expiry</label>
+            <input type="date" {...register('visaExpiry')} />
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Labour card no.</label>
+            <input {...register('labourCardNo')} placeholder="Labour card number" />
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Labour card expiry</label>
+            <input type="date" {...register('labourCardExpiry')} />
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
           <Btn variant="primary" type="submit" disabled={submitting}>
             {submitting ? 'Saving...' : 'Save changes'}
