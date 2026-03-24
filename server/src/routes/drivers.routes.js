@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const mongoose = require('mongoose');
 const router = express.Router();
 const { protect, restrictTo } = require('../middleware/auth');
 const upload = require('../middleware/upload');
@@ -39,45 +40,53 @@ router.get('/uploads/:fileKey', async (req, res) => {
 
 // GET /api/drivers/status-counts — counts by status for KPI cards
 router.get('/status-counts', async (req, res) => {
-  const counts = await driverService.getStatusCounts();
-  sendSuccess(res, counts);
+  try {
+    const counts = await driverService.getStatusCounts();
+    sendSuccess(res, counts);
+  } catch (err) {
+    sendError(res, err.message || 'Failed to fetch status counts', 500);
+  }
 });
 
 // GET /api/drivers/export — export drivers as CSV
 router.get('/export', async (req, res) => {
-  const { status, clientId, search } = req.query;
-  const result = await driverService.findAll(
-    { status, clientId, search },
-    { page: 1, limit: 10000 }
-  );
-  const drivers = result.drivers;
+  try {
+    const { status, clientId, search } = req.query;
+    const result = await driverService.findAll(
+      { status, clientId, search },
+      { page: 1, limit: 10000 }
+    );
+    const drivers = result.drivers;
 
-  const headers = ['Employee Code', 'Full Name', 'Nationality', 'Phone UAE', 'Client', 'Supplier', 'Status', 'Pay Structure', 'Base Salary', 'Join Date', 'Emirates ID'];
-  const escapeCsv = (val) => {
-    const str = String(val ?? '');
-    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-      return `"${str.replace(/"/g, '""')}"`;
-    }
-    return str;
-  };
-  const rows = drivers.map((d) => [
-    d.employeeCode,
-    d.fullName,
-    d.nationality,
-    d.phoneUae,
-    d.clientId?.name || '',
-    d.supplierId?.name || '',
-    d.status,
-    d.payStructure,
-    d.baseSalary,
-    d.joinDate ? new Date(d.joinDate).toLocaleDateString() : '',
-    d.emiratesId,
-  ].map(escapeCsv).join(','));
+    const headers = ['Employee Code', 'Full Name', 'Nationality', 'Phone UAE', 'Client', 'Supplier', 'Status', 'Pay Structure', 'Base Salary', 'Join Date', 'Emirates ID'];
+    const escapeCsv = (val) => {
+      const str = String(val ?? '');
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+    const rows = drivers.map((d) => [
+      d.employeeCode,
+      d.fullName,
+      d.nationality,
+      d.phoneUae,
+      d.clientId?.name || '',
+      d.supplierId?.name || '',
+      d.status,
+      d.payStructure,
+      d.baseSalary,
+      d.joinDate ? new Date(d.joinDate).toLocaleDateString() : '',
+      d.emiratesId,
+    ].map(escapeCsv).join(','));
 
-  const csv = [headers.join(','), ...rows].join('\n');
-  res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', 'attachment; filename=drivers-export.csv');
-  res.send(csv);
+    const csv = [headers.join(','), ...rows].join('\n');
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=drivers-export.csv');
+    res.send(csv);
+  } catch (err) {
+    sendError(res, err.message || 'Failed to export drivers', 500);
+  }
 });
 
 // GET /api/drivers — list with pagination, search, filter
@@ -98,18 +107,27 @@ router.post('/', restrictTo('ops', 'admin'), validate(createDriverValidation), a
 
 // GET /api/drivers/:id — get single driver
 router.get('/:id', async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return sendError(res, 'Invalid driver ID', 400);
+  }
   const driver = await driverService.findById(req.params.id);
   sendSuccess(res, driver);
 });
 
 // PUT /api/drivers/:id — update (ops, admin)
 router.put('/:id', restrictTo('ops', 'admin'), validate(updateDriverValidation), async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return sendError(res, 'Invalid driver ID', 400);
+  }
   const driver = await driverService.update(req.params.id, req.body);
   sendSuccess(res, driver, 'Driver updated');
 });
 
 // DELETE /api/drivers/:id — soft delete (admin only)
 router.delete('/:id', restrictTo('admin'), async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return sendError(res, 'Invalid driver ID', 400);
+  }
   const driver = await driverService.softDelete(req.params.id);
   sendSuccess(res, driver, 'Driver set to resigned');
 });
