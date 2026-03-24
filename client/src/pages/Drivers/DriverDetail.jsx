@@ -11,7 +11,7 @@ import Btn from '../../components/ui/Btn';
 import Modal from '../../components/ui/Modal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useNavigate } from 'react-router-dom';
-import { getDriverLedger, updateDriver, changeDriverStatus, getDriverDocuments, uploadDriverDocument, getDocumentFileUrl } from '../../api/driversApi';
+import { getDriverLedger, updateDriver, changeDriverStatus, getDriverDocuments, uploadDriverDocument, fetchDocumentFile } from '../../api/driversApi';
 import { getClients } from '../../api/clientsApi';
 
 const DOC_TYPES = [
@@ -54,7 +54,26 @@ const DriverDetail = ({ driver, onClose }) => {
   const [tab, setTab] = useState('profile');
   const [showEdit, setShowEdit] = useState(false);
   const [showStatusChange, setShowStatusChange] = useState(false);
-  const [viewingFile, setViewingFile] = useState(null);
+  const [viewingFile, setViewingFile] = useState(null); // { blobUrl, contentType, fileName }
+
+  const handleViewFile = async (fileKey) => {
+    try {
+      const res = await fetchDocumentFile(fileKey);
+      const blobUrl = URL.createObjectURL(res.data);
+      const contentType = res.data.type || '';
+      setViewingFile({ blobUrl, contentType, fileName: fileKey });
+    } catch {
+      toast.error('Failed to load document');
+    }
+  };
+
+  const handleDownloadFile = () => {
+    if (!viewingFile) return;
+    const a = document.createElement('a');
+    a.href = viewingFile.blobUrl;
+    a.download = viewingFile.fileName;
+    a.click();
+  };
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -348,7 +367,7 @@ const DriverDetail = ({ driver, onClose }) => {
                       <Badge variant={badgeVariant}>{statusLabel}</Badge>
                       {doc.hasFile && (
                         <button
-                          onClick={() => setViewingFile(getDocumentFileUrl(doc.fileKey))}
+                          onClick={() => handleViewFile(doc.fileKey)}
                           title="View document"
                           style={{
                             background: 'var(--surface3)',
@@ -419,22 +438,28 @@ const DriverDetail = ({ driver, onClose }) => {
       )}
 
       {viewingFile && (
-        <Modal title="Document viewer" onClose={() => setViewingFile(null)} width={700}>
+        <Modal title="Document viewer" onClose={() => { URL.revokeObjectURL(viewingFile.blobUrl); setViewingFile(null); }} width={700}>
           <div style={{ textAlign: 'center' }}>
-            <img
-              src={viewingFile}
-              alt="Document"
-              style={{ maxWidth: '100%', maxHeight: '70vh', borderRadius: 8 }}
-              onError={(e) => {
-                e.target.style.display = 'none';
-                e.target.nextSibling.style.display = 'flex';
-              }}
-            />
-            <div style={{ display: 'none', flexDirection: 'column', alignItems: 'center', gap: 12, padding: 40 }}>
-              <div style={{ fontSize: 13, color: 'var(--text3)' }}>Preview not available for this file type</div>
-              <a href={viewingFile} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', fontSize: 13 }}>
+            {viewingFile.contentType.includes('pdf') ? (
+              <iframe
+                src={viewingFile.blobUrl}
+                title="Document"
+                style={{ width: '100%', height: '70vh', border: 'none', borderRadius: 8 }}
+              />
+            ) : (
+              <img
+                src={viewingFile.blobUrl}
+                alt="Document"
+                style={{ maxWidth: '100%', maxHeight: '70vh', borderRadius: 8 }}
+              />
+            )}
+            <div style={{ marginTop: 12 }}>
+              <button
+                onClick={handleDownloadFile}
+                style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}
+              >
                 Download file
-              </a>
+              </button>
             </div>
           </div>
         </Modal>
