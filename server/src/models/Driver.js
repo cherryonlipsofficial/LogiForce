@@ -5,6 +5,7 @@ const driverSchema = new mongoose.Schema(
     employeeCode: {
       type: String,
       unique: true,
+      trim: true,
     },
     fullName: {
       type: String,
