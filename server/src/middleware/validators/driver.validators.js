@@ -34,6 +34,30 @@ const createDriverValidation = [
   body('phoneHomeCountry')
     .optional()
     .matches(/^\+?\d{7,15}$/).withMessage('Home country phone must be a valid phone number'),
+  body('joinDate')
+    .optional()
+    .isISO8601().withMessage('Join date must be a valid date'),
+  body('contractEndDate')
+    .optional()
+    .isISO8601().withMessage('Contract end date must be a valid date'),
+  body('passportNumber')
+    .optional()
+    .trim(),
+  body('passportExpiry')
+    .optional()
+    .isISO8601().withMessage('Passport expiry must be a valid date'),
+  body('visaNumber')
+    .optional()
+    .trim(),
+  body('visaExpiry')
+    .optional()
+    .isISO8601().withMessage('Visa expiry must be a valid date'),
+  body('labourCardNo')
+    .optional()
+    .trim(),
+  body('labourCardExpiry')
+    .optional()
+    .isISO8601().withMessage('Labour card expiry must be a valid date'),
 ];
 
 const updateDriverValidation = [
@@ -61,6 +85,30 @@ const updateDriverValidation = [
   body('clientId')
     .optional()
     .isMongoId().withMessage('clientId must be a valid ID'),
+  body('joinDate')
+    .optional()
+    .isISO8601().withMessage('Join date must be a valid date'),
+  body('contractEndDate')
+    .optional()
+    .isISO8601().withMessage('Contract end date must be a valid date'),
+  body('passportNumber')
+    .optional()
+    .trim(),
+  body('passportExpiry')
+    .optional()
+    .isISO8601().withMessage('Passport expiry must be a valid date'),
+  body('visaNumber')
+    .optional()
+    .trim(),
+  body('visaExpiry')
+    .optional()
+    .isISO8601().withMessage('Visa expiry must be a valid date'),
+  body('labourCardNo')
+    .optional()
+    .trim(),
+  body('labourCardExpiry')
+    .optional()
+    .isISO8601().withMessage('Labour card expiry must be a valid date'),
 ];
 
 const changeStatusValidation = [
