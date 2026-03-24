@@ -41,6 +41,75 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/vehicles/export — export vehicles as CSV
+router.get('/export', async (req, res) => {
+  try {
+    const { status, supplierId, search } = req.query;
+    const filter = {};
+
+    if (status) filter.status = status;
+    if (supplierId) filter.supplierId = supplierId;
+    if (search) {
+      filter.$or = [
+        { plate: { $regex: search, $options: 'i' } },
+        { make: { $regex: search, $options: 'i' } },
+        { model: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    const vehicles = await Vehicle.find(filter)
+      .populate('supplierId', 'name')
+      .populate('assignedDriverId', 'fullName employeeCode')
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    const formatDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB') : '');
+    const escapeCsv = (val) => {
+      if (val == null) return '';
+      const str = String(val);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const headers = [
+      'Plate', 'Make', 'Model', 'Year', 'Color', 'Type', 'Status',
+      'Supplier', 'Assigned Driver', 'Driver Code', 'Monthly Rate (AED)',
+      'Contract Start', 'Contract End', 'Mulkiya Expiry', 'Insurance Expiry',
+      'Own Vehicle', 'Notes',
+    ];
+
+    const rows = vehicles.map((v) => [
+      v.plate,
+      v.make,
+      v.model,
+      v.year,
+      v.color,
+      v.vehicleType,
+      v.status,
+      v.supplierId?.name,
+      v.assignedDriverId?.fullName,
+      v.assignedDriverId?.employeeCode,
+      v.monthlyRate,
+      formatDate(v.contractStart),
+      formatDate(v.contractEnd),
+      formatDate(v.mulkiyaExpiry),
+      formatDate(v.insuranceExpiry),
+      v.ownVehicle ? 'Yes' : 'No',
+      v.notes,
+    ]);
+
+    const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(',')).join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=vehicles_export.csv');
+    res.send(csv);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
 // GET /api/vehicles/summary — fleet summary stats
 router.get('/summary', async (req, res) => {
   try {
