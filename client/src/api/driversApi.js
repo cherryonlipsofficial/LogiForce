@@ -33,3 +33,9 @@ export const getDocumentFileUrl = (fileKey) => {
 
 export const fetchDocumentFile = (fileKey) =>
   axiosInstance.get(`/drivers/uploads/${fileKey}`, { responseType: 'blob' }).then(r => r);
+
+export const getDriverStatusCounts = () =>
+  axiosInstance.get('/drivers/status-counts').then(r => r.data);
+
+export const exportDriversCsv = (params) =>
+  axiosInstance.get('/drivers/export', { params, responseType: 'blob' }).then(r => r);

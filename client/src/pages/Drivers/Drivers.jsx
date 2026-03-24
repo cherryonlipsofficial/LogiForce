@@ -10,7 +10,7 @@ import Btn from '../../components/ui/Btn';
 import Modal from '../../components/ui/Modal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import DriverDetail from './DriverDetail';
-import { getDrivers, createDriver } from '../../api/driversApi';
+import { getDrivers, createDriver, getDriverStatusCounts, exportDriversCsv } from '../../api/driversApi';
 import { getClients } from '../../api/clientsApi';
 
 const fallbackDrivers = [
@@ -38,16 +38,45 @@ const Drivers = () => {
     onError: () => toast.error('Failed to load drivers'),
   });
 
-  const drivers = data?.data || fallbackDrivers;
-
-  const filtered = drivers.filter((d) => {
-    const driverName = d.fullName || d.name || '';
-    const driverClient = d.clientId?.name || d.client || '';
-    const ms = driverName.toLowerCase().includes(search.toLowerCase()) || d.id?.includes(search) || d.employeeCode?.includes(search);
-    const mf = statusFilter === 'all' || d.status === statusFilter;
-    const mc = clientFilter === 'all' || driverClient === clientFilter;
-    return ms && mf && mc;
+  const { data: countsData } = useQuery({
+    queryKey: ['driverStatusCounts'],
+    queryFn: () => getDriverStatusCounts(),
   });
+
+  const { data: clientsData } = useQuery({
+    queryKey: ['clients'],
+    queryFn: () => getClients(),
+  });
+  const clientsList = clientsData?.data || [];
+
+  const drivers = data?.data || fallbackDrivers;
+  const pagination = data?.pagination;
+  const counts = countsData?.data || {};
+
+  const handleExport = async () => {
+    try {
+      const params = {
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        clientId: clientFilter !== 'all' ? clientFilter : undefined,
+        search: search || undefined,
+      };
+      const response = await exportDriversCsv(params);
+      const blob = new Blob([response.data], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'drivers-export.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Drivers exported successfully');
+    } catch {
+      toast.error('Failed to export drivers');
+    }
+  };
+
+  const filtered = drivers;
 
   const getInitials = (name) =>
     name ? name.split(' ').map((n) => n[0]).join('').toUpperCase() : '??';
@@ -56,10 +85,10 @@ const Drivers = () => {
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* KPI row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
-        <KpiCard label="Total drivers" value="1,240" />
-        <KpiCard label="Active" value="1,180" color="#4ade80" />
-        <KpiCard label="On leave" value="42" color="#7eb3fc" />
-        <KpiCard label="Suspended" value="18" color="#f87171" />
+        <KpiCard label="Total drivers" value={(counts.total ?? 0).toLocaleString()} />
+        <KpiCard label="Active" value={(counts.active ?? 0).toLocaleString()} color="#4ade80" />
+        <KpiCard label="On leave" value={(counts.onLeave ?? 0).toLocaleString()} color="#7eb3fc" />
+        <KpiCard label="Suspended" value={(counts.suspended ?? 0).toLocaleString()} color="#f87171" />
       </div>
 
       {/* Table */}
@@ -94,12 +123,12 @@ const Drivers = () => {
           </select>
           <select value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} style={{ width: 160, height: 34 }}>
             <option value="all">All clients</option>
-            <option value="Amazon UAE">Amazon UAE</option>
-            <option value="Noon">Noon</option>
-            <option value="Talabat">Talabat</option>
+            {clientsList.map((c) => (
+              <option key={c._id} value={c._id}>{c.name}</option>
+            ))}
           </select>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <Btn small variant="ghost">Export</Btn>
+            <Btn small variant="ghost" onClick={handleExport}>Export</Btn>
             <Btn small variant="primary" onClick={() => setShowAddModal(true)}>+ Add driver</Btn>
           </div>
         </div>
@@ -177,7 +206,7 @@ const Drivers = () => {
         )}
 
         <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text3)' }}>
-          Showing {filtered.length} of {drivers.length} drivers
+          Showing {filtered.length} of {pagination?.total ?? drivers.length} drivers
         </div>
       </div>
 
