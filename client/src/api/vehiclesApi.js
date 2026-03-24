@@ -10,7 +10,7 @@ export const getVehicleSummary = () =>
   axiosInstance.get('/vehicles/summary').then((r) => r.data);
 
 export const exportVehicles = (params) =>
-  axiosInstance.get('/vehicles/export', { params, responseType: 'blob' });
+  axiosInstance.get('/vehicles/export', { params, responseType: 'blob' }).then((r) => r.data);
 
 export const createVehicle = (data) =>
   axiosInstance.post('/vehicles', data).then((r) => r.data);
