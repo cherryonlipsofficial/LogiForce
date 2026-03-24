@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { protect, restrictTo } = require('../middleware/auth');
-const { Supplier } = require('../models');
+const { Supplier, Vehicle } = require('../models');
 const { sendSuccess, sendError } = require('../utils/responseHelper');
 const validate = require('../middleware/validate');
 const { createSupplierValidation, updateSupplierValidation } = require('../middleware/validators/supplier.validators');
@@ -11,7 +11,22 @@ router.use(protect);
 
 // GET /api/suppliers
 router.get('/', async (req, res) => {
-  const suppliers = await Supplier.find().sort({ name: 1 });
+  const [suppliers, vehicleCounts] = await Promise.all([
+    Supplier.find().sort({ name: 1 }).lean(),
+    Vehicle.aggregate([
+      { $group: { _id: '$supplierId', count: { $sum: 1 } } },
+    ]),
+  ]);
+
+  const countMap = {};
+  for (const vc of vehicleCounts) {
+    if (vc._id) countMap[vc._id.toString()] = vc.count;
+  }
+
+  for (const supplier of suppliers) {
+    supplier.vehicleCount = countMap[supplier._id.toString()] || 0;
+  }
+
   sendSuccess(res, suppliers);
 });
 
