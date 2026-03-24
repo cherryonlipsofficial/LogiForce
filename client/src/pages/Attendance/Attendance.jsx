@@ -201,6 +201,26 @@ const InfoRow = ({ label, value }) => (
   </div>
 );
 
+const TEMPLATE_COLUMNS = ['employee_code', 'driver_name', 'working_days', 'overtime_hours'];
+const TEMPLATE_SAMPLE_ROWS = [
+  ['EMP001', 'Ahmed Khan', '22', '5'],
+  ['EMP002', 'Sara Ali', '20', '0'],
+  ['EMP003', 'Omar Hassan', '25', '8'],
+];
+
+const downloadTemplate = () => {
+  const header = TEMPLATE_COLUMNS.join(',');
+  const rows = TEMPLATE_SAMPLE_ROWS.map((r) => r.join(','));
+  const csv = [header, ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'attendance_template.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
 const UploadModal = ({ onClose }) => {
   const fileRef = useRef(null);
   const [clientId, setClientId] = useState('');
@@ -236,10 +256,61 @@ const UploadModal = ({ onClose }) => {
   };
 
   const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 4 };
+  const thStyle = { padding: '6px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'left', background: 'var(--surface2)', borderBottom: '1px solid var(--border)' };
+  const tdStyle = { padding: '5px 10px', fontSize: 11, color: 'var(--text3)', borderBottom: '1px solid var(--border)' };
 
   return (
-    <Modal title="Upload attendance" onClose={onClose} width={460}>
+    <Modal title="Upload attendance" onClose={onClose} width={520}>
       <form onSubmit={handleSubmit}>
+        {/* Template format section */}
+        <div style={{ marginBottom: 16, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)' }}>Required format</div>
+            <button
+              type="button"
+              onClick={downloadTemplate}
+              style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border2)',
+                borderRadius: 6,
+                padding: '4px 10px',
+                fontSize: 11,
+                color: 'var(--accent)',
+                cursor: 'pointer',
+                fontWeight: 500,
+              }}
+            >
+              Download template
+            </button>
+          </div>
+          <div style={{ overflowX: 'auto', borderRadius: 6, border: '1px solid var(--border)' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  {TEMPLATE_COLUMNS.map((col) => (
+                    <th key={col} style={thStyle}>{col}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {TEMPLATE_SAMPLE_ROWS.map((row, i) => (
+                  <tr key={i}>
+                    {row.map((cell, j) => (
+                      <td key={j} style={tdStyle}>{cell}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 8, lineHeight: 1.5 }}>
+            <strong>employee_code</strong> &mdash; required, must match a driver in the system<br />
+            <strong>driver_name</strong> &mdash; optional, for reference only<br />
+            <strong>working_days</strong> &mdash; required, number between 0&ndash;31<br />
+            <strong>overtime_hours</strong> &mdash; optional, defaults to 0
+          </div>
+        </div>
+
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>Client *</label>
           <ClientSelect value={clientId} onChange={setClientId} />
