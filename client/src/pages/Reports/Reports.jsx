@@ -5,8 +5,9 @@ import KpiCard from '../../components/ui/KpiCard';
 import Badge from '../../components/ui/Badge';
 import Btn from '../../components/ui/Btn';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import { getPayrollSummary, getInvoiceAging, getCostPerDriver } from '../../api/reportsApi';
+import { getPayrollSummary, getInvoiceAging, getCostPerDriver, getFleetUtilisation } from '../../api/reportsApi';
 import { formatCurrencyFull, formatCurrency } from '../../utils/formatters';
+import { useNavigate } from 'react-router-dom';
 
 const fallbackPayroll = {
   totalGross: 1764600,
@@ -44,6 +45,19 @@ const fallbackCostPerDriver = [
 
 const COLORS = ['#4f8ef7', '#7c5ff0', '#1DB388', '#fbbf24'];
 
+const fallbackFleetUtil = [
+  { supplier: 'Al Futtaim Leasing', assigned: 180, available: 25 },
+  { supplier: 'Emirates Transport', assigned: 142, available: 18 },
+];
+
+const fleetReportCards = [
+  { title: 'Fleet utilisation report', desc: '% of vehicles assigned vs idle per supplier', icon: '📊' },
+  { title: 'Vehicle cost per driver', desc: 'Monthly vehicle deduction by driver + client', icon: '💰' },
+  { title: 'Contract expiry schedule', desc: 'All contracts with expiry dates in next 6 months', icon: '📅' },
+  { title: 'Off-hire log', desc: 'History of all off-hired vehicles with termination reason', icon: '🚫' },
+  { title: 'Assignment history', desc: 'Full log of which driver had which vehicle when', icon: '🔄' },
+];
+
 const periodOptions = [
   { label: 'Mar 2026', year: 2026, month: 3 },
   { label: 'Feb 2026', year: 2026, month: 2 },
@@ -51,6 +65,7 @@ const periodOptions = [
 ];
 
 const Reports = () => {
+  const navigate = useNavigate();
   const [periodIdx, setPeriodIdx] = useState(0);
   const selected = periodOptions[periodIdx];
 
@@ -71,6 +86,16 @@ const Reports = () => {
     queryFn: () => getCostPerDriver({ year: selected.year }),
     retry: 1,
   });
+
+  const { data: fleetData } = useQuery({
+    queryKey: ['reports-fleet-util'],
+    queryFn: () => getFleetUtilisation(),
+    retry: 1,
+  });
+
+  const fleetUtil = fleetData?.data?.bySupplier
+    ? fleetData.data.bySupplier.map((s) => ({ supplier: s.name, assigned: s.assigned, available: s.available }))
+    : fallbackFleetUtil;
 
   // Backend returns array of {clientName, totalGross, totalNet, totalDeductions, driverCount}
   // Aggregate into summary for KPI cards
@@ -195,6 +220,56 @@ const Reports = () => {
                     </span>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Vehicle & fleet reports section */}
+          <div style={{ marginTop: 8 }}>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Vehicle &amp; fleet reports</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
+              {fleetReportCards.map((card) => (
+                <div
+                  key={card.title}
+                  style={{
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-lg)',
+                    padding: '16px 18px',
+                    cursor: 'pointer',
+                    transition: 'border-color .15s',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>{card.title}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.4 }}>{card.desc}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Fleet utilisation chart */}
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
+              <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 16 }}>Fleet utilisation by supplier</div>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={fleetUtil} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="supplier" tick={{ fill: 'var(--text3)', fontSize: 11 }} />
+                  <YAxis tick={{ fill: 'var(--text3)', fontSize: 11 }} />
+                  <Tooltip {...tooltipStyle} />
+                  <Bar dataKey="assigned" name="Assigned" fill="#4f8ef7" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="available" name="Available" fill="#1DB388" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+              <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text3)' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: '#4f8ef7', display: 'inline-block' }} />
+                  Assigned
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text3)' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: '#1DB388', display: 'inline-block' }} />
+                  Available
+                </div>
               </div>
             </div>
           </div>

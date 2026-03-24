@@ -8,3 +8,9 @@ export const getInvoiceAging = (params) =>
 
 export const getCostPerDriver = (params) =>
   axiosInstance.get('/reports/cost-per-driver', { params }).then(r => r.data);
+
+export const getFleetUtilisation = (params) =>
+  axiosInstance.get('/reports/fleet-utilisation', { params }).then(r => r.data);
+
+export const getVehicleCostPerDriver = (params) =>
+  axiosInstance.get('/reports/vehicle-cost-per-driver', { params }).then(r => r.data);

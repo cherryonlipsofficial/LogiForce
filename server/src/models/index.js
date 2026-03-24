@@ -10,6 +10,7 @@ const Invoice = require('./Invoice');
 const Advance = require('./Advance');
 const DriverDocument = require('./DriverDocument');
 const AuditLog = require('./AuditLog');
+const Vehicle = require('./Vehicle');
 
 module.exports = {
   User,
@@ -24,4 +25,5 @@ module.exports = {
   Advance,
   DriverDocument,
   AuditLog,
+  Vehicle,
 };

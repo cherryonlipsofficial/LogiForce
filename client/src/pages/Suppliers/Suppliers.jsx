@@ -196,6 +196,9 @@ const SupplierFormModal = ({ supplier, onClose }) => {
       contactPhone: supplier.contactPhone || '',
       serviceType: supplier.serviceType || 'Lease only',
       monthlyRate: supplier.monthlyRate || '',
+      vehicleCount: supplier.vehicleCount || '',
+      driverCount: supplier.driverCount || '',
+      contractEnd: supplier.contractEnd || '',
       isActive: isSupplierActive(supplier) ? 'true' : 'false',
     } : {
       serviceType: 'Lease only',
@@ -208,6 +211,8 @@ const SupplierFormModal = ({ supplier, onClose }) => {
     mutationFn: (data) => {
       const payload = {
         ...data,
+        vehicleCount: data.vehicleCount ? Number(data.vehicleCount) : 0,
+        driverCount: data.driverCount ? Number(data.driverCount) : 0,
         isActive: data.isActive === true || data.isActive === 'true',
       };
       return isEdit ? updateSupplier(supplier._id, payload) : createSupplier(payload);
@@ -257,15 +262,25 @@ const SupplierFormModal = ({ supplier, onClose }) => {
             <label style={labelStyle}>Monthly rate</label>
             <input {...register('monthlyRate')} placeholder="AED 1,200/vehicle" />
           </div>
-          {isEdit && (
-            <div style={fieldStyle}>
-              <label style={labelStyle}>Status</label>
-              <select {...register('isActive')}>
-                <option value="true">Active</option>
-                <option value="false">Inactive</option>
-              </select>
-            </div>
-          )}
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Vehicles</label>
+            <input type="number" {...register('vehicleCount')} placeholder="0" />
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Drivers</label>
+            <input type="number" {...register('driverCount')} placeholder="0" />
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Contract end</label>
+            <input type="date" {...register('contractEnd')} />
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Status</label>
+            <select {...register('isActive')}>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>

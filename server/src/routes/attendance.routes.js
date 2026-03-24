@@ -152,6 +152,21 @@ router.put('/batches/:id/reject', restrictTo('admin', 'accountant'), async (req,
   sendSuccess(res, batch, 'Batch rejected');
 });
 
+// DELETE /api/attendance/batches/:id — delete batch and its records (admin only)
+router.delete('/batches/:id', restrictTo('admin'), async (req, res) => {
+  const batch = await AttendanceBatch.findById(req.params.id);
+  if (!batch) return sendError(res, 'Batch not found', 404);
+
+  if (batch.status === 'approved' || batch.status === 'processed') {
+    return sendError(res, `Cannot delete batch in ${batch.status} status`, 400);
+  }
+
+  await AttendanceRecord.deleteMany({ batchId: batch._id });
+  await AttendanceBatch.findByIdAndDelete(batch._id);
+
+  sendSuccess(res, null, 'Batch deleted');
+});
+
 // GET /api/attendance/:driverId/:year/:month — specific attendance record
 router.get('/:driverId/:year/:month', async (req, res) => {
   const { driverId, year, month } = req.params;

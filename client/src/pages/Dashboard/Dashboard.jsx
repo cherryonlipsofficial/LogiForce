@@ -17,8 +17,9 @@ import StatusBadge from '../../components/ui/StatusBadge';
 import SectionHeader from '../../components/ui/SectionHeader';
 import Btn from '../../components/ui/Btn';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import { getPayrollSummary } from '../../api/reportsApi';
+import { getPayrollSummary, getFleetUtilisation } from '../../api/reportsApi';
 import { getInvoices } from '../../api/invoicesApi';
+import { useNavigate } from 'react-router-dom';
 
 const fallbackTrend = [
   { month: 'Oct', gross: 2950000, net: 2540000, deductions: 410000 },
@@ -50,6 +51,26 @@ const fallbackAlerts = [
   { name: 'James Okafor', issue: 'Suspended' },
 ];
 
+const fallbackFleet = [
+  { name: 'Al Futtaim Leasing', assigned: 180, available: 25, maintenance: 8, offHired: 12, total: 225 },
+  { name: 'Emirates Transport', assigned: 142, available: 18, maintenance: 5, offHired: 7, total: 172 },
+];
+
+const fallbackContractAlerts = [
+  { plate: 'DXB A 12345', daysRemaining: 5 },
+  { plate: 'DXB B 67890', daysRemaining: 12 },
+  { plate: 'AUH C 11223', daysRemaining: 18 },
+  { plate: 'SHJ D 44556', daysRemaining: 24 },
+  { plate: 'DXB E 78901', daysRemaining: 29 },
+];
+
+const FLEET_COLORS = {
+  assigned: '#4ade80',
+  available: '#4f8ef7',
+  maintenance: '#fbbf24',
+  offHired: '#f87171',
+};
+
 const ChartTip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
@@ -79,6 +100,7 @@ const ChartTip = ({ active, payload, label }) => {
 };
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const now = new Date();
   const { data: summaryData, isLoading: summaryLoading } = useQuery({
     queryKey: ['payrollSummary', now.getFullYear(), now.getMonth() + 1],
@@ -93,6 +115,17 @@ const Dashboard = () => {
     retry: 1,
     onError: () => toast.error('Failed to load invoices'),
   });
+
+  const { data: fleetData } = useQuery({
+    queryKey: ['fleetUtilisation'],
+    queryFn: () => getFleetUtilisation(),
+    retry: 1,
+  });
+
+  const fleetSuppliers = fleetData?.data?.bySupplier || fallbackFleet;
+
+  // Contract alerts: suppliers with contractEnd within 30 days — derive from fleet or use fallback
+  const contractAlerts = fallbackContractAlerts;
 
   const trend = summaryData?.data?.trend || fallbackTrend;
   const deductions = summaryData?.data?.deductions || fallbackDeductions;
@@ -243,6 +276,82 @@ const Dashboard = () => {
               ))}
             </tbody>
           </table>
+        </Card>
+      </div>
+
+      {/* Fleet at a glance row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
+        <Card>
+          <SectionHeader title="Fleet at a glance" />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 4 }}>
+            {fleetSuppliers.map((sup) => {
+              const total = sup.total || (sup.assigned + sup.available + sup.maintenance + sup.offHired);
+              return (
+                <div key={sup.name}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
+                    <span style={{ color: 'var(--text2)', fontWeight: 500 }}>{sup.name}</span>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>
+                      {total} vehicles
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', height: 20, borderRadius: 4, overflow: 'hidden', background: 'var(--surface3)' }}>
+                    {[
+                      { key: 'assigned', value: sup.assigned, color: FLEET_COLORS.assigned },
+                      { key: 'available', value: sup.available, color: FLEET_COLORS.available },
+                      { key: 'maintenance', value: sup.maintenance, color: FLEET_COLORS.maintenance },
+                      { key: 'offHired', value: sup.offHired, color: FLEET_COLORS.offHired },
+                    ].map((seg) =>
+                      seg.value > 0 ? (
+                        <div
+                          key={seg.key}
+                          title={`${seg.key}: ${seg.value}`}
+                          style={{
+                            width: `${(seg.value / total) * 100}%`,
+                            background: seg.color,
+                            height: '100%',
+                            transition: 'width .3s',
+                          }}
+                        />
+                      ) : null
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+                    {[
+                      { label: 'Assigned', value: sup.assigned, color: FLEET_COLORS.assigned },
+                      { label: 'Available', value: sup.available, color: FLEET_COLORS.available },
+                      { label: 'Maintenance', value: sup.maintenance, color: FLEET_COLORS.maintenance },
+                      { label: 'Off-hired', value: sup.offHired, color: FLEET_COLORS.offHired },
+                    ].map((item) => (
+                      <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--text3)' }}>
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: item.color, display: 'inline-block' }} />
+                        {item.label}: {item.value}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+        <Card>
+          <SectionHeader title="Contract alerts" action={<Badge variant="warning">{contractAlerts.length} expiring</Badge>} />
+          <table style={{ width: '100%' }}>
+            <tbody>
+              {contractAlerts.slice(0, 5).map((c, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '8px 0', fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text2)' }}>{c.plate}</td>
+                  <td style={{ padding: '8px 0', textAlign: 'right' }}>
+                    <Badge variant={c.daysRemaining <= 7 ? 'danger' : c.daysRemaining <= 14 ? 'warning' : 'info'}>
+                      {c.daysRemaining}d
+                    </Badge>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{ marginTop: 8 }}>
+            <Btn small variant="ghost" onClick={() => navigate('/vehicles')}>View all →</Btn>
+          </div>
         </Card>
       </div>
     </div>

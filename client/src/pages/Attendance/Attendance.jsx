@@ -9,7 +9,8 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
-import { getBatches, uploadFile, getBatch, approveBatch } from '../../api/attendanceApi';
+import { getBatches, uploadFile, getBatch, approveBatch, deleteBatch } from '../../api/attendanceApi';
+import { useAuth } from '../../context/AuthContext';
 import { formatDate } from '../../utils/formatters';
 
 const fallbackBatches = [
@@ -22,12 +23,37 @@ const fallbackBatches = [
 
 const statusMap = {
   pending_review: { label: 'Pending review', variant: 'warning' },
+  pending_approval: { label: 'Pending review', variant: 'warning' },
   approved: { label: 'Approved', variant: 'success' },
   rejected: { label: 'Rejected', variant: 'danger' },
   processing: { label: 'Processing', variant: 'info' },
+  uploaded: { label: 'Uploaded', variant: 'info' },
+  validating: { label: 'Validating', variant: 'info' },
+  processed: { label: 'Processed', variant: 'success' },
+};
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+const normalizeBatch = (b) => {
+  if (b.client && typeof b.period === 'string') return b;
+  return {
+    _id: b._id,
+    batchId: b.batchId || b._id,
+    client: b.clientId?.name || b.client || 'Unknown',
+    period: b.period?.year ? `${MONTHS[(b.period.month || 1) - 1]} ${b.period.year}` : b.period,
+    uploadedBy: b.uploadedBy?.name || b.uploadedBy || '',
+    uploadedAt: b.createdAt || b.uploadedAt,
+    status: b.status === 'pending_approval' ? 'pending_review' : b.status,
+    totalRecords: b.totalRows ?? b.totalRecords ?? 0,
+    validRecords: b.matchedRows ?? b.validRecords ?? 0,
+    errors: b.errorRows ?? b.errors ?? 0,
+    fileName: b.s3Key || b.fileName || '',
+    validationErrors: b.validationErrors || [],
+  };
 };
 
 const Attendance = () => {
+  const { role } = useAuth();
   const [showUpload, setShowUpload] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [clientFilter, setClientFilter] = useState('all');
@@ -38,7 +64,7 @@ const Attendance = () => {
     retry: 1,
   });
 
-  const batches = data?.data || fallbackBatches;
+  const batches = (data?.data || fallbackBatches).map(normalizeBatch);
 
   const filtered = clientFilter === 'all' ? batches : batches.filter((b) => b.client === clientFilter);
 
@@ -96,7 +122,7 @@ const Attendance = () => {
                       onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                     >
                       <td style={{ padding: '11px 14px' }}>
-                        <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>{b._id}</span>
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>{b.batchId || b._id}</span>
                       </td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{b.client}</td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{b.period}</td>
@@ -131,14 +157,25 @@ const Attendance = () => {
         </div>
       </div>
 
-      {selectedBatch && <BatchDetail batch={selectedBatch} onClose={() => setSelectedBatch(null)} />}
+      {selectedBatch && <BatchDetail batch={selectedBatch} onClose={() => setSelectedBatch(null)} role={role} />}
       {showUpload && <UploadModal onClose={() => setShowUpload(false)} />}
     </div>
   );
 };
 
-const BatchDetail = ({ batch, onClose }) => {
+const ISSUE_LABELS = {
+  driver_not_found: 'Driver not found in system',
+  invalid_working_days: 'Invalid working days value',
+  zero_days: 'Working days is zero',
+  over_limit: 'Working days exceeds 26',
+  missing_ot: 'Missing overtime hours',
+  driver_not_active: 'Driver is not active',
+  visa_expired: 'Driver visa has expired',
+};
+
+const BatchDetail = ({ batch, onClose, role }) => {
   const qc = useQueryClient();
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const { mutate: approve, isLoading: approving } = useMutation({
     mutationFn: () => approveBatch(batch._id),
@@ -147,16 +184,28 @@ const BatchDetail = ({ batch, onClose }) => {
       qc.invalidateQueries(['attendance-batches']);
       onClose();
     },
-    onError: () => toast.error('Failed to approve batch'),
+    onError: (err) => toast.error(err.response?.data?.message || 'Failed to approve batch'),
+  });
+
+  const { mutate: removeBatch, isLoading: deleting } = useMutation({
+    mutationFn: () => deleteBatch(batch._id),
+    onSuccess: () => {
+      toast.success('Batch deleted');
+      qc.invalidateQueries(['attendance-batches']);
+      onClose();
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Failed to delete batch'),
   });
 
   const st = statusMap[batch.status] || statusMap.pending_review;
+  const displayId = batch.batchId || batch._id;
+  const validationErrors = batch.validationErrors || [];
 
   return (
     <SidePanel onClose={onClose}>
       <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 500 }}>Batch {batch._id}</div>
+          <div style={{ fontSize: 16, fontWeight: 500 }}>Batch {displayId}</div>
           <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{batch.client} &middot; {batch.period}</div>
         </div>
         <button onClick={onClose} style={{ background: 'var(--surface3)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 8, padding: '4px 10px', fontSize: 16 }}>&times;</button>
@@ -175,9 +224,34 @@ const BatchDetail = ({ batch, onClose }) => {
         {batch.errors > 0 && (
           <div style={{ marginBottom: 24 }}>
             <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>Validation errors</div>
-            <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, padding: 14, fontSize: 12, color: '#f87171' }}>
-              {batch.errors} record(s) have validation issues. Review the uploaded file and re-upload if needed.
-            </div>
+            {validationErrors.length > 0 ? (
+              <div style={{ border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'left', background: 'rgba(239,68,68,0.06)', borderBottom: '1px solid rgba(239,68,68,0.15)' }}>Employee code</th>
+                      <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'left', background: 'rgba(239,68,68,0.06)', borderBottom: '1px solid rgba(239,68,68,0.15)' }}>Issue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {validationErrors.map((err, i) => (
+                      <tr key={i}>
+                        <td style={{ padding: '7px 12px', fontSize: 12, fontFamily: 'var(--mono)', borderBottom: '1px solid rgba(239,68,68,0.08)' }}>
+                          {err.employeeCode || '—'}
+                        </td>
+                        <td style={{ padding: '7px 12px', fontSize: 12, color: '#f87171', borderBottom: '1px solid rgba(239,68,68,0.08)' }}>
+                          {ISSUE_LABELS[err.issue] || err.details || err.issue}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, padding: 14, fontSize: 12, color: '#f87171' }}>
+                {batch.errors} record(s) have validation issues. Review the uploaded file and re-upload if needed.
+              </div>
+            )}
           </div>
         )}
 
@@ -187,6 +261,28 @@ const BatchDetail = ({ batch, onClose }) => {
               {approving ? 'Approving...' : 'Approve batch'}
             </Btn>
             <Btn variant="danger" onClick={onClose}>Reject</Btn>
+          </div>
+        )}
+
+        {role === 'admin' && batch.status !== 'approved' && batch.status !== 'processed' && (
+          <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+            {!confirmDelete ? (
+              <Btn variant="danger" onClick={() => setConfirmDelete(true)}>
+                Delete batch
+              </Btn>
+            ) : (
+              <div>
+                <div style={{ fontSize: 12, color: '#f87171', marginBottom: 8 }}>
+                  This will permanently delete this batch and all its records. This cannot be undone.
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Btn variant="danger" onClick={() => removeBatch()} disabled={deleting}>
+                    {deleting ? 'Deleting...' : 'Confirm delete'}
+                  </Btn>
+                  <Btn variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Btn>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -200,6 +296,26 @@ const InfoRow = ({ label, value }) => (
     <div style={{ fontSize: 13 }}>{value}</div>
   </div>
 );
+
+const TEMPLATE_COLUMNS = ['employee_code', 'driver_name', 'working_days', 'overtime_hours'];
+const TEMPLATE_SAMPLE_ROWS = [
+  ['EMP001', 'Ahmed Khan', '22', '5'],
+  ['EMP002', 'Sara Ali', '20', '0'],
+  ['EMP003', 'Omar Hassan', '25', '8'],
+];
+
+const downloadTemplate = () => {
+  const header = TEMPLATE_COLUMNS.join(',');
+  const rows = TEMPLATE_SAMPLE_ROWS.map((r) => r.join(','));
+  const csv = [header, ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'attendance_template.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+};
 
 const UploadModal = ({ onClose }) => {
   const fileRef = useRef(null);
@@ -236,10 +352,61 @@ const UploadModal = ({ onClose }) => {
   };
 
   const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 4 };
+  const thStyle = { padding: '6px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'left', background: 'var(--surface2)', borderBottom: '1px solid var(--border)' };
+  const tdStyle = { padding: '5px 10px', fontSize: 11, color: 'var(--text3)', borderBottom: '1px solid var(--border)' };
 
   return (
-    <Modal title="Upload attendance" onClose={onClose} width={460}>
+    <Modal title="Upload attendance" onClose={onClose} width={520}>
       <form onSubmit={handleSubmit}>
+        {/* Template format section */}
+        <div style={{ marginBottom: 16, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)' }}>Required format</div>
+            <button
+              type="button"
+              onClick={downloadTemplate}
+              style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border2)',
+                borderRadius: 6,
+                padding: '4px 10px',
+                fontSize: 11,
+                color: 'var(--accent)',
+                cursor: 'pointer',
+                fontWeight: 500,
+              }}
+            >
+              Download template
+            </button>
+          </div>
+          <div style={{ overflowX: 'auto', borderRadius: 6, border: '1px solid var(--border)' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  {TEMPLATE_COLUMNS.map((col) => (
+                    <th key={col} style={thStyle}>{col}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {TEMPLATE_SAMPLE_ROWS.map((row, i) => (
+                  <tr key={i}>
+                    {row.map((cell, j) => (
+                      <td key={j} style={tdStyle}>{cell}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 8, lineHeight: 1.5 }}>
+            <strong>employee_code</strong> &mdash; required, must match a driver in the system<br />
+            <strong>driver_name</strong> &mdash; optional, for reference only<br />
+            <strong>working_days</strong> &mdash; required, number between 0&ndash;31<br />
+            <strong>overtime_hours</strong> &mdash; optional, defaults to 0
+          </div>
+        </div>
+
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>Client *</label>
           <ClientSelect value={clientId} onChange={setClientId} />

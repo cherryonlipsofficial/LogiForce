@@ -56,6 +56,7 @@ const DriverDetail = ({ driver, onClose }) => {
   const [showStatusChange, setShowStatusChange] = useState(false);
   const [viewingFile, setViewingFile] = useState(null);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const d = driver;
   const driverId = d._id || d.id;
@@ -262,34 +263,55 @@ const DriverDetail = ({ driver, onClose }) => {
             {ledgerLoading ? (
               <LoadingSpinner />
             ) : (
-              ledger.map((e, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '9px 0',
-                    borderBottom: '1px solid var(--border)',
-                    fontSize: 12,
-                  }}
-                >
-                  <div>
-                    <div style={{ color: 'var(--text)', marginBottom: 2 }}>{e.description}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>{e.ref}</div>
-                  </div>
-                  <span
+              ledger.map((e, i) => {
+                const isVehicleRental = e.description?.toLowerCase().includes('vehicle rental') || e.type === 'vehicle_rental';
+                const vehiclePlate = isVehicleRental ? (d.vehiclePlate || d.vehicle) : null;
+                return (
+                  <div
+                    key={i}
                     style={{
-                      fontFamily: 'var(--mono)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      padding: '9px 0',
+                      borderBottom: '1px solid var(--border)',
                       fontSize: 12,
-                      color: e.type === 'debit' || e.amount < 0 ? '#f87171' : '#4ade80',
-                      fontWeight: 500,
                     }}
                   >
-                    {e.amount < 0 ? '−' : '+'} AED {Math.abs(e.amount).toLocaleString()}
-                  </span>
-                </div>
-              ))
+                    <div>
+                      <div style={{ color: 'var(--text)', marginBottom: 2 }}>{e.description}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>{e.ref}</div>
+                      {vehiclePlate && (
+                        <div
+                          onClick={() => navigate(`/vehicles?plate=${encodeURIComponent(vehiclePlate)}`)}
+                          style={{
+                            fontSize: 10,
+                            fontFamily: 'var(--mono)',
+                            color: 'var(--text3)',
+                            marginTop: 3,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 3,
+                          }}
+                        >
+                          {vehiclePlate} <span style={{ fontSize: 9 }}>↗</span>
+                        </div>
+                      )}
+                    </div>
+                    <span
+                      style={{
+                        fontFamily: 'var(--mono)',
+                        fontSize: 12,
+                        color: e.type === 'debit' || e.amount < 0 ? '#f87171' : '#4ade80',
+                        fontWeight: 500,
+                      }}
+                    >
+                      {e.amount < 0 ? '−' : '+'} AED {Math.abs(e.amount).toLocaleString()}
+                    </span>
+                  </div>
+                );
+              })
             )}
           </div>
         )}
