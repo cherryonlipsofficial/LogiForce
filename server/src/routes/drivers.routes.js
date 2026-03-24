@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const router = express.Router();
 const { protect, restrictTo } = require('../middleware/auth');
 const upload = require('../middleware/upload');
@@ -17,6 +18,14 @@ router.get('/expiring-documents', async (req, res) => {
   const days = parseInt(req.query.days) || 30;
   const docs = await driverService.getExpiringDocuments(days);
   sendSuccess(res, docs);
+});
+
+// GET /api/drivers/uploads/:fileKey — serve uploaded file (must be before /:id)
+router.get('/uploads/:fileKey', async (req, res) => {
+  const filePath = path.join(__dirname, '..', '..', 'uploads', req.params.fileKey);
+  res.sendFile(filePath, (err) => {
+    if (err) sendError(res, 'File not found', 404);
+  });
 });
 
 // GET /api/drivers — list with pagination, search, filter
@@ -68,12 +77,29 @@ router.get('/:id/salary-runs', async (req, res) => {
   sendSuccess(res, runs);
 });
 
+// GET /api/drivers/:id/documents — list documents for a driver
+router.get('/:id/documents', async (req, res) => {
+  const docs = await DriverDocument.find({ driverId: req.params.id })
+    .sort({ createdAt: -1 });
+  sendSuccess(res, docs);
+});
+
 // POST /api/drivers/:id/documents — upload document
 router.post('/:id/documents', restrictTo('ops', 'admin'), upload.single('file'), async (req, res) => {
   const driver = await Driver.findById(req.params.id);
   if (!driver) return sendError(res, 'Driver not found', 404);
 
   if (!req.file) return sendError(res, 'No file uploaded', 400);
+
+  // If a document of same type already exists, update it instead of creating duplicate
+  const existing = await DriverDocument.findOne({ driverId: req.params.id, docType: req.body.docType });
+  if (existing) {
+    existing.fileKey = req.file.filename;
+    existing.expiryDate = req.body.expiryDate || existing.expiryDate;
+    existing.status = 'pending';
+    await existing.save();
+    return sendSuccess(res, existing, 'Document updated', 200);
+  }
 
   const doc = await DriverDocument.create({
     driverId: req.params.id,
