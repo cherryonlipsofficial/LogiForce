@@ -1,5 +1,4 @@
 const express = require('express');
-const path = require('path');
 const router = express.Router();
 const { protect, restrictTo } = require('../middleware/auth');
 const upload = require('../middleware/upload');
@@ -20,21 +19,15 @@ router.get('/expiring-documents', async (req, res) => {
   sendSuccess(res, docs);
 });
 
-// GET /api/drivers/uploads/:fileKey — serve uploaded file (must be before /:id)
+// GET /api/drivers/uploads/:fileKey — redirect to Cloudinary URL (must be before /:id)
 router.get('/uploads/:fileKey', async (req, res) => {
-  const fs = require('fs');
   const fileKey = req.params.fileKey;
-  // Prevent directory traversal
-  if (fileKey.includes('..') || fileKey.includes('/') || fileKey.includes('\\')) {
-    return sendError(res, 'Invalid file key', 400);
-  }
-  const filePath = path.resolve(__dirname, '..', '..', 'uploads', fileKey);
-  if (!fs.existsSync(filePath)) {
+  // Look up the document to get its Cloudinary URL
+  const doc = await DriverDocument.findOne({ fileKey });
+  if (!doc || !doc.fileUrl) {
     return sendError(res, 'File not found', 404);
   }
-  res.sendFile(filePath, (err) => {
-    if (err && !res.headersSent) sendError(res, 'File not found', 404);
-  });
+  res.redirect(doc.fileUrl);
 });
 
 // GET /api/drivers/status-counts — counts by status for KPI cards
@@ -143,10 +136,14 @@ router.post('/:id/documents', restrictTo('ops', 'admin'), upload.single('file'),
 
   if (!req.file) return sendError(res, 'No file uploaded', 400);
 
+  const fileKey = req.file.filename || req.file.public_id || req.file.originalname;
+  const fileUrl = req.file.path || req.file.secure_url || req.file.url || '';
+
   // If a document of same type already exists, update it instead of creating duplicate
   const existing = await DriverDocument.findOne({ driverId: req.params.id, docType: req.body.docType });
   if (existing) {
-    existing.fileKey = req.file.filename;
+    existing.fileKey = fileKey;
+    existing.fileUrl = fileUrl;
     existing.expiryDate = req.body.expiryDate || existing.expiryDate;
     existing.status = 'pending';
     await existing.save();
@@ -156,7 +153,8 @@ router.post('/:id/documents', restrictTo('ops', 'admin'), upload.single('file'),
   const doc = await DriverDocument.create({
     driverId: req.params.id,
     docType: req.body.docType,
-    fileKey: req.file.filename,
+    fileKey: fileKey,
+    fileUrl: fileUrl,
     expiryDate: req.body.expiryDate || null,
   });
   sendSuccess(res, doc, 'Document uploaded', 201);

@@ -23,6 +23,9 @@ const driverDocumentSchema = new mongoose.Schema(
     fileKey: {
       type: String,
     },
+    fileUrl: {
+      type: String,
+    },
     expiryDate: {
       type: Date,
     },
