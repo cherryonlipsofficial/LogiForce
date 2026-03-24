@@ -22,9 +22,31 @@ const fallbackBatches = [
 
 const statusMap = {
   pending_review: { label: 'Pending review', variant: 'warning' },
+  pending_approval: { label: 'Pending review', variant: 'warning' },
   approved: { label: 'Approved', variant: 'success' },
   rejected: { label: 'Rejected', variant: 'danger' },
   processing: { label: 'Processing', variant: 'info' },
+  uploaded: { label: 'Uploaded', variant: 'info' },
+  validating: { label: 'Validating', variant: 'info' },
+  processed: { label: 'Processed', variant: 'success' },
+};
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+const normalizeBatch = (b) => {
+  if (b.client && typeof b.period === 'string') return b;
+  return {
+    _id: b.batchId || b._id,
+    client: b.clientId?.name || b.client || 'Unknown',
+    period: b.period?.year ? `${MONTHS[(b.period.month || 1) - 1]} ${b.period.year}` : b.period,
+    uploadedBy: b.uploadedBy?.name || b.uploadedBy || '',
+    uploadedAt: b.createdAt || b.uploadedAt,
+    status: b.status === 'pending_approval' ? 'pending_review' : b.status,
+    totalRecords: b.totalRows ?? b.totalRecords ?? 0,
+    validRecords: b.matchedRows ?? b.validRecords ?? 0,
+    errors: b.errorRows ?? b.errors ?? 0,
+    fileName: b.s3Key || b.fileName || '',
+  };
 };
 
 const Attendance = () => {
@@ -38,7 +60,7 @@ const Attendance = () => {
     retry: 1,
   });
 
-  const batches = data?.data || fallbackBatches;
+  const batches = (data?.data || fallbackBatches).map(normalizeBatch);
 
   const filtered = clientFilter === 'all' ? batches : batches.filter((b) => b.client === clientFilter);
 
