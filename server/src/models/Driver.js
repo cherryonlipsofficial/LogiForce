@@ -24,6 +24,9 @@ const driverSchema = new mongoose.Schema(
       unique: true,
       sparse: true,
     },
+    emiratesIdExpiry: {
+      type: Date,
+    },
     passportNumber: {
       type: String,
       unique: true,
@@ -46,6 +49,12 @@ const driverSchema = new mongoose.Schema(
       type: String,
     },
     labourCardExpiry: {
+      type: Date,
+    },
+    drivingLicenceExpiry: {
+      type: Date,
+    },
+    mulkiyaExpiry: {
       type: Date,
     },
     phoneUae: {

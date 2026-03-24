@@ -119,12 +119,12 @@ const DriverDetail = ({ driver, onClose }) => {
   const documentsList = DOC_TYPES.map((dt) => {
     const uploaded = docMap[dt.value];
     let expiry = null;
-    if (dt.value === 'emirates_id') expiry = uploaded?.expiryDate;
+    if (dt.value === 'emirates_id') expiry = d.emiratesIdExpiry || uploaded?.expiryDate;
     if (dt.value === 'passport') expiry = d.passportExpiry || uploaded?.expiryDate;
     if (dt.value === 'visa') expiry = d.visaExpiry || uploaded?.expiryDate;
     if (dt.value === 'labour_card') expiry = d.labourCardExpiry || uploaded?.expiryDate;
-    if (dt.value === 'driving_licence') expiry = uploaded?.expiryDate;
-    if (dt.value === 'mulkiya') expiry = uploaded?.expiryDate;
+    if (dt.value === 'driving_licence') expiry = d.drivingLicenceExpiry || uploaded?.expiryDate;
+    if (dt.value === 'mulkiya') expiry = d.mulkiyaExpiry || uploaded?.expiryDate;
     return {
       ...dt,
       expiry,
@@ -496,6 +496,9 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
       visaExpiry: toDateInput(driver.visaExpiry),
       labourCardNo: driver.labourCardNo || '',
       labourCardExpiry: toDateInput(driver.labourCardExpiry),
+      emiratesIdExpiry: toDateInput(driver.emiratesIdExpiry),
+      drivingLicenceExpiry: toDateInput(driver.drivingLicenceExpiry),
+      mulkiyaExpiry: toDateInput(driver.mulkiyaExpiry),
     },
   });
   const [submitting, setSubmitting] = useState(false);
@@ -537,6 +540,9 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
         visaExpiry: formData.visaExpiry || undefined,
         labourCardNo: formData.labourCardNo || undefined,
         labourCardExpiry: formData.labourCardExpiry || undefined,
+        emiratesIdExpiry: formData.emiratesIdExpiry || undefined,
+        drivingLicenceExpiry: formData.drivingLicenceExpiry || undefined,
+        mulkiyaExpiry: formData.mulkiyaExpiry || undefined,
       });
       toast.success('Driver updated successfully');
       onSaved();
@@ -584,10 +590,10 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
   const docRowFields = [
     { type: 'passport', label: 'Passport', numField: 'passportNumber', numPlaceholder: 'AB1234567', expiryField: 'passportExpiry' },
     { type: 'visa', label: 'Visa', numField: 'visaNumber', numPlaceholder: 'Visa number', expiryField: 'visaExpiry', extra: 'visaType' },
-    { type: 'emirates_id', label: 'Emirates ID', numField: 'emiratesId', numPlaceholder: '784-XXXX-XXXXXXX-X', expiryField: null },
+    { type: 'emirates_id', label: 'Emirates ID', numField: 'emiratesId', numPlaceholder: '784-XXXX-XXXXXXX-X', expiryField: 'emiratesIdExpiry' },
     { type: 'labour_card', label: 'Labour Card', numField: 'labourCardNo', numPlaceholder: 'Labour card number', expiryField: 'labourCardExpiry' },
-    { type: 'driving_licence', label: 'Driving Licence', numField: null, expiryField: null },
-    { type: 'mulkiya', label: 'Mulkiya', numField: null, expiryField: null },
+    { type: 'driving_licence', label: 'Driving Licence', numField: null, expiryField: 'drivingLicenceExpiry' },
+    { type: 'mulkiya', label: 'Mulkiya', numField: null, expiryField: 'mulkiyaExpiry' },
   ];
 
   return (
