@@ -53,6 +53,13 @@ const attendanceBatchSchema = new mongoose.Schema(
     approvedAt: {
       type: Date,
     },
+    rejectedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    rejectedAt: {
+      type: Date,
+    },
     columnMapping: {
       type: mongoose.Schema.Types.Mixed,
     },

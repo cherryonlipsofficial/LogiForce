@@ -129,6 +129,15 @@ router.put('/batches/:id/approve', restrictTo('admin', 'accountant'), async (req
     return sendError(res, `Cannot approve batch in ${batch.status} status`, 400);
   }
 
+  // Prevent approval if batch has unresolved validation errors
+  if (batch.errorRows > 0 || (batch.validationErrors && batch.validationErrors.length > 0)) {
+    return sendError(
+      res,
+      `Cannot approve batch with ${batch.errorRows || batch.validationErrors.length} validation error(s). Please resolve all errors before approving.`,
+      400
+    );
+  }
+
   batch.status = 'approved';
   batch.approvedBy = req.user._id;
   batch.approvedAt = new Date();
@@ -147,6 +156,8 @@ router.put('/batches/:id/reject', restrictTo('admin', 'accountant'), async (req,
   }
 
   batch.status = 'rejected';
+  batch.rejectedBy = req.user._id;
+  batch.rejectedAt = new Date();
   await batch.save();
 
   sendSuccess(res, batch, 'Batch rejected');

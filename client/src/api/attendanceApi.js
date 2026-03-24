@@ -14,5 +14,8 @@ export const getBatch = (id) =>
 export const approveBatch = (id) =>
   axiosInstance.put(`/attendance/batches/${id}/approve`).then(r => r.data);
 
+export const rejectBatch = (id) =>
+  axiosInstance.put(`/attendance/batches/${id}/reject`).then(r => r.data);
+
 export const deleteBatch = (id) =>
   axiosInstance.delete(`/attendance/batches/${id}`).then(r => r.data);

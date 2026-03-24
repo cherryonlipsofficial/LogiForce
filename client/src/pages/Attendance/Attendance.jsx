@@ -9,7 +9,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
-import { getBatches, uploadFile, getBatch, approveBatch, deleteBatch } from '../../api/attendanceApi';
+import { getBatches, uploadFile, getBatch, approveBatch, rejectBatch, deleteBatch } from '../../api/attendanceApi';
 import { useAuth } from '../../context/AuthContext';
 import { formatDate } from '../../utils/formatters';
 
@@ -187,6 +187,16 @@ const BatchDetail = ({ batch, onClose, role }) => {
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to approve batch'),
   });
 
+  const { mutate: reject, isLoading: rejecting } = useMutation({
+    mutationFn: () => rejectBatch(batch._id),
+    onSuccess: () => {
+      toast.success('Batch rejected');
+      qc.invalidateQueries(['attendance-batches']);
+      onClose();
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Failed to reject batch'),
+  });
+
   const { mutate: removeBatch, isLoading: deleting } = useMutation({
     mutationFn: () => deleteBatch(batch._id),
     onSuccess: () => {
@@ -256,11 +266,20 @@ const BatchDetail = ({ batch, onClose, role }) => {
         )}
 
         {batch.status === 'pending_review' && (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Btn variant="primary" onClick={() => approve()} disabled={approving}>
-              {approving ? 'Approving...' : 'Approve batch'}
-            </Btn>
-            <Btn variant="danger" onClick={onClose}>Reject</Btn>
+          <div>
+            {batch.errors > 0 && (
+              <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, padding: 12, fontSize: 12, color: '#f87171', marginBottom: 12 }}>
+                Cannot approve batch with {batch.errors} validation error(s). Please resolve all errors before approving.
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Btn variant="primary" onClick={() => approve()} disabled={approving || batch.errors > 0}>
+                {approving ? 'Approving...' : 'Approve batch'}
+              </Btn>
+              <Btn variant="danger" onClick={() => reject()} disabled={rejecting}>
+                {rejecting ? 'Rejecting...' : 'Reject'}
+              </Btn>
+            </div>
           </div>
         )}
 
