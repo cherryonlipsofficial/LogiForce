@@ -22,9 +22,18 @@ router.get('/expiring-documents', async (req, res) => {
 
 // GET /api/drivers/uploads/:fileKey — serve uploaded file (must be before /:id)
 router.get('/uploads/:fileKey', async (req, res) => {
-  const filePath = path.join(__dirname, '..', '..', 'uploads', req.params.fileKey);
+  const fs = require('fs');
+  const fileKey = req.params.fileKey;
+  // Prevent directory traversal
+  if (fileKey.includes('..') || fileKey.includes('/') || fileKey.includes('\\')) {
+    return sendError(res, 'Invalid file key', 400);
+  }
+  const filePath = path.resolve(__dirname, '..', '..', 'uploads', fileKey);
+  if (!fs.existsSync(filePath)) {
+    return sendError(res, 'File not found', 404);
+  }
   res.sendFile(filePath, (err) => {
-    if (err) sendError(res, 'File not found', 404);
+    if (err && !res.headersSent) sendError(res, 'File not found', 404);
   });
 });
 

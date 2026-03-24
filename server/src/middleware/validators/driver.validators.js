@@ -58,6 +58,15 @@ const createDriverValidation = [
   body('labourCardExpiry')
     .optional()
     .isISO8601().withMessage('Labour card expiry must be a valid date'),
+  body('emiratesIdExpiry')
+    .optional()
+    .isISO8601().withMessage('Emirates ID expiry must be a valid date'),
+  body('drivingLicenceExpiry')
+    .optional()
+    .isISO8601().withMessage('Driving licence expiry must be a valid date'),
+  body('mulkiyaExpiry')
+    .optional()
+    .isISO8601().withMessage('Mulkiya expiry must be a valid date'),
 ];
 
 const updateDriverValidation = [
@@ -109,6 +118,15 @@ const updateDriverValidation = [
   body('labourCardExpiry')
     .optional()
     .isISO8601().withMessage('Labour card expiry must be a valid date'),
+  body('emiratesIdExpiry')
+    .optional()
+    .isISO8601().withMessage('Emirates ID expiry must be a valid date'),
+  body('drivingLicenceExpiry')
+    .optional()
+    .isISO8601().withMessage('Driving licence expiry must be a valid date'),
+  body('mulkiyaExpiry')
+    .optional()
+    .isISO8601().withMessage('Mulkiya expiry must be a valid date'),
 ];
 
 const changeStatusValidation = [
