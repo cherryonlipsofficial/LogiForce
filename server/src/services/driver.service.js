@@ -115,6 +115,16 @@ const getExpiringDocuments = async (days = 30) => {
   return docs;
 };
 
+const getStatusCounts = async () => {
+  const [total, active, onLeave, suspended] = await Promise.all([
+    Driver.countDocuments({}),
+    Driver.countDocuments({ status: 'active' }),
+    Driver.countDocuments({ status: 'on_leave' }),
+    Driver.countDocuments({ status: 'suspended' }),
+  ]);
+  return { total, active, onLeave, suspended };
+};
+
 module.exports = {
   findAll,
   findById,
@@ -123,4 +133,5 @@ module.exports = {
   softDelete,
   getLedger,
   getExpiringDocuments,
+  getStatusCounts,
 };
