@@ -11,6 +11,7 @@ import Modal from '../../components/ui/Modal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import DriverDetail from './DriverDetail';
 import { getDrivers, createDriver } from '../../api/driversApi';
+import { getClients } from '../../api/clientsApi';
 
 const fallbackDrivers = [
   { id: 'DRV-00814', name: 'Mohamed Al Farsi', nationality: 'Emirati', client: 'Amazon UAE', supplier: 'Own vehicle', status: 'active', baseSalary: 2800, netSalary: 2313, advanceBalance: 500, workingDays: 22, overtimeHrs: 4.5, grossSalary: 2800, deductions: 487, joinDate: '03 Mar 2023', visaExpiry: '15 Apr 2026', emiratesId: '784-1985-1234567-1', phone: '+971 55 123 4567', vehicle: 'AB-12345', payStructure: 'Monthly fixed' },
@@ -191,6 +192,12 @@ const AddDriverModal = ({ onClose }) => {
   const { register, handleSubmit, formState: { errors }, setError } = useForm();
   const [submitting, setSubmitting] = useState(false);
 
+  const { data: clientsData } = useQuery({
+    queryKey: ['clients'],
+    queryFn: () => getClients(),
+  });
+  const clients = clientsData?.data || [];
+
   const onSubmit = async (formData) => {
     setSubmitting(true);
     try {
@@ -200,6 +207,7 @@ const AddDriverModal = ({ onClose }) => {
         phoneUae: formData.phoneUae,
         baseSalary: Number(formData.baseSalary),
         payStructure: formData.payStructure,
+        clientId: formData.clientId,
         emiratesId: formData.emiratesId || undefined,
       };
       await createDriver(payload);
@@ -284,6 +292,18 @@ const AddDriverModal = ({ onClose }) => {
               placeholder="2800"
             />
             {errors.baseSalary && <span style={errorStyle}>{errors.baseSalary.message}</span>}
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Client *</label>
+            <select
+              {...register('clientId', { required: 'Client is required' })}
+            >
+              <option value="">Select client</option>
+              {clients.map((c) => (
+                <option key={c._id} value={c._id}>{c.name}</option>
+              ))}
+            </select>
+            {errors.clientId && <span style={errorStyle}>{errors.clientId.message}</span>}
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Emirates ID</label>

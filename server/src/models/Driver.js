@@ -5,7 +5,6 @@ const driverSchema = new mongoose.Schema(
     employeeCode: {
       type: String,
       unique: true,
-      required: true,
     },
     fullName: {
       type: String,
@@ -97,6 +96,7 @@ const driverSchema = new mongoose.Schema(
     clientId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Client',
+      required: [true, 'Client is required'],
     },
     supplierId: {
       type: mongoose.Schema.Types.ObjectId,
