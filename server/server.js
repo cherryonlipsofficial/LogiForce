@@ -37,8 +37,7 @@ if (process.env.NODE_ENV === 'production') {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve uploaded files
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Note: File uploads are now stored in Cloudinary (persistent cloud storage)
 
 // Routes
 app.use('/api/auth', require('./src/routes/auth.routes'));
