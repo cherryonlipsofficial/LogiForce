@@ -9,6 +9,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
+import { useNavigate } from 'react-router-dom';
 import { getRuns, runPayroll, approveRun, getWpsFile } from '../../api/salaryApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
 
@@ -134,6 +135,7 @@ const Salary = () => {
 
 const RunDetail = ({ run, onClose }) => {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const st = statusMap[run.status] || statusMap.draft;
 
   const { mutate: approve, isLoading: approving } = useMutation({
@@ -182,6 +184,39 @@ const RunDetail = ({ run, onClose }) => {
           <InfoRow label="Created" value={formatDate(run.createdAt)} />
           {run.approvedBy && <InfoRow label="Approved by" value={run.approvedBy} />}
         </div>
+
+        {run.deductions && run.deductions.length > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8, color: 'var(--text2)' }}>Deductions breakdown</div>
+            {run.deductions.map((ded, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '7px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+                <div>
+                  <div style={{ color: 'var(--text)' }}>{ded.description || ded.type}</div>
+                  {ded.type === 'vehicle_rental' && run.vehiclePlate && (
+                    <div
+                      onClick={() => navigate(`/vehicles?plate=${encodeURIComponent(run.vehiclePlate)}`)}
+                      style={{
+                        fontSize: 10,
+                        fontFamily: 'var(--mono)',
+                        color: 'var(--text3)',
+                        marginTop: 2,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 3,
+                      }}
+                    >
+                      {run.vehiclePlate} <span style={{ fontSize: 9 }}>↗</span>
+                    </div>
+                  )}
+                </div>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#f87171' }}>
+                  {formatCurrencyFull(ded.amount)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {run.status === 'draft' && (

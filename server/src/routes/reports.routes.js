@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
-const { SalaryRun, Invoice, Driver, Advance, DriverDocument } = require('../models');
+const { SalaryRun, Invoice, Driver, Advance, DriverDocument, Supplier } = require('../models');
 const { sendSuccess, sendError } = require('../utils/responseHelper');
 
 // All routes are protected
@@ -218,6 +218,109 @@ router.get('/document-expiry', async (req, res) => {
   }));
 
   sendSuccess(res, result);
+});
+
+// GET /api/reports/fleet-utilisation — vehicle fleet stats by supplier
+router.get('/fleet-utilisation', async (req, res) => {
+  try {
+    const suppliers = await Supplier.find({ isActive: true }).lean();
+
+    const bySupplier = [];
+    for (const sup of suppliers) {
+      const drivers = await Driver.find({ supplierId: sup._id }).lean();
+      const assigned = drivers.filter(
+        (d) => d.status === 'active' && d.vehiclePlate
+      ).length;
+      const available = Math.max(0, (sup.vehicleCount || 0) - assigned);
+      const maintenance = drivers.filter(
+        (d) => d.status === 'suspended' && d.vehiclePlate
+      ).length;
+      const offHired = drivers.filter(
+        (d) =>
+          ['resigned', 'offboarding'].includes(d.status) && d.vehiclePlate
+      ).length;
+
+      bySupplier.push({
+        name: sup.name,
+        supplierId: sup._id,
+        assigned,
+        available,
+        maintenance,
+        offHired,
+        total: sup.vehicleCount || assigned + available,
+      });
+    }
+
+    // By vehicle type
+    const allDriversWithVehicle = await Driver.find({
+      vehiclePlate: { $ne: null, $exists: true },
+    }).lean();
+    const typeMap = {};
+    for (const d of allDriversWithVehicle) {
+      const type = d.vehicleType || 'Unknown';
+      if (!typeMap[type]) typeMap[type] = { type, assigned: 0, available: 0 };
+      if (d.status === 'active') {
+        typeMap[type].assigned++;
+      } else {
+        typeMap[type].available++;
+      }
+    }
+
+    sendSuccess(res, {
+      bySupplier,
+      byType: Object.values(typeMap),
+    });
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/vehicle-cost-per-driver — vehicle rental deductions by driver for a period
+router.get('/vehicle-cost-per-driver', async (req, res) => {
+  try {
+    const { year, month } = req.query;
+    if (!year || !month) return sendError(res, 'year and month are required', 400);
+
+    const runs = await SalaryRun.find({
+      'period.year': parseInt(year),
+      'period.month': parseInt(month),
+      status: { $in: ['draft', 'approved', 'paid'] },
+      'deductions.type': 'vehicle_rental',
+    })
+      .populate('driverId', 'fullName employeeCode vehiclePlate vehicleType')
+      .populate('clientId', 'name')
+      .lean();
+
+    const result = runs
+      .map((run) => {
+        const vehicleDed = run.deductions.find(
+          (d) => d.type === 'vehicle_rental'
+        );
+        if (!vehicleDed) return null;
+        return {
+          driverName: run.driverId?.fullName,
+          employeeCode: run.driverId?.employeeCode,
+          clientName: run.clientId?.name,
+          vehiclePlate: run.driverId?.vehiclePlate,
+          vehicleMake: run.driverId?.vehicleType || '',
+          vehicleModel: '',
+          monthlyRate: vehicleDed.amount,
+          proratedAmount: vehicleDed.amount !== run.deductions.find((d) => d.type === 'vehicle_rental')?.amount
+            ? vehicleDed.amount
+            : null,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => {
+        const clientCmp = (a.clientName || '').localeCompare(b.clientName || '');
+        if (clientCmp !== 0) return clientCmp;
+        return (a.driverName || '').localeCompare(b.driverName || '');
+      });
+
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
 });
 
 module.exports = router;
