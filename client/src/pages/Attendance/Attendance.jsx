@@ -9,7 +9,8 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
-import { getBatches, uploadFile, getBatch, approveBatch } from '../../api/attendanceApi';
+import { getBatches, uploadFile, getBatch, approveBatch, deleteBatch } from '../../api/attendanceApi';
+import { useAuth } from '../../context/AuthContext';
 import { formatDate } from '../../utils/formatters';
 
 const fallbackBatches = [
@@ -52,6 +53,7 @@ const normalizeBatch = (b) => {
 };
 
 const Attendance = () => {
+  const { role } = useAuth();
   const [showUpload, setShowUpload] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [clientFilter, setClientFilter] = useState('all');
@@ -155,7 +157,7 @@ const Attendance = () => {
         </div>
       </div>
 
-      {selectedBatch && <BatchDetail batch={selectedBatch} onClose={() => setSelectedBatch(null)} />}
+      {selectedBatch && <BatchDetail batch={selectedBatch} onClose={() => setSelectedBatch(null)} role={role} />}
       {showUpload && <UploadModal onClose={() => setShowUpload(false)} />}
     </div>
   );
@@ -171,8 +173,9 @@ const ISSUE_LABELS = {
   visa_expired: 'Driver visa has expired',
 };
 
-const BatchDetail = ({ batch, onClose }) => {
+const BatchDetail = ({ batch, onClose, role }) => {
   const qc = useQueryClient();
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const { mutate: approve, isLoading: approving } = useMutation({
     mutationFn: () => approveBatch(batch._id),
@@ -182,6 +185,16 @@ const BatchDetail = ({ batch, onClose }) => {
       onClose();
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to approve batch'),
+  });
+
+  const { mutate: removeBatch, isLoading: deleting } = useMutation({
+    mutationFn: () => deleteBatch(batch._id),
+    onSuccess: () => {
+      toast.success('Batch deleted');
+      qc.invalidateQueries(['attendance-batches']);
+      onClose();
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Failed to delete batch'),
   });
 
   const st = statusMap[batch.status] || statusMap.pending_review;
@@ -248,6 +261,28 @@ const BatchDetail = ({ batch, onClose }) => {
               {approving ? 'Approving...' : 'Approve batch'}
             </Btn>
             <Btn variant="danger" onClick={onClose}>Reject</Btn>
+          </div>
+        )}
+
+        {role === 'admin' && batch.status !== 'approved' && batch.status !== 'processed' && (
+          <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+            {!confirmDelete ? (
+              <Btn variant="danger" onClick={() => setConfirmDelete(true)}>
+                Delete batch
+              </Btn>
+            ) : (
+              <div>
+                <div style={{ fontSize: 12, color: '#f87171', marginBottom: 8 }}>
+                  This will permanently delete this batch and all its records. This cannot be undone.
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Btn variant="danger" onClick={() => removeBatch()} disabled={deleting}>
+                    {deleting ? 'Deleting...' : 'Confirm delete'}
+                  </Btn>
+                  <Btn variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Btn>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
