@@ -36,7 +36,8 @@ const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov
 const normalizeBatch = (b) => {
   if (b.client && typeof b.period === 'string') return b;
   return {
-    _id: b.batchId || b._id,
+    _id: b._id,
+    batchId: b.batchId || b._id,
     client: b.clientId?.name || b.client || 'Unknown',
     period: b.period?.year ? `${MONTHS[(b.period.month || 1) - 1]} ${b.period.year}` : b.period,
     uploadedBy: b.uploadedBy?.name || b.uploadedBy || '',
@@ -46,6 +47,7 @@ const normalizeBatch = (b) => {
     validRecords: b.matchedRows ?? b.validRecords ?? 0,
     errors: b.errorRows ?? b.errors ?? 0,
     fileName: b.s3Key || b.fileName || '',
+    validationErrors: b.validationErrors || [],
   };
 };
 
@@ -118,7 +120,7 @@ const Attendance = () => {
                       onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                     >
                       <td style={{ padding: '11px 14px' }}>
-                        <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>{b._id}</span>
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>{b.batchId || b._id}</span>
                       </td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{b.client}</td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{b.period}</td>
@@ -159,6 +161,16 @@ const Attendance = () => {
   );
 };
 
+const ISSUE_LABELS = {
+  driver_not_found: 'Driver not found in system',
+  invalid_working_days: 'Invalid working days value',
+  zero_days: 'Working days is zero',
+  over_limit: 'Working days exceeds 26',
+  missing_ot: 'Missing overtime hours',
+  driver_not_active: 'Driver is not active',
+  visa_expired: 'Driver visa has expired',
+};
+
 const BatchDetail = ({ batch, onClose }) => {
   const qc = useQueryClient();
 
@@ -169,16 +181,18 @@ const BatchDetail = ({ batch, onClose }) => {
       qc.invalidateQueries(['attendance-batches']);
       onClose();
     },
-    onError: () => toast.error('Failed to approve batch'),
+    onError: (err) => toast.error(err.response?.data?.message || 'Failed to approve batch'),
   });
 
   const st = statusMap[batch.status] || statusMap.pending_review;
+  const displayId = batch.batchId || batch._id;
+  const validationErrors = batch.validationErrors || [];
 
   return (
     <SidePanel onClose={onClose}>
       <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 500 }}>Batch {batch._id}</div>
+          <div style={{ fontSize: 16, fontWeight: 500 }}>Batch {displayId}</div>
           <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{batch.client} &middot; {batch.period}</div>
         </div>
         <button onClick={onClose} style={{ background: 'var(--surface3)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 8, padding: '4px 10px', fontSize: 16 }}>&times;</button>
@@ -197,9 +211,34 @@ const BatchDetail = ({ batch, onClose }) => {
         {batch.errors > 0 && (
           <div style={{ marginBottom: 24 }}>
             <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>Validation errors</div>
-            <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, padding: 14, fontSize: 12, color: '#f87171' }}>
-              {batch.errors} record(s) have validation issues. Review the uploaded file and re-upload if needed.
-            </div>
+            {validationErrors.length > 0 ? (
+              <div style={{ border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'left', background: 'rgba(239,68,68,0.06)', borderBottom: '1px solid rgba(239,68,68,0.15)' }}>Employee code</th>
+                      <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'left', background: 'rgba(239,68,68,0.06)', borderBottom: '1px solid rgba(239,68,68,0.15)' }}>Issue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {validationErrors.map((err, i) => (
+                      <tr key={i}>
+                        <td style={{ padding: '7px 12px', fontSize: 12, fontFamily: 'var(--mono)', borderBottom: '1px solid rgba(239,68,68,0.08)' }}>
+                          {err.employeeCode || '—'}
+                        </td>
+                        <td style={{ padding: '7px 12px', fontSize: 12, color: '#f87171', borderBottom: '1px solid rgba(239,68,68,0.08)' }}>
+                          {ISSUE_LABELS[err.issue] || err.details || err.issue}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, padding: 14, fontSize: 12, color: '#f87171' }}>
+                {batch.errors} record(s) have validation issues. Review the uploaded file and re-upload if needed.
+              </div>
+            )}
           </div>
         )}
 
