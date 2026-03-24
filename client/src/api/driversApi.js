@@ -14,3 +14,6 @@ export const updateDriver = (id, data) =>
 
 export const getDriverLedger = (id, params) =>
   axiosInstance.get(`/drivers/${id}/ledger`, { params }).then(r => r.data);
+
+export const changeDriverStatus = (id, data) =>
+  axiosInstance.put(`/drivers/${id}/status`, data).then(r => r.data);

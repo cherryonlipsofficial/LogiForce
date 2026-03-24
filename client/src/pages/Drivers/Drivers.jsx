@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import KpiCard from '../../components/ui/KpiCard';
@@ -41,9 +41,11 @@ const Drivers = () => {
   const drivers = data?.data || fallbackDrivers;
 
   const filtered = drivers.filter((d) => {
-    const ms = d.name?.toLowerCase().includes(search.toLowerCase()) || d.id?.includes(search) || d.employeeCode?.includes(search);
+    const driverName = d.fullName || d.name || '';
+    const driverClient = d.clientId?.name || d.client || '';
+    const ms = driverName.toLowerCase().includes(search.toLowerCase()) || d.id?.includes(search) || d.employeeCode?.includes(search);
     const mf = statusFilter === 'all' || d.status === statusFilter;
-    const mc = clientFilter === 'all' || d.client === clientFilter;
+    const mc = clientFilter === 'all' || driverClient === clientFilter;
     return ms && mf && mc;
   });
 
@@ -139,9 +141,9 @@ const Drivers = () => {
                   >
                     <td style={{ padding: '11px 14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <Avatar initials={getInitials(d.name)} size={30} />
+                        <Avatar initials={getInitials(d.fullName || d.name)} size={30} />
                         <div>
-                          <div style={{ fontSize: 13 }}>{d.name}</div>
+                          <div style={{ fontSize: 13 }}>{d.fullName || d.name}</div>
                           <div style={{ fontSize: 10, color: 'var(--text3)' }}>{d.nationality}</div>
                         </div>
                       </div>
@@ -149,8 +151,8 @@ const Drivers = () => {
                     <td style={{ padding: '11px 14px' }}>
                       <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>{d.employeeCode || d.id}</span>
                     </td>
-                    <td style={{ padding: '11px 14px', fontSize: 12 }}>{d.client}</td>
-                    <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--text2)' }}>{d.supplier}</td>
+                    <td style={{ padding: '11px 14px', fontSize: 12 }}>{d.clientId?.name || d.client}</td>
+                    <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--text2)' }}>{d.supplierId?.name || d.supplier}</td>
                     <td style={{ padding: '11px 14px' }}><StatusBadge status={d.status} /></td>
                     <td style={{ padding: '11px 14px' }}>
                       <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>AED {(d.baseSalary || 0).toLocaleString()}</span>
@@ -189,6 +191,7 @@ const Drivers = () => {
 };
 
 const AddDriverModal = ({ onClose }) => {
+  const queryClient = useQueryClient();
   const { register, handleSubmit, formState: { errors }, setError } = useForm();
   const [submitting, setSubmitting] = useState(false);
 
@@ -211,6 +214,7 @@ const AddDriverModal = ({ onClose }) => {
         emiratesId: formData.emiratesId || undefined,
       };
       await createDriver(payload);
+      queryClient.invalidateQueries({ queryKey: ['drivers'] });
       toast.success('Driver created successfully');
       onClose();
     } catch (err) {
