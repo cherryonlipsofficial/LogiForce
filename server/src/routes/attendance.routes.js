@@ -8,6 +8,7 @@ const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelp
 const { PAGINATION } = require('../config/constants');
 const validate = require('../middleware/validate');
 const { uploadAttendanceValidation, overrideRecordValidation } = require('../middleware/validators/attendance.validators');
+const { uploadToGridFS } = require('../config/gridfs');
 
 // All routes are protected
 router.use(protect);
@@ -37,7 +38,7 @@ router.get('/batches', async (req, res) => {
   sendPaginated(res, batches, total, page, limit);
 });
 
-// POST /api/attendance/upload — upload attendance file
+// POST /api/attendance/upload — upload attendance file to MongoDB GridFS
 router.post('/upload', restrictTo('ops', 'admin'), upload.single('file'), validate(uploadAttendanceValidation), async (req, res) => {
   if (!req.file) return sendError(res, 'No file uploaded', 400);
 
@@ -52,13 +53,21 @@ router.post('/upload', restrictTo('ops', 'admin'), upload.single('file'), valida
 
   const period = { year: parseInt(year), month: parseInt(month) };
 
-  // Parse and validate file
+  // Parse and validate file (from buffer)
   const { rows, stats } = await attendanceService.parseAttendanceFile(
     req.file,
     mapping,
     clientId,
     period
   );
+
+  // Upload file to GridFS
+  const { fileId } = await uploadToGridFS(req.file.buffer, req.file.originalname, {
+    contentType: req.file.mimetype,
+    originalName: req.file.originalname,
+    uploadedFor: 'attendance-batch',
+    clientId,
+  });
 
   // Create batch record
   const batch = await AttendanceBatch.create({
@@ -72,7 +81,7 @@ router.post('/upload', restrictTo('ops', 'admin'), upload.single('file'), valida
     unmatchedRows: stats.unmatched,
     uploadedBy: req.user._id,
     columnMapping: mapping,
-    s3Key: req.file.filename,
+    s3Key: fileId.toString(),
     validationErrors: rows
       .filter((r) => r.issues.length > 0)
       .map((r) => ({

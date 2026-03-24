@@ -34,9 +34,7 @@ export const getDocumentFileUrl = (fileKey) => {
 export const fetchDocumentFile = (fileKey) =>
   axiosInstance.get(`/drivers/uploads/${fileKey}`, { responseType: 'blob' }).then(r => r);
 
-export const getDocumentDirectUrl = (fileUrl, fileKey) => {
-  if (fileUrl) return fileUrl;
-  // Fallback to API route for legacy documents
+export const getDocumentDirectUrl = (fileKey) => {
   const base = axiosInstance.defaults.baseURL;
   return `${base}/drivers/uploads/${fileKey}`;
 };

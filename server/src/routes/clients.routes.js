@@ -7,8 +7,9 @@ const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelp
 const { PAGINATION } = require('../config/constants');
 const validate = require('../middleware/validate');
 const { createClientValidation, updateClientValidation } = require('../middleware/validators/client.validators');
+const { uploadToGridFS, downloadFromGridFS, getFileInfo, deleteFromGridFS } = require('../config/gridfs');
 
-// Memory storage for MongoDB — no disk writes
+// Memory storage for upload — files go to MongoDB GridFS
 const memUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
@@ -21,9 +22,9 @@ const memUpload = multer({
 // All routes are protected
 router.use(protect);
 
-// GET /api/clients — list all clients (exclude binary data)
+// GET /api/clients — list all clients
 router.get('/', async (req, res) => {
-  const clients = await Client.find().select('-contractFile.data').sort({ name: 1 });
+  const clients = await Client.find().sort({ name: 1 });
   sendSuccess(res, clients);
 });
 
@@ -33,9 +34,9 @@ router.post('/', restrictTo('admin', 'accountant'), validate(createClientValidat
   sendSuccess(res, client, 'Client created', 201);
 });
 
-// GET /api/clients/:id — get with driver count (exclude binary data)
+// GET /api/clients/:id — get with driver count
 router.get('/:id', async (req, res) => {
-  const client = await Client.findById(req.params.id).select('-contractFile.data');
+  const client = await Client.findById(req.params.id);
   if (!client) return sendError(res, 'Client not found', 404);
 
   const driverCount = await Driver.countDocuments({ clientId: req.params.id });
@@ -50,7 +51,6 @@ router.put('/:id', restrictTo('admin', 'accountant'), validate(updateClientValid
   const client = await Client.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
     runValidators: true,
-    projection: '-contractFile.data',
   });
   if (!client) return sendError(res, 'Client not found', 404);
   sendSuccess(res, client, 'Client updated');
@@ -58,20 +58,40 @@ router.put('/:id', restrictTo('admin', 'accountant'), validate(updateClientValid
 
 // DELETE /api/clients/:id — delete (admin)
 router.delete('/:id', restrictTo('admin'), async (req, res) => {
-  const client = await Client.findByIdAndDelete(req.params.id);
+  const client = await Client.findById(req.params.id);
   if (!client) return sendError(res, 'Client not found', 404);
+
+  // Clean up GridFS file if exists
+  if (client.contractFile?.fileId) {
+    try { await deleteFromGridFS(client.contractFile.fileId); } catch (_) { /* ignore */ }
+  }
+
+  await Client.findByIdAndDelete(client._id);
   sendSuccess(res, null, 'Client deleted');
 });
 
-// POST /api/clients/:id/contract — upload contract PDF (admin, accountant)
+// POST /api/clients/:id/contract — upload contract PDF to MongoDB GridFS (admin, accountant)
 router.post('/:id/contract', restrictTo('admin', 'accountant'), memUpload.single('file'), async (req, res) => {
   if (!req.file) return sendError(res, 'No file uploaded');
 
-  const client = await Client.findById(req.params.id).select('-contractFile.data');
+  const client = await Client.findById(req.params.id);
   if (!client) return sendError(res, 'Client not found', 404);
 
+  // Delete old file from GridFS if replacing
+  if (client.contractFile?.fileId) {
+    try { await deleteFromGridFS(client.contractFile.fileId); } catch (_) { /* ignore */ }
+  }
+
+  // Upload to GridFS
+  const { fileId } = await uploadToGridFS(req.file.buffer, req.file.originalname, {
+    contentType: req.file.mimetype,
+    originalName: req.file.originalname,
+    uploadedFor: 'client-contract',
+    clientId: req.params.id,
+  });
+
   client.contractFile = {
-    data: req.file.buffer,
+    fileId: fileId.toString(),
     contentType: req.file.mimetype,
     originalName: req.file.originalname,
     size: req.file.size,
@@ -79,30 +99,35 @@ router.post('/:id/contract', restrictTo('admin', 'accountant'), memUpload.single
   };
   await client.save();
 
-  // Return without binary data
-  const result = client.toObject();
-  delete result.contractFile.data;
-  sendSuccess(res, result, 'Contract uploaded');
+  sendSuccess(res, client, 'Contract uploaded');
 });
 
-// GET /api/clients/:id/contract — download/view contract PDF (all authenticated users)
+// GET /api/clients/:id/contract — download/view contract PDF from GridFS (all authenticated users)
 router.get('/:id/contract', async (req, res) => {
   const client = await Client.findById(req.params.id).select('contractFile');
   if (!client) return sendError(res, 'Client not found', 404);
-  if (!client.contractFile?.data) return sendError(res, 'No contract file found', 404);
+  if (!client.contractFile?.fileId) return sendError(res, 'No contract file found', 404);
+
+  const fileInfo = await getFileInfo(client.contractFile.fileId);
+  if (!fileInfo) return sendError(res, 'File not found in storage', 404);
 
   const disposition = req.query.download === 'true' ? 'attachment' : 'inline';
   res.setHeader('Content-Disposition', `${disposition}; filename="${client.contractFile.originalName}"`);
   res.setHeader('Content-Type', client.contractFile.contentType || 'application/pdf');
-  res.setHeader('Content-Length', client.contractFile.data.length);
-  res.send(client.contractFile.data);
+  if (fileInfo.length) res.setHeader('Content-Length', fileInfo.length);
+
+  const downloadStream = downloadFromGridFS(client.contractFile.fileId);
+  downloadStream.pipe(res);
 });
 
-// DELETE /api/clients/:id/contract — remove contract file (admin, accountant)
+// DELETE /api/clients/:id/contract — remove contract file from GridFS (admin, accountant)
 router.delete('/:id/contract', restrictTo('admin', 'accountant'), async (req, res) => {
-  const client = await Client.findById(req.params.id).select('-contractFile.data');
+  const client = await Client.findById(req.params.id);
   if (!client) return sendError(res, 'Client not found', 404);
-  if (!client.contractFile?.originalName) return sendError(res, 'No contract file found', 404);
+  if (!client.contractFile?.fileId) return sendError(res, 'No contract file found', 404);
+
+  // Delete from GridFS
+  try { await deleteFromGridFS(client.contractFile.fileId); } catch (_) { /* ignore */ }
 
   client.contractFile = undefined;
   await client.save();

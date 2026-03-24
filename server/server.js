@@ -37,7 +37,7 @@ if (process.env.NODE_ENV === 'production') {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Note: File uploads are now stored in Cloudinary (persistent cloud storage)
+// Note: File uploads are stored in MongoDB GridFS
 
 // Routes
 app.use('/api/auth', require('./src/routes/auth.routes'));

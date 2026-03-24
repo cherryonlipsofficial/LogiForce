@@ -49,7 +49,7 @@ const clientSchema = new mongoose.Schema(
       type: Date,
     },
     contractFile: {
-      data: { type: Buffer },
+      fileId: { type: String },
       contentType: { type: String },
       originalName: { type: String },
       size: { type: Number },

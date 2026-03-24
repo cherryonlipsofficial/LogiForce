@@ -56,19 +56,13 @@ const DriverDetail = ({ driver, onClose }) => {
   const [showStatusChange, setShowStatusChange] = useState(false);
   const [viewingFile, setViewingFile] = useState(null); // { blobUrl, contentType, fileName }
 
-  const handleViewFile = async (fileKey, fileUrl) => {
+  const handleViewFile = async (fileKey) => {
     try {
-      if (fileUrl) {
-        // Use Cloudinary URL directly — persistent and doesn't expire
-        const isPdf = fileUrl.toLowerCase().includes('.pdf') || fileKey.toLowerCase().includes('.pdf');
-        setViewingFile({ blobUrl: fileUrl, contentType: isPdf ? 'application/pdf' : 'image', fileName: fileKey, isDirect: true });
-      } else {
-        // Fallback for legacy documents stored on local filesystem
-        const res = await fetchDocumentFile(fileKey);
-        const blobUrl = URL.createObjectURL(res.data);
-        const contentType = res.data.type || '';
-        setViewingFile({ blobUrl, contentType, fileName: fileKey, isDirect: false });
-      }
+      // Fetch file from MongoDB GridFS via API
+      const res = await fetchDocumentFile(fileKey);
+      const blobUrl = URL.createObjectURL(res.data);
+      const contentType = res.data.type || '';
+      setViewingFile({ blobUrl, contentType, fileName: fileKey, isDirect: false });
     } catch {
       toast.error('Failed to load document');
     }
@@ -375,7 +369,7 @@ const DriverDetail = ({ driver, onClose }) => {
                       <Badge variant={badgeVariant}>{statusLabel}</Badge>
                       {doc.hasFile && (
                         <button
-                          onClick={() => handleViewFile(doc.fileKey, doc.fileUrl)}
+                          onClick={() => handleViewFile(doc.fileKey)}
                           title="View document"
                           style={{
                             background: 'var(--surface3)',
@@ -446,7 +440,7 @@ const DriverDetail = ({ driver, onClose }) => {
       )}
 
       {viewingFile && (
-        <Modal title="Document viewer" onClose={() => { if (!viewingFile.isDirect) URL.revokeObjectURL(viewingFile.blobUrl); setViewingFile(null); }} width={700}>
+        <Modal title="Document viewer" onClose={() => { URL.revokeObjectURL(viewingFile.blobUrl); setViewingFile(null); }} width={700}>
           <div style={{ textAlign: 'center' }}>
             {viewingFile.contentType.includes('pdf') ? (
               <iframe

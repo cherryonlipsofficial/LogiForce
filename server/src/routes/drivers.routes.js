@@ -8,6 +8,7 @@ const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelp
 const validate = require('../middleware/validate');
 const { createDriverValidation, updateDriverValidation, changeStatusValidation } = require('../middleware/validators/driver.validators');
 const auditLogger = require('../utils/auditLogger');
+const { uploadToGridFS, downloadFromGridFS, getFileInfo } = require('../config/gridfs');
 
 // All routes are protected
 router.use(protect);
@@ -19,15 +20,20 @@ router.get('/expiring-documents', async (req, res) => {
   sendSuccess(res, docs);
 });
 
-// GET /api/drivers/uploads/:fileKey — redirect to Cloudinary URL (must be before /:id)
-router.get('/uploads/:fileKey', async (req, res) => {
-  const fileKey = req.params.fileKey;
-  // Look up the document to get its Cloudinary URL
-  const doc = await DriverDocument.findOne({ fileKey });
-  if (!doc || !doc.fileUrl) {
+// GET /api/drivers/uploads/:fileId — serve file from MongoDB GridFS (must be before /:id)
+router.get('/uploads/:fileId', async (req, res) => {
+  const fileId = req.params.fileId;
+  const fileInfo = await getFileInfo(fileId);
+  if (!fileInfo) {
     return sendError(res, 'File not found', 404);
   }
-  res.redirect(doc.fileUrl);
+
+  res.setHeader('Content-Type', fileInfo.metadata?.contentType || 'application/octet-stream');
+  res.setHeader('Content-Disposition', `inline; filename="${fileInfo.metadata?.originalName || fileInfo.filename}"`);
+  if (fileInfo.length) res.setHeader('Content-Length', fileInfo.length);
+
+  const downloadStream = downloadFromGridFS(fileId);
+  downloadStream.pipe(res);
 });
 
 // GET /api/drivers/status-counts — counts by status for KPI cards
@@ -129,15 +135,23 @@ router.get('/:id/documents', async (req, res) => {
   sendSuccess(res, docs);
 });
 
-// POST /api/drivers/:id/documents — upload document
+// POST /api/drivers/:id/documents — upload document to MongoDB GridFS
 router.post('/:id/documents', restrictTo('ops', 'admin'), upload.single('file'), async (req, res) => {
   const driver = await Driver.findById(req.params.id);
   if (!driver) return sendError(res, 'Driver not found', 404);
 
   if (!req.file) return sendError(res, 'No file uploaded', 400);
 
-  const fileKey = req.file.filename || req.file.public_id || req.file.originalname;
-  const fileUrl = req.file.path || req.file.secure_url || req.file.url || '';
+  // Upload file to GridFS
+  const { fileId } = await uploadToGridFS(req.file.buffer, req.file.originalname, {
+    contentType: req.file.mimetype,
+    originalName: req.file.originalname,
+    uploadedFor: 'driver-document',
+    driverId: req.params.id,
+  });
+
+  const fileKey = fileId.toString();
+  const fileUrl = `/api/drivers/uploads/${fileKey}`;
 
   // If a document of same type already exists, update it instead of creating duplicate
   const existing = await DriverDocument.findOne({ driverId: req.params.id, docType: req.body.docType });
