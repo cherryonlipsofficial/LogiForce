@@ -73,6 +73,58 @@ router.get('/export', async (req, res) => {
   res.send(csv);
 });
 
+// POST /api/drivers/bulk-import — bulk import from CSV/XLSX
+router.post('/bulk-import', restrictTo('ops', 'admin'), upload.single('file'), async (req, res) => {
+  if (!req.file) return sendError(res, 'No file uploaded', 400);
+
+  const ext = require('path').extname(req.file.originalname).toLowerCase();
+  let rows = [];
+
+  try {
+    if (ext === '.csv') {
+      const fs = require('fs');
+      const csvParser = require('csv-parser');
+      rows = await new Promise((resolve, reject) => {
+        const results = [];
+        fs.createReadStream(req.file.path)
+          .pipe(csvParser())
+          .on('data', (data) => results.push(data))
+          .on('end', () => resolve(results))
+          .on('error', reject);
+      });
+    } else if (ext === '.xlsx' || ext === '.xls') {
+      const XLSX = require('xlsx');
+      const workbook = XLSX.readFile(req.file.path);
+      const sheetName = workbook.SheetNames[0];
+      rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+    } else {
+      return sendError(res, 'Unsupported file format. Use .csv or .xlsx', 400);
+    }
+
+    if (rows.length === 0) return sendError(res, 'File is empty or has no data rows', 400);
+    if (rows.length > 500) return sendError(res, 'Maximum 500 rows per import', 400);
+
+    const result = await driverService.bulkCreate(rows, req.user._id);
+    sendSuccess(res, result, `Imported ${result.created} drivers${result.errors.length > 0 ? ` with ${result.errors.length} errors` : ''}`, 201);
+  } catch (err) {
+    return sendError(res, `Failed to parse file: ${err.message}`, 400);
+  } finally {
+    // Clean up uploaded file
+    const fs = require('fs');
+    if (req.file?.path) fs.unlink(req.file.path, () => {});
+  }
+});
+
+// GET /api/drivers/bulk-import/template — download CSV template
+router.get('/bulk-import/template', async (req, res) => {
+  const headers = ['fullName', 'nationality', 'phoneUae', 'baseSalary', 'payStructure', 'clientId', 'emiratesId', 'joinDate', 'passportNumber', 'visaNumber', 'bankName', 'iban', 'vehiclePlate', 'vehicleType', 'status'];
+  const exampleRow = ['Mohamed Al Farsi', 'Emirati', '+971501234567', '2800', 'MONTHLY_FIXED', 'Amazon UAE', '784-1985-1234567-1', '2023-03-01', '', '', '', '', '', '', ''];
+  const csv = [headers.join(','), exampleRow.join(',')].join('\n');
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename=drivers-import-template.csv');
+  res.send(csv);
+});
+
 // GET /api/drivers — list with pagination, search, filter
 router.get('/', async (req, res) => {
   const { status, clientId, search, page, limit } = req.query;

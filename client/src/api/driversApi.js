@@ -46,3 +46,14 @@ export const getDriverStatusCounts = () =>
 
 export const exportDriversCsv = (params) =>
   axiosInstance.get('/drivers/export', { params, responseType: 'blob' }).then(r => r);
+
+export const bulkImportDrivers = (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return axiosInstance.post('/drivers/bulk-import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(r => r.data);
+};
+
+export const downloadImportTemplate = () =>
+  axiosInstance.get('/drivers/bulk-import/template', { responseType: 'blob' }).then(r => r);
