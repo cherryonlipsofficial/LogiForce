@@ -9,6 +9,7 @@ const navItems = [
   { path: '/salary', label: 'Salary runs', icon: '◎', roles: ['admin', 'accountant'] },
   { path: '/invoices', label: 'Invoices', icon: '◳', roles: ['admin', 'accountant'] },
   { path: '/clients', label: 'Clients', icon: '◐', roles: ['admin', 'accountant'] },
+  { path: '/projects', label: 'Projects', icon: '◪', roles: ['admin', 'accountant', 'ops'] },
   { path: '/suppliers', label: 'Suppliers', icon: '◑', roles: ['admin'] },
   { path: '/vehicles', label: 'Vehicles', icon: '◧', roles: ['admin', 'ops'] },
   { path: '/reports', label: 'Reports', icon: '◫', roles: null },

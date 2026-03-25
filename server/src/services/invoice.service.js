@@ -1,4 +1,4 @@
-const { Invoice, SalaryRun, Client, Driver, DriverLedger } = require('../models');
+const { Invoice, SalaryRun, Client, Driver, DriverLedger, Project } = require('../models');
 
 const generateInvoice = async (clientId, year, month, createdBy) => {
   // 1. Check no invoice already exists for this client/period
@@ -35,18 +35,43 @@ const generateInvoice = async (clientId, year, month, createdBy) => {
     throw err;
   }
 
-  // 3. Group by driver, build lineItems
-  // 4. ratePerDay = client.ratePerDriver / 26
-  const ratePerDay = client.ratePerDriver / 26;
+  // 3. Build a map of project rates for drivers assigned to projects
+  const driverIds = salaryRuns.map((run) => run.driverId._id);
+  const driversWithProjects = await Driver.find({
+    _id: { $in: driverIds },
+    projectId: { $ne: null },
+  }).select('_id projectId').lean();
 
-  const lineItems = salaryRuns.map((run) => ({
-    driverId: run.driverId._id,
-    employeeCode: run.driverId.employeeCode,
-    driverName: run.driverId.fullName,
-    workingDays: run.workingDays,
-    ratePerDay: Math.round(ratePerDay * 100) / 100,
-    amount: Math.round(run.workingDays * ratePerDay * 100) / 100,
-  }));
+  const projectIds = [...new Set(driversWithProjects.map((d) => d.projectId.toString()))];
+  const projects = projectIds.length > 0
+    ? await Project.find({ _id: { $in: projectIds } }).select('_id ratePerDriver').lean()
+    : [];
+  const projectRateMap = {};
+  for (const p of projects) {
+    projectRateMap[p._id.toString()] = p.ratePerDriver;
+  }
+  const driverProjectMap = {};
+  for (const d of driversWithProjects) {
+    driverProjectMap[d._id.toString()] = d.projectId.toString();
+  }
+
+  // 4. ratePerDay: use project rate if driver is assigned, else fall back to client rate
+  const fallbackRate = client.ratePerDriver || 0;
+
+  const lineItems = salaryRuns.map((run) => {
+    const dId = run.driverId._id.toString();
+    const pId = driverProjectMap[dId];
+    const monthlyRate = (pId && projectRateMap[pId]) ? projectRateMap[pId] : fallbackRate;
+    const ratePerDay = monthlyRate / 26;
+    return {
+      driverId: run.driverId._id,
+      employeeCode: run.driverId.employeeCode,
+      driverName: run.driverId.fullName,
+      workingDays: run.workingDays,
+      ratePerDay: Math.round(ratePerDay * 100) / 100,
+      amount: Math.round(run.workingDays * ratePerDay * 100) / 100,
+    };
+  });
 
   // 5. Calculate subtotal
   const subtotal = lineItems.reduce((sum, item) => sum + item.amount, 0);

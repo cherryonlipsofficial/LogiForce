@@ -113,6 +113,17 @@ const driverSchema = new mongoose.Schema(
       ref: 'Supplier',
       default: null,
     },
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Project',
+      index: true,
+      default: null,
+    },
+    currentProjectAssignmentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'DriverProjectAssignment',
+      default: null,
+    },
     telecomSimId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'TelecomSim',
@@ -159,6 +170,7 @@ driverSchema.pre('save', async function (next) {
 });
 
 driverSchema.index({ clientId: 1 });
+driverSchema.index({ projectId: 1 });
 driverSchema.index({ status: 1 });
 driverSchema.index({ emiratesId: 1 });
 driverSchema.index({ passportNumber: 1 });
