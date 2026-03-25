@@ -166,7 +166,7 @@ const ProjectDetail = ({ project, onClose, onEdit, onDelete, role }) => {
   });
 
   const { mutate: doUnassign } = useMutation({
-    mutationFn: (driverId) => unassignDriverFromProject(project._id, driverId),
+    mutationFn: (driverId) => unassignDriverFromProject(driverId),
     onSuccess: () => {
       toast.success('Driver unassigned');
       qc.invalidateQueries(['project-drivers', project._id]);

@@ -127,4 +127,22 @@ router.get('/:id/drivers', async (req, res) => {
   sendPaginated(res, drivers, total, page, limit);
 });
 
+// GET /api/clients/:id/projects — all projects for this client with stats
+router.get('/:id/projects', async (req, res) => {
+  const projectService = require('../services/project.service');
+  const result = await projectService.listProjects(
+    req.params.id,
+    { status: req.query.status },
+    { page: req.query.page, limit: req.query.limit }
+  );
+  sendPaginated(res, result.projects, result.total, result.page, result.limit);
+});
+
+// GET /api/clients/:id/project-stats — aggregated stats for client dashboard
+router.get('/:id/project-stats', async (req, res) => {
+  const projectService = require('../services/project.service');
+  const stats = await projectService.getProjectStats(req.params.id);
+  sendSuccess(res, stats);
+});
+
 module.exports = router;

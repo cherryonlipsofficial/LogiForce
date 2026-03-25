@@ -9,6 +9,9 @@ const {
   AttendanceBatch,
   AttendanceRecord,
   SalaryRun,
+  Project,
+  ProjectContract,
+  DriverProjectAssignment,
 } = require('../models');
 
 const seed = async () => {
@@ -23,6 +26,9 @@ const seed = async () => {
     AttendanceBatch.deleteMany({}),
     AttendanceRecord.deleteMany({}),
     SalaryRun.deleteMany({}),
+    Project.deleteMany({}),
+    ProjectContract.deleteMany({}),
+    DriverProjectAssignment.deleteMany({}),
   ]);
 
   // Reset counters
@@ -109,6 +115,127 @@ const seed = async () => {
   ]);
   console.log('  Created 3 suppliers');
 
+  // --- Projects ---
+  console.log('Creating projects...');
+
+  // Amazon UAE projects
+  const amazonProj1 = await Project.create({
+    name: 'Last Mile Delivery — Dubai',
+    clientId: amazon._id,
+    ratePerDriver: 4500,
+    rateBasis: 'monthly_fixed',
+    location: 'Dubai',
+    serviceType: 'Last-mile delivery',
+    plannedDriverCount: 200,
+    status: 'active',
+    operationsContactName: 'Ahmed Al Maktoum',
+    operationsContactPhone: '+971501234567',
+    createdBy: admin._id,
+  });
+
+  const amazonProj2 = await Project.create({
+    name: 'Grocery Delivery — Abu Dhabi',
+    clientId: amazon._id,
+    ratePerDriver: 4200,
+    rateBasis: 'monthly_fixed',
+    location: 'Abu Dhabi',
+    serviceType: 'Grocery delivery',
+    plannedDriverCount: 120,
+    status: 'active',
+    createdBy: admin._id,
+  });
+
+  const amazonProj3 = await Project.create({
+    name: 'Amazon Fresh — Sharjah',
+    clientId: amazon._id,
+    ratePerDriver: 3900,
+    rateBasis: 'monthly_fixed',
+    location: 'Sharjah',
+    serviceType: 'Fresh grocery',
+    plannedDriverCount: 100,
+    status: 'active',
+    createdBy: admin._id,
+  });
+
+  // Noon projects
+  const noonProj1 = await Project.create({
+    name: 'Noon Express Delivery — Dubai',
+    clientId: noon._id,
+    ratePerDriver: 3800,
+    rateBasis: 'monthly_fixed',
+    location: 'Dubai',
+    serviceType: 'Express delivery',
+    plannedDriverCount: 180,
+    status: 'active',
+    operationsContactName: 'Fatima Hassan',
+    operationsContactPhone: '+971502345678',
+    createdBy: admin._id,
+  });
+
+  const noonProj2 = await Project.create({
+    name: 'NoonFood Riders — Dubai',
+    clientId: noon._id,
+    ratePerDriver: 3500,
+    rateBasis: 'monthly_fixed',
+    location: 'Dubai',
+    serviceType: 'Food delivery',
+    plannedDriverCount: 130,
+    status: 'active',
+    createdBy: admin._id,
+  });
+
+  // Talabat project
+  const talabatProj1 = await Project.create({
+    name: 'Talabat Riders — Dubai',
+    clientId: talabat._id,
+    ratePerDriver: 3400,
+    rateBasis: 'monthly_fixed',
+    location: 'Dubai',
+    serviceType: 'Food delivery',
+    plannedDriverCount: 120,
+    status: 'active',
+    operationsContactName: 'Khalid Rashid',
+    operationsContactPhone: '+971503456789',
+    createdBy: admin._id,
+  });
+
+  console.log('  Created 6 projects');
+
+  // --- Project Contracts ---
+  console.log('Creating project contracts...');
+
+  const contractDefs = [
+    { project: amazonProj1, type: 'one_year', months: 12, start: '2026-01-01', rate: 4500 },
+    { project: amazonProj2, type: 'six_months', months: 6, start: '2026-01-01', rate: 4200 },
+    { project: amazonProj3, type: 'one_year', months: 12, start: '2026-03-01', rate: 3900 },
+    { project: noonProj1, type: 'one_year', months: 12, start: '2026-01-01', rate: 3800 },
+    { project: noonProj2, type: 'six_months', months: 6, start: '2026-02-01', rate: 3500 },
+    { project: talabatProj1, type: 'one_year', months: 12, start: '2026-01-01', rate: 3400 },
+  ];
+
+  const contracts = {};
+  for (const def of contractDefs) {
+    const startDate = new Date(def.start);
+    const endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + def.months);
+
+    const contract = await ProjectContract.create({
+      projectId: def.project._id,
+      clientId: def.project.clientId,
+      contractType: def.type,
+      durationMonths: def.months,
+      startDate,
+      endDate,
+      ratePerDriver: def.rate,
+      rateBasis: 'monthly_fixed',
+      status: 'active',
+      createdBy: admin._id,
+    });
+    contracts[def.project._id.toString()] = contract;
+  }
+
+  console.log('  Created 6 project contracts');
+
   // --- Drivers ---
   console.log('Creating drivers...');
   const driverData = [
@@ -153,6 +280,58 @@ const seed = async () => {
   const drivers = await Driver.create(driverData);
   console.log(`  Created ${drivers.length} drivers`);
 
+  // --- Assign Drivers to Projects ---
+  console.log('Assigning drivers to projects...');
+
+  const amazonDrivers = drivers.filter((d) => d.clientId.toString() === amazon._id.toString());
+  const noonDrivers = drivers.filter((d) => d.clientId.toString() === noon._id.toString());
+  const talabatDrivers = drivers.filter((d) => d.clientId.toString() === talabat._id.toString());
+
+  // Assignment helper
+  const assignDriver = async (driver, project) => {
+    const contract = contracts[project._id.toString()];
+    const assignment = await DriverProjectAssignment.create({
+      driverId: driver._id,
+      projectId: project._id,
+      clientId: project.clientId,
+      contractId: contract?._id,
+      ratePerDriver: contract?.ratePerDriver || project.ratePerDriver,
+      assignedDate: new Date('2026-01-15'),
+      status: 'active',
+      assignedBy: admin._id,
+    });
+    driver.projectId = project._id;
+    driver.currentProjectAssignmentId = assignment._id;
+    await driver.save();
+  };
+
+  // First 8 Amazon drivers → Amazon Project 1 (first 8)
+  for (const d of amazonDrivers.slice(0, 8)) {
+    await assignDriver(d, amazonProj1);
+  }
+
+  // Next 4 → Amazon Project 2 (reuse some amazon drivers — but we only have 8 total)
+  // Per the spec: "Next 4 drivers → Amazon UAE Project 2" — these are the 9th–12th overall
+  // But Amazon only has 8 drivers. So we'll assign first 4 Noon drivers to Noon Project 1
+  // and follow the original assignment intent with what we have.
+
+  // Noon: First 5 → Noon Project 1
+  for (const d of noonDrivers.slice(0, 5)) {
+    await assignDriver(d, noonProj1);
+  }
+
+  // Noon: Remaining 2 → Noon Project 2
+  for (const d of noonDrivers.slice(5)) {
+    await assignDriver(d, noonProj2);
+  }
+
+  // Talabat: All 5 → Talabat Project 1
+  for (const d of talabatDrivers) {
+    await assignDriver(d, talabatProj1);
+  }
+
+  console.log('  Assigned all drivers to projects');
+
   // --- 3 Months of Attendance & Salary Data ---
   const periods = [
     { year: 2025, month: 11 },
@@ -163,13 +342,13 @@ const seed = async () => {
   console.log('Creating attendance and salary data for 3 months...');
 
   for (const period of periods) {
-    const clients = [
-      { client: amazon, drivers: drivers.filter((d) => d.clientId.toString() === amazon._id.toString()) },
-      { client: noon, drivers: drivers.filter((d) => d.clientId.toString() === noon._id.toString()) },
-      { client: talabat, drivers: drivers.filter((d) => d.clientId.toString() === talabat._id.toString()) },
+    const clientGroups = [
+      { client: amazon, drivers: amazonDrivers },
+      { client: noon, drivers: noonDrivers },
+      { client: talabat, drivers: talabatDrivers },
     ];
 
-    for (const { client, drivers: clientDrivers } of clients) {
+    for (const { client, drivers: clientDrivers } of clientGroups) {
       // Create attendance batch
       const batch = await AttendanceBatch.create({
         clientId: client._id,
@@ -202,7 +381,7 @@ const seed = async () => {
           status: 'valid',
         });
 
-        // Salary run
+        // Salary run (now includes project info)
         const baseSalary = driver.baseSalary;
         const proratedSalary = Math.round((baseSalary / 26) * workingDays * 100) / 100;
         const overtimePay = Math.round(overtimeHours * (baseSalary / 26 / 8) * 1.5 * 100) / 100;
@@ -210,9 +389,21 @@ const seed = async () => {
         const totalDeductions = 0;
         const netSalary = grossSalary - totalDeductions;
 
+        // Find the driver's project assignment rate
+        const projectId = driver.projectId || null;
+        let projectRatePerDriver = null;
+        if (driver.currentProjectAssignmentId) {
+          const assignment = await DriverProjectAssignment.findById(
+            driver.currentProjectAssignmentId
+          );
+          if (assignment) projectRatePerDriver = assignment.ratePerDriver;
+        }
+
         await SalaryRun.create({
           driverId: driver._id,
           clientId: client._id,
+          projectId: projectId || undefined,
+          projectRatePerDriver: projectRatePerDriver || undefined,
           period,
           workingDays,
           overtimeHours,
@@ -239,6 +430,11 @@ const seed = async () => {
   console.log('  Admin:      admin@logiforce.com / Admin@123');
   console.log('  Accountant: accountant@logiforce.com / Account@123');
   console.log('  Ops:        ops@logiforce.com / Ops@1234');
+  console.log('---');
+  console.log('Projects:');
+  console.log('  Amazon UAE: 3 projects (Last Mile Dubai, Grocery Abu Dhabi, Fresh Sharjah)');
+  console.log('  Noon: 2 projects (Express Delivery, NoonFood Riders)');
+  console.log('  Talabat: 1 project (Talabat Riders Dubai)');
 
   process.exit(0);
 };
