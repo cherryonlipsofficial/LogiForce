@@ -76,18 +76,28 @@ router.get('/export', async (req, res) => {
 });
 
 // POST /api/drivers/bulk-import — bulk import from CSV/XLSX
-router.post('/bulk-import', restrictTo('ops', 'admin'), upload.single('file'), async (req, res) => {
+// Use memory storage (not Cloudinary) since we need to parse the file locally
+const memoryUpload = require('multer')({ storage: require('multer').memoryStorage() });
+router.post('/bulk-import', restrictTo('ops', 'admin'), (req, res, next) => {
+  memoryUpload.single('file')(req, res, (err) => {
+    if (err) {
+      return sendError(res, `File upload error: ${err.message}`, 400);
+    }
+    next();
+  });
+}, async (req, res) => {
   if (!req.file) return sendError(res, 'No file uploaded', 400);
 
-  const ext = path.extname(req.file.originalname).toLowerCase();
-  let rows = [];
-
   try {
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    let rows = [];
+
     if (ext === '.csv') {
+      const { Readable } = require('stream');
       const csvParser = require('csv-parser');
       rows = await new Promise((resolve, reject) => {
         const results = [];
-        fs.createReadStream(req.file.path)
+        Readable.from(req.file.buffer)
           .pipe(csvParser())
           .on('data', (data) => results.push(data))
           .on('end', () => resolve(results))
@@ -95,7 +105,7 @@ router.post('/bulk-import', restrictTo('ops', 'admin'), upload.single('file'), a
       });
     } else if (ext === '.xlsx' || ext === '.xls') {
       const XLSX = require('xlsx');
-      const workbook = XLSX.readFile(req.file.path);
+      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
       rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
     } else {
@@ -108,10 +118,8 @@ router.post('/bulk-import', restrictTo('ops', 'admin'), upload.single('file'), a
     const result = await driverService.bulkCreate(rows, req.user._id);
     sendSuccess(res, result, `Imported ${result.created} drivers${result.errors.length > 0 ? ` with ${result.errors.length} errors` : ''}`, 201);
   } catch (err) {
-    return sendError(res, `Failed to parse file: ${err.message}`, 400);
-  } finally {
-    // Clean up uploaded file
-    if (req.file?.path) fs.unlink(req.file.path, () => {});
+    console.error('[BulkImport Error]', err);
+    return sendError(res, `Failed to process file: ${err.message}`, 400);
   }
 });
 
