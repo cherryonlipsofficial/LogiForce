@@ -26,7 +26,7 @@ const calculateDriverSalary = async (driverId, year, month, processedBy) => {
     driverId,
     'period.year': year,
     'period.month': month,
-    status: { $in: ['valid', 'overridden'] },
+    status: { $in: ['valid', 'warning', 'overridden'] },
   }).populate('batchId');
 
   if (!attendance) {
@@ -314,7 +314,7 @@ const runPayroll = async (clientId, year, month, processedBy) => {
     clientId,
     'period.year': year,
     'period.month': month,
-    status: { $in: ['valid', 'overridden'] },
+    status: { $in: ['valid', 'warning', 'overridden'] },
   }).populate('batchId');
 
   // Filter to only those with approved batches
