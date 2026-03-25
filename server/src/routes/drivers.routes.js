@@ -76,18 +76,26 @@ router.get('/export', async (req, res) => {
 });
 
 // POST /api/drivers/bulk-import — bulk import from CSV/XLSX
-router.post('/bulk-import', restrictTo('ops', 'admin'), upload.single('file'), async (req, res) => {
+router.post('/bulk-import', restrictTo('ops', 'admin'), (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      return sendError(res, `File upload error: ${err.message}`, 400);
+    }
+    next();
+  });
+}, async (req, res) => {
   if (!req.file) return sendError(res, 'No file uploaded', 400);
 
-  const ext = path.extname(req.file.originalname).toLowerCase();
-  let rows = [];
-
+  const filePath = req.file.path;
   try {
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    let rows = [];
+
     if (ext === '.csv') {
       const csvParser = require('csv-parser');
       rows = await new Promise((resolve, reject) => {
         const results = [];
-        fs.createReadStream(req.file.path)
+        fs.createReadStream(filePath)
           .pipe(csvParser())
           .on('data', (data) => results.push(data))
           .on('end', () => resolve(results))
@@ -95,7 +103,7 @@ router.post('/bulk-import', restrictTo('ops', 'admin'), upload.single('file'), a
       });
     } else if (ext === '.xlsx' || ext === '.xls') {
       const XLSX = require('xlsx');
-      const workbook = XLSX.readFile(req.file.path);
+      const workbook = XLSX.readFile(filePath);
       const sheetName = workbook.SheetNames[0];
       rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
     } else {
@@ -108,10 +116,11 @@ router.post('/bulk-import', restrictTo('ops', 'admin'), upload.single('file'), a
     const result = await driverService.bulkCreate(rows, req.user._id);
     sendSuccess(res, result, `Imported ${result.created} drivers${result.errors.length > 0 ? ` with ${result.errors.length} errors` : ''}`, 201);
   } catch (err) {
-    return sendError(res, `Failed to parse file: ${err.message}`, 400);
+    console.error('[BulkImport Error]', err);
+    return sendError(res, `Failed to process file: ${err.message}`, 400);
   } finally {
     // Clean up uploaded file
-    if (req.file?.path) fs.unlink(req.file.path, () => {});
+    fs.unlink(filePath, () => {});
   }
 });
 
