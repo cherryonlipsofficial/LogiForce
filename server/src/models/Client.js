@@ -20,7 +20,8 @@ const clientSchema = new mongoose.Schema(
     },
     ratePerDriver: {
       type: Number,
-      required: [true, 'Rate per driver is required'],
+      // DEPRECATED: Rate now lives on Project. Kept for backward compatibility.
+      // New projects should set rate on the Project model instead.
     },
     paymentTerms: {
       type: String,

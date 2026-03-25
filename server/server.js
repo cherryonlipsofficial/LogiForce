@@ -50,6 +50,8 @@ app.use('/api/reports', require('./src/routes/reports.routes'));
 app.use('/api/advances', require('./src/routes/advances.routes'));
 app.use('/api/salary', require('./src/routes/salary.routes'));
 app.use('/api/vehicles', require('./src/routes/vehicles.routes'));
+app.use('/api/projects', require('./src/routes/projects.routes'));
+app.use('/api/project-contracts', require('./src/routes/projectContracts.routes'));
 
 // Health check
 app.get('/api/health', (req, res) => {
