@@ -20,7 +20,7 @@ const parseAttendanceFile = async (file, columnMapping, clientId, period) => {
 
   // Map columns using provided mapping
   const mappedRows = rawRows.map((row) => ({
-    employeeCode: row[columnMapping.employeeCode],
+    employeeCode: (row[columnMapping.employeeCode] || '').toString().trim(),
     driverName: row[columnMapping.driverName] || '',
     workingDays: parseFloat(row[columnMapping.workingDays]) || 0,
     overtimeHours: parseFloat(row[columnMapping.overtimeHours]) || 0,
@@ -33,8 +33,10 @@ const parseAttendanceFile = async (file, columnMapping, clientId, period) => {
   for (const mapped of mappedRows) {
     const result = { ...mapped, issues: [], status: 'valid', driverId: null };
 
-    // Find driver by employeeCode
-    const driver = await Driver.findOne({ employeeCode: mapped.employeeCode });
+    // Find driver by employeeCode (case-insensitive to handle file variations)
+    const driver = await Driver.findOne({
+      employeeCode: { $regex: new RegExp(`^${mapped.employeeCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+    });
 
     if (!driver) {
       result.issues.push('driver_not_found');

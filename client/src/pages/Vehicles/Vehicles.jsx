@@ -10,7 +10,7 @@ import Modal from '../../components/ui/Modal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
-import { getVehicles, createVehicle, updateVehicle, deleteVehicle, exportVehicles } from '../../api/vehiclesApi';
+import { getVehicles, createVehicle, updateVehicle, deleteVehicle, exportVehicles, bulkUploadVehicles, downloadBulkTemplate } from '../../api/vehiclesApi';
 import { getSuppliers } from '../../api/suppliersApi';
 
 const fallbackVehicles = [
@@ -39,6 +39,7 @@ const Vehicles = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedVehicleId, setSelectedVehicleId] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [editingVehicleId, setEditingVehicleId] = useState(null);
   const qc = useQueryClient();
 
@@ -134,6 +135,7 @@ const Vehicles = () => {
           </select>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
             <Btn small variant="ghost" onClick={handleExport}>Export CSV</Btn>
+            <Btn small variant="ghost" onClick={() => setShowBulkUpload(true)}>Bulk upload</Btn>
             <Btn small variant="primary" onClick={() => setShowAddModal(true)}>+ Add vehicle</Btn>
           </div>
         </div>
@@ -218,6 +220,7 @@ const Vehicles = () => {
       )}
       {showAddModal && <VehicleFormModal onClose={() => setShowAddModal(false)} />}
       {editingVehicle && <VehicleFormModal vehicle={editingVehicle} onClose={() => setEditingVehicleId(null)} />}
+      {showBulkUpload && <BulkUploadModal onClose={() => setShowBulkUpload(false)} />}
     </div>
   );
 };
@@ -426,6 +429,240 @@ const VehicleFormModal = ({ vehicle, onClose }) => {
           </Btn>
         </div>
       </form>
+    </Modal>
+  );
+};
+
+const BulkUploadModal = ({ onClose }) => {
+  const [file, setFile] = useState(null);
+  const [step, setStep] = useState('upload'); // upload | preview | result
+  const [preview, setPreview] = useState(null);
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const qc = useQueryClient();
+
+  const handleFileChange = (e) => {
+    const f = e.target.files[0];
+    if (f) setFile(f);
+  };
+
+  const handlePreview = async () => {
+    if (!file) return;
+    setLoading(true);
+    try {
+      const res = await bulkUploadVehicles(file, { preview: true });
+      setPreview(res.data);
+      setStep('preview');
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to parse file');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!file) return;
+    setLoading(true);
+    try {
+      const res = await bulkUploadVehicles(file);
+      setResult(res.data);
+      setStep('result');
+      qc.invalidateQueries(['vehicles']);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to import vehicles');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const blob = await downloadBulkTemplate();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'vehicles_bulk_template.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Failed to download template');
+    }
+  };
+
+  const labelStyle = { fontSize: 11, color: 'var(--text3)', marginBottom: 2, display: 'block' };
+
+  return (
+    <Modal title="Bulk upload vehicles" onClose={onClose} width={680}>
+      {step === 'upload' && (
+        <div>
+          <div style={{ marginBottom: 16, fontSize: 13, color: 'var(--text2)' }}>
+            Upload a CSV or Excel file to import multiple vehicles at once. All fields from the add vehicle form are supported.
+          </div>
+
+          <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: 14, marginBottom: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8 }}>Supported columns</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.6 }}>
+              Plate*, Make, Model, Year, Color, Vehicle Type, Status, Supplier Name, Monthly Rate,
+              Contract Start, Contract End, Mulkiya Expiry, Insurance Expiry, Own Vehicle, Notes,
+              Off-Hire Reason, Off-Hire Date
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>
+              * Required field. Dates in YYYY-MM-DD format. Vehicle Type: Sedan/SUV/Van/Pickup/Motorcycle/Truck/Other.
+              Status: available/assigned/maintenance/off_hired/reserved. Own Vehicle: Yes/No.
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            <Btn small variant="ghost" onClick={handleDownloadTemplate}>Download template</Btn>
+          </div>
+
+          <div
+            style={{
+              border: '2px dashed var(--border2)',
+              borderRadius: 8,
+              padding: '32px 20px',
+              textAlign: 'center',
+              cursor: 'pointer',
+              background: file ? 'rgba(79,142,247,0.06)' : 'transparent',
+              transition: 'background .15s',
+            }}
+            onClick={() => document.getElementById('bulk-file-input').click()}
+          >
+            <input
+              id="bulk-file-input"
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              onChange={handleFileChange}
+              style={{ display: 'none' }}
+            />
+            {file ? (
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>{file.name}</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                  {(file.size / 1024).toFixed(1)} KB — Click to change file
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div style={{ fontSize: 24, marginBottom: 6 }}>+</div>
+                <div style={{ fontSize: 13, color: 'var(--text2)' }}>Click to select a CSV or Excel file</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>Max 500 rows, 5MB limit</div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+            <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+            <Btn variant="primary" onClick={handlePreview} disabled={!file || loading}>
+              {loading ? 'Processing...' : 'Preview & validate'}
+            </Btn>
+          </div>
+        </div>
+      )}
+
+      {step === 'preview' && preview && (
+        <div>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+            <div style={{ flex: 1, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
+              <div style={{ fontSize: 20, fontWeight: 600, color: '#4ade80' }}>{preview.valid}</div>
+              <div style={labelStyle}>Valid rows</div>
+            </div>
+            <div style={{ flex: 1, background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
+              <div style={{ fontSize: 20, fontWeight: 600, color: '#f87171' }}>{preview.errors}</div>
+              <div style={labelStyle}>Rows with errors</div>
+            </div>
+            <div style={{ flex: 1, background: 'rgba(79,142,247,0.08)', border: '1px solid rgba(79,142,247,0.2)', borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
+              <div style={{ fontSize: 20, fontWeight: 600, color: '#4f8ef7' }}>{preview.total}</div>
+              <div style={labelStyle}>Total rows</div>
+            </div>
+          </div>
+
+          <div style={{ maxHeight: 320, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+            <table style={{ width: '100%', fontSize: 12 }}>
+              <thead>
+                <tr>
+                  {['Row', 'Plate', 'Make/Model', 'Type', 'Status', 'Supplier', 'Errors'].map((h) => (
+                    <th key={h} style={{ padding: '7px 10px', fontSize: 10, color: 'var(--text3)', fontWeight: 500, textTransform: 'uppercase', textAlign: 'left', background: 'var(--surface2)', position: 'sticky', top: 0 }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {preview.preview.map((r) => (
+                  <tr key={r.row} style={{ borderBottom: '1px solid var(--border)', background: r.errors.length > 0 ? 'rgba(248,113,113,0.04)' : 'transparent' }}>
+                    <td style={{ padding: '6px 10px', fontFamily: 'var(--mono)' }}>{r.row}</td>
+                    <td style={{ padding: '6px 10px', fontFamily: 'var(--mono)', fontWeight: 500 }}>{r.plate || '—'}</td>
+                    <td style={{ padding: '6px 10px' }}>{[r.make, r.model].filter(Boolean).join(' ') || '—'}</td>
+                    <td style={{ padding: '6px 10px' }}>{r.vehicleType || '—'}</td>
+                    <td style={{ padding: '6px 10px' }}>{r.status || '—'}</td>
+                    <td style={{ padding: '6px 10px' }}>{r.supplierName || '—'}</td>
+                    <td style={{ padding: '6px 10px', color: '#f87171', fontSize: 11 }}>
+                      {r.errors.length > 0 ? r.errors.join('; ') : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {preview.errors > 0 && (
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 8 }}>
+              Rows with errors will be skipped. Only {preview.valid} valid row{preview.valid !== 1 ? 's' : ''} will be imported.
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+            <Btn variant="ghost" onClick={() => { setStep('upload'); setPreview(null); }}>Back</Btn>
+            <Btn variant="primary" onClick={handleImport} disabled={preview.valid === 0 || loading}>
+              {loading ? 'Importing...' : `Import ${preview.valid} vehicle${preview.valid !== 1 ? 's' : ''}`}
+            </Btn>
+          </div>
+        </div>
+      )}
+
+      {step === 'result' && result && (
+        <div>
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <div style={{ fontSize: 40, marginBottom: 8 }}>&#10003;</div>
+            <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>
+              {result.imported} vehicle{result.imported !== 1 ? 's' : ''} imported
+            </div>
+            {result.errors > 0 && (
+              <div style={{ fontSize: 13, color: 'var(--text3)' }}>
+                {result.errors} row{result.errors !== 1 ? 's' : ''} skipped due to errors
+              </div>
+            )}
+          </div>
+
+          {result.errorDetails && result.errorDetails.length > 0 && (
+            <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 16 }}>
+              <table style={{ width: '100%', fontSize: 12 }}>
+                <thead>
+                  <tr>
+                    <th style={{ padding: '7px 10px', fontSize: 10, color: 'var(--text3)', textAlign: 'left', background: 'var(--surface2)' }}>Row</th>
+                    <th style={{ padding: '7px 10px', fontSize: 10, color: 'var(--text3)', textAlign: 'left', background: 'var(--surface2)' }}>Plate</th>
+                    <th style={{ padding: '7px 10px', fontSize: 10, color: 'var(--text3)', textAlign: 'left', background: 'var(--surface2)' }}>Errors</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.errorDetails.map((r) => (
+                    <tr key={r.row} style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td style={{ padding: '6px 10px', fontFamily: 'var(--mono)' }}>{r.row}</td>
+                      <td style={{ padding: '6px 10px' }}>{r.plate || '—'}</td>
+                      <td style={{ padding: '6px 10px', color: '#f87171', fontSize: 11 }}>{r.errors.join('; ')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Btn variant="primary" onClick={onClose}>Done</Btn>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 };

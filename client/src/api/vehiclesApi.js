@@ -26,3 +26,18 @@ export const assignVehicle = (id, driverId) =>
 
 export const unassignVehicle = (id) =>
   axiosInstance.put(`/vehicles/${id}/unassign`).then((r) => r.data);
+
+export const bulkUploadVehicles = (file, { preview = false } = {}) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return axiosInstance
+    .post(`/vehicles/bulk-upload${preview ? '?preview=true' : ''}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    .then((r) => r.data);
+};
+
+export const downloadBulkTemplate = () =>
+  axiosInstance
+    .get('/vehicles/bulk-template', { responseType: 'blob' })
+    .then((r) => r.data);
