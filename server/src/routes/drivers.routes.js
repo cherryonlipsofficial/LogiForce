@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const router = express.Router();
 const { protect, restrictTo } = require('../middleware/auth');
 const upload = require('../middleware/upload');
@@ -22,7 +23,6 @@ router.get('/expiring-documents', async (req, res) => {
 
 // GET /api/drivers/uploads/:fileKey — serve uploaded file (must be before /:id)
 router.get('/uploads/:fileKey', async (req, res) => {
-  const fs = require('fs');
   const fileKey = req.params.fileKey;
   // Prevent directory traversal
   if (fileKey.includes('..') || fileKey.includes('/') || fileKey.includes('\\')) {
@@ -84,12 +84,11 @@ router.get('/export', async (req, res) => {
 router.post('/bulk-import', restrictTo('ops', 'admin'), upload.single('file'), async (req, res) => {
   if (!req.file) return sendError(res, 'No file uploaded', 400);
 
-  const ext = require('path').extname(req.file.originalname).toLowerCase();
+  const ext = path.extname(req.file.originalname).toLowerCase();
   let rows = [];
 
   try {
     if (ext === '.csv') {
-      const fs = require('fs');
       const csvParser = require('csv-parser');
       rows = await new Promise((resolve, reject) => {
         const results = [];
@@ -117,7 +116,6 @@ router.post('/bulk-import', restrictTo('ops', 'admin'), upload.single('file'), a
     return sendError(res, `Failed to parse file: ${err.message}`, 400);
   } finally {
     // Clean up uploaded file
-    const fs = require('fs');
     if (req.file?.path) fs.unlink(req.file.path, () => {});
   }
 });
