@@ -6,6 +6,7 @@ const {
   Advance,
   Supplier,
   DriverLedger,
+  DriverProjectAssignment,
 } = require('../models');
 const { SALARY } = require('../config/constants');
 
@@ -13,8 +14,10 @@ const { SALARY } = require('../config/constants');
  * Calculate salary for a single driver for a given period.
  */
 const calculateDriverSalary = async (driverId, year, month, processedBy) => {
-  // 1. Fetch driver
-  const driver = await Driver.findById(driverId).populate('supplierId');
+  // 1. Fetch driver (with project info)
+  const driver = await Driver.findById(driverId)
+    .populate('supplierId')
+    .populate('projectId', 'name projectCode');
   if (!driver) {
     const err = new Error('Driver not found');
     err.statusCode = 404;
@@ -106,10 +109,25 @@ const calculateDriverSalary = async (driverId, year, month, processedBy) => {
     });
   }
 
+  // 8b. Resolve project billing rate from active assignment snapshot
+  let projectId = driver.projectId?._id || driver.projectId || null;
+  let projectRatePerDriver = null;
+  if (driver.currentProjectAssignmentId) {
+    const assignment = await DriverProjectAssignment.findById(
+      driver.currentProjectAssignmentId
+    );
+    if (assignment && assignment.status === 'active') {
+      projectRatePerDriver = assignment.ratePerDriver;
+      projectId = assignment.projectId;
+    }
+  }
+
   // 9. Create SalaryRun document
   const salaryRun = await SalaryRun.create({
     driverId,
     clientId: driver.clientId,
+    projectId: projectId || undefined,
+    projectRatePerDriver: projectRatePerDriver || undefined,
     period: { year, month },
     attendanceRecordId: attendance._id,
     workingDays,

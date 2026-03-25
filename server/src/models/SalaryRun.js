@@ -16,6 +16,14 @@ const salaryRunSchema = new mongoose.Schema(
       ref: 'Client',
       required: true,
     },
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Project',
+      index: true,
+    },
+    projectRatePerDriver: {
+      type: Number,
+    },
     period: {
       year: { type: Number },
       month: { type: Number },

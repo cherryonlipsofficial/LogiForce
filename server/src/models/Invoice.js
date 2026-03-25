@@ -15,6 +15,7 @@ const invoiceSchema = new mongoose.Schema(
       year: { type: Number },
       month: { type: Number },
     },
+    // Legacy flat lineItems — kept for backward compatibility with existing invoices
     lineItems: [
       {
         driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'Driver' },
@@ -23,6 +24,27 @@ const invoiceSchema = new mongoose.Schema(
         workingDays: { type: Number },
         ratePerDay: { type: Number },
         amount: { type: Number },
+      },
+    ],
+    // New: project-grouped line items
+    projectGroups: [
+      {
+        projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project' },
+        projectName: { type: String },
+        projectCode: { type: String },
+        ratePerDriver: { type: Number },
+        drivers: [
+          {
+            driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'Driver' },
+            employeeCode: { type: String },
+            driverName: { type: String },
+            workingDays: { type: Number },
+            ratePerDay: { type: Number },
+            amount: { type: Number },
+          },
+        ],
+        driverCount: { type: Number },
+        subtotal: { type: Number },
       },
     ],
     driverCount: {

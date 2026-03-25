@@ -1,5 +1,6 @@
 import axiosInstance from './axiosInstance';
 
+// Project CRUD
 export const getProjects = (params) =>
   axiosInstance.get('/projects', { params }).then(r => r.data);
 
@@ -15,33 +16,36 @@ export const updateProject = (id, data) =>
 export const deleteProject = (id) =>
   axiosInstance.delete(`/projects/${id}`).then(r => r.data);
 
+// Project drivers
 export const getProjectDrivers = (id, params) =>
   axiosInstance.get(`/projects/${id}/drivers`, { params }).then(r => r.data);
 
-export const assignDriverToProject = (projectId, driverId) =>
-  axiosInstance.post(`/projects/${projectId}/assign`, { driverId }).then(r => r.data);
+export const getProjectDriverHistory = (id) =>
+  axiosInstance.get(`/projects/${id}/driver-history`).then(r => r.data);
 
-export const unassignDriverFromProject = (projectId, driverId, reason) =>
-  axiosInstance.post(`/projects/${projectId}/unassign`, { driverId, reason }).then(r => r.data);
+// Driver assignment
+export const assignDriverToProject = (projectId, driverId, reason) =>
+  axiosInstance.post(`/projects/${projectId}/assign-driver`, { driverId, reason }).then(r => r.data);
 
-export const getProjectAssignments = (id, params) =>
-  axiosInstance.get(`/projects/${id}/assignments`, { params }).then(r => r.data);
+export const unassignDriverFromProject = (driverId, reason) =>
+  axiosInstance.post('/projects/unassign-driver', { driverId, reason }).then(r => r.data);
 
-// Project Contracts
-export const getProjectContracts = (params) =>
-  axiosInstance.get('/project-contracts', { params }).then(r => r.data);
+// Project contracts (nested under projects)
+export const getProjectContracts = (projectId) =>
+  axiosInstance.get(`/projects/${projectId}/contracts`).then(r => r.data);
 
-export const createProjectContract = (data) =>
-  axiosInstance.post('/project-contracts', data).then(r => r.data);
+export const createProjectContract = (projectId, data) =>
+  axiosInstance.post(`/projects/${projectId}/contracts`, data).then(r => r.data);
 
-export const updateProjectContract = (id, data) =>
-  axiosInstance.put(`/project-contracts/${id}`, data).then(r => r.data);
+export const renewProjectContract = (projectId, data) =>
+  axiosInstance.post(`/projects/${projectId}/contracts/renew`, data).then(r => r.data);
 
-export const deleteProjectContract = (id) =>
-  axiosInstance.delete(`/project-contracts/${id}`).then(r => r.data);
+export const terminateProjectContract = (contractId, reason) =>
+  axiosInstance.put(`/projects/contracts/${contractId}/terminate`, { reason }).then(r => r.data);
 
-export const activateProjectContract = (id) =>
-  axiosInstance.post(`/project-contracts/${id}/activate`).then(r => r.data);
+// Client-level project routes
+export const getClientProjects = (clientId, params) =>
+  axiosInstance.get(`/clients/${clientId}/projects`, { params }).then(r => r.data);
 
-export const terminateProjectContract = (id, reason) =>
-  axiosInstance.post(`/project-contracts/${id}/terminate`, { reason }).then(r => r.data);
+export const getClientProjectStats = (clientId) =>
+  axiosInstance.get(`/clients/${clientId}/project-stats`).then(r => r.data);

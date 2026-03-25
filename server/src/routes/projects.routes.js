@@ -1,92 +1,153 @@
 const express = require('express');
 const router = express.Router();
 const { protect, restrictTo } = require('../middleware/auth');
-const { Project, Driver, DriverProjectAssignment } = require('../models');
+const projectService = require('../services/project.service');
+const { Driver } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
 
 // All routes are protected
 router.use(protect);
 
-// GET /api/projects — list all projects (with optional clientId filter)
+// ─── Project CRUD ─────────────────────────────────────────────────────────────
+
+// GET /api/projects — paginated list with driverCount and activeContract
 router.get('/', async (req, res) => {
   const { clientId, status, search, page, limit } = req.query;
-  const query = {};
-  if (clientId) query.clientId = clientId;
-  if (status) query.status = status;
-  if (search) {
-    query.$or = [
-      { name: { $regex: search, $options: 'i' } },
-      { projectCode: { $regex: search, $options: 'i' } },
-      { location: { $regex: search, $options: 'i' } },
-    ];
-  }
-
-  const pg = parseInt(page) || PAGINATION.DEFAULT_PAGE;
-  const lim = parseInt(limit) || PAGINATION.DEFAULT_LIMIT;
-  const skip = (pg - 1) * lim;
-
-  const [projects, total] = await Promise.all([
-    Project.find(query)
-      .populate('clientId', 'name')
-      .populate('driverCount')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(lim),
-    Project.countDocuments(query),
-  ]);
-
-  sendPaginated(res, projects, total, pg, lim);
+  const result = await projectService.listProjects(
+    clientId,
+    { status, search },
+    { page, limit }
+  );
+  sendPaginated(res, result.projects, result.total, result.page, result.limit);
 });
 
-// POST /api/projects — create (admin, accountant, ops)
-router.post('/', restrictTo('admin', 'accountant', 'ops'), async (req, res) => {
-  const project = await Project.create({
-    ...req.body,
-    createdBy: req.user._id,
-  });
+// POST /api/projects — create (admin, ops)
+router.post('/', restrictTo('admin', 'ops'), async (req, res) => {
+  const project = await projectService.createProject(req.body, req.user._id);
   sendSuccess(res, project, 'Project created', 201);
 });
 
-// GET /api/projects/:id — get single project with driver count
+// GET /api/projects/:id — full project detail (drivers, contracts, stats)
 router.get('/:id', async (req, res) => {
-  const project = await Project.findById(req.params.id)
-    .populate('clientId', 'name')
-    .populate('driverCount');
-  if (!project) return sendError(res, 'Project not found', 404);
-
-  const activeDriverCount = await Driver.countDocuments({
-    projectId: req.params.id,
-    status: { $in: ['active', 'on_leave'] },
-  });
-
-  const result = project.toObject();
-  result.activeDriverCount = activeDriverCount;
-  sendSuccess(res, result);
+  const project = await projectService.getProject(req.params.id);
+  sendSuccess(res, project);
 });
 
-// PUT /api/projects/:id — update (admin, accountant, ops)
-router.put('/:id', restrictTo('admin', 'accountant', 'ops'), async (req, res) => {
-  const project = await Project.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-    runValidators: true,
-  });
-  if (!project) return sendError(res, 'Project not found', 404);
+// PUT /api/projects/:id — update project fields (admin, ops)
+router.put('/:id', restrictTo('admin', 'ops'), async (req, res) => {
+  const project = await projectService.updateProject(
+    req.params.id,
+    req.body,
+    req.user._id
+  );
   sendSuccess(res, project, 'Project updated');
 });
 
-// DELETE /api/projects/:id — delete (admin only, only if no drivers assigned)
+// DELETE /api/projects/:id — soft-delete (admin only)
 router.delete('/:id', restrictTo('admin'), async (req, res) => {
-  const driverCount = await Driver.countDocuments({ projectId: req.params.id });
+  const driverCount = await Driver.countDocuments({
+    projectId: req.params.id,
+  });
   if (driverCount > 0) {
-    return sendError(res, `Cannot delete project with ${driverCount} assigned driver(s). Unassign them first.`, 400);
+    return sendError(
+      res,
+      `Cannot delete project with ${driverCount} assigned driver(s). Unassign them first.`,
+      400
+    );
   }
-  const project = await Project.findByIdAndDelete(req.params.id);
+
+  const { Project } = require('../models');
+  const project = await Project.findById(req.params.id);
   if (!project) return sendError(res, 'Project not found', 404);
-  sendSuccess(res, null, 'Project deleted');
+  if (project.status === 'active') {
+    return sendError(
+      res,
+      'Cannot delete an active project. Set status to cancelled first.',
+      400
+    );
+  }
+
+  project.status = 'cancelled';
+  await project.save();
+  sendSuccess(res, project, 'Project cancelled');
 });
 
-// GET /api/projects/:id/drivers — list drivers assigned to this project
+// ─── Project Contracts ────────────────────────────────────────────────────────
+
+// GET /api/projects/:id/contracts — all contracts for this project
+router.get('/:id/contracts', async (req, res) => {
+  const { ProjectContract } = require('../models');
+  const contracts = await ProjectContract.find({ projectId: req.params.id })
+    .sort({ startDate: -1 })
+    .lean();
+  sendSuccess(res, contracts);
+});
+
+// POST /api/projects/:id/contracts — create new contract (admin)
+router.post('/:id/contracts', restrictTo('admin'), async (req, res) => {
+  const contract = await projectService.createProjectContract(
+    req.params.id,
+    req.body,
+    req.user._id
+  );
+  sendSuccess(res, contract, 'Project contract created', 201);
+});
+
+// POST /api/projects/:id/contracts/renew — renew active contract (admin)
+router.post('/:id/contracts/renew', restrictTo('admin'), async (req, res) => {
+  const contract = await projectService.renewProjectContract(
+    req.params.id,
+    req.body,
+    req.user._id
+  );
+  sendSuccess(res, contract, 'Contract renewed', 201);
+});
+
+// PUT /api/projects/contracts/:contractId/terminate — terminate (admin)
+router.put(
+  '/contracts/:contractId/terminate',
+  restrictTo('admin'),
+  async (req, res) => {
+    const contract = await projectService.terminateProjectContract(
+      req.params.contractId,
+      { reason: req.body.reason, terminationDate: req.body.terminationDate },
+      req.user._id
+    );
+    sendSuccess(res, contract, 'Contract terminated');
+  }
+);
+
+// ─── Driver Assignment ────────────────────────────────────────────────────────
+
+// POST /api/projects/:id/assign-driver — assign driver (admin, ops)
+router.post('/:id/assign-driver', restrictTo('admin', 'ops'), async (req, res) => {
+  const { driverId, reason, contractId } = req.body;
+  if (!driverId) return sendError(res, 'driverId is required', 400);
+
+  const assignment = await projectService.assignDriverToProject(
+    driverId,
+    req.params.id,
+    { reason, contractId },
+    req.user._id
+  );
+  sendSuccess(res, assignment, 'Driver assigned to project');
+});
+
+// POST /api/projects/unassign-driver — unassign driver (admin, ops)
+router.post('/unassign-driver', restrictTo('admin', 'ops'), async (req, res) => {
+  const { driverId, reason } = req.body;
+  if (!driverId) return sendError(res, 'driverId is required', 400);
+
+  const assignment = await projectService.unassignDriverFromProject(
+    driverId,
+    { reason },
+    req.user._id
+  );
+  sendSuccess(res, assignment, 'Driver unassigned from project');
+});
+
+// GET /api/projects/:id/drivers — currently assigned drivers
 router.get('/:id/drivers', async (req, res) => {
   const pg = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
   const lim = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
@@ -94,6 +155,7 @@ router.get('/:id/drivers', async (req, res) => {
 
   const [drivers, total] = await Promise.all([
     Driver.find({ projectId: req.params.id })
+      .select('fullName employeeCode status nationality joinDate vehicleType vehiclePlate')
       .populate('clientId', 'name')
       .sort({ fullName: 1 })
       .skip(skip)
@@ -104,96 +166,10 @@ router.get('/:id/drivers', async (req, res) => {
   sendPaginated(res, drivers, total, pg, lim);
 });
 
-// POST /api/projects/:id/assign — assign a driver to this project
-router.post('/:id/assign', restrictTo('admin', 'ops'), async (req, res) => {
-  const { driverId } = req.body;
-  if (!driverId) return sendError(res, 'driverId is required', 400);
-
-  const project = await Project.findById(req.params.id);
-  if (!project) return sendError(res, 'Project not found', 404);
-
-  const driver = await Driver.findById(driverId);
-  if (!driver) return sendError(res, 'Driver not found', 404);
-
-  // Ensure driver belongs to the same client
-  if (driver.clientId.toString() !== project.clientId.toString()) {
-    return sendError(res, 'Driver belongs to a different client than this project', 400);
-  }
-
-  // Close any existing active assignment for this driver
-  if (driver.currentProjectAssignmentId) {
-    await DriverProjectAssignment.findByIdAndUpdate(driver.currentProjectAssignmentId, {
-      status: 'completed',
-      unassignedDate: new Date(),
-      reason: 'Reassigned to another project',
-      closedBy: req.user._id,
-    });
-  }
-
-  // Create new assignment record
-  const assignment = await DriverProjectAssignment.create({
-    driverId,
-    projectId: project._id,
-    clientId: project.clientId,
-    ratePerDriver: project.ratePerDriver,
-    assignedDate: new Date(),
-    assignedBy: req.user._id,
-  });
-
-  // Update driver's current project reference
-  driver.projectId = project._id;
-  driver.currentProjectAssignmentId = assignment._id;
-  await driver.save();
-
-  sendSuccess(res, { driver, assignment }, 'Driver assigned to project', 200);
-});
-
-// POST /api/projects/:id/unassign — unassign a driver from this project
-router.post('/:id/unassign', restrictTo('admin', 'ops'), async (req, res) => {
-  const { driverId, reason } = req.body;
-  if (!driverId) return sendError(res, 'driverId is required', 400);
-
-  const driver = await Driver.findById(driverId);
-  if (!driver) return sendError(res, 'Driver not found', 404);
-
-  if (!driver.projectId || driver.projectId.toString() !== req.params.id) {
-    return sendError(res, 'Driver is not assigned to this project', 400);
-  }
-
-  // Close the active assignment
-  if (driver.currentProjectAssignmentId) {
-    await DriverProjectAssignment.findByIdAndUpdate(driver.currentProjectAssignmentId, {
-      status: 'completed',
-      unassignedDate: new Date(),
-      reason: reason || 'Unassigned from project',
-      closedBy: req.user._id,
-    });
-  }
-
-  // Clear driver's project reference
-  driver.projectId = null;
-  driver.currentProjectAssignmentId = null;
-  await driver.save();
-
-  sendSuccess(res, driver, 'Driver unassigned from project');
-});
-
-// GET /api/projects/:id/assignments — assignment history for a project
-router.get('/:id/assignments', async (req, res) => {
-  const pg = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
-  const lim = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
-  const skip = (pg - 1) * lim;
-
-  const [assignments, total] = await Promise.all([
-    DriverProjectAssignment.find({ projectId: req.params.id })
-      .populate('driverId', 'fullName employeeCode')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(lim),
-    DriverProjectAssignment.countDocuments({ projectId: req.params.id }),
-  ]);
-
-  sendPaginated(res, assignments, total, pg, lim);
+// GET /api/projects/:id/driver-history — full assignment history
+router.get('/:id/driver-history', async (req, res) => {
+  const history = await projectService.getProjectDriverHistory(req.params.id);
+  sendSuccess(res, history);
 });
 
 module.exports = router;
