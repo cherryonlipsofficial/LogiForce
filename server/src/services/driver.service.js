@@ -125,6 +125,70 @@ const getStatusCounts = async () => {
   return { total, active, onLeave, suspended };
 };
 
+const bulkCreate = async (rows, userId) => {
+  const results = { created: 0, errors: [] };
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const rowNum = i + 2; // +2 for 1-indexed + header row
+    try {
+      // Validate required fields
+      if (!row.fullName) throw new Error('Full name is required');
+      if (!row.nationality) throw new Error('Nationality is required');
+      if (!row.phoneUae) throw new Error('UAE phone is required');
+      if (!row.baseSalary) throw new Error('Base salary is required');
+      if (!row.payStructure) throw new Error('Pay structure is required');
+      if (!row.clientId) throw new Error('Client ID is required');
+
+      // Validate payStructure
+      if (!['MONTHLY_FIXED', 'DAILY_RATE', 'PER_TRIP'].includes(row.payStructure)) {
+        throw new Error('Pay structure must be MONTHLY_FIXED, DAILY_RATE, or PER_TRIP');
+      }
+
+      // Resolve client by name or ID
+      const { Client } = require('../models');
+      let clientId = row.clientId;
+      if (!clientId.match(/^[0-9a-fA-F]{24}$/)) {
+        const client = await Client.findOne({ name: { $regex: new RegExp(`^${row.clientId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } });
+        if (!client) throw new Error(`Client "${row.clientId}" not found`);
+        clientId = client._id;
+      }
+
+      const driverData = {
+        fullName: row.fullName.trim(),
+        nationality: row.nationality.trim(),
+        phoneUae: row.phoneUae.trim(),
+        baseSalary: Number(row.baseSalary),
+        payStructure: row.payStructure.trim(),
+        clientId,
+        createdBy: userId,
+      };
+
+      // Optional fields
+      if (row.emiratesId) driverData.emiratesId = row.emiratesId.trim();
+      if (row.joinDate) driverData.joinDate = new Date(row.joinDate);
+      if (row.passportNumber) driverData.passportNumber = row.passportNumber.trim();
+      if (row.visaNumber) driverData.visaNumber = row.visaNumber.trim();
+      if (row.bankName) driverData.bankName = row.bankName.trim();
+      if (row.iban) driverData.iban = row.iban.trim();
+      if (row.vehiclePlate) driverData.vehiclePlate = row.vehiclePlate.trim();
+      if (row.vehicleType) driverData.vehicleType = row.vehicleType.trim();
+      if (row.status) driverData.status = row.status.trim();
+
+      await Driver.create(driverData);
+      results.created++;
+    } catch (err) {
+      results.errors.push({
+        row: rowNum,
+        fullName: row.fullName || '(empty)',
+        message: err.message || 'Unknown error',
+      });
+    }
+  }
+
+  return results;
+};
+
 module.exports = {
   findAll,
   findById,
@@ -134,4 +198,5 @@ module.exports = {
   getLedger,
   getExpiringDocuments,
   getStatusCounts,
+  bulkCreate,
 };
