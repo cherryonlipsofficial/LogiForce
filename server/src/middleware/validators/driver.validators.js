@@ -26,11 +26,14 @@ const createDriverValidation = [
     .optional()
     .isIn(['employment', 'investor', 'family', 'visit']).withMessage('Visa type must be employment, investor, family, or visit'),
   body('clientId')
-    .notEmpty().withMessage('Client is required')
+    .optional()
     .isMongoId().withMessage('clientId must be a valid ID'),
   body('supplierId')
     .optional()
     .isMongoId().withMessage('supplierId must be a valid ID'),
+  body('projectId')
+    .notEmpty().withMessage('Project is required')
+    .isMongoId().withMessage('projectId must be a valid ID'),
   body('phoneHomeCountry')
     .optional()
     .matches(/^\+?\d{7,15}$/).withMessage('Home country phone must be a valid phone number'),
@@ -94,6 +97,9 @@ const updateDriverValidation = [
   body('clientId')
     .optional()
     .isMongoId().withMessage('clientId must be a valid ID'),
+  body('projectId')
+    .optional()
+    .isMongoId().withMessage('projectId must be a valid ID'),
   body('joinDate')
     .optional()
     .isISO8601().withMessage('Join date must be a valid date'),
