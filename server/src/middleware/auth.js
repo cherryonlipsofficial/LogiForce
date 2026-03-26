@@ -10,7 +10,7 @@ const protect = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id).populate('roleId');
+    const user = await User.findById(decoded.id).populate('roleId', 'permissions name isSystemRole displayName');
     if (!user || !user.isActive) {
       return res.status(401).json({ success: false, message: 'User not found or inactive' });
     }
@@ -21,34 +21,67 @@ const protect = async (req, res, next) => {
   }
 };
 
-// New permission-based middleware — checks the resolved permission set
-const requirePermission = (...permissionKeys) => {
+/**
+ * Middleware factory. Checks that the authenticated user has the given permission.
+ * Usage: router.get('/route', protect, requirePermission('drivers.edit'), handler)
+ */
+const requirePermission = (permissionKey) => {
   return async (req, res, next) => {
     try {
-      const userPerms = await req.user.getPermissions();
-      const hasAny = permissionKeys.some(key => userPerms.includes(key));
-      if (!hasAny) {
+      if (!req.user) {
+        return res.status(401).json({ success: false, message: 'Not authenticated' });
+      }
+
+      // Populate roleId if not already populated
+      if (!req.user.roleId || typeof req.user.roleId === 'string') {
+        await req.user.populate('roleId', 'permissions name isSystemRole');
+      }
+
+      // Build effective permission set: role permissions + user overrides
+      const rolePerms = new Set(req.user.roleId?.permissions || []);
+      for (const override of req.user.permissionOverrides || []) {
+        if (override.granted) rolePerms.add(override.key);
+        else rolePerms.delete(override.key);
+      }
+
+      // Admin system role bypasses all permission checks
+      if (req.user.roleId?.name === 'admin' && req.user.roleId?.isSystemRole) {
+        req.userPermissions = [...rolePerms];
+        return next();
+      }
+
+      if (!rolePerms.has(permissionKey)) {
         return res.status(403).json({
           success: false,
-          message: 'You do not have permission to perform this action',
+          message: `Access denied. Required permission: ${permissionKey}`,
+          requiredPermission: permissionKey,
         });
       }
+
+      req.userPermissions = [...rolePerms];
       next();
-    } catch (error) {
-      res.status(500).json({ success: false, message: 'Permission check failed' });
+    } catch (err) {
+      next(err);
     }
   };
 };
 
-// Legacy role-name check — kept for backward compatibility during migration
-const restrictTo = (...roles) => {
-  return (req, res, next) => {
-    const roleName = req.user.roleId?.name || req.user.role;
-    if (!roles.includes(roleName)) {
-      return res.status(403).json({ success: false, message: 'You do not have permission to perform this action' });
+/**
+ * Attaches the user's effective permissions to req.userPermissions without blocking.
+ * Useful for routes that need to check permissions conditionally in the handler.
+ */
+const attachPermissions = async (req, res, next) => {
+  if (!req.user) return next();
+  try {
+    if (!req.user.roleId || typeof req.user.roleId === 'string') {
+      await req.user.populate('roleId', 'permissions name isSystemRole');
     }
-    next();
-  };
+    const perms = await req.user.getPermissions();
+    req.userPermissions = perms;
+  } catch {
+    // Non-blocking — continue even if permission resolution fails
+  }
+  next();
 };
 
-module.exports = { protect, restrictTo, requirePermission };
+module.exports = { protect, requirePermission, attachPermissions };

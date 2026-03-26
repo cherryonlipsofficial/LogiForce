@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import PermissionGate from '../ui/PermissionGate';
 import SidePanel from '../ui/SidePanel';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import Badge from '../ui/Badge';
@@ -137,8 +138,9 @@ const TerminateForm = ({ vehicleId, onDone, onClose }) => {
 
 /* ── main component ── */
 const VehicleDetailPanel = ({ vehicleId, onClose, onAssignClick, onReturnClick }) => {
-  const { role } = useAuth();
-  const isAdmin = role === 'admin';
+  const { hasPermission } = useAuth();
+  const canEditVehicle = hasPermission('vehicles.edit');
+  const canOffHire = hasPermission('vehicles.off_hire');
 
   const { data, isLoading } = useQuery({
     queryKey: ['vehicle', vehicleId],
@@ -283,7 +285,7 @@ const VehicleDetailPanel = ({ vehicleId, onClose, onAssignClick, onReturnClick }
                 })()}
 
                 {/* Admin actions */}
-                {isAdmin && (
+                {canEditVehicle && (
                   <div style={{ display: 'flex', gap: 8 }}>
                     <Btn small onClick={() => { setShowRenew(!showRenew); setShowTerminate(false); }}>Renew contract</Btn>
                     <Btn small variant="danger" onClick={() => { setShowTerminate(!showTerminate); setShowRenew(false); }}>Terminate contract</Btn>
@@ -295,7 +297,7 @@ const VehicleDetailPanel = ({ vehicleId, onClose, onAssignClick, onReturnClick }
             ) : (
               <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8, padding: 14, textAlign: 'center' }}>
                 <div style={{ fontSize: 13, color: '#fbbf24', marginBottom: 8 }}>No active contract</div>
-                {isAdmin && (
+                {canEditVehicle && (
                   <>
                     <Btn small variant="primary" onClick={() => setShowAddContract(!showAddContract)}>Add contract</Btn>
                     {showAddContract && <ContractForm vehicleId={vehicleId} onDone={() => setShowAddContract(false)} />}
@@ -323,9 +325,11 @@ const VehicleDetailPanel = ({ vehicleId, onClose, onAssignClick, onReturnClick }
                 <DetailRow k="Monthly deduction" v={vehicle.monthlyDeductionAmount != null ? `AED ${Number(vehicle.monthlyDeductionAmount).toLocaleString()}` : '—'} isMono />
                 <DetailRow k="Expected return" v={vehicle.expectedReturnDate ? fmt(vehicle.expectedReturnDate) : 'Open-ended'} />
                 {onReturnClick && (
-                  <Btn variant="danger" style={{ width: '100%', justifyContent: 'center', marginTop: 10 }} onClick={() => { onReturnClick(vehicle); onClose(); }}>
-                    Return vehicle
-                  </Btn>
+                  <PermissionGate permission="vehicles.off_hire">
+                    <Btn variant="danger" style={{ width: '100%', justifyContent: 'center', marginTop: 10 }} onClick={() => { onReturnClick(vehicle); onClose(); }}>
+                      Return vehicle
+                    </Btn>
+                  </PermissionGate>
                 )}
               </div>
             ) : vehicle.status === 'available' ? (
@@ -335,9 +339,11 @@ const VehicleDetailPanel = ({ vehicleId, onClose, onAssignClick, onReturnClick }
                   <span style={{ fontSize: 13, color: 'var(--text2)' }}>Available for assignment</span>
                 </div>
                 {onAssignClick && (
-                  <Btn variant="primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => { onAssignClick(vehicle); onClose(); }}>
-                    Assign driver
-                  </Btn>
+                  <PermissionGate permission="vehicles.assign">
+                    <Btn variant="primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => { onAssignClick(vehicle); onClose(); }}>
+                      Assign driver
+                    </Btn>
+                  </PermissionGate>
                 )}
               </div>
             ) : (
@@ -398,8 +404,8 @@ const VehicleDetailPanel = ({ vehicleId, onClose, onAssignClick, onReturnClick }
             )}
           </div>
 
-          {/* ── SECTION 5: Off-hire (admin only) ── */}
-          {isAdmin && (
+          {/* ── SECTION 5: Off-hire ── */}
+          {canOffHire && (
             <div style={{ borderTop: '1px solid rgba(239,68,68,0.15)', background: 'rgba(239,68,68,0.04)', padding: 14, margin: '0 0 0 0' }}>
               <div style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.5, marginBottom: 10 }}>
                 Off-hiring this vehicle will terminate the active contract and permanently remove it from the active fleet.

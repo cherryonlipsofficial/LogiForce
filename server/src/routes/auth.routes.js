@@ -66,4 +66,23 @@ router.put('/change-password', protect, validate(changePasswordValidation), asyn
   sendSuccess(res, { message: 'Password changed successfully' });
 });
 
+// GET /api/auth/permissions — current user's effective permission set (for frontend AuthContext)
+router.get('/permissions', protect, async (req, res) => {
+  const user = await User.findById(req.user.id)
+    .populate('roleId', 'name displayName permissions isSystemRole');
+  if (!user) return sendError(res, 'User not found', 404);
+
+  const effectivePermissions = await user.getPermissions();
+
+  sendSuccess(res, {
+    role: {
+      _id: user.roleId?._id,
+      name: user.roleId?.name,
+      displayName: user.roleId?.displayName,
+      isSystemRole: user.roleId?.isSystemRole,
+    },
+    permissions: effectivePermissions,
+  });
+});
+
 module.exports = router;

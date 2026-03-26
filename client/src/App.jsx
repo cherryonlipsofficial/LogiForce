@@ -21,8 +21,8 @@ import NotFound from './pages/NotFound';
 
 const queryClient = new QueryClient();
 
-const ProtectedPage = ({ children, roles }) => (
-  <ProtectedRoute roles={roles}>
+const ProtectedPage = ({ children, permission }) => (
+  <ProtectedRoute permission={permission}>
     <MainLayout>{children}</MainLayout>
   </ProtectedRoute>
 );
@@ -38,15 +38,15 @@ const App = () => {
               <Route path="/login" element={<Login />} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<ProtectedPage><Dashboard /></ProtectedPage>} />
-              <Route path="/drivers" element={<ProtectedPage><Drivers /></ProtectedPage>} />
-              <Route path="/attendance" element={<ProtectedPage roles={['admin', 'ops']}><Attendance /></ProtectedPage>} />
-              <Route path="/salary" element={<ProtectedPage roles={['admin', 'accountant']}><Salary /></ProtectedPage>} />
-              <Route path="/invoices" element={<ProtectedPage roles={['admin', 'accountant']}><Invoices /></ProtectedPage>} />
-              <Route path="/clients" element={<ProtectedPage roles={['admin', 'accountant']}><Clients /></ProtectedPage>} />
-              <Route path="/projects" element={<ProtectedPage roles={['admin', 'accountant', 'ops']}><Projects /></ProtectedPage>} />
-              <Route path="/suppliers" element={<ProtectedPage roles={['admin']}><Suppliers /></ProtectedPage>} />
-              <Route path="/vehicles" element={<ProtectedPage roles={['admin', 'ops', 'accountant']}><VehiclesPage /></ProtectedPage>} />
-              <Route path="/reports" element={<ProtectedPage><Reports /></ProtectedPage>} />
+              <Route path="/drivers" element={<ProtectedPage permission="drivers.view"><Drivers /></ProtectedPage>} />
+              <Route path="/attendance" element={<ProtectedPage permission="attendance.view"><Attendance /></ProtectedPage>} />
+              <Route path="/salary" element={<ProtectedPage permission="salary.view"><Salary /></ProtectedPage>} />
+              <Route path="/invoices" element={<ProtectedPage permission="invoices.view"><Invoices /></ProtectedPage>} />
+              <Route path="/clients" element={<ProtectedPage permission="clients.view"><Clients /></ProtectedPage>} />
+              <Route path="/projects" element={<ProtectedPage permission="projects.view"><Projects /></ProtectedPage>} />
+              <Route path="/suppliers" element={<ProtectedPage permission="suppliers.view"><Suppliers /></ProtectedPage>} />
+              <Route path="/vehicles" element={<ProtectedPage permission="vehicles.view"><VehiclesPage /></ProtectedPage>} />
+              <Route path="/reports" element={<ProtectedPage permission="reports.view"><Reports /></ProtectedPage>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

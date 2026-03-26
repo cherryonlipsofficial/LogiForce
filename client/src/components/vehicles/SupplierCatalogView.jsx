@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getSuppliers } from '../../api/suppliersApi';
 import { getCategories, getVehicles } from '../../api/vehiclesApi';
 import Badge from '../ui/Badge';
+import PermissionGate from '../ui/PermissionGate';
 import Btn from '../ui/Btn';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import AddCategoryModal from './AddCategoryModal';
@@ -379,13 +380,15 @@ const SupplierCatalogView = () => {
                   : 'Category'}{' '}
                 — individual units
               </div>
-              <Btn
-                small
-                variant="primary"
-                onClick={() => setShowAddVehicleModal(true)}
-              >
-                + Add vehicle
-              </Btn>
+              <PermissionGate permission="vehicles.create">
+                <Btn
+                  small
+                  variant="primary"
+                  onClick={() => setShowAddVehicleModal(true)}
+                >
+                  + Add vehicle
+                </Btn>
+              </PermissionGate>
             </div>
 
             {vehiclesLoading ? (

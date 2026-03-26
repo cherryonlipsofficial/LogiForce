@@ -3,25 +3,27 @@ import { useAuth } from '../../context/AuthContext';
 import { useUserPrefs } from '../../hooks/useUserPrefs.jsx';
 
 const navItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: '▦', roles: null },
-  { path: '/drivers', label: 'Drivers', icon: '◈', roles: null },
-  { path: '/attendance', label: 'Attendance', icon: '◉', roles: ['admin', 'ops'] },
-  { path: '/salary', label: 'Salary runs', icon: '◎', roles: ['admin', 'accountant'] },
-  { path: '/invoices', label: 'Invoices', icon: '◳', roles: ['admin', 'accountant'] },
-  { path: '/clients', label: 'Clients', icon: '◐', roles: ['admin', 'accountant'] },
-  { path: '/projects', label: 'Projects', icon: '◪', roles: ['admin', 'accountant', 'ops'] },
-  { path: '/suppliers', label: 'Suppliers', icon: '◑', roles: ['admin'] },
-  { path: '/vehicles', label: 'Vehicles', icon: '◫', roles: ['admin', 'ops', 'accountant'] },
-  { path: '/reports', label: 'Reports', icon: '◫', roles: null },
+  { path: '/dashboard', label: 'Dashboard', icon: '▦', permission: null },
+  { path: '/drivers', label: 'Drivers', icon: '◈', permission: 'drivers.view' },
+  { path: '/attendance', label: 'Attendance', icon: '◉', permission: 'attendance.view' },
+  { path: '/salary', label: 'Salary runs', icon: '◎', permission: 'salary.view' },
+  { path: '/invoices', label: 'Invoices', icon: '◳', permission: 'invoices.view' },
+  { path: '/clients', label: 'Clients', icon: '◐', permission: 'clients.view' },
+  { path: '/projects', label: 'Projects', icon: '◪', permission: 'projects.view' },
+  { path: '/suppliers', label: 'Suppliers', icon: '◑', permission: 'suppliers.view' },
+  { path: '/vehicles', label: 'Vehicles', icon: '◫', permission: 'vehicles.view' },
+  { path: '/reports', label: 'Reports', icon: '◫', permission: 'reports.view' },
 ];
 
 const Sidebar = () => {
-  const { user, role, logout } = useAuth();
+  const { user, role, logout, hasPermission } = useAuth();
   const { arabicNumerals, toggleArabicNumerals } = useUserPrefs();
 
   const visibleItems = navItems.filter(
-    (item) => !item.roles || item.roles.includes(role)
+    (item) => !item.permission || hasPermission(item.permission)
   );
+
+  const roleName = user?.roleId?.displayName || role || 'User';
 
   return (
     <aside
@@ -83,7 +85,7 @@ const Sidebar = () => {
           }}
         >
           <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)' }} />
-          {role ? `${role.charAt(0).toUpperCase() + role.slice(1)}` : 'Admin'} · {user?.name || 'Finance Director'}
+          {roleName.charAt(0).toUpperCase() + roleName.slice(1)} · {user?.name || 'User'}
         </div>
       </div>
 
@@ -170,9 +172,9 @@ const Sidebar = () => {
                 textOverflow: 'ellipsis',
               }}
             >
-              {user?.name || 'Finance Director'}
+              {user?.name || 'User'}
             </div>
-            <div style={{ fontSize: 10, color: 'var(--text3)' }}>LogiForce Admin</div>
+            <div style={{ fontSize: 10, color: 'var(--text3)' }}>{roleName}</div>
           </div>
         </div>
         <button

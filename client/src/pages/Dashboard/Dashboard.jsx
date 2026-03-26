@@ -22,6 +22,7 @@ import { getInvoices } from '../../api/invoicesApi';
 import { getExpiringContracts, getFleetSummary } from '../../api/vehiclesApi';
 import { getProjectsExpiringContracts } from '../../api/projectsApi';
 import { useAuth } from '../../context/AuthContext';
+import PermissionGate from '../../components/ui/PermissionGate';
 import { useNavigate } from 'react-router-dom';
 
 const fallbackTrend = [
@@ -104,7 +105,7 @@ const ChartTip = ({ active, payload, label }) => {
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { role } = useAuth();
+  const { hasPermission } = useAuth();
   const now = new Date();
   const { data: summaryData, isLoading: summaryLoading } = useQuery({
     queryKey: ['payrollSummary', now.getFullYear(), now.getMonth() + 1],
@@ -458,7 +459,7 @@ const Dashboard = () => {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <Badge variant="danger">{c.daysUntilExpiry}d</Badge>
-                          {role === 'admin' && (
+                          {hasPermission('vehicles.edit') && (
                             <Btn small variant="ghost" style={{ fontSize: 10 }} onClick={() => navigate('/vehicles')}>Renew</Btn>
                           )}
                         </div>
@@ -485,7 +486,7 @@ const Dashboard = () => {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <Badge variant="warning">{c.daysUntilExpiry}d</Badge>
-                          {role === 'admin' && (
+                          {hasPermission('vehicles.edit') && (
                             <Btn small variant="ghost" style={{ fontSize: 10 }} onClick={() => navigate('/vehicles')}>Renew</Btn>
                           )}
                         </div>

@@ -4,7 +4,7 @@ const multer = require('multer');
 const XLSX = require('xlsx');
 const csvParser = require('csv-parser');
 const { Readable } = require('stream');
-const { protect } = require('../middleware/auth');
+const { protect, requirePermission } = require('../middleware/auth');
 const { Vehicle, Supplier, Driver } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 
@@ -184,7 +184,7 @@ router.get('/bulk-template', (req, res) => {
 });
 
 // POST /api/vehicles/bulk-upload — bulk upload vehicles from CSV/XLSX
-router.post('/bulk-upload', memUpload.single('file'), async (req, res) => {
+router.post('/bulk-upload', requirePermission('vehicles.create'), memUpload.single('file'), async (req, res) => {
   try {
     if (!req.file) return sendError(res, 'No file uploaded', 400);
 
@@ -419,7 +419,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/vehicles — create vehicle
-router.post('/', async (req, res) => {
+router.post('/', requirePermission('vehicles.create'), async (req, res) => {
   try {
     const vehicle = await Vehicle.create(req.body);
     sendSuccess(res, vehicle, 'Vehicle created', 201);
@@ -432,7 +432,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/vehicles/:id — update vehicle
-router.put('/:id', async (req, res) => {
+router.put('/:id', requirePermission('vehicles.edit'), async (req, res) => {
   try {
     const vehicle = await Vehicle.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
@@ -449,7 +449,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE /api/vehicles/:id — remove vehicle
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requirePermission('vehicles.off_hire'), async (req, res) => {
   try {
     const vehicle = await Vehicle.findByIdAndDelete(req.params.id);
     if (!vehicle) return sendError(res, 'Vehicle not found', 404);
@@ -460,7 +460,7 @@ router.delete('/:id', async (req, res) => {
 });
 
 // PUT /api/vehicles/:id/assign — assign vehicle to driver
-router.put('/:id/assign', async (req, res) => {
+router.put('/:id/assign', requirePermission('vehicles.assign'), async (req, res) => {
   try {
     const { driverId } = req.body;
     if (!driverId) return sendError(res, 'driverId is required', 400);
@@ -483,7 +483,7 @@ router.put('/:id/assign', async (req, res) => {
 });
 
 // PUT /api/vehicles/:id/unassign — unassign vehicle from driver
-router.put('/:id/unassign', async (req, res) => {
+router.put('/:id/unassign', requirePermission('vehicles.assign'), async (req, res) => {
   try {
     const vehicle = await Vehicle.findById(req.params.id);
     if (!vehicle) return sendError(res, 'Vehicle not found', 404);

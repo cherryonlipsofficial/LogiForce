@@ -1,8 +1,9 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import AccessDenied from '../../pages/AccessDenied';
 
-const ProtectedRoute = ({ children, roles }) => {
-  const { isAuthenticated, loading, role } = useAuth();
+const ProtectedRoute = ({ children, permission }) => {
+  const { isAuthenticated, loading, hasPermission } = useAuth();
 
   if (loading) {
     return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>Loading...</div>;
@@ -12,13 +13,8 @@ const ProtectedRoute = ({ children, roles }) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (roles && !roles.includes(role)) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-        <h1 style={{ fontSize: '2rem', fontWeight: 'bold' }}>403</h1>
-        <p>You do not have permission to access this page.</p>
-      </div>
-    );
+  if (permission && !hasPermission(permission)) {
+    return <AccessDenied />;
   }
 
   return children;
