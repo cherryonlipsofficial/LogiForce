@@ -20,6 +20,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { getPayrollSummary, getFleetUtilisation } from '../../api/reportsApi';
 import { getInvoices } from '../../api/invoicesApi';
 import { getExpiringContracts, getFleetSummary } from '../../api/vehiclesApi';
+import { getProjectsExpiringContracts } from '../../api/projectsApi';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -139,6 +140,17 @@ const Dashboard = () => {
   });
   const fleetSummary = fleetSummaryData?.data || null;
 
+  const { data: expiringProjectData } = useQuery({
+    queryKey: ['expiring-project-contracts'],
+    queryFn: () => getProjectsExpiringContracts(30),
+    retry: 1,
+  });
+  const expiringProjects = expiringProjectData?.data || [];
+  const projectsExpiring7Days = expiringProjects.filter(
+    (p) => p.activeContract && p.activeContract.endDate &&
+      Math.ceil((new Date(p.activeContract.endDate) - new Date()) / (1000 * 60 * 60 * 24)) <= 7
+  );
+
   const fleetSuppliers = fleetData?.data?.bySupplier || fallbackFleet;
 
   // Contract alerts: suppliers with contractEnd within 30 days — derive from fleet or use fallback
@@ -171,9 +183,12 @@ const Dashboard = () => {
           <strong>Action required:</strong> 9 attendance errors, 1 overdue
           invoice (Noon — AED 1.01M), 2 drivers with visa expiry within 30
           days.
+          {projectsExpiring7Days.length > 0 && (
+            <> {projectsExpiring7Days.length} project contract{projectsExpiring7Days.length > 1 ? 's' : ''} expiring within 7 days — <strong onClick={() => navigate('/projects')} style={{ cursor: 'pointer', textDecoration: 'underline' }}>review now</strong></>
+          )}
         </span>
         <Btn small variant="danger" style={{ marginLeft: 'auto', flexShrink: 0 }}>
-          Review alerts
+          Review alerts{projectsExpiring7Days.length > 0 ? ` (${3 + projectsExpiring7Days.length})` : ''}
         </Btn>
       </div>
 

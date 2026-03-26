@@ -43,6 +43,14 @@ export const renewProjectContract = (projectId, data) =>
 export const terminateProjectContract = (contractId, reason) =>
   axiosInstance.put(`/projects/contracts/${contractId}/terminate`, { reason }).then(r => r.data);
 
+// Project summary
+export const getProjectSummary = (id) =>
+  axiosInstance.get(`/projects/${id}/summary`).then(r => r.data);
+
+// Projects with expiring contracts
+export const getProjectsExpiringContracts = (days = 30) =>
+  axiosInstance.get('/projects', { params: { contractExpiringSoon: days } }).then(r => r.data);
+
 // Client-level project routes
 export const getClientProjects = (clientId, params) =>
   axiosInstance.get(`/clients/${clientId}/projects`, { params }).then(r => r.data);

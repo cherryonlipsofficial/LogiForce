@@ -4,6 +4,7 @@ const {
   DriverProjectAssignment,
   Driver,
   Client,
+  SalaryRun,
 } = require('../models');
 const auditLogger = require('../utils/auditLogger');
 const { PAGINATION } = require('../config/constants');
@@ -32,6 +33,23 @@ const listProjects = async (clientId, filters = {}, pagination = {}) => {
       { projectCode: { $regex: filters.search, $options: 'i' } },
       { location: { $regex: filters.search, $options: 'i' } },
     ];
+  }
+
+  // If contractExpiringSoon=N, restrict to projects whose active contract
+  // ends within N days from today
+  let contractExpiryProjectIds = null;
+  if (filters.contractExpiringSoon) {
+    const days = parseInt(filters.contractExpiringSoon) || 30;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() + days);
+    const expiringContracts = await ProjectContract.find({
+      status: 'active',
+      endDate: { $lte: cutoff, $gte: new Date() },
+    })
+      .select('projectId')
+      .lean();
+    contractExpiryProjectIds = expiringContracts.map((c) => c.projectId);
+    query._id = { $in: contractExpiryProjectIds };
   }
 
   const [projects, total] = await Promise.all([
@@ -491,9 +509,105 @@ const getProjectStats = async (clientId) => {
   };
 };
 
+// ─── getProjectSummary ───────────────────────────────────────────────────────
+
+const getProjectSummary = async (id) => {
+  const project = await Project.findById(id)
+    .select('name projectCode status ratePerDriver')
+    .populate('clientId', 'name')
+    .lean();
+  if (!project) throwErr('Project not found', 404);
+
+  // Active contract
+  const activeContract = await ProjectContract.findOne({
+    projectId: id,
+    status: 'active',
+  })
+    .select('endDate contractType')
+    .lean();
+
+  let contractInfo = null;
+  if (activeContract) {
+    const now = new Date();
+    const daysUntilExpiry = Math.ceil(
+      (new Date(activeContract.endDate) - now) / (1000 * 60 * 60 * 24)
+    );
+    contractInfo = {
+      endDate: activeContract.endDate,
+      daysUntilExpiry,
+      contractType: activeContract.contractType,
+    };
+  }
+
+  // Driver stats by status
+  const driverStatsAgg = await Driver.aggregate([
+    { $match: { projectId: project._id } },
+    { $group: { _id: '$status', count: { $sum: 1 } } },
+  ]);
+  const driverStats = { total: 0, active: 0, onLeave: 0, suspended: 0 };
+  for (const s of driverStatsAgg) {
+    driverStats.total += s.count;
+    if (s._id === 'active') driverStats.active = s.count;
+    if (s._id === 'on_leave') driverStats.onLeave = s.count;
+    if (s._id === 'suspended') driverStats.suspended = s.count;
+  }
+
+  // Current month payroll via aggregation pipeline
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+
+  const payrollAgg = await SalaryRun.aggregate([
+    {
+      $match: {
+        projectId: project._id,
+        status: 'approved',
+        'period.year': currentYear,
+        'period.month': currentMonth,
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        totalGross: { $sum: '$grossSalary' },
+        totalDeductions: { $sum: '$totalDeductions' },
+        totalNet: { $sum: '$netSalary' },
+        driverCount: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const currentMonthPayroll = payrollAgg.length > 0
+    ? {
+        totalGross: payrollAgg[0].totalGross,
+        totalDeductions: payrollAgg[0].totalDeductions,
+        totalNet: payrollAgg[0].totalNet,
+        driverCount: payrollAgg[0].driverCount,
+      }
+    : { totalGross: 0, totalDeductions: 0, totalNet: 0, driverCount: 0 };
+
+  // Billing this month
+  const billingThisMonth = driverStats.active * project.ratePerDriver;
+
+  return {
+    project: {
+      name: project.name,
+      code: project.projectCode,
+      status: project.status,
+      ratePerDriver: project.ratePerDriver,
+    },
+    client: { name: project.clientId?.name || null },
+    activeContract: contractInfo,
+    driverStats,
+    currentMonthPayroll,
+    billingThisMonth,
+  };
+};
+
 module.exports = {
   listProjects,
   getProject,
+  getProjectSummary,
   createProject,
   updateProject,
   createProjectContract,
