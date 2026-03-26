@@ -190,34 +190,45 @@ router.get('/:id/documents', async (req, res) => {
 });
 
 // POST /api/drivers/:id/documents — upload document
-router.post('/:id/documents', requirePermission('drivers.manage_docs'), upload.single('file'), async (req, res) => {
-  const driver = await Driver.findById(req.params.id);
-  if (!driver) return sendError(res, 'Driver not found', 404);
-
-  if (!req.file) return sendError(res, 'No file uploaded', 400);
-
-  const fileKey = req.file.filename || req.file.public_id || req.file.originalname;
-  const fileUrl = req.file.path || req.file.secure_url || req.file.url || '';
-
-  // If a document of same type already exists, update it instead of creating duplicate
-  const existing = await DriverDocument.findOne({ driverId: req.params.id, docType: req.body.docType });
-  if (existing) {
-    existing.fileKey = fileKey;
-    existing.fileUrl = fileUrl;
-    existing.expiryDate = req.body.expiryDate || existing.expiryDate;
-    existing.status = 'pending';
-    await existing.save();
-    return sendSuccess(res, existing, 'Document updated', 200);
-  }
-
-  const doc = await DriverDocument.create({
-    driverId: req.params.id,
-    docType: req.body.docType,
-    fileKey: fileKey,
-    fileUrl: fileUrl,
-    expiryDate: req.body.expiryDate || null,
+router.post('/:id/documents', requirePermission('drivers.manage_docs'), (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      return sendError(res, `File upload error: ${err.message}`, 400);
+    }
+    next();
   });
-  sendSuccess(res, doc, 'Document uploaded', 201);
+}, async (req, res) => {
+  try {
+    const driver = await Driver.findById(req.params.id);
+    if (!driver) return sendError(res, 'Driver not found', 404);
+
+    if (!req.file) return sendError(res, 'No file uploaded', 400);
+
+    const fileKey = req.file.filename || req.file.public_id || req.file.originalname;
+    const fileUrl = req.file.path || req.file.secure_url || req.file.url || '';
+
+    // If a document of same type already exists, update it instead of creating duplicate
+    const existing = await DriverDocument.findOne({ driverId: req.params.id, docType: req.body.docType });
+    if (existing) {
+      existing.fileKey = fileKey;
+      existing.fileUrl = fileUrl;
+      existing.expiryDate = req.body.expiryDate || existing.expiryDate;
+      existing.status = 'pending';
+      await existing.save();
+      return sendSuccess(res, existing, 'Document updated', 200);
+    }
+
+    const doc = await DriverDocument.create({
+      driverId: req.params.id,
+      docType: req.body.docType,
+      fileKey: fileKey,
+      fileUrl: fileUrl,
+      expiryDate: req.body.expiryDate || null,
+    });
+    sendSuccess(res, doc, 'Document uploaded', 201);
+  } catch (err) {
+    sendError(res, err.message || 'Failed to upload document', 500);
+  }
 });
 
 // PUT /api/drivers/:id/status — change status with reason
