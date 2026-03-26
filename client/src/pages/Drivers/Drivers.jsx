@@ -147,7 +147,7 @@ const Drivers = () => {
             <table style={{ width: '100%' }}>
               <thead>
                 <tr>
-                  {['Driver', 'ID', 'Project', 'Vehicle', 'Status', 'Base salary', 'Mar net pay', 'Advance'].map((h) => (
+                  {['Driver', 'Nationality', 'Project', 'Vehicle', 'Status', 'Base salary', 'Mar net pay', 'Advance'].map((h) => (
                     <th
                       key={h}
                       style={{
@@ -180,12 +180,12 @@ const Drivers = () => {
                         <Avatar initials={getInitials(d.fullName || d.name)} size={30} />
                         <div>
                           <div style={{ fontSize: 13 }}>{d.fullName || d.name}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text3)' }}>{d.nationality}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text3)' }}>{d.employeeCode || d.id}</div>
                         </div>
                       </div>
                     </td>
                     <td style={{ padding: '11px 14px' }}>
-                      <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>{d.employeeCode || d.id}</span>
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>{d.nationality || '—'}</span>
                     </td>
                     <td style={{ padding: '11px 14px', fontSize: 12 }}>{d.projectId?.name || d.project || '—'}</td>
                     <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--text2)' }}>{d.vehiclePlate || '—'}</td>
