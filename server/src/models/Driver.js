@@ -94,7 +94,7 @@ const driverSchema = new mongoose.Schema(
       type: String,
       enum: [
         'draft',               // Created by sales team
-        'pending_kyc',         // 3 required docs uploaded (auto)
+        'pending_kyc',         // Profile & Employment fields completed (auto)
         'pending_verification',// All docs valid, Compliance verified contacts (auto)
         'active',              // client_user_id set by operations (auto)
         'on_leave',            // Manual by operations

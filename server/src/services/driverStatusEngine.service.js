@@ -4,6 +4,31 @@ const { logStatusChange } = require('./driverHistory.service');
 const REQUIRED_KYC_DOCS = ['emirates_id', 'passport', 'driving_licence'];
 
 /**
+ * Fields from the Profile & Employment tabs that must ALL be filled
+ * before a driver can move from draft → pending_kyc.
+ */
+const REQUIRED_PROFILE_FIELDS = ['fullName', 'nationality', 'phoneUae', 'emiratesId'];
+const REQUIRED_EMPLOYMENT_FIELDS = ['projectId', 'payStructure', 'baseSalary', 'joinDate'];
+
+/**
+ * Check whether all Profile & Employment tab fields are filled.
+ * Returns { complete: boolean, missing: string[] }
+ */
+function checkProfileAndEmploymentComplete(driver) {
+  const allFields = [...REQUIRED_PROFILE_FIELDS, ...REQUIRED_EMPLOYMENT_FIELDS];
+  const missing = [];
+
+  for (const field of allFields) {
+    const value = driver[field];
+    if (value === undefined || value === null || value === '') {
+      missing.push(field);
+    }
+  }
+
+  return { complete: missing.length === 0, missing };
+}
+
+/**
  * Check whether all 3 required KYC documents are uploaded.
  * Does NOT check expiry here — just presence.
  * Returns { ready: boolean, missing: string[] }
@@ -83,11 +108,11 @@ async function evaluateAndTransition(driverId, triggeredBy) {
   // ── Evaluate target status ──
 
   // Level 1: draft → pending_kyc
-  // Condition: all 3 required docs are uploaded
-  const kycUploaded = await checkKycDocsUploaded(driverId);
-  if (!kycUploaded.ready) {
+  // Condition: all Profile & Employment tab fields are filled
+  const profileCheck = checkProfileAndEmploymentComplete(driver);
+  if (!profileCheck.complete) {
     // Cannot move past draft
-    return { transitioned: false, currentStatus, reason: 'Missing docs: ' + kycUploaded.missing.join(', ') };
+    return { transitioned: false, currentStatus, reason: 'Incomplete profile/employment fields: ' + profileCheck.missing.join(', ') };
   }
 
   // Level 2: pending_kyc → pending_verification
@@ -102,12 +127,12 @@ async function evaluateAndTransition(driverId, triggeredBy) {
         'All KYC documents valid and contacts verified', triggeredBy);
       return { transitioned: true, newStatus: 'pending_verification' };
     }
-  } else if (kycUploaded.ready) {
-    // Docs uploaded but not all valid OR contacts not verified
+  } else if (profileCheck.complete) {
+    // Profile complete but docs not valid OR contacts not verified
     // → pending_kyc is the right status
     if (currentStatus === 'draft') {
       await applyStatusChange(driver, 'pending_kyc', null,
-        'Required documents uploaded', triggeredBy);
+        'Profile and employment details completed', triggeredBy);
       return { transitioned: true, newStatus: 'pending_kyc' };
     }
   }
@@ -141,9 +166,12 @@ async function applyStatusChange(driver, newStatus, reason, description, perform
 }
 
 module.exports = {
+  checkProfileAndEmploymentComplete,
   checkKycDocsUploaded,
   checkKycDocsValid,
   evaluateAndTransition,
   applyStatusChange,
   REQUIRED_KYC_DOCS,
+  REQUIRED_PROFILE_FIELDS,
+  REQUIRED_EMPLOYMENT_FIELDS,
 };

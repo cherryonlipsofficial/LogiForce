@@ -1,5 +1,5 @@
 const { Driver, User, DriverDocument } = require('../models');
-const { applyStatusChange, evaluateAndTransition, checkKycDocsUploaded, checkKycDocsValid, REQUIRED_KYC_DOCS } = require('./driverStatusEngine.service');
+const { applyStatusChange, evaluateAndTransition, checkKycDocsUploaded, checkKycDocsValid, checkProfileAndEmploymentComplete, REQUIRED_KYC_DOCS, REQUIRED_PROFILE_FIELDS, REQUIRED_EMPLOYMENT_FIELDS } = require('./driverStatusEngine.service');
 const { logEvent } = require('./driverHistory.service');
 
 const VALID_STATUSES = ['draft', 'pending_kyc', 'pending_verification', 'active', 'on_leave', 'suspended', 'resigned', 'offboarding'];
@@ -160,8 +160,10 @@ async function getDriverStatusSummary(driverId) {
     }
   }
 
+  const profileCheck = checkProfileAndEmploymentComplete(driver);
+
   const availableAutoTransitions = [];
-  if (driver.status === 'draft' && kycDocsCheck.ready) {
+  if (driver.status === 'draft' && profileCheck.complete) {
     availableAutoTransitions.push('pending_kyc');
   }
   if (driver.status === 'pending_kyc' && driver.contactsVerified && kycValidCheck.valid) {
@@ -180,6 +182,9 @@ async function getDriverStatusSummary(driverId) {
     documents,
     kycDocsCheck,
     kycValidCheck,
+    profileCheck,
+    requiredProfileFields: REQUIRED_PROFILE_FIELDS,
+    requiredEmploymentFields: REQUIRED_EMPLOYMENT_FIELDS,
     availableAutoTransitions,
     canVerifyContacts: driver.status === 'pending_kyc' && !driver.contactsVerified,
     canSetClientUserId: driver.status === 'pending_verification' && !driver.clientUserId,

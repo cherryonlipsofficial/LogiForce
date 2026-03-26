@@ -77,24 +77,36 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
 
   // ── Draft ──
   if (status === 'draft') {
-    const docs = summary.documents || {};
-    const items = REQUIRED_DOCS.map((d) => ({
-      label: d.label,
-      uploaded: !!(docs[d.key] && docs[d.key].uploaded),
-    }));
+    const profileCheck = summary.profileCheck || { complete: false, missing: [] };
+    const fieldLabels = {
+      fullName: 'Full Name',
+      nationality: 'Nationality',
+      phoneUae: 'UAE Phone',
+      emiratesId: 'Emirates ID',
+      projectId: 'Project',
+      payStructure: 'Pay Structure',
+      baseSalary: 'Base Salary',
+      joinDate: 'Joining Date',
+    };
+    const allFields = [
+      ...(summary.requiredProfileFields || ['fullName', 'nationality', 'phoneUae', 'emiratesId']),
+      ...(summary.requiredEmploymentFields || ['projectId', 'payStructure', 'baseSalary', 'joinDate']),
+    ];
+    const missingSet = new Set(profileCheck.missing || []);
+
     return (
       <div style={boxStyles.blue}>
         <div style={{ fontWeight: 500, marginBottom: 8 }}>This driver is in Draft status.</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
-          {items.map((item) => (
-            <div key={item.label} style={{ display: 'flex', alignItems: 'center', fontSize: 12 }}>
-              {item.uploaded ? <CheckIcon /> : <CrossIcon />}
-              <span>{item.label} uploaded</span>
+          {allFields.map((field) => (
+            <div key={field} style={{ display: 'flex', alignItems: 'center', fontSize: 12 }}>
+              {missingSet.has(field) ? <CrossIcon /> : <CheckIcon />}
+              <span>{fieldLabels[field] || field} {missingSet.has(field) ? '— not filled' : '— filled'}</span>
             </div>
           ))}
         </div>
         <div style={{ fontSize: 11, color: 'var(--text3)' }}>
-          Upload all 3 documents in the Documents tab to progress to Pending KYC.
+          Fill all Profile &amp; Employment fields and save to progress to Pending KYC.
         </div>
       </div>
     );
