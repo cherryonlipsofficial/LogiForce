@@ -13,10 +13,10 @@ router.use(protect);
 
 // GET /api/projects — paginated list with driverCount and activeContract
 router.get('/', async (req, res) => {
-  const { clientId, status, search, page, limit } = req.query;
+  const { clientId, status, search, contractExpiringSoon, page, limit } = req.query;
   const result = await projectService.listProjects(
     clientId,
-    { status, search },
+    { status, search, contractExpiringSoon },
     { page, limit }
   );
   sendPaginated(res, result.projects, result.total, result.page, result.limit);
@@ -26,6 +26,12 @@ router.get('/', async (req, res) => {
 router.post('/', restrictTo('admin', 'ops'), async (req, res) => {
   const project = await projectService.createProject(req.body, req.user._id);
   sendSuccess(res, project, 'Project created', 201);
+});
+
+// GET /api/projects/:id/summary — project summary with payroll & billing
+router.get('/:id/summary', async (req, res) => {
+  const summary = await projectService.getProjectSummary(req.params.id);
+  sendSuccess(res, summary);
 });
 
 // GET /api/projects/:id — full project detail (drivers, contracts, stats)
