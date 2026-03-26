@@ -45,11 +45,12 @@ const seed = async () => {
 
   // --- Users ---
   console.log('Creating users...');
-  const [admin, accountant, ops, hr, viewer] = await User.create([
+  const [admin, accountant, ops, compliance, sales, viewer] = await User.create([
     { name: 'System Admin', email: 'admin@logiforce.com', password: 'Admin@123', roleId: roles.admin._id },
     { name: 'Sarah Accountant', email: 'accountant@logiforce.com', password: 'Account@123', roleId: roles.accountant._id },
     { name: 'James Operations', email: 'ops@logiforce.com', password: 'Ops@123', roleId: roles.ops._id },
-    { name: 'Layla HR Manager', email: 'hr@logiforce.com', password: 'Hr@123', roleId: roles.hr._id },
+    { name: 'Layla Compliance', email: 'compliance@logiforce.com', password: 'Compliance@123', roleId: roles.compliance._id },
+    { name: 'Nadia Sales', email: 'sales@logiforce.com', password: 'Sales@123', roleId: roles.sales._id },
     { name: 'Test Viewer', email: 'viewer@logiforce.com', password: 'Viewer@123', roleId: roles.viewer._id },
   ]);
 
@@ -63,7 +64,7 @@ const seed = async () => {
   }];
   await accountant.save();
 
-  console.log('  Created 5 users (with roles assigned)');
+  console.log('  Created 6 users (with roles assigned)');
 
   // --- Clients ---
   console.log('Creating clients...');
@@ -444,11 +445,12 @@ const seed = async () => {
   console.log('  Admin:      admin@logiforce.com / Admin@123');
   console.log('  Accountant: accountant@logiforce.com / Account@123');
   console.log('  Ops:        ops@logiforce.com / Ops@123');
-  console.log('  HR:         hr@logiforce.com / Hr@123');
+  console.log('  Compliance: compliance@logiforce.com / Compliance@123');
+  console.log('  Sales:      sales@logiforce.com / Sales@123');
   console.log('  Viewer:     viewer@logiforce.com / Viewer@123');
   console.log('---');
-  console.log('Roles seeded: admin, accountant, ops, hr, viewer');
-  console.log('Users seeded: 5 (with roles assigned)');
+  console.log('Roles seeded: admin, accountant, ops, compliance, sales, viewer');
+  console.log('Users seeded: 6 (with roles assigned)');
   console.log('Permission overrides: 1 example override on accountant user (drivers.create)');
   console.log('Projects created: 6 (3 Amazon UAE, 2 Noon, 1 Talabat)');
   console.log('Driver assignments: 20 drivers assigned to projects');

@@ -19,8 +19,8 @@ const driverHistorySchema = new Schema({
       'document_uploaded',     // a document was uploaded
       'document_verified',     // a document was marked verified
       'document_expired',      // system detected expiry
-      'contacts_verified',     // HR clicked Verified
-      'client_user_id_set',    // ops entered client_user_id
+      'contacts_verified',     // Compliance clicked Verified
+      'client_user_id_set',    // Operations entered client_user_id
       'field_updated',         // general profile field update
       'note_added',            // manual note added
     ],

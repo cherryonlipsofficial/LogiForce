@@ -238,7 +238,7 @@ router.post('/:id/documents', requirePermission('drivers.manage_docs'), upload.s
   sendSuccess(res, doc, 'Document uploaded', 201);
 });
 
-// POST /api/drivers/:id/verify-contacts — HR verifies contact details
+// POST /api/drivers/:id/verify-contacts — Compliance verifies contact details
 router.post('/:id/verify-contacts', requirePermission('drivers.change_status'), async (req, res) => {
   try {
     const driver = await verifyContacts(req.params.id, req.user._id);

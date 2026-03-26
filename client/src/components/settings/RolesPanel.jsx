@@ -311,7 +311,7 @@ const CreateRoleModal = ({ onClose, onCreate, allPerms, roles }) => {
         <div style={{ marginBottom: 16 }}>
           <label style={labelStyle}>Start from a template</label>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {['blank', 'accountant', 'ops', 'viewer'].map((t) => (
+            {['blank', 'accountant', 'ops', 'compliance', 'sales', 'viewer'].map((t) => (
               <Btn
                 key={t}
                 small

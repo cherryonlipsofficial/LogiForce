@@ -25,6 +25,20 @@ const users = [
     role: 'ops',
     isActive: true,
   },
+  {
+    name: 'Compliance User',
+    email: 'compliance@logiforce.com',
+    password: 'compliance123',
+    role: 'compliance',
+    isActive: true,
+  },
+  {
+    name: 'Sales User',
+    email: 'sales@logiforce.com',
+    password: 'sales123',
+    role: 'sales',
+    isActive: true,
+  },
 ];
 
 const seed = async () => {

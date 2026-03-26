@@ -31,7 +31,7 @@ async function verifyContacts(driverId, userId) {
   await driver.save();
 
   await logEvent(driverId, 'contacts_verified', {
-    description: 'Contact details verified by HR',
+    description: 'Contact details verified by Compliance',
   }, userId);
 
   await evaluateAndTransition(driverId, userId);
