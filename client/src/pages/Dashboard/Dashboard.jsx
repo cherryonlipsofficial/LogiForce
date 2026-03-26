@@ -19,6 +19,8 @@ import Btn from '../../components/ui/Btn';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { getPayrollSummary, getFleetUtilisation } from '../../api/reportsApi';
 import { getInvoices } from '../../api/invoicesApi';
+import { getExpiringContracts, getFleetSummary } from '../../api/vehiclesApi';
+import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const fallbackTrend = [
@@ -101,6 +103,7 @@ const ChartTip = ({ active, payload, label }) => {
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { role } = useAuth();
   const now = new Date();
   const { data: summaryData, isLoading: summaryLoading } = useQuery({
     queryKey: ['payrollSummary', now.getFullYear(), now.getMonth() + 1],
@@ -121,6 +124,20 @@ const Dashboard = () => {
     queryFn: () => getFleetUtilisation(),
     retry: 1,
   });
+
+  const { data: expiringData } = useQuery({
+    queryKey: ['expiring-contracts'],
+    queryFn: () => getExpiringContracts(30),
+    retry: 1,
+  });
+  const expiringContracts = expiringData?.data || [];
+
+  const { data: fleetSummaryData } = useQuery({
+    queryKey: ['fleet-summary'],
+    queryFn: () => getFleetSummary(),
+    retry: 1,
+  });
+  const fleetSummary = fleetSummaryData?.data || null;
 
   const fleetSuppliers = fleetData?.data?.bySupplier || fallbackFleet;
 
@@ -354,6 +371,131 @@ const Dashboard = () => {
           </div>
         </Card>
       </div>
+
+      {/* Contracts expiring widget */}
+      {expiringContracts.length > 0 && (
+        <div>
+          <Card>
+            <SectionHeader title="Contracts expiring soon" />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 8 }}>
+              {/* Within 7 days */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+                  Within 7 days
+                </div>
+                {expiringContracts.filter((c) => c.daysUntilExpiry <= 7).length === 0 ? (
+                  <div style={{ fontSize: 12, color: 'var(--text3)' }}>None</div>
+                ) : (
+                  expiringContracts
+                    .filter((c) => c.daysUntilExpiry <= 7)
+                    .map((c, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                        <div>
+                          <div style={{ fontFamily: '"DM Mono", var(--mono)', fontSize: 12, fontWeight: 500 }}>{c.plateNumber || c.plate}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text3)' }}>{c.make} {c.model}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text3)' }}>{c.supplierName}</div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Badge variant="danger">{c.daysUntilExpiry}d</Badge>
+                          {role === 'admin' && (
+                            <Btn small variant="ghost" style={{ fontSize: 10 }} onClick={() => navigate('/vehicles')}>Renew</Btn>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                )}
+              </div>
+              {/* Within 30 days */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+                  Within 30 days
+                </div>
+                {expiringContracts.filter((c) => c.daysUntilExpiry > 7 && c.daysUntilExpiry <= 30).length === 0 ? (
+                  <div style={{ fontSize: 12, color: 'var(--text3)' }}>None</div>
+                ) : (
+                  expiringContracts
+                    .filter((c) => c.daysUntilExpiry > 7 && c.daysUntilExpiry <= 30)
+                    .map((c, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                        <div>
+                          <div style={{ fontFamily: '"DM Mono", var(--mono)', fontSize: 12, fontWeight: 500 }}>{c.plateNumber || c.plate}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text3)' }}>{c.make} {c.model}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text3)' }}>{c.supplierName}</div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Badge variant="warning">{c.daysUntilExpiry}d</Badge>
+                          {role === 'admin' && (
+                            <Btn small variant="ghost" style={{ fontSize: 10 }} onClick={() => navigate('/vehicles')}>Renew</Btn>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                )}
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Fleet at a glance (from API) */}
+      {fleetSummary && (
+        <div>
+          <Card>
+            <SectionHeader title="Fleet at a glance" />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginTop: 8 }}>
+              {/* Left — By supplier stacked bars */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
+                  By supplier
+                </div>
+                {(fleetSummary.bySupplier || []).map((sup, i) => {
+                  const t = sup.total || 1;
+                  return (
+                    <div key={i} style={{ marginBottom: 12 }}>
+                      <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 4 }}>{sup.name}</div>
+                      <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: 'var(--surface3)' }}>
+                        {sup.assigned > 0 && <div style={{ width: `${(sup.assigned / t) * 100}%`, background: '#4ade80', height: '100%' }} />}
+                        {sup.available > 0 && <div style={{ width: `${(sup.available / t) * 100}%`, background: 'var(--text3)', height: '100%' }} />}
+                        {sup.offHired > 0 && <div style={{ width: `${(sup.offHired / t) * 100}%`, background: '#f87171', height: '100%' }} />}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>
+                        {sup.assigned} assigned · {sup.available} available · {t} total
+                      </div>
+                    </div>
+                  );
+                })}
+                <div style={{ display: 'flex', gap: 14, marginTop: 8 }}>
+                  {[
+                    { label: 'Assigned', color: '#4ade80' },
+                    { label: 'Available', color: 'var(--text3)' },
+                    { label: 'Off-hired', color: '#f87171' },
+                  ].map((l) => (
+                    <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--text3)' }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: l.color, display: 'inline-block' }} />
+                      {l.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Right — quick stats */}
+              <div>
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 4 }}>Total fleet</div>
+                  <div style={{ fontSize: 18, fontWeight: 600 }}>{fleetSummary.total || 0} vehicles</div>
+                </div>
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 4 }}>Utilisation</div>
+                  <div style={{ fontSize: 24, fontWeight: 600, color: '#4ade80' }}>
+                    {fleetSummary.total ? Math.round((fleetSummary.assigned / fleetSummary.total) * 100) : 0}%
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)' }}>of fleet currently assigned</div>
+                </div>
+                <Btn small variant="ghost" onClick={() => navigate('/vehicles')}>Manage fleet →</Btn>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };
