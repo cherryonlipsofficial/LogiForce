@@ -78,7 +78,6 @@ const vehicleSchema = new mongoose.Schema(
   }
 );
 
-vehicleSchema.index({ plate: 1 });
 vehicleSchema.index({ status: 1 });
 vehicleSchema.index({ supplierId: 1 });
 vehicleSchema.index({ assignedDriverId: 1 });
