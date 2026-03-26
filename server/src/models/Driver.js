@@ -93,16 +93,48 @@ const driverSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: [
-        'draft',
-        'pending_kyc',
-        'active',
-        'on_leave',
-        'suspended',
-        'resigned',
-        'offboarding',
+        'draft',               // Created by sales team
+        'pending_kyc',         // 3 required docs uploaded (auto)
+        'pending_verification',// All docs valid, Compliance verified contacts (auto)
+        'active',              // client_user_id set by operations (auto)
+        'on_leave',            // Manual by operations
+        'suspended',           // Manual by operations
+        'resigned',            // Manual by operations
+        'offboarding',         // Manual by operations
       ],
       default: 'draft',
+      index: true,
     },
+    // Set by Operations team after verification
+    clientUserId: {
+      type: String,
+      sparse: true,
+      index: true,
+      // e.g. the ID the client (Amazon, Noon) uses for this driver
+    },
+
+    // Contact details for Pending Verification step
+    emergencyContactName:   { type: String },
+    emergencyContactPhone:  { type: String },
+    emergencyContactRelation: { type: String },
+    alternatePhone:         { type: String },
+    homeCountryPhone:       { type: String },
+    homeCountryAddress:     { type: String },
+
+    // Tracks whether Compliance has clicked "Verified" on contacts
+    contactsVerified:       { type: Boolean, default: false },
+    contactsVerifiedBy:     { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    contactsVerifiedAt:     { type: Date },
+
+    // Tracks who last changed the status and why
+    lastStatusChange: {
+      from:      { type: String },
+      to:        { type: String },
+      reason:    { type: String },
+      changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      changedAt: { type: Date },
+    },
+
     clientId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Client',
@@ -171,7 +203,6 @@ driverSchema.pre('save', async function (next) {
 
 driverSchema.index({ clientId: 1 });
 driverSchema.index({ projectId: 1 });
-driverSchema.index({ status: 1 });
 driverSchema.index({ emiratesId: 1 });
 driverSchema.index({ passportNumber: 1 });
 

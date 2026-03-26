@@ -19,7 +19,9 @@ const ROLE_COLORS = {
   admin:      { bg: 'rgba(124,95,240,0.15)', text: '#a78bfa' },
   accountant: { bg: 'rgba(29,179,136,0.15)',  text: '#4ade9a' },
   ops:        { bg: 'rgba(79,142,247,0.15)',  text: '#7eb3fc' },
-  hr:         { bg: 'rgba(245,158,11,0.15)', text: '#fbbf24' },
+  operations: { bg: 'rgba(79,142,247,0.15)',  text: '#7eb3fc' },
+  compliance: { bg: 'rgba(245,158,11,0.15)', text: '#fbbf24' },
+  sales:      { bg: 'rgba(29,179,136,0.15)',  text: '#4ade9a' },
   viewer:     { bg: 'rgba(136,135,128,0.15)', text: 'var(--color-text-secondary)' },
 };
 
@@ -44,13 +46,13 @@ export default function UsersPage() {
 
   // Data fetching
   const { data: usersData, isLoading: usersLoading } =
-    useQuery({ queryKey: ['users'], queryFn: () => getUsers().then(r => r.data) });
+    useQuery({ queryKey: ['users'], queryFn: getUsers });
 
   const { data: rolesData } =
-    useQuery({ queryKey: ['roles'], queryFn: () => getRoles().then(r => r.data) });
+    useQuery({ queryKey: ['roles'], queryFn: getRoles });
 
-  const users = usersData?.users || [];
-  const roles = rolesData?.roles || [];
+  const users = usersData?.data || [];
+  const roles = rolesData?.data || [];
 
   // Filter users client-side
   const filtered = users.filter(u => {

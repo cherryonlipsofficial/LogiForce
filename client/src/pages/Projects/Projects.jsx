@@ -310,7 +310,7 @@ const InfoRow = ({ label, value }) => (
 
 const ProjectFormModal = ({ project, onClose }) => {
   const isEdit = !!project;
-  const { register, handleSubmit, watch, formState: { errors } } = useForm({
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm({
     defaultValues: isEdit ? {
       name: project.name || '',
       description: project.description || '',
@@ -366,9 +366,7 @@ const ProjectFormModal = ({ project, onClose }) => {
           <div style={fieldStyle}>
             <label style={labelStyle}>Client *</label>
             <ClientSelect value={watch('clientId')} onChange={(v) => {
-              // react-hook-form workaround for controlled select
-              const e = { target: { name: 'clientId', value: v } };
-              register('clientId').onChange(e);
+              setValue('clientId', v, { shouldValidate: true });
             }} />
             <input type="hidden" {...register('clientId', { required: true })} />
             {errors.clientId && <span style={{ color: '#f87171', fontSize: 11 }}>Required</span>}

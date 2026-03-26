@@ -311,7 +311,7 @@ const CreateRoleModal = ({ onClose, onCreate, allPerms, roles }) => {
         <div style={{ marginBottom: 16 }}>
           <label style={labelStyle}>Start from a template</label>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {['blank', 'accountant', 'ops', 'viewer'].map((t) => (
+            {['blank', 'accountant', 'ops', 'compliance', 'sales', 'viewer'].map((t) => (
               <Btn
                 key={t}
                 small
@@ -360,8 +360,10 @@ const RolesPanel = () => {
     queryFn: getPermissionsList,
   });
 
-  const roles = rolesData?.roles || rolesData || [];
-  const allPerms = allPermsData?.permissions || allPermsData || [];
+  const roles = rolesData?.data || rolesData?.roles || [];
+  const allPerms = allPermsData?.data
+    ? Object.values(allPermsData.data.byModule || {}).flat()
+    : allPermsData?.permissions || [];
 
   // Auto-select first role
   useEffect(() => {
@@ -379,7 +381,7 @@ const RolesPanel = () => {
     enabled: !!selectedId,
   });
 
-  const detail = roleDetail?.role || roleDetail || selectedRole;
+  const detail = roleDetail?.data || roleDetail?.role || selectedRole;
 
   // Sync local perms when role changes
   useEffect(() => {

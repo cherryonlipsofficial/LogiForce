@@ -7,7 +7,8 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "seed": "node src/scripts/seed.js",
-    "migrate:projects": "node src/scripts/migrateToProjects.js"
+    "migrate:projects": "node src/scripts/migrateToProjects.js",
+    "migrate:roles": "node src/scripts/migrateRoleNames.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

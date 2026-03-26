@@ -801,9 +801,9 @@ export default function RolesPage() {
 
             {/* Permission matrix */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px' }}>
-              {permissionsList?.byModule ? (
+              {(permissionsList?.data?.byModule || permissionsList?.byModule) ? (
                 <PermissionMatrix
-                  byModule={permissionsList.byModule || permissionsList.data?.byModule}
+                  byModule={permissionsList.data?.byModule || permissionsList.byModule}
                   localPermissions={localPermissions}
                   onToggle={handleToggle}
                   onToggleModule={handleToggleModule}
