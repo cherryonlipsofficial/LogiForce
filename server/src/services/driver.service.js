@@ -148,7 +148,7 @@ const getStatusCounts = async () => {
 };
 
 const bulkCreate = async (rows, userId) => {
-  const { Client } = require('../models');
+  const { Project } = require('../models');
   const results = { created: 0, errors: [] };
 
   // Helper to safely convert any value to trimmed string (XLSX may return numbers)
@@ -163,7 +163,7 @@ const bulkCreate = async (rows, userId) => {
       const phoneUae = str(row.phoneUae);
       const baseSalary = str(row.baseSalary);
       const payStructure = str(row.payStructure);
-      const clientRef = str(row.clientId);
+      const projectRef = str(row.project);
 
       // Validate required fields
       if (!fullName) throw new Error('Full name is required');
@@ -171,19 +171,19 @@ const bulkCreate = async (rows, userId) => {
       if (!phoneUae) throw new Error('UAE phone is required');
       if (!baseSalary) throw new Error('Base salary is required');
       if (!payStructure) throw new Error('Pay structure is required');
-      if (!clientRef) throw new Error('Client ID is required');
+      if (!projectRef) throw new Error('Project is required');
 
       // Validate payStructure
       if (!['MONTHLY_FIXED', 'DAILY_RATE', 'PER_TRIP'].includes(payStructure)) {
         throw new Error('Pay structure must be MONTHLY_FIXED, DAILY_RATE, or PER_TRIP');
       }
 
-      // Resolve client by name or ID
-      let clientId = clientRef;
-      if (!clientRef.match(/^[0-9a-fA-F]{24}$/)) {
-        const client = await Client.findOne({ name: { $regex: new RegExp(`^${clientRef.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } });
-        if (!client) throw new Error(`Client "${clientRef}" not found`);
-        clientId = client._id;
+      // Resolve project by name or ID
+      let projectId = projectRef;
+      if (!projectRef.match(/^[0-9a-fA-F]{24}$/)) {
+        const project = await Project.findOne({ name: { $regex: new RegExp(`^${projectRef.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } });
+        if (!project) throw new Error(`Project "${projectRef}" not found`);
+        projectId = project._id;
       }
 
       const driverData = {
@@ -192,7 +192,7 @@ const bulkCreate = async (rows, userId) => {
         phoneUae,
         baseSalary: Number(baseSalary),
         payStructure,
-        clientId,
+        projectId,
         createdBy: userId,
       };
 
