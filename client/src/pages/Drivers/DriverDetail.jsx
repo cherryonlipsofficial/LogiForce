@@ -12,11 +12,12 @@ import Btn from '../../components/ui/Btn';
 import Modal from '../../components/ui/Modal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useNavigate } from 'react-router-dom';
-import { getDriverLedger, updateDriver, changeDriverStatus, getDriverDocuments, uploadDriverDocument, fetchDocumentFile, getDocumentDirectUrl, getStatusSummary } from '../../api/driversApi';
+import { getDriverLedger, updateDriver, changeDriverStatus, getDriverDocuments, uploadDriverDocument, fetchDocumentFile, getDocumentDirectUrl, getStatusSummary, getDriverHistory } from '../../api/driversApi';
 import { getProjects } from '../../api/projectsApi';
-import { getVehicle, getDriverVehicleHistory } from '../../api/vehiclesApi';
+import { getVehicle } from '../../api/vehiclesApi';
 import DriverStatusBanner from '../../components/drivers/DriverStatusBanner';
 import ChangeStatusModalNew from '../../components/drivers/ChangeStatusModal';
+import DriverHistoryTab from '../../components/drivers/DriverHistoryTab';
 
 const DOC_TYPES = [
   { value: 'emirates_id', label: 'Emirates ID' },
@@ -119,26 +120,21 @@ const DriverDetail = ({ driver, onClose }) => {
   });
   const currentVehicle = vehicleData?.data || null;
 
-  const { data: vehicleHistoryData } = useQuery({
-    queryKey: ['driver-vehicle-history', driverId],
-    queryFn: () => getDriverVehicleHistory(driverId),
-    enabled: tab === 'history',
-  });
-  const vehicleHistory = vehicleHistoryData?.data || [];
-
-  const { data: statusSummaryData } = useQuery({
+const { data: statusSummaryData } = useQuery({
     queryKey: ['driver-status-summary', driverId],
     queryFn: () => getStatusSummary(driverId),
   });
   const statusSummary = statusSummaryData?.data || null;
 
+  const { data: historyCountData } = useQuery({
+    queryKey: ['driver-history', driverId, 1],
+    queryFn: () => getDriverHistory(driverId, 1).then((r) => r.data),
+  });
+  const historyTotal = historyCountData?.total || 0;
+
   const ledger = ledgerData?.data || [];
 
-  const history = [
-    { date: d.joinDate || '03 Mar 2023', event: `Joined — ${driverProject || 'Unknown'}`, detail: `Status: Active · Base: AED ${(d.baseSalary || 0).toLocaleString()}/mo` },
-  ];
-
-  const grossSalary = d.grossSalary || d.baseSalary || 0;
+const grossSalary = d.grossSalary || d.baseSalary || 0;
   const deductionsAmt = d.deductions || 0;
   const netSalary = d.netSalary || grossSalary - deductionsAmt;
   const workingDays = d.workingDays ?? 0;
@@ -281,7 +277,7 @@ const DriverDetail = ({ driver, onClose }) => {
               marginBottom: -1,
             }}
           >
-            {t}
+            {t}{t === 'history' && historyTotal > 0 ? ` (${historyTotal})` : ''}
           </button>
         ))}
       </div>
@@ -510,61 +506,9 @@ const DriverDetail = ({ driver, onClose }) => {
           </div>
         )}
 
-        {tab === 'history' && (() => {
-          const employmentEntries = history.map((h) => ({
-            ...h,
-            sortDate: new Date(h.date || 0),
-            type: 'employment',
-          }));
-          const vehicleEntries = vehicleHistory.flatMap((a) => {
-            const entries = [];
-            entries.push({
-              date: a.assignedDate,
-              sortDate: new Date(a.assignedDate || 0),
-              event: `Vehicle assigned: ${a.plateNumber || '—'} — ${a.make || ''} ${a.model || ''} (${a.supplierName || '—'})`,
-              detail: '',
-              type: 'vehicle',
-            });
-            if (a.returnedDate) {
-              entries.push({
-                date: a.returnedDate,
-                sortDate: new Date(a.returnedDate || 0),
-                event: `Vehicle returned: ${a.plateNumber || '—'} — Condition: ${a.returnCondition || '—'}`,
-                detail: '',
-                type: 'vehicle',
-              });
-            }
-            return entries;
-          });
-          const allEntries = [...employmentEntries, ...vehicleEntries].sort(
-            (a, b) => b.sortDate - a.sortDate
-          );
-          return (
-            <div>
-              {allEntries.map((h, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: 'flex',
-                    gap: 12,
-                    padding: '12px 0',
-                    borderBottom: '1px solid var(--border)',
-                    borderLeft: `3px solid ${h.type === 'vehicle' ? '#fbbf24' : '#4f8ef7'}`,
-                    paddingLeft: 10,
-                  }}
-                >
-                  <div style={{ width: 80, fontSize: 10, color: 'var(--text3)', paddingTop: 2, flexShrink: 0 }}>
-                    {typeof h.date === 'string' && h.date.length > 12 ? formatDate(h.date) : (h.date ? formatDate(h.date) : '—')}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 13, marginBottom: 3 }}>{h.event}</div>
-                    {h.detail && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{h.detail}</div>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          );
-        })()}
+        {tab === 'history' && (
+          <DriverHistoryTab driverId={driverId} />
+        )}
       </div>
 
       {/* Footer */}
