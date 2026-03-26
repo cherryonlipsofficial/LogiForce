@@ -15,6 +15,7 @@ const Vehicle = require('./Vehicle');
 const Project = require('./Project');
 const ProjectContract = require('./ProjectContract');
 const DriverProjectAssignment = require('./DriverProjectAssignment');
+const DriverHistory = require('./DriverHistory');
 
 module.exports = {
   User,
@@ -34,4 +35,5 @@ module.exports = {
   Project,
   ProjectContract,
   DriverProjectAssignment,
+  DriverHistory,
 };

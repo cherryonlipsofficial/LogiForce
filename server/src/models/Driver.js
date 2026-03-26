@@ -93,35 +93,48 @@ const driverSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: [
-        'draft',
-        'pending_kyc',
-        'pending_verification',
-        'active',
-        'on_leave',
-        'suspended',
-        'resigned',
-        'offboarding',
+        'draft',               // Created by hiring team
+        'pending_kyc',         // 3 required docs uploaded (auto)
+        'pending_verification',// All docs valid, HR verified contacts (auto)
+        'active',              // client_user_id set by ops (auto)
+        'on_leave',            // Manual by ops
+        'suspended',           // Manual by ops
+        'resigned',            // Manual by ops
+        'offboarding',         // Manual by ops
       ],
       default: 'draft',
+      index: true,
     },
-    contactsVerified: {
-      type: Boolean,
-      default: false,
-    },
+    // Set by Operations team after verification
     clientUserId: {
       type: String,
-      default: null,
+      sparse: true,
+      index: true,
+      // e.g. the ID the client (Amazon, Noon) uses for this driver
     },
+
+    // Contact details for Pending Verification step
+    emergencyContactName:   { type: String },
+    emergencyContactPhone:  { type: String },
+    emergencyContactRelation: { type: String },
+    alternatePhone:         { type: String },
+    homeCountryPhone:       { type: String },
+    homeCountryAddress:     { type: String },
+
+    // Tracks whether HR has clicked "Verified" on contacts
+    contactsVerified:       { type: Boolean, default: false },
+    contactsVerifiedBy:     { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    contactsVerifiedAt:     { type: Date },
+
+    // Tracks who last changed the status and why
     lastStatusChange: {
-      from: String,
-      to: String,
-      reason: String,
-      changedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-      },
-      changedAt: Date,
+      from:      { type: String },
+      to:        { type: String },
+      reason:    { type: String },
+      changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      changedAt: { type: Date },
     },
+
     clientId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Client',
@@ -190,7 +203,6 @@ driverSchema.pre('save', async function (next) {
 
 driverSchema.index({ clientId: 1 });
 driverSchema.index({ projectId: 1 });
-driverSchema.index({ status: 1 });
 driverSchema.index({ emiratesId: 1 });
 driverSchema.index({ passportNumber: 1 });
 
