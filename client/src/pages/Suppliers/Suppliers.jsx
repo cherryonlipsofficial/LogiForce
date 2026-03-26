@@ -11,6 +11,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
 import { useAuth } from '../../context/AuthContext';
 import { getSuppliers, createSupplier, updateSupplier, deleteSupplier } from '../../api/suppliersApi';
+import Pagination from '../../components/ui/Pagination';
 
 const fallbackSuppliers = [
   { _id: 'SUP-001', name: 'Belhasa', contactName: 'Rashed Al Maktoum', contactEmail: 'rashed@belhasa.ae', contactPhone: '+971 4 567 8901', status: 'active', vehicleCount: 180, driverCount: 165, serviceType: 'Full fleet', monthlyRate: 'AED 1,200/vehicle', contractEnd: '2027-06-30' },
@@ -28,12 +29,13 @@ const Suppliers = () => {
   const [selectedSupplierId, setSelectedSupplierId] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingSupplierId, setEditingSupplierId] = useState(null);
+  const [page, setPage] = useState(1);
   const { role } = useAuth();
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['suppliers'],
-    queryFn: () => getSuppliers(),
+    queryKey: ['suppliers', { search, page }],
+    queryFn: () => getSuppliers({ search: search || undefined, page, limit: 20 }),
     retry: 1,
   });
 
@@ -48,7 +50,8 @@ const Suppliers = () => {
   });
 
   const suppliers = data?.data || fallbackSuppliers;
-  const filtered = suppliers.filter((s) => s.name?.toLowerCase().includes(search.toLowerCase()));
+  const pagination = data?.pagination;
+  const filtered = suppliers;
 
   const totalVehicles = suppliers.reduce((s, sp) => s + (sp.vehicleCount || 0), 0);
   const totalDrivers = suppliers.reduce((s, sp) => s + (sp.driverCount || 0), 0);
@@ -78,7 +81,7 @@ const Suppliers = () => {
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search suppliers..." style={{ width: 260, height: 34 }} />
+          <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search suppliers..." style={{ width: 260, height: 34 }} />
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
             {canEdit(role) && <Btn small variant="primary" onClick={() => setShowAddModal(true)}>+ Add supplier</Btn>}
           </div>
@@ -134,9 +137,13 @@ const Suppliers = () => {
           </div>
         )}
 
-        <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text3)' }}>
-          Showing {filtered.length} of {suppliers.length} suppliers
-        </div>
+        <Pagination
+          page={page}
+          totalPages={pagination?.pages || 1}
+          total={pagination?.total ?? suppliers.length}
+          pageSize={pagination?.limit || 20}
+          onPageChange={setPage}
+        />
       </div>
 
       {selectedSupplier && <SupplierDetail supplier={selectedSupplier} onClose={() => setSelectedSupplierId(null)} onEdit={handleEdit} onDelete={handleDelete} role={role} />}

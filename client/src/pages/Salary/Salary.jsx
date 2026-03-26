@@ -12,6 +12,7 @@ import ClientSelect from '../../components/ui/ClientSelect';
 import { useNavigate } from 'react-router-dom';
 import { getRuns, runPayroll, approveRun, getWpsFile } from '../../api/salaryApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
+import Pagination from '../../components/ui/Pagination';
 
 const fallbackRuns = [
   { _id: 'SAL-001', client: 'Amazon UAE', period: 'Mar 2026', status: 'draft', totalGross: 856200, totalDeductions: 124800, totalNet: 731400, driverCount: 342, createdAt: '2026-03-21T08:00:00Z', approvedBy: null },
@@ -32,15 +33,17 @@ const Salary = () => {
   const [showRunModal, setShowRunModal] = useState(false);
   const [selectedRun, setSelectedRun] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [page, setPage] = useState(1);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['salary-runs'],
-    queryFn: () => getRuns(),
+    queryKey: ['salary-runs', { status: statusFilter, page }],
+    queryFn: () => getRuns({ status: statusFilter !== 'all' ? statusFilter : undefined, page, limit: 20 }),
     retry: 1,
   });
 
   const runs = data?.data || fallbackRuns;
-  const filtered = statusFilter === 'all' ? runs : runs.filter((r) => r.status === statusFilter);
+  const pagination = data?.pagination;
+  const filtered = runs;
 
   const totalGross = runs.reduce((s, r) => s + (r.totalGross || 0), 0);
   const totalNet = runs.reduce((s, r) => s + (r.totalNet || 0), 0);
@@ -57,7 +60,7 @@ const Salary = () => {
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ width: 180, height: 34 }}>
+          <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} style={{ width: 180, height: 34 }}>
             <option value="all">All statuses</option>
             <option value="draft">Draft</option>
             <option value="approved">Approved</option>
@@ -122,9 +125,13 @@ const Salary = () => {
           </div>
         )}
 
-        <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text3)' }}>
-          Showing {filtered.length} of {runs.length} runs
-        </div>
+        <Pagination
+          page={page}
+          totalPages={pagination?.pages || 1}
+          total={pagination?.total ?? runs.length}
+          pageSize={pagination?.limit || 20}
+          onPageChange={setPage}
+        />
       </div>
 
       {selectedRun && <RunDetail run={selectedRun} onClose={() => setSelectedRun(null)} />}

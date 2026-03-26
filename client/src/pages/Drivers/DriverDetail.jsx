@@ -517,8 +517,8 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
   const driverId = driver._id || driver.id;
 
   const { data: clientsData } = useQuery({
-    queryKey: ['clients'],
-    queryFn: () => getClients(),
+    queryKey: ['clients-list'],
+    queryFn: () => getClients({ limit: 1000 }),
   });
   const clients = clientsData?.data || [];
 

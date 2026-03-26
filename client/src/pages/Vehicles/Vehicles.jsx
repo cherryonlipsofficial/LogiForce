@@ -12,6 +12,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
 import { getVehicles, createVehicle, updateVehicle, deleteVehicle, exportVehicles, bulkUploadVehicles, downloadBulkTemplate } from '../../api/vehiclesApi';
 import { getSuppliers } from '../../api/suppliersApi';
+import Pagination from '../../components/ui/Pagination';
 
 const fallbackVehicles = [
   { _id: 'V001', plate: 'DXB A 12345', make: 'Toyota', model: 'Hiace', year: 2024, vehicleType: 'Van', status: 'assigned', monthlyRate: 1200, supplierId: { name: 'Belhasa' }, assignedDriverId: { fullName: 'Ali Hassan', employeeCode: 'DRV-00012' }, contractEnd: '2027-06-30' },
@@ -41,11 +42,12 @@ const Vehicles = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [editingVehicleId, setEditingVehicleId] = useState(null);
+  const [page, setPage] = useState(1);
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['vehicles'],
-    queryFn: () => getVehicles({ limit: 500 }),
+    queryKey: ['vehicles', { search, status: statusFilter, page }],
+    queryFn: () => getVehicles({ search: search || undefined, status: statusFilter !== 'all' ? statusFilter : undefined, page, limit: 20 }),
     retry: 1,
   });
 
@@ -60,19 +62,11 @@ const Vehicles = () => {
   });
 
   const vehicles = data?.data || fallbackVehicles;
+  const pagination = data?.pagination;
 
-  const filtered = vehicles.filter((v) => {
-    const matchSearch =
-      !search ||
-      v.plate?.toLowerCase().includes(search.toLowerCase()) ||
-      v.make?.toLowerCase().includes(search.toLowerCase()) ||
-      v.model?.toLowerCase().includes(search.toLowerCase()) ||
-      v.assignedDriverId?.fullName?.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === 'all' || v.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
+  const filtered = vehicles;
 
-  const totalVehicles = vehicles.length;
+  const totalVehicles = pagination?.total ?? vehicles.length;
   const assignedCount = vehicles.filter((v) => v.status === 'assigned').length;
   const availableCount = vehicles.filter((v) => v.status === 'available').length;
   const maintenanceCount = vehicles.filter((v) => v.status === 'maintenance').length;
@@ -122,11 +116,11 @@ const Vehicles = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             placeholder="Search plate, make, model, driver..."
             style={{ width: 280, height: 34 }}
           />
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ width: 160, height: 34 }}>
+          <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} style={{ width: 160, height: 34 }}>
             <option value="all">All statuses</option>
             <option value="assigned">Assigned</option>
             <option value="available">Available</option>
@@ -205,9 +199,13 @@ const Vehicles = () => {
           </div>
         )}
 
-        <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text3)' }}>
-          Showing {filtered.length} of {vehicles.length} vehicles
-        </div>
+        <Pagination
+          page={page}
+          totalPages={pagination?.pages || 1}
+          total={pagination?.total ?? vehicles.length}
+          pageSize={pagination?.limit || 20}
+          onPageChange={setPage}
+        />
       </div>
 
       {selectedVehicle && (
@@ -307,8 +305,8 @@ const VehicleFormModal = ({ vehicle, onClose }) => {
   const qc = useQueryClient();
 
   const { data: suppliersData } = useQuery({
-    queryKey: ['suppliers'],
-    queryFn: () => getSuppliers(),
+    queryKey: ['suppliers-list'],
+    queryFn: () => getSuppliers({ limit: 1000 }),
   });
   const suppliers = suppliersData?.data || [];
 

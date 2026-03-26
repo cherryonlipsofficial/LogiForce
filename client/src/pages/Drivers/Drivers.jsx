@@ -9,6 +9,7 @@ import Badge from '../../components/ui/Badge';
 import Btn from '../../components/ui/Btn';
 import Modal from '../../components/ui/Modal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import Pagination from '../../components/ui/Pagination';
 import DriverDetail from './DriverDetail';
 import { getDrivers, createDriver, getDriverStatusCounts, exportDriversCsv, bulkImportDrivers, downloadImportTemplate } from '../../api/driversApi';
 import { getClients } from '../../api/clientsApi';
@@ -31,10 +32,11 @@ const Drivers = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [clientFilter, setClientFilter] = useState('all');
+  const [page, setPage] = useState(1);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['drivers', { search, status: statusFilter, clientId: clientFilter }],
-    queryFn: () => getDrivers({ search, status: statusFilter !== 'all' ? statusFilter : undefined, clientId: clientFilter !== 'all' ? clientFilter : undefined }),
+    queryKey: ['drivers', { search, status: statusFilter, clientId: clientFilter, page }],
+    queryFn: () => getDrivers({ search, status: statusFilter !== 'all' ? statusFilter : undefined, clientId: clientFilter !== 'all' ? clientFilter : undefined, page, limit: 20 }),
     retry: 1,
     onError: () => toast.error('Failed to load drivers'),
   });
@@ -45,8 +47,8 @@ const Drivers = () => {
   });
 
   const { data: clientsData } = useQuery({
-    queryKey: ['clients'],
-    queryFn: () => getClients(),
+    queryKey: ['clients-list'],
+    queryFn: () => getClients({ limit: 1000 }),
   });
   const clientsList = clientsData?.data || [];
 
@@ -112,17 +114,17 @@ const Drivers = () => {
         >
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             placeholder="Search by name or ID..."
             style={{ width: 240, height: 34 }}
           />
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ width: 160, height: 34 }}>
+          <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} style={{ width: 160, height: 34 }}>
             <option value="all">All statuses</option>
             <option value="active">Active</option>
             <option value="on_leave">On leave</option>
             <option value="suspended">Suspended</option>
           </select>
-          <select value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} style={{ width: 160, height: 34 }}>
+          <select value={clientFilter} onChange={(e) => { setClientFilter(e.target.value); setPage(1); }} style={{ width: 160, height: 34 }}>
             <option value="all">All clients</option>
             {clientsList.map((c) => (
               <option key={c._id} value={c._id}>{c.name}</option>
@@ -207,9 +209,13 @@ const Drivers = () => {
           </div>
         )}
 
-        <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text3)' }}>
-          Showing {filtered.length} of {pagination?.total ?? drivers.length} drivers
-        </div>
+        <Pagination
+          page={page}
+          totalPages={pagination?.pages || 1}
+          total={pagination?.total ?? drivers.length}
+          pageSize={pagination?.limit || 20}
+          onPageChange={setPage}
+        />
       </div>
 
       {/* Side panel */}
@@ -230,8 +236,8 @@ const AddDriverModal = ({ onClose }) => {
   const [submitting, setSubmitting] = useState(false);
 
   const { data: clientsData } = useQuery({
-    queryKey: ['clients'],
-    queryFn: () => getClients(),
+    queryKey: ['clients-list'],
+    queryFn: () => getClients({ limit: 1000 }),
   });
   const clients = clientsData?.data || [];
 

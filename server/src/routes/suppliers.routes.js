@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { protect, restrictTo } = require('../middleware/auth');
 const { Supplier, Vehicle } = require('../models');
-const { sendSuccess, sendError } = require('../utils/responseHelper');
+const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
+const { PAGINATION } = require('../config/constants');
 const validate = require('../middleware/validate');
 const { createSupplierValidation, updateSupplierValidation } = require('../middleware/validators/supplier.validators');
 
@@ -11,8 +12,21 @@ router.use(protect);
 
 // GET /api/suppliers
 router.get('/', async (req, res) => {
-  const [suppliers, vehicleCounts] = await Promise.all([
-    Supplier.find().sort({ name: 1 }).lean(),
+  const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
+  const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
+  const skip = (page - 1) * limit;
+
+  const query = {};
+  if (req.query.search) {
+    query.$or = [
+      { name: { $regex: req.query.search, $options: 'i' } },
+      { contactName: { $regex: req.query.search, $options: 'i' } },
+    ];
+  }
+
+  const [suppliers, total, vehicleCounts] = await Promise.all([
+    Supplier.find(query).sort({ name: 1 }).skip(skip).limit(limit).lean(),
+    Supplier.countDocuments(query),
     Vehicle.aggregate([
       { $group: { _id: '$supplierId', count: { $sum: 1 } } },
     ]),
@@ -27,7 +41,7 @@ router.get('/', async (req, res) => {
     supplier.vehicleCount = countMap[supplier._id.toString()] || 0;
   }
 
-  sendSuccess(res, suppliers);
+  sendPaginated(res, suppliers, total, page, limit);
 });
 
 // POST /api/suppliers

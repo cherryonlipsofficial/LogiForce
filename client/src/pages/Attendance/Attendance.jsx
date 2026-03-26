@@ -12,6 +12,7 @@ import ClientSelect from '../../components/ui/ClientSelect';
 import { getBatches, uploadFile, getBatch, approveBatch, rejectBatch, deleteBatch } from '../../api/attendanceApi';
 import { useAuth } from '../../context/AuthContext';
 import { formatDate } from '../../utils/formatters';
+import Pagination from '../../components/ui/Pagination';
 
 const fallbackBatches = [
   { _id: 'ATT-001', client: 'Amazon UAE', period: 'Mar 2026', uploadedBy: 'Sara Ali', uploadedAt: '2026-03-20T10:30:00Z', status: 'pending_review', totalRecords: 342, validRecords: 338, errors: 4, fileName: 'amazon_mar2026.csv' },
@@ -57,16 +58,18 @@ const Attendance = () => {
   const [showUpload, setShowUpload] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [clientFilter, setClientFilter] = useState('all');
+  const [page, setPage] = useState(1);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['attendance-batches'],
-    queryFn: () => getBatches(),
+    queryKey: ['attendance-batches', { clientId: clientFilter, page }],
+    queryFn: () => getBatches({ clientId: clientFilter !== 'all' ? clientFilter : undefined, page, limit: 20 }),
     retry: 1,
   });
 
   const batches = (data?.data || fallbackBatches).map(normalizeBatch);
+  const pagination = data?.pagination;
 
-  const filtered = clientFilter === 'all' ? batches : batches.filter((b) => b.client === clientFilter);
+  const filtered = batches;
 
   const totalRecords = batches.reduce((s, b) => s + (b.totalRecords || 0), 0);
   const totalErrors = batches.reduce((s, b) => s + (b.errors || 0), 0);
@@ -83,7 +86,7 @@ const Attendance = () => {
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-          <select value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} style={{ width: 180, height: 34 }}>
+          <select value={clientFilter} onChange={(e) => { setClientFilter(e.target.value); setPage(1); }} style={{ width: 180, height: 34 }}>
             <option value="all">All clients</option>
             <option value="Amazon UAE">Amazon UAE</option>
             <option value="Noon">Noon</option>
@@ -152,9 +155,13 @@ const Attendance = () => {
           </div>
         )}
 
-        <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text3)' }}>
-          Showing {filtered.length} of {batches.length} batches
-        </div>
+        <Pagination
+          page={page}
+          totalPages={pagination?.pages || 1}
+          total={pagination?.total ?? batches.length}
+          pageSize={pagination?.limit || 20}
+          onPageChange={setPage}
+        />
       </div>
 
       {selectedBatch && <BatchDetail batch={selectedBatch} onClose={() => setSelectedBatch(null)} role={role} />}
