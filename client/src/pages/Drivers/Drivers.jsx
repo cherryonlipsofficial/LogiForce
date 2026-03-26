@@ -184,9 +184,7 @@ const Drivers = () => {
                         </div>
                       </div>
                     </td>
-                    <td style={{ padding: '11px 14px' }}>
-                      <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>{d.nationality || '—'}</span>
-                    </td>
+                    <td style={{ padding: '11px 14px', fontSize: 12 }}>{d.nationality || '—'}</td>
                     <td style={{ padding: '11px 14px', fontSize: 12 }}>{d.projectId?.name || d.project || '—'}</td>
                     <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--text2)' }}>{d.vehiclePlate || '—'}</td>
                     <td style={{ padding: '11px 14px' }}><StatusBadge status={d.status} /></td>
