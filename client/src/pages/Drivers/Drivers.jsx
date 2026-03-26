@@ -444,7 +444,8 @@ const BulkImportModal = ({ onClose }) => {
       <div style={{ marginBottom: 16 }}>
         <p style={{ fontSize: 13, color: 'var(--text2)', margin: '0 0 12px' }}>
           Upload a CSV or Excel file to import multiple drivers at once. Required columns:
-          <strong> fullName, nationality, phoneUae, baseSalary, payStructure, project</strong> (project name or ID).
+          <strong> fullName, nationality, phoneUae, emiratesId, project, payStructure, baseSalary, joinDate</strong>.
+          Drivers with all required fields will be imported directly in Pending KYC status.
         </p>
         <Btn small variant="ghost" onClick={handleDownloadTemplate}>
           Download CSV template

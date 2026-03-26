@@ -142,8 +142,8 @@ router.post('/bulk-import', requirePermission('drivers.create'), (req, res, next
 
 // GET /api/drivers/bulk-import/template — download CSV template
 router.get('/bulk-import/template', async (req, res) => {
-  const headers = ['fullName', 'nationality', 'phoneUae', 'baseSalary', 'payStructure', 'project', 'emiratesId', 'joinDate', 'passportNumber', 'visaNumber', 'bankName', 'iban', 'vehiclePlate', 'vehicleType', 'status'];
-  const exampleRow = ['Mohamed Al Farsi', 'Emirati', '+971501234567', '2800', 'MONTHLY_FIXED', 'Amazon Last Mile', '784-1985-1234567-1', '2023-03-01', '', '', '', '', '', '', ''];
+  const headers = ['fullName', 'nationality', 'phoneUae', 'emiratesId', 'project', 'payStructure', 'baseSalary', 'joinDate', 'passportNumber', 'visaNumber', 'bankName', 'iban', 'vehiclePlate', 'vehicleType'];
+  const exampleRow = ['Mohamed Al Farsi', 'Emirati', '+971501234567', '784-1985-1234567-1', 'Amazon Last Mile', 'MONTHLY_FIXED', '2800', '2023-03-01', '', '', '', '', '', ''];
   const csv = [headers.join(','), exampleRow.join(',')].join('\n');
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', 'attachment; filename=drivers-import-template.csv');
