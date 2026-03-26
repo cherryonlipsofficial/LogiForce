@@ -80,7 +80,7 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
     const docs = summary.documents || {};
     const items = REQUIRED_DOCS.map((d) => ({
       label: d.label,
-      uploaded: !!docs[d.key],
+      uploaded: !!(docs[d.key] && docs[d.key].uploaded),
     }));
     return (
       <div style={boxStyles.blue}>
