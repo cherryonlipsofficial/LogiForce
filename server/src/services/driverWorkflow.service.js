@@ -1,5 +1,5 @@
-const { Driver, User } = require('../models');
-const { applyStatusChange, evaluateAndTransition, checkKycDocsUploaded, checkKycDocsValid } = require('./driverStatusEngine.service');
+const { Driver, User, DriverDocument } = require('../models');
+const { applyStatusChange, evaluateAndTransition, checkKycDocsUploaded, checkKycDocsValid, REQUIRED_KYC_DOCS } = require('./driverStatusEngine.service');
 const { logEvent } = require('./driverHistory.service');
 
 const VALID_STATUSES = ['draft', 'pending_kyc', 'pending_verification', 'active', 'on_leave', 'suspended', 'resigned', 'offboarding'];
@@ -131,10 +131,34 @@ async function getDriverStatusSummary(driverId) {
     throw err;
   }
 
-  const [kycDocsCheck, kycValidCheck] = await Promise.all([
+  const [kycDocsCheck, kycValidCheck, kycDocs] = await Promise.all([
     checkKycDocsUploaded(driverId),
     checkKycDocsValid(driverId),
+    DriverDocument.find({
+      driverId,
+      docType: { $in: REQUIRED_KYC_DOCS },
+      status: { $ne: 'rejected' },
+    }).lean(),
   ]);
+
+  // Build a per-document map for the frontend banner
+  const documents = {};
+  for (const requiredType of REQUIRED_KYC_DOCS) {
+    const doc = kycDocs.find(d => d.docType === requiredType);
+    if (doc) {
+      documents[requiredType] = {
+        uploaded: true,
+        expiry: doc.expiryDate || null,
+        status: doc.status,
+      };
+    } else {
+      documents[requiredType] = {
+        uploaded: false,
+        expiry: null,
+        status: null,
+      };
+    }
+  }
 
   const availableAutoTransitions = [];
   if (driver.status === 'draft' && kycDocsCheck.ready) {
@@ -150,12 +174,16 @@ async function getDriverStatusSummary(driverId) {
   return {
     currentStatus: driver.status,
     contactsVerified: driver.contactsVerified || false,
+    contactsVerifiedBy: driver.contactsVerifiedBy || null,
+    contactsVerifiedAt: driver.contactsVerifiedAt || null,
     clientUserId: driver.clientUserId || null,
+    documents,
     kycDocsCheck,
     kycValidCheck,
     availableAutoTransitions,
     canVerifyContacts: driver.status === 'pending_kyc' && !driver.contactsVerified,
     canSetClientUserId: driver.status === 'pending_verification' && !driver.clientUserId,
+    lastStatusChange: driver.lastStatusChange || null,
   };
 }
 
