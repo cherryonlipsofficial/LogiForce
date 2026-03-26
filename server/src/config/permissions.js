@@ -80,18 +80,18 @@ module.exports = {
     'roles.manage':            { label: 'Manage roles & permissions', module: 'Users',   description: 'Create roles and configure permissions — super admin only' },
   },
 
-  // Helper: get all permission keys grouped by module
-  getByModule() {
-    const grouped = {};
-    for (const [key, val] of Object.entries(this.PERMISSIONS)) {
-      if (!grouped[val.module]) grouped[val.module] = [];
-      grouped[val.module].push({ key, ...val });
-    }
-    return grouped;
-  },
+};
 
-  // Helper: get flat array of all keys
-  getAllKeys() {
-    return Object.keys(this.PERMISSIONS);
-  },
+// Standalone helpers — safe to destructure (no `this` dependency)
+module.exports.getByModule = () => {
+  const grouped = {};
+  for (const [key, val] of Object.entries(module.exports.PERMISSIONS)) {
+    if (!grouped[val.module]) grouped[val.module] = [];
+    grouped[val.module].push({ key, ...val });
+  }
+  return grouped;
+};
+
+module.exports.getAllKeys = () => {
+  return Object.keys(module.exports.PERMISSIONS);
 };
