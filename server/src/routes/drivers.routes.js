@@ -162,9 +162,11 @@ router.get('/:id', async (req, res) => {
   sendSuccess(res, driver);
 });
 
-// PUT /api/drivers/:id — update (ops, admin)
+// PUT /api/drivers/:id — update (ops, admin; active drivers admin-only)
 router.put('/:id', requirePermission('drivers.edit'), validate(updateDriverValidation), async (req, res) => {
-  const driver = await driverService.update(req.params.id, req.body, req.user._id);
+  const isAdmin = req.userPermissions?.includes('*') ||
+    (req.user.roleId?.isSystemRole === true && req.user.roleId?.name === 'admin');
+  const driver = await driverService.update(req.params.id, req.body, req.user._id, { isAdmin });
   sendSuccess(res, driver, 'Driver updated');
 });
 
