@@ -154,13 +154,23 @@ const bulkCreate = async (rows, userId) => {
   // Helper to safely convert any value to trimmed string (XLSX may return numbers)
   const str = (val) => (val == null ? '' : String(val).trim());
 
+  // Helper to expand scientific notation strings (e.g. "9.72E+11") back to full numbers
+  const expandNumber = (val) => {
+    const s = str(val);
+    if (/^[+-]?\d+(\.\d+)?[eE][+-]?\d+$/.test(s)) {
+      const num = Number(s);
+      if (Number.isFinite(num)) return BigInt(Math.round(num)).toString();
+    }
+    return s;
+  };
+
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const rowNum = i + 2; // +2 for 1-indexed + header row
     try {
       const fullName = str(row.fullName);
       const nationality = str(row.nationality);
-      const phoneUae = str(row.phoneUae);
+      const phoneUae = expandNumber(row.phoneUae);
       const baseSalary = str(row.baseSalary);
       const payStructure = str(row.payStructure);
       const projectRef = str(row.project);
@@ -197,12 +207,12 @@ const bulkCreate = async (rows, userId) => {
       };
 
       // Optional fields
-      const emiratesId = str(row.emiratesId);
+      const emiratesId = expandNumber(row.emiratesId);
       const joinDate = str(row.joinDate);
-      const passportNumber = str(row.passportNumber);
-      const visaNumber = str(row.visaNumber);
+      const passportNumber = expandNumber(row.passportNumber);
+      const visaNumber = expandNumber(row.visaNumber);
       const bankName = str(row.bankName);
-      const iban = str(row.iban);
+      const iban = expandNumber(row.iban);
       const vehiclePlate = str(row.vehiclePlate);
       const vehicleType = str(row.vehicleType);
       const status = str(row.status);
