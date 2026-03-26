@@ -106,7 +106,7 @@ const driverSchema = new mongoose.Schema(
     clientId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Client',
-      required: [true, 'Client is required'],
+      default: null,
     },
     supplierId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -116,8 +116,8 @@ const driverSchema = new mongoose.Schema(
     projectId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Project',
+      required: [true, 'Project is required'],
       index: true,
-      default: null,
     },
     currentProjectAssignmentId: {
       type: mongoose.Schema.Types.ObjectId,
