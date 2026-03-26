@@ -13,7 +13,6 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import Pagination from '../../components/ui/Pagination';
 import DriverDetail from './DriverDetail';
 import { getDrivers, createDriver, getDriverStatusCounts, exportDriversCsv, bulkImportDrivers, downloadImportTemplate } from '../../api/driversApi';
-import { getClients } from '../../api/clientsApi';
 import { getProjects } from '../../api/projectsApi';
 
 const fallbackDrivers = [
@@ -239,11 +238,11 @@ const AddDriverModal = ({ onClose }) => {
   const { register, handleSubmit, formState: { errors }, setError } = useForm();
   const [submitting, setSubmitting] = useState(false);
 
-  const { data: clientsData } = useQuery({
-    queryKey: ['clients-list'],
-    queryFn: () => getClients({ limit: 1000 }),
+  const { data: projectsData } = useQuery({
+    queryKey: ['projects-list'],
+    queryFn: () => getProjects({ limit: 1000 }),
   });
-  const clients = clientsData?.data || [];
+  const projects = projectsData?.data || [];
 
   const onSubmit = async (formData) => {
     setSubmitting(true);
@@ -254,7 +253,7 @@ const AddDriverModal = ({ onClose }) => {
         phoneUae: formData.phoneUae,
         baseSalary: Number(formData.baseSalary),
         payStructure: formData.payStructure,
-        clientId: formData.clientId,
+        projectId: formData.projectId,
         emiratesId: formData.emiratesId || undefined,
         joinDate: formData.joinDate || undefined,
       };
@@ -333,14 +332,14 @@ const AddDriverModal = ({ onClose }) => {
           </div>
 
           <div style={fieldStyle}>
-            <label style={labelStyle}>Client *</label>
-            <select {...register('clientId', { required: 'Client is required' })}>
-              <option value="">Select client</option>
-              {clients.map((c) => (
+            <label style={labelStyle}>Project *</label>
+            <select {...register('projectId', { required: 'Project is required' })}>
+              <option value="">Select project</option>
+              {projects.map((c) => (
                 <option key={c._id} value={c._id}>{c.name}</option>
               ))}
             </select>
-            {errors.clientId && <span style={errorStyle}>{errors.clientId.message}</span>}
+            {errors.projectId && <span style={errorStyle}>{errors.projectId.message}</span>}
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Pay structure *</label>

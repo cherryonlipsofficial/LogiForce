@@ -13,7 +13,7 @@ import Modal from '../../components/ui/Modal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useNavigate } from 'react-router-dom';
 import { getDriverLedger, updateDriver, changeDriverStatus, getDriverDocuments, uploadDriverDocument, fetchDocumentFile, getDocumentDirectUrl } from '../../api/driversApi';
-import { getClients } from '../../api/clientsApi';
+import { getProjects } from '../../api/projectsApi';
 import { getVehicle, getDriverVehicleHistory } from '../../api/vehiclesApi';
 
 const DOC_TYPES = [
@@ -91,6 +91,7 @@ const DriverDetail = ({ driver, onClose }) => {
   const driverName = d.fullName || d.name || '';
   const driverClient = d.clientId?.name || d.client || '';
   const driverSupplier = d.supplierId?.name || d.supplier || '';
+  const driverProject = d.projectId?.name || d.project || '';
   const initials = driverName
     ? driverName.split(' ').map((n) => n[0]).join('').toUpperCase()
     : '??';
@@ -124,7 +125,7 @@ const DriverDetail = ({ driver, onClose }) => {
   const ledger = ledgerData?.data || [];
 
   const history = [
-    { date: d.joinDate || '03 Mar 2023', event: `Joined — ${driverClient || 'Unknown'}`, detail: `Status: Active · Base: AED ${(d.baseSalary || 0).toLocaleString()}/mo` },
+    { date: d.joinDate || '03 Mar 2023', event: `Joined — ${driverProject || 'Unknown'}`, detail: `Status: Active · Base: AED ${(d.baseSalary || 0).toLocaleString()}/mo` },
   ];
 
   const grossSalary = d.grossSalary || d.baseSalary || 0;
@@ -167,7 +168,7 @@ const DriverDetail = ({ driver, onClose }) => {
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 15, fontWeight: 500 }}>{driverName}</div>
             <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
-              {d.employeeCode || d.id} · {driverClient}
+              {d.employeeCode || d.id} · {driverProject}
             </div>
           </div>
           <StatusBadge status={d.status || 'active'} />
@@ -245,8 +246,7 @@ const DriverDetail = ({ driver, onClose }) => {
               ['Nationality', d.nationality || '—'],
               ['Emirates ID', d.emiratesId || '—'],
               ['Phone (UAE)', d.phoneUae || d.phone || '—'],
-              ['Client', driverClient || '—'],
-              ['Supplier', driverSupplier || '—'],
+              ['Project', driverProject || '—'],
               ['Vehicle', d.currentVehicleId && currentVehicle
                 ? `${currentVehicle.plateNumber} — ${currentVehicle.make} ${currentVehicle.model}`
                 : d.ownVehicle ? 'Own vehicle' : '—'],
@@ -604,7 +604,7 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
       baseSalary: driver.baseSalary || '',
       payStructure: driver.payStructure || '',
       emiratesId: driver.emiratesId || '',
-      clientId: driver.clientId?._id || driver.clientId || '',
+      projectId: driver.projectId?._id || driver.projectId || '',
       joinDate: toDateInput(driver.joinDate),
       passportNumber: driver.passportNumber || '',
       passportExpiry: toDateInput(driver.passportExpiry),
@@ -625,11 +625,11 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
 
   const driverId = driver._id || driver.id;
 
-  const { data: clientsData } = useQuery({
-    queryKey: ['clients-list'],
-    queryFn: () => getClients({ limit: 1000 }),
+  const { data: projectsData } = useQuery({
+    queryKey: ['projects-list'],
+    queryFn: () => getProjects({ limit: 1000 }),
   });
-  const clients = clientsData?.data || [];
+  const projects = projectsData?.data || [];
 
   const { data: existingDocs } = useQuery({
     queryKey: ['driverDocuments', driverId],
@@ -647,7 +647,7 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
         phoneUae: formData.phoneUae,
         baseSalary: Number(formData.baseSalary),
         payStructure: formData.payStructure,
-        clientId: formData.clientId,
+        projectId: formData.projectId,
         emiratesId: formData.emiratesId || undefined,
         joinDate: formData.joinDate || undefined,
         passportNumber: formData.passportNumber || undefined,
@@ -767,14 +767,14 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
         {editTab === 'employment' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <div style={fieldStyle}>
-              <label style={labelStyle}>Client *</label>
-              <select {...register('clientId', { required: 'Client is required' })}>
-                <option value="">Select client</option>
-                {clients.map((c) => (
+              <label style={labelStyle}>Project *</label>
+              <select {...register('projectId', { required: 'Project is required' })}>
+                <option value="">Select project</option>
+                {projects.map((c) => (
                   <option key={c._id} value={c._id}>{c.name}</option>
                 ))}
               </select>
-              {errors.clientId && <span style={errorStyle}>{errors.clientId.message}</span>}
+              {errors.projectId && <span style={errorStyle}>{errors.projectId.message}</span>}
             </div>
             <div style={fieldStyle}>
               <label style={labelStyle}>Pay structure *</label>
