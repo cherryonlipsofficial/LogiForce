@@ -3,6 +3,8 @@ module.exports = {
     ADMIN: 'admin',
     ACCOUNTANT: 'accountant',
     OPS: 'ops',
+    COMPLIANCE: 'compliance',
+    SALES: 'sales',
   },
   PAGINATION: {
     DEFAULT_PAGE: 1,

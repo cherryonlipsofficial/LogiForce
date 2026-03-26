@@ -93,14 +93,14 @@ const driverSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: [
-        'draft',               // Created by hiring team
+        'draft',               // Created by sales team
         'pending_kyc',         // 3 required docs uploaded (auto)
-        'pending_verification',// All docs valid, HR verified contacts (auto)
-        'active',              // client_user_id set by ops (auto)
-        'on_leave',            // Manual by ops
-        'suspended',           // Manual by ops
-        'resigned',            // Manual by ops
-        'offboarding',         // Manual by ops
+        'pending_verification',// All docs valid, Compliance verified contacts (auto)
+        'active',              // client_user_id set by operations (auto)
+        'on_leave',            // Manual by operations
+        'suspended',           // Manual by operations
+        'resigned',            // Manual by operations
+        'offboarding',         // Manual by operations
       ],
       default: 'draft',
       index: true,
@@ -121,7 +121,7 @@ const driverSchema = new mongoose.Schema(
     homeCountryPhone:       { type: String },
     homeCountryAddress:     { type: String },
 
-    // Tracks whether HR has clicked "Verified" on contacts
+    // Tracks whether Compliance has clicked "Verified" on contacts
     contactsVerified:       { type: Boolean, default: false },
     contactsVerifiedBy:     { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     contactsVerifiedAt:     { type: Date },

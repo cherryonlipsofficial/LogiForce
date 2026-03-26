@@ -19,7 +19,9 @@ const ROLE_COLORS = {
   admin:      { bg: 'rgba(124,95,240,0.15)', text: '#a78bfa' },
   accountant: { bg: 'rgba(29,179,136,0.15)',  text: '#4ade9a' },
   ops:        { bg: 'rgba(79,142,247,0.15)',  text: '#7eb3fc' },
-  hr:         { bg: 'rgba(245,158,11,0.15)', text: '#fbbf24' },
+  operations: { bg: 'rgba(79,142,247,0.15)',  text: '#7eb3fc' },
+  compliance: { bg: 'rgba(245,158,11,0.15)', text: '#fbbf24' },
+  sales:      { bg: 'rgba(29,179,136,0.15)',  text: '#4ade9a' },
   viewer:     { bg: 'rgba(136,135,128,0.15)', text: 'var(--color-text-secondary)' },
 };
 

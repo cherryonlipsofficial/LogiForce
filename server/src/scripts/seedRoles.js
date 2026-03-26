@@ -35,8 +35,8 @@ const defaultRoles = [
   },
   {
     name: 'ops',
-    displayName: 'Operations Manager',
-    description: 'Driver and fleet operations, read-only on finance',
+    displayName: 'Operations',
+    description: 'Operations team — manages fleet, projects, attendance and driver activation',
     isSystemRole: false,
     permissions: [
       'drivers.view', 'drivers.create', 'drivers.edit',
@@ -56,9 +56,9 @@ const defaultRoles = [
     ],
   },
   {
-    name: 'hr',
-    displayName: 'HR Manager',
-    description: 'Driver HR, documents, status changes. No financial access.',
+    name: 'compliance',
+    displayName: 'Compliance',
+    description: 'Compliance team — manages driver documents, KYC and contact verification',
     isSystemRole: false,
     permissions: [
       'drivers.view', 'drivers.create', 'drivers.edit',
@@ -69,6 +69,19 @@ const defaultRoles = [
       'vehicles.view',
       'attendance.view', 'attendance.upload',
       'salary.view',
+      'reports.view',
+    ],
+  },
+  {
+    name: 'sales',
+    displayName: 'Sales',
+    description: 'Sales team — can add new drivers (Draft status only)',
+    isSystemRole: false,
+    permissions: [
+      'drivers.view',
+      'drivers.create',
+      'clients.view',
+      'projects.view',
       'reports.view',
     ],
   },
