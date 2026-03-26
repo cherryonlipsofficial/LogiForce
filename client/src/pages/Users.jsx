@@ -9,6 +9,8 @@ import Card from '../components/ui/Card';
 import KpiCard from '../components/ui/KpiCard';
 import Btn from '../components/ui/Btn';
 import PermissionGate from '../components/ui/PermissionGate';
+import AddUserModal from '../components/settings/AddUserModal';
+import EditUserModal from '../components/settings/EditUserModal';
 
 const ROLE_COLORS = {
   admin:      { bg: 'rgba(124,95,240,0.15)', text: '#a78bfa' },
@@ -322,28 +324,21 @@ export default function UsersPage() {
         )}
       </Card>
 
-      {/* Modal placeholders — will be replaced in 3b and 3c */}
+      {/* Add / Edit user modals */}
       {addUserOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-          zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: 'var(--surface)', borderRadius: 14, padding: 24,
-            color: 'var(--text)', fontSize: 13 }}>
-            Add User Modal — coming in Prompt 3b
-            <br/><br/>
-            <Btn onClick={() => setAddUserOpen(false)}>Close</Btn>
-          </div>
-        </div>
+        <AddUserModal
+          roles={roles}
+          onClose={() => setAddUserOpen(false)}
+          onSuccess={() => setAddUserOpen(false)}
+        />
       )}
       {editUser && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-          zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: 'var(--surface)', borderRadius: 14, padding: 24,
-            color: 'var(--text)', fontSize: 13 }}>
-            Edit User Modal — coming in Prompt 3b
-            <br/><br/>
-            <Btn onClick={() => setEditUser(null)}>Close</Btn>
-          </div>
-        </div>
+        <EditUserModal
+          user={editUser}
+          roles={roles}
+          onClose={() => setEditUser(null)}
+          onSuccess={() => setEditUser(null)}
+        />
       )}
       {permissionsUser && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
