@@ -423,11 +423,11 @@ const BulkImportModal = ({ onClose }) => {
   const handleDownloadTemplate = async () => {
     try {
       const response = await downloadImportTemplate();
-      const blob = new Blob([response.data], { type: 'text/csv' });
+      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'drivers-import-template.csv';
+      a.download = 'drivers-import-template.xlsx';
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -448,7 +448,7 @@ const BulkImportModal = ({ onClose }) => {
           Drivers with all required fields will be imported directly in Pending KYC status.
         </p>
         <Btn small variant="ghost" onClick={handleDownloadTemplate}>
-          Download CSV template
+          Download Excel template
         </Btn>
       </div>
 
