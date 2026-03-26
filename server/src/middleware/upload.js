@@ -1,16 +1,17 @@
 const multer = require('multer');
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const cloudinary = require('../config/cloudinary');
+const path = require('path');
 
-const storage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: 'logiforce/driver-documents',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'pdf', 'webp'],
-    resource_type: 'auto',
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  fileFilter: (req, file, cb) => {
+    const allowed = /\.(jpg|jpeg|png|pdf|webp)$/i;
+    if (allowed.test(path.extname(file.originalname))) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only jpg, jpeg, png, pdf, and webp files are allowed'));
+    }
   },
 });
-
-const upload = multer({ storage });
 
 module.exports = upload;
