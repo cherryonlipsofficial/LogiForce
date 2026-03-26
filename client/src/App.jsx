@@ -17,6 +17,7 @@ import Suppliers from './pages/Suppliers/Suppliers';
 import Reports from './pages/Reports/Reports';
 import VehiclesPage from './pages/Vehicles/Vehicles';
 import Projects from './pages/Projects/Projects';
+import Settings from './pages/Settings/Settings';
 import NotFound from './pages/NotFound';
 
 const queryClient = new QueryClient();
@@ -47,6 +48,9 @@ const App = () => {
               <Route path="/suppliers" element={<ProtectedPage permission="suppliers.view"><Suppliers /></ProtectedPage>} />
               <Route path="/vehicles" element={<ProtectedPage permission="vehicles.view"><VehiclesPage /></ProtectedPage>} />
               <Route path="/reports" element={<ProtectedPage permission="reports.view"><Reports /></ProtectedPage>} />
+              <Route path="/settings" element={<ProtectedPage permission="users.view"><Settings /></ProtectedPage>} />
+              <Route path="/users" element={<ProtectedPage permission="users.view"><Settings /></ProtectedPage>} />
+              <Route path="/roles" element={<ProtectedPage permission="users.view"><Settings /></ProtectedPage>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

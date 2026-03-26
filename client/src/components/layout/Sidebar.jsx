@@ -15,11 +15,20 @@ const navItems = [
   { path: '/reports', label: 'Reports', icon: '◫', permission: 'reports.view' },
 ];
 
+const bottomNavItems = [
+  { path: '/settings', label: 'Settings', icon: '⚙', permission: 'users.view' },
+  { path: '/users', label: 'Users', icon: '◈', permission: 'users.view' },
+];
+
 const Sidebar = () => {
   const { user, role, logout, hasPermission } = useAuth();
   const { arabicNumerals, toggleArabicNumerals } = useUserPrefs();
 
   const visibleItems = navItems.filter(
+    (item) => !item.permission || hasPermission(item.permission)
+  );
+
+  const visibleBottomItems = bottomNavItems.filter(
     (item) => !item.permission || hasPermission(item.permission)
   );
 
@@ -120,6 +129,39 @@ const Sidebar = () => {
           </NavLink>
         ))}
       </nav>
+
+      {visibleBottomItems.length > 0 && (
+        <div style={{ padding: '4px 10px', borderTop: '1px solid var(--border)' }}>
+          {visibleBottomItems.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              style={({ isActive }) => ({
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                width: '100%',
+                padding: '9px 12px',
+                borderRadius: 8,
+                background: isActive ? 'rgba(79,142,247,0.12)' : 'transparent',
+                color: isActive ? 'var(--accent)' : 'var(--text2)',
+                fontWeight: isActive ? 500 : 400,
+                fontSize: 13,
+                marginBottom: 2,
+                textAlign: 'left',
+                textDecoration: 'none',
+                border: isActive ? '1px solid rgba(79,142,247,0.2)' : '1px solid transparent',
+                transition: 'all .15s',
+              })}
+            >
+              <span style={{ fontSize: 15, width: 18, textAlign: 'center', flexShrink: 0 }}>
+                {item.icon}
+              </span>
+              {item.label}
+            </NavLink>
+          ))}
+        </div>
+      )}
 
       <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)' }}>
         <button
