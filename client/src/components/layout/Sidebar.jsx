@@ -2,8 +2,8 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useUserPrefs } from '../../hooks/useUserPrefs.jsx';
 
-const navItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: '▦', permission: null },
+const mainNavItems = [
+  { path: '/dashboard', label: 'Dashboard', icon: '▦' },
   { path: '/drivers', label: 'Drivers', icon: '◈', permission: 'drivers.view' },
   { path: '/attendance', label: 'Attendance', icon: '◉', permission: 'attendance.view' },
   { path: '/salary', label: 'Salary runs', icon: '◎', permission: 'salary.view' },
@@ -12,23 +12,51 @@ const navItems = [
   { path: '/projects', label: 'Projects', icon: '◪', permission: 'projects.view' },
   { path: '/suppliers', label: 'Suppliers', icon: '◑', permission: 'suppliers.view' },
   { path: '/vehicles', label: 'Vehicles', icon: '◫', permission: 'vehicles.view' },
-  { path: '/reports', label: 'Reports', icon: '◫', permission: 'reports.view' },
+  { path: '/reports', label: 'Reports', icon: '▨', permission: 'reports.view' },
 ];
 
-const bottomNavItems = [
-  { path: '/settings', label: 'Settings', icon: '⚙', permission: 'users.view' },
-  { path: '/users', label: 'Users', icon: '◈', permission: 'users.view' },
+const adminNavItems = [
+  { path: '/users', label: 'Users', icon: '◎', permission: 'users.view' },
+  { path: '/roles', label: 'Roles & access', icon: '◈', permission: 'roles.manage' },
+  { path: '/settings', label: 'Settings', icon: '⚙', permission: 'settings.view' },
 ];
+
+const navLinkStyle = ({ isActive }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  width: '100%',
+  padding: '9px 12px',
+  borderRadius: 8,
+  background: isActive ? 'rgba(79,142,247,0.12)' : 'transparent',
+  color: isActive ? 'var(--accent)' : 'var(--text2)',
+  fontWeight: isActive ? 500 : 400,
+  fontSize: 13,
+  marginBottom: 2,
+  textAlign: 'left',
+  textDecoration: 'none',
+  border: isActive ? '1px solid rgba(79,142,247,0.2)' : '1px solid transparent',
+  transition: 'all .15s',
+});
+
+const NavItem = ({ item }) => (
+  <NavLink to={item.path} style={navLinkStyle}>
+    <span style={{ fontSize: 15, width: 18, textAlign: 'center', flexShrink: 0 }}>
+      {item.icon}
+    </span>
+    {item.label}
+  </NavLink>
+);
 
 const Sidebar = () => {
   const { user, role, logout, hasPermission } = useAuth();
   const { arabicNumerals, toggleArabicNumerals } = useUserPrefs();
 
-  const visibleItems = navItems.filter(
+  const visibleMain = mainNavItems.filter(
     (item) => !item.permission || hasPermission(item.permission)
   );
 
-  const visibleBottomItems = bottomNavItems.filter(
+  const visibleAdmin = adminNavItems.filter(
     (item) => !item.permission || hasPermission(item.permission)
   );
 
@@ -99,69 +127,28 @@ const Sidebar = () => {
       </div>
 
       <nav style={{ flex: 1, overflowY: 'auto', padding: '8px 10px' }}>
-        {visibleItems.map((item, i) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            style={({ isActive }) => ({
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              width: '100%',
-              padding: '9px 12px',
-              borderRadius: 8,
-              background: isActive ? 'rgba(79,142,247,0.12)' : 'transparent',
-              color: isActive ? 'var(--accent)' : 'var(--text2)',
-              fontWeight: isActive ? 500 : 400,
-              fontSize: 13,
-              marginBottom: 2,
-              textAlign: 'left',
-              textDecoration: 'none',
-              border: isActive ? '1px solid rgba(79,142,247,0.2)' : '1px solid transparent',
-              transition: 'all .15s',
-              animation: `slideIn 0.2s ease ${i * 0.04}s both`,
-            })}
-          >
-            <span style={{ fontSize: 15, width: 18, textAlign: 'center', flexShrink: 0 }}>
-              {item.icon}
-            </span>
-            {item.label}
-          </NavLink>
+        {visibleMain.map((item) => (
+          <NavItem key={item.path} item={item} />
         ))}
-      </nav>
 
-      {visibleBottomItems.length > 0 && (
-        <div style={{ padding: '4px 10px', borderTop: '1px solid var(--border)' }}>
-          {visibleBottomItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              style={({ isActive }) => ({
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                width: '100%',
-                padding: '9px 12px',
-                borderRadius: 8,
-                background: isActive ? 'rgba(79,142,247,0.12)' : 'transparent',
-                color: isActive ? 'var(--accent)' : 'var(--text2)',
-                fontWeight: isActive ? 500 : 400,
-                fontSize: 13,
-                marginBottom: 2,
-                textAlign: 'left',
-                textDecoration: 'none',
-                border: isActive ? '1px solid rgba(79,142,247,0.2)' : '1px solid transparent',
-                transition: 'all .15s',
-              })}
-            >
-              <span style={{ fontSize: 15, width: 18, textAlign: 'center', flexShrink: 0 }}>
-                {item.icon}
+        {visibleAdmin.length > 0 && (
+          <>
+            <div style={{ margin: '10px 10px 6px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+              <span style={{
+                fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase',
+                letterSpacing: '0.07em', whiteSpace: 'nowrap',
+              }}>
+                Administration
               </span>
-              {item.label}
-            </NavLink>
-          ))}
-        </div>
-      )}
+              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            </div>
+            {visibleAdmin.map((item) => (
+              <NavItem key={item.path} item={item} />
+            ))}
+          </>
+        )}
+      </nav>
 
       <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)' }}>
         <button
