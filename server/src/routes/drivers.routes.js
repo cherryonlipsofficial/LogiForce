@@ -1,6 +1,5 @@
 const express = require('express');
 const path = require('path');
-const fs = require('fs');
 const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
 const upload = require('../middleware/upload');
@@ -25,23 +24,19 @@ router.get('/expiring-documents', async (req, res) => {
   sendSuccess(res, docs);
 });
 
-// GET /api/drivers/uploads/:fileKey — serve uploaded file (Cloudinary redirect or local)
+// GET /api/drivers/uploads/:fileKey — serve file from MongoDB
 router.get('/uploads/:fileKey', async (req, res) => {
-  const fileKey = req.params.fileKey;
-  const doc = await DriverDocument.findOne({ fileKey });
-  if (!doc) {
-    return sendError(res, 'File not found', 404);
+  try {
+    const doc = await DriverDocument.findOne({ fileKey: req.params.fileKey });
+    if (!doc || !doc.fileData) {
+      return sendError(res, 'File not found', 404);
+    }
+    res.set('Content-Type', doc.contentType || 'application/octet-stream');
+    res.set('Content-Disposition', `inline; filename="${doc.originalName || doc.fileKey}"`);
+    res.send(doc.fileData);
+  } catch (err) {
+    sendError(res, err.message || 'Failed to retrieve file', 500);
   }
-  // If we have a Cloudinary URL (starts with http), redirect to it
-  if (doc.fileUrl && doc.fileUrl.startsWith('http')) {
-    return res.redirect(doc.fileUrl);
-  }
-  // Otherwise serve from local uploads directory
-  const localPath = path.join(__dirname, '../../uploads/driver-documents', fileKey);
-  if (fs.existsSync(localPath)) {
-    return res.sendFile(localPath);
-  }
-  return sendError(res, 'File not found', 404);
 });
 
 // GET /api/drivers/status-counts — counts by status for KPI cards
@@ -197,6 +192,7 @@ router.get('/:id/salary-runs', async (req, res) => {
 // GET /api/drivers/:id/documents — list documents for a driver
 router.get('/:id/documents', async (req, res) => {
   const docs = await DriverDocument.find({ driverId: req.params.id })
+    .select('-fileData')
     .sort({ createdAt: -1 });
   sendSuccess(res, docs);
 });
@@ -216,14 +212,19 @@ router.post('/:id/documents', requirePermission('drivers.manage_docs'), (req, re
 
     if (!req.file) return sendError(res, 'No file uploaded', 400);
 
-    const fileKey = req.file.filename || req.file.public_id || req.file.originalname;
-    const fileUrl = req.file.path || req.file.secure_url || req.file.url || '';
+    const fileKey = Date.now() + '-' + Math.round(Math.random() * 1e9) + '-' + req.file.originalname;
+    const fileFields = {
+      fileKey,
+      originalName: req.file.originalname,
+      contentType: req.file.mimetype,
+      fileData: req.file.buffer,
+      fileSize: req.file.size,
+    };
 
     // If a document of same type already exists, update it instead of creating duplicate
     const existing = await DriverDocument.findOne({ driverId: req.params.id, docType: req.body.docType });
     if (existing) {
-      existing.fileKey = fileKey;
-      existing.fileUrl = fileUrl;
+      Object.assign(existing, fileFields);
       existing.expiryDate = req.body.expiryDate || existing.expiryDate;
       existing.status = 'pending';
       await existing.save();
@@ -240,8 +241,7 @@ router.post('/:id/documents', requirePermission('drivers.manage_docs'), (req, re
     const doc = await DriverDocument.create({
       driverId: req.params.id,
       docType: req.body.docType,
-      fileKey: fileKey,
-      fileUrl: fileUrl,
+      ...fileFields,
       expiryDate: req.body.expiryDate || null,
     });
 
