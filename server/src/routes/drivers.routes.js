@@ -114,7 +114,7 @@ router.post('/bulk-import', requirePermission('drivers.create'), (req, res, next
       const XLSX = require('xlsx');
       const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
-      rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+      rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { raw: false });
     } else {
       return sendError(res, 'Unsupported file format. Use .csv or .xlsx', 400);
     }
