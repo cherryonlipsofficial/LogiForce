@@ -10,6 +10,8 @@ const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelp
 const validate = require('../middleware/validate');
 const { createDriverValidation, updateDriverValidation, changeStatusValidation } = require('../middleware/validators/driver.validators');
 const auditLogger = require('../utils/auditLogger');
+const { evaluateAndTransition } = require('../services/driverStatusEngine.service');
+const { logEvent } = require('../services/driverHistory.service');
 
 // All routes are protected
 router.use(protect);
@@ -157,7 +159,7 @@ router.get('/:id', async (req, res) => {
 
 // PUT /api/drivers/:id — update (ops, admin)
 router.put('/:id', requirePermission('drivers.edit'), validate(updateDriverValidation), async (req, res) => {
-  const driver = await driverService.update(req.params.id, req.body);
+  const driver = await driverService.update(req.params.id, req.body, req.user._id);
   sendSuccess(res, driver, 'Driver updated');
 });
 
@@ -207,6 +209,13 @@ router.post('/:id/documents', requirePermission('drivers.manage_docs'), upload.s
     existing.expiryDate = req.body.expiryDate || existing.expiryDate;
     existing.status = 'pending';
     await existing.save();
+
+    await logEvent(req.params.id, 'document_uploaded', {
+      documentType: req.body.docType,
+      description: `${req.body.docType.replace(/_/g, ' ')} uploaded`,
+    }, req.user._id);
+    await evaluateAndTransition(req.params.id, req.user._id);
+
     return sendSuccess(res, existing, 'Document updated', 200);
   }
 
@@ -217,6 +226,13 @@ router.post('/:id/documents', requirePermission('drivers.manage_docs'), upload.s
     fileUrl: fileUrl,
     expiryDate: req.body.expiryDate || null,
   });
+
+  await logEvent(req.params.id, 'document_uploaded', {
+    documentType: req.body.docType,
+    description: `${req.body.docType.replace(/_/g, ' ')} uploaded`,
+  }, req.user._id);
+  await evaluateAndTransition(req.params.id, req.user._id);
+
   sendSuccess(res, doc, 'Document uploaded', 201);
 });
 

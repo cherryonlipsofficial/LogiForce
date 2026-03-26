@@ -1,5 +1,7 @@
 const { Driver, DriverLedger, DriverDocument } = require('../models');
 const { PAGINATION } = require('../config/constants');
+const { evaluateAndTransition } = require('./driverStatusEngine.service');
+const { logEvent } = require('./driverHistory.service');
 
 const findAll = async (filters = {}, pagination = {}) => {
   const page = parseInt(pagination.page) || PAGINATION.DEFAULT_PAGE;
@@ -58,10 +60,15 @@ const findById = async (id) => {
 const create = async (data, userId) => {
   data.createdBy = userId;
   const driver = await Driver.create(data);
+
+  await logEvent(driver._id, 'field_updated', {
+    description: `Driver profile created`,
+  }, userId);
+
   return driver;
 };
 
-const update = async (id, data) => {
+const update = async (id, data, userId) => {
   const driver = await Driver.findByIdAndUpdate(id, data, {
     new: true,
     runValidators: true,
@@ -72,6 +79,9 @@ const update = async (id, data) => {
     err.statusCode = 404;
     throw err;
   }
+
+  await evaluateAndTransition(id, userId);
+
   return driver;
 };
 
