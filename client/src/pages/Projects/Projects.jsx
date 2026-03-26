@@ -14,6 +14,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getProjects, createProject, updateProject, deleteProject, assignDriverToProject, unassignDriverFromProject, getProjectDrivers } from '../../api/projectsApi';
 import { getDrivers } from '../../api/driversApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
+import Pagination from '../../components/ui/Pagination';
 
 const statusColors = {
   active: 'success',
@@ -31,16 +32,18 @@ const Projects = () => {
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState(null);
+  const [page, setPage] = useState(1);
   const { role } = useAuth();
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['projects', filterClient, filterStatus, search],
+    queryKey: ['projects', filterClient, filterStatus, search, page],
     queryFn: () => getProjects({
       ...(filterClient && { clientId: filterClient }),
       ...(filterStatus && { status: filterStatus }),
       ...(search && { search }),
-      limit: 200,
+      page,
+      limit: 20,
     }),
     retry: 1,
   });
@@ -56,6 +59,7 @@ const Projects = () => {
   });
 
   const projects = data?.data || [];
+  const pagination = data?.pagination;
   const activeCount = projects.filter((p) => p.status === 'active').length;
   const totalDrivers = projects.reduce((s, p) => s + (p.driverCount || 0), 0);
 
@@ -84,11 +88,11 @@ const Projects = () => {
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search projects..." style={{ width: 220, height: 34 }} />
+          <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search projects..." style={{ width: 220, height: 34 }} />
           <div style={{ width: 180 }}>
-            <ClientSelect value={filterClient} onChange={setFilterClient} />
+            <ClientSelect value={filterClient} onChange={(v) => { setFilterClient(v); setPage(1); }} />
           </div>
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ width: 140, height: 34 }}>
+          <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(1); }} style={{ width: 140, height: 34 }}>
             <option value="">All statuses</option>
             <option value="active">Active</option>
             <option value="on_hold">On hold</option>
@@ -144,9 +148,13 @@ const Projects = () => {
           </div>
         )}
 
-        <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text3)' }}>
-          Showing {projects.length} project{projects.length !== 1 ? 's' : ''}
-        </div>
+        <Pagination
+          page={page}
+          totalPages={pagination?.pages || 1}
+          total={pagination?.total ?? projects.length}
+          pageSize={pagination?.limit || 20}
+          onPageChange={setPage}
+        />
       </div>
 
       {selectedProject && <ProjectDetail project={selectedProject} onClose={() => setSelectedProjectId(null)} onEdit={handleEdit} onDelete={handleDelete} role={role} />}

@@ -4,7 +4,7 @@ import { getClients } from '../../api/clientsApi';
 const ClientSelect = ({ value, onChange, style = {} }) => {
   const { data } = useQuery({
     queryKey: ['clients-list'],
-    queryFn: () => getClients(),
+    queryFn: () => getClients({ limit: 1000 }),
     staleTime: 5 * 60 * 1000,
   });
 

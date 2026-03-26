@@ -12,6 +12,7 @@ import SidePanel from '../../components/ui/SidePanel';
 import { useAuth } from '../../context/AuthContext';
 import { getClients, createClient, updateClient, deleteClient, uploadContract, deleteContract } from '../../api/clientsApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
+import Pagination from '../../components/ui/Pagination';
 
 const fallbackClients = [
   { _id: 'CLI-001', name: 'Amazon UAE', contactName: 'Ahmad Hassan', contactEmail: 'ahmad@amazon.ae', contactPhone: '+971 4 123 4567', isActive: true, driverCount: 342, monthlyBilling: 892400, contractStart: '2024-01-01', contractEnd: '2026-12-31', paymentTerms: 'Net 30', vatNo: 'TRN-100234567890003', ratePerDriver: 2600, billingCurrency: 'AED' },
@@ -36,12 +37,13 @@ const Clients = () => {
   const [selectedClientId, setSelectedClientId] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingClientId, setEditingClientId] = useState(null);
+  const [page, setPage] = useState(1);
   const { role } = useAuth();
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['clients'],
-    queryFn: () => getClients(),
+    queryKey: ['clients', { search, page }],
+    queryFn: () => getClients({ search: search || undefined, page, limit: 20 }),
     retry: 1,
   });
 
@@ -56,7 +58,8 @@ const Clients = () => {
   });
 
   const clients = data?.data || fallbackClients;
-  const filtered = clients.filter((c) => c.name?.toLowerCase().includes(search.toLowerCase()) || c.contactName?.toLowerCase().includes(search.toLowerCase()));
+  const pagination = data?.pagination;
+  const filtered = clients;
 
   const totalDrivers = clients.reduce((s, c) => s + (c.driverCount || 0), 0);
   const totalBilling = clients.reduce((s, c) => s + (c.monthlyBilling || 0), 0);
@@ -88,7 +91,7 @@ const Clients = () => {
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search clients..." style={{ width: 260, height: 34 }} />
+          <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search clients..." style={{ width: 260, height: 34 }} />
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
             {canEdit(role) && <Btn small variant="primary" onClick={() => setShowAddModal(true)}>+ Add client</Btn>}
           </div>
@@ -147,9 +150,13 @@ const Clients = () => {
           </div>
         )}
 
-        <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text3)' }}>
-          Showing {filtered.length} of {clients.length} clients
-        </div>
+        <Pagination
+          page={page}
+          totalPages={pagination?.pages || 1}
+          total={pagination?.total ?? clients.length}
+          pageSize={pagination?.limit || 20}
+          onPageChange={setPage}
+        />
       </div>
 
       {selectedClient && <ClientDetail client={selectedClient} onClose={() => setSelectedClientId(null)} onEdit={handleEdit} onDelete={handleDelete} role={role} />}

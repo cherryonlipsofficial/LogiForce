@@ -21,10 +21,26 @@ const memUpload = multer({
 // All routes are protected
 router.use(protect);
 
-// GET /api/clients — list all clients (exclude binary data)
+// GET /api/clients — list clients with pagination (exclude binary data)
 router.get('/', async (req, res) => {
-  const clients = await Client.find().select('-contractFile.data').sort({ name: 1 });
-  sendSuccess(res, clients);
+  const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
+  const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
+  const skip = (page - 1) * limit;
+
+  const query = {};
+  if (req.query.search) {
+    query.$or = [
+      { name: { $regex: req.query.search, $options: 'i' } },
+      { contactName: { $regex: req.query.search, $options: 'i' } },
+    ];
+  }
+
+  const [clients, total] = await Promise.all([
+    Client.find(query).select('-contractFile.data').sort({ name: 1 }).skip(skip).limit(limit),
+    Client.countDocuments(query),
+  ]);
+
+  sendPaginated(res, clients, total, page, limit);
 });
 
 // POST /api/clients — create (admin, accountant)

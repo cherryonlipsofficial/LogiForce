@@ -11,6 +11,7 @@ import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
 import { getInvoices, generateInvoice, updateStatus, addCreditNote, downloadPdf } from '../../api/invoicesApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
+import Pagination from '../../components/ui/Pagination';
 
 const fallbackInvoices = [
   { _id: 'INV-2026-001', client: 'Amazon UAE', period: 'Mar 2026', amount: 892400, status: 'draft', issueDate: '2026-03-21T00:00:00Z', dueDate: '2026-04-20T00:00:00Z', driverCount: 342, creditNotes: [] },
@@ -33,15 +34,17 @@ const Invoices = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showGenerate, setShowGenerate] = useState(false);
+  const [page, setPage] = useState(1);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['invoices'],
-    queryFn: () => getInvoices(),
+    queryKey: ['invoices', { status: statusFilter, page }],
+    queryFn: () => getInvoices({ status: statusFilter !== 'all' ? statusFilter : undefined, page, limit: 20 }),
     retry: 1,
   });
 
   const invoices = data?.data || fallbackInvoices;
-  const filtered = statusFilter === 'all' ? invoices : invoices.filter((i) => i.status === statusFilter);
+  const pagination = data?.pagination;
+  const filtered = invoices;
 
   const totalOutstanding = invoices.filter((i) => i.status === 'sent' || i.status === 'overdue').reduce((s, i) => s + i.amount, 0);
   const totalPaid = invoices.filter((i) => i.status === 'paid').reduce((s, i) => s + i.amount, 0);
@@ -58,7 +61,7 @@ const Invoices = () => {
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ width: 180, height: 34 }}>
+          <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} style={{ width: 180, height: 34 }}>
             <option value="all">All statuses</option>
             <option value="draft">Draft</option>
             <option value="sent">Sent</option>
@@ -123,9 +126,13 @@ const Invoices = () => {
           </div>
         )}
 
-        <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text3)' }}>
-          Showing {filtered.length} of {invoices.length} invoices
-        </div>
+        <Pagination
+          page={page}
+          totalPages={pagination?.pages || 1}
+          total={pagination?.total ?? invoices.length}
+          pageSize={pagination?.limit || 20}
+          onPageChange={setPage}
+        />
       </div>
 
       {selectedInvoice && <InvoiceDetail invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} />}
