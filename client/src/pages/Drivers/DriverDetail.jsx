@@ -12,9 +12,11 @@ import Btn from '../../components/ui/Btn';
 import Modal from '../../components/ui/Modal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useNavigate } from 'react-router-dom';
-import { getDriverLedger, updateDriver, changeDriverStatus, getDriverDocuments, uploadDriverDocument, fetchDocumentFile, getDocumentDirectUrl } from '../../api/driversApi';
+import { getDriverLedger, updateDriver, changeDriverStatus, getDriverDocuments, uploadDriverDocument, fetchDocumentFile, getDocumentDirectUrl, getStatusSummary } from '../../api/driversApi';
 import { getProjects } from '../../api/projectsApi';
 import { getVehicle, getDriverVehicleHistory } from '../../api/vehiclesApi';
+import DriverStatusBanner from '../../components/drivers/DriverStatusBanner';
+import ChangeStatusModalNew from '../../components/drivers/ChangeStatusModal';
 
 const DOC_TYPES = [
   { value: 'emirates_id', label: 'Emirates ID' },
@@ -56,6 +58,8 @@ const DriverDetail = ({ driver, onClose }) => {
   const [tab, setTab] = useState('profile');
   const [showEdit, setShowEdit] = useState(false);
   const [showStatusChange, setShowStatusChange] = useState(false);
+  const [changeStatusOpen, setChangeStatusOpen] = useState(false);
+  const [changeStatusPreset, setChangeStatusPreset] = useState(null);
   const [viewingFile, setViewingFile] = useState(null); // { blobUrl, contentType, fileName }
 
   const handleViewFile = async (fileKey, fileUrl) => {
@@ -122,6 +126,12 @@ const DriverDetail = ({ driver, onClose }) => {
   });
   const vehicleHistory = vehicleHistoryData?.data || [];
 
+  const { data: statusSummaryData } = useQuery({
+    queryKey: ['driver-status-summary', driverId],
+    queryFn: () => getStatusSummary(driverId),
+  });
+  const statusSummary = statusSummaryData?.data || null;
+
   const ledger = ledgerData?.data || [];
 
   const history = [
@@ -172,6 +182,23 @@ const DriverDetail = ({ driver, onClose }) => {
             </div>
           </div>
           <StatusBadge status={d.status || 'active'} />
+          <PermissionGate permission="drivers.change_status">
+            <button
+              onClick={() => setChangeStatusOpen(true)}
+              style={{
+                background: 'var(--surface3)',
+                border: '1px solid var(--border2)',
+                color: 'var(--text2)',
+                borderRadius: 8,
+                padding: '5px 10px',
+                cursor: 'pointer',
+                fontSize: 11,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Change status
+            </button>
+          </PermissionGate>
           <button
             onClick={onClose}
             style={{
@@ -211,6 +238,27 @@ const DriverDetail = ({ driver, onClose }) => {
             <div style={{ fontSize: 18, fontWeight: 500 }}>{workingDays}</div>
           </div>
         </div>
+      </div>
+
+      {/* Status Banner */}
+      <div style={{ padding: '12px 20px 0' }}>
+        <DriverStatusBanner
+          driver={d}
+          statusSummary={statusSummary}
+          onActionComplete={(action) => {
+            if (action === 'return_active') {
+              setChangeStatusPreset('active');
+              setChangeStatusOpen(true);
+            } else if (action === 'reinstate') {
+              setChangeStatusPreset('active');
+              setChangeStatusOpen(true);
+            } else {
+              queryClient.invalidateQueries({ queryKey: ['driver', driverId] });
+              queryClient.invalidateQueries({ queryKey: ['driver-status-summary', driverId] });
+              queryClient.invalidateQueries({ queryKey: ['drivers'] });
+            }
+          }}
+        />
       </div>
 
       {/* Tabs */}
@@ -550,6 +598,21 @@ const DriverDetail = ({ driver, onClose }) => {
             queryClient.invalidateQueries({ queryKey: ['drivers'] });
             setShowStatusChange(false);
             onClose();
+          }}
+        />
+      )}
+
+      {changeStatusOpen && (
+        <ChangeStatusModalNew
+          driver={d}
+          presetStatus={changeStatusPreset}
+          onClose={() => { setChangeStatusOpen(false); setChangeStatusPreset(null); }}
+          onSuccess={() => {
+            setChangeStatusOpen(false);
+            setChangeStatusPreset(null);
+            queryClient.invalidateQueries({ queryKey: ['driver', driverId] });
+            queryClient.invalidateQueries({ queryKey: ['driver-status-summary', driverId] });
+            queryClient.invalidateQueries({ queryKey: ['drivers'] });
           }}
         />
       )}
