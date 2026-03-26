@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { useSyncTime } from '../../hooks/useSyncTime.jsx';
@@ -208,7 +209,8 @@ const ChangePasswordModal = ({ onClose }) => {
 
 /* ── Topbar ── */
 const Topbar = ({ page }) => {
-  const { user, logout, role } = useAuth();
+  const { user, logout, role, hasPermission } = useAuth();
+  const navigate = useNavigate();
   const searchRef = useRef(null);
   const lastSynced = useSyncTime();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -423,13 +425,32 @@ const Topbar = ({ page }) => {
                 </div>
                 <div style={{ padding: '4px' }}>
                   <MenuButton
+                    label="Your profile"
+                    onClick={() => { setMenuOpen(false); }}
+                  />
+                  <MenuButton
                     label="My permissions"
                     onClick={() => { setMenuOpen(false); setShowPerms(true); }}
                   />
-                  <MenuButton
-                    label="Change password"
-                    onClick={() => { setMenuOpen(false); setShowPassword(true); }}
-                  />
+                  <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
+                  {hasPermission('users.view') && (
+                    <MenuButton
+                      label="Manage users"
+                      onClick={() => { setMenuOpen(false); navigate('/users'); }}
+                    />
+                  )}
+                  {hasPermission('roles.manage') && (
+                    <MenuButton
+                      label="Manage roles"
+                      onClick={() => { setMenuOpen(false); navigate('/roles'); }}
+                    />
+                  )}
+                  {hasPermission('settings.view') && (
+                    <MenuButton
+                      label="Settings"
+                      onClick={() => { setMenuOpen(false); navigate('/settings'); }}
+                    />
+                  )}
                   <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
                   <MenuButton
                     label="Sign out"
