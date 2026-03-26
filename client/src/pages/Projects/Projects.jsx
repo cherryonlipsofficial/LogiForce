@@ -11,6 +11,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
 import { useAuth } from '../../context/AuthContext';
+import PermissionGate from '../../components/ui/PermissionGate';
 import { getProjects, createProject, updateProject, deleteProject, assignDriverToProject, unassignDriverFromProject, getProjectDrivers } from '../../api/projectsApi';
 import { getDrivers } from '../../api/driversApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
@@ -23,7 +24,7 @@ const statusColors = {
   cancelled: 'danger',
 };
 
-const canEdit = (role) => role === 'admin' || role === 'accountant' || role === 'ops';
+// Legacy canEdit removed — using PermissionGate / hasPermission instead
 
 const Projects = () => {
   const [search, setSearch] = useState('');
@@ -33,7 +34,7 @@ const Projects = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState(null);
   const [page, setPage] = useState(1);
-  const { role } = useAuth();
+  const { hasPermission } = useAuth();
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -100,7 +101,9 @@ const Projects = () => {
             <option value="cancelled">Cancelled</option>
           </select>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            {canEdit(role) && <Btn small variant="primary" onClick={() => setShowAddModal(true)}>+ Add project</Btn>}
+            <PermissionGate permission="projects.create">
+              <Btn small variant="primary" onClick={() => setShowAddModal(true)}>+ Add project</Btn>
+            </PermissionGate>
           </div>
         </div>
 
@@ -157,14 +160,14 @@ const Projects = () => {
         />
       </div>
 
-      {selectedProject && <ProjectDetail project={selectedProject} onClose={() => setSelectedProjectId(null)} onEdit={handleEdit} onDelete={handleDelete} role={role} />}
+      {selectedProject && <ProjectDetail project={selectedProject} onClose={() => setSelectedProjectId(null)} onEdit={handleEdit} onDelete={handleDelete} hasPermission={hasPermission} />}
       {showAddModal && <ProjectFormModal onClose={() => setShowAddModal(false)} />}
       {editingProject && <ProjectFormModal project={editingProject} onClose={() => setEditingProjectId(null)} />}
     </div>
   );
 };
 
-const ProjectDetail = ({ project, onClose, onEdit, onDelete, role }) => {
+const ProjectDetail = ({ project, onClose, onEdit, onDelete, hasPermission }) => {
   const qc = useQueryClient();
   const [showAssign, setShowAssign] = useState(false);
 
@@ -194,8 +197,8 @@ const ProjectDetail = ({ project, onClose, onEdit, onDelete, role }) => {
           <Badge variant={statusColors[project.status] || 'default'}>{project.status?.replace('_', ' ')}</Badge>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          {canEdit(role) && <Btn small variant="ghost" onClick={() => onEdit(project)}>Edit</Btn>}
-          {role === 'admin' && <Btn small variant="ghost" onClick={() => onDelete(project)} style={{ color: '#f87171' }}>Delete</Btn>}
+          {hasPermission('projects.edit') && <Btn small variant="ghost" onClick={() => onEdit(project)}>Edit</Btn>}
+          {hasPermission('projects.delete') && <Btn small variant="ghost" onClick={() => onDelete(project)} style={{ color: '#f87171' }}>Delete</Btn>}
           <button onClick={onClose} style={{ background: 'var(--surface3)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 8, padding: '4px 10px', fontSize: 16 }}>&times;</button>
         </div>
       </div>
@@ -225,7 +228,7 @@ const ProjectDetail = ({ project, onClose, onEdit, onDelete, role }) => {
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontSize: 13, fontWeight: 500 }}>Assigned drivers ({drivers.length})</div>
-            {canEdit(role) && <Btn small variant="primary" onClick={() => setShowAssign(true)}>+ Assign</Btn>}
+            {hasPermission('projects.assign_drivers') && <Btn small variant="primary" onClick={() => setShowAssign(true)}>+ Assign</Btn>}
           </div>
           {drivers.length === 0 ? (
             <div style={{ fontSize: 12, color: 'var(--text3)', padding: '10px 0' }}>No drivers assigned yet.</div>
@@ -237,7 +240,7 @@ const ProjectDetail = ({ project, onClose, onEdit, onDelete, role }) => {
                     <div style={{ fontSize: 12, fontWeight: 500 }}>{d.fullName}</div>
                     <div style={{ fontSize: 10, color: 'var(--text3)' }}>{d.employeeCode} · {d.status}</div>
                   </div>
-                  {canEdit(role) && (
+                  {hasPermission('projects.assign_drivers') && (
                     <Btn small variant="ghost" onClick={() => {
                       if (window.confirm(`Unassign ${d.fullName} from this project?`)) doUnassign(d._id);
                     }} style={{ color: '#f87171', fontSize: 11 }}>Unassign</Btn>

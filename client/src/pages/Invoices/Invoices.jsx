@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
+import PermissionGate from '../../components/ui/PermissionGate';
 import KpiCard from '../../components/ui/KpiCard';
 import Badge from '../../components/ui/Badge';
 import Btn from '../../components/ui/Btn';
@@ -69,7 +71,9 @@ const Invoices = () => {
             <option value="overdue">Overdue</option>
           </select>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <Btn small variant="primary" onClick={() => setShowGenerate(true)}>Generate invoice</Btn>
+            <PermissionGate permission="invoices.generate">
+              <Btn small variant="primary" onClick={() => setShowGenerate(true)}>Generate invoice</Btn>
+            </PermissionGate>
           </div>
         </div>
 
@@ -202,14 +206,20 @@ const InvoiceDetail = ({ invoice, onClose }) => {
         )}
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {invoice.status === 'draft' && (
-            <Btn variant="primary" onClick={() => changeStatus({ status: 'sent' })} disabled={changing}>Mark as sent</Btn>
-          )}
-          {(invoice.status === 'sent' || invoice.status === 'overdue') && (
-            <Btn variant="success" onClick={() => changeStatus({ status: 'paid' })} disabled={changing}>Mark as paid</Btn>
-          )}
-          <Btn variant="ghost" onClick={handleDownloadPdf}>Download PDF</Btn>
-          <Btn variant="ghost" onClick={() => setShowCreditNote(true)}>Add credit note</Btn>
+          <PermissionGate permission="invoices.edit">
+            {invoice.status === 'draft' && (
+              <Btn variant="primary" onClick={() => changeStatus({ status: 'sent' })} disabled={changing}>Mark as sent</Btn>
+            )}
+            {(invoice.status === 'sent' || invoice.status === 'overdue') && (
+              <Btn variant="success" onClick={() => changeStatus({ status: 'paid' })} disabled={changing}>Mark as paid</Btn>
+            )}
+          </PermissionGate>
+          <PermissionGate permission="invoices.download">
+            <Btn variant="ghost" onClick={handleDownloadPdf}>Download PDF</Btn>
+          </PermissionGate>
+          <PermissionGate permission="invoices.credit_note">
+            <Btn variant="ghost" onClick={() => setShowCreditNote(true)}>Add credit note</Btn>
+          </PermissionGate>
         </div>
       </div>
 

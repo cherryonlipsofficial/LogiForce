@@ -1,5 +1,6 @@
 import Avatar from '../ui/Avatar';
 import Btn from '../ui/Btn';
+import PermissionGate from '../ui/PermissionGate';
 
 const statusColors = {
   available: '#4ade80',
@@ -172,31 +173,35 @@ const VehicleCard = ({ vehicle, onAssign, onReturn, onViewDetail }) => {
             gap: 6,
           }}
         >
-          {status === 'available' && (
-            <Btn
-              small
-              variant="ghost"
-              onClick={(e) => { e.stopPropagation(); onAssign(vehicle); }}
-              style={{ fontSize: 11, padding: '5px 10px' }}
-            >
-              Assign driver
-            </Btn>
-          )}
-          {status === 'assigned' && (
-            <Btn
-              small
-              onClick={(e) => { e.stopPropagation(); onReturn(vehicle); }}
-              style={{
-                fontSize: 11,
-                padding: '5px 10px',
-                background: 'rgba(239,68,68,0.08)',
-                color: '#f87171',
-                border: '1px solid rgba(239,68,68,0.2)',
-              }}
-            >
-              Return
-            </Btn>
-          )}
+          <PermissionGate permission="vehicles.assign">
+            {status === 'available' && (
+              <Btn
+                small
+                variant="ghost"
+                onClick={(e) => { e.stopPropagation(); onAssign(vehicle); }}
+                style={{ fontSize: 11, padding: '5px 10px' }}
+              >
+                Assign driver
+              </Btn>
+            )}
+          </PermissionGate>
+          <PermissionGate permission="vehicles.off_hire">
+            {status === 'assigned' && (
+              <Btn
+                small
+                onClick={(e) => { e.stopPropagation(); onReturn(vehicle); }}
+                style={{
+                  fontSize: 11,
+                  padding: '5px 10px',
+                  background: 'rgba(239,68,68,0.08)',
+                  color: '#f87171',
+                  border: '1px solid rgba(239,68,68,0.2)',
+                }}
+              >
+                Return
+              </Btn>
+            )}
+          </PermissionGate>
 
           <Btn
             small

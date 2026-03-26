@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import axiosInstance from '../api/axiosInstance';
 
 const AuthContext = createContext(null);
@@ -7,15 +7,29 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
+  const [permissions, setPermissions] = useState([]);
+
+  const fetchPermissions = async () => {
+    try {
+      const res = await axiosInstance.get('/auth/permissions');
+      setPermissions(res.data.data?.permissions || []);
+    } catch {
+      setPermissions([]);
+    }
+  };
 
   useEffect(() => {
     if (token) {
       axiosInstance
         .get('/auth/me')
-        .then((res) => setUser(res.data.data))
+        .then((res) => {
+          setUser(res.data.data);
+          return fetchPermissions();
+        })
         .catch(() => {
           localStorage.removeItem('token');
           setToken(null);
+          setPermissions([]);
         })
         .finally(() => setLoading(false));
     } else {
@@ -29,6 +43,15 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('token', newToken);
     setToken(newToken);
     setUser(newUser);
+    // Fetch permissions immediately after login
+    try {
+      const permRes = await axiosInstance.get('/auth/permissions', {
+        headers: { Authorization: `Bearer ${newToken}` },
+      });
+      setPermissions(permRes.data.data?.permissions || []);
+    } catch {
+      setPermissions([]);
+    }
     return res.data;
   };
 
@@ -36,7 +59,13 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('token');
     setToken(null);
     setUser(null);
+    setPermissions([]);
   };
+
+  const hasPermission = useCallback(
+    (key) => permissions.includes(key),
+    [permissions]
+  );
 
   const value = useMemo(
     () => ({
@@ -46,9 +75,11 @@ export const AuthProvider = ({ children }) => {
       login,
       logout,
       isAuthenticated: !!user,
-      role: user?.role || null,
+      role: user?.roleId?.name || user?.role || null,
+      permissions,
+      hasPermission,
     }),
-    [user, token, loading]
+    [user, token, loading, permissions, hasPermission]
   );
 
   return (

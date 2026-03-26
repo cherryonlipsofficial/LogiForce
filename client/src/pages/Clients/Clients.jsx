@@ -10,6 +10,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
 import { useAuth } from '../../context/AuthContext';
+import PermissionGate from '../../components/ui/PermissionGate';
 import { getClients, createClient, updateClient, deleteClient, uploadContract, deleteContract } from '../../api/clientsApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
 import Pagination from '../../components/ui/Pagination';
@@ -30,7 +31,7 @@ const toDateInput = (val) => {
   return d.toISOString().split('T')[0];
 };
 
-const canEdit = (role) => role === 'admin' || role === 'accountant';
+// Legacy canEdit removed — using PermissionGate / hasPermission instead
 
 const Clients = () => {
   const [search, setSearch] = useState('');
@@ -38,7 +39,7 @@ const Clients = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingClientId, setEditingClientId] = useState(null);
   const [page, setPage] = useState(1);
-  const { role } = useAuth();
+  const { hasPermission } = useAuth();
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -93,7 +94,9 @@ const Clients = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
           <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search clients..." style={{ width: 260, height: 34 }} />
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            {canEdit(role) && <Btn small variant="primary" onClick={() => setShowAddModal(true)}>+ Add client</Btn>}
+            <PermissionGate permission="clients.create">
+              <Btn small variant="primary" onClick={() => setShowAddModal(true)}>+ Add client</Btn>
+            </PermissionGate>
           </div>
         </div>
 
@@ -159,14 +162,14 @@ const Clients = () => {
         />
       </div>
 
-      {selectedClient && <ClientDetail client={selectedClient} onClose={() => setSelectedClientId(null)} onEdit={handleEdit} onDelete={handleDelete} role={role} />}
+      {selectedClient && <ClientDetail client={selectedClient} onClose={() => setSelectedClientId(null)} onEdit={handleEdit} onDelete={handleDelete} hasPermission={hasPermission} />}
       {showAddModal && <ClientFormModal onClose={() => setShowAddModal(false)} />}
       {editingClient && <ClientFormModal client={editingClient} onClose={() => setEditingClientId(null)} />}
     </div>
   );
 };
 
-const ClientDetail = ({ client, onClose, onEdit, onDelete, role }) => {
+const ClientDetail = ({ client, onClose, onEdit, onDelete, hasPermission }) => {
   const active = isClientActive(client);
   const qc = useQueryClient();
 
@@ -264,8 +267,8 @@ const ClientDetail = ({ client, onClose, onEdit, onDelete, role }) => {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          {canEdit(role) && <Btn small variant="ghost" onClick={() => onEdit(client)}>Edit</Btn>}
-          {role === 'admin' && <Btn small variant="ghost" onClick={() => onDelete(client)} style={{ color: '#f87171' }}>Delete</Btn>}
+          {hasPermission('clients.edit') && <Btn small variant="ghost" onClick={() => onEdit(client)}>Edit</Btn>}
+          {hasPermission('clients.delete') && <Btn small variant="ghost" onClick={() => onDelete(client)} style={{ color: '#f87171' }}>Delete</Btn>}
           <button onClick={onClose} style={{ background: 'var(--surface3)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 8, padding: '4px 10px', fontSize: 16 }}>&times;</button>
         </div>
       </div>
@@ -302,13 +305,13 @@ const ClientDetail = ({ client, onClose, onEdit, onDelete, role }) => {
               <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                 <Btn small variant="ghost" onClick={handleViewContract}>View</Btn>
                 <Btn small variant="ghost" onClick={handleDownloadContract}>Download</Btn>
-                {canEdit(role) && <Btn small variant="ghost" onClick={handleRemoveContract} style={{ color: '#f87171' }}>Remove</Btn>}
+                {hasPermission('clients.edit') && <Btn small variant="ghost" onClick={handleRemoveContract} style={{ color: '#f87171' }}>Remove</Btn>}
               </div>
             </div>
           ) : (
             <div style={{ padding: '14px', background: 'var(--surface2)', borderRadius: 8, border: '1px dashed var(--border2)', textAlign: 'center' }}>
               <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 6 }}>No contract uploaded</div>
-              {canEdit(role) && (
+              {hasPermission('clients.edit') && (
                 <>
                   <input ref={fileInputRef} type="file" accept=".pdf" onChange={handleFileSelect} style={{ display: 'none' }} />
                   <Btn small variant="primary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
+import PermissionGate from '../../components/ui/PermissionGate';
 import KpiCard from '../../components/ui/KpiCard';
 import Badge from '../../components/ui/Badge';
 import Btn from '../../components/ui/Btn';
@@ -67,7 +69,9 @@ const Salary = () => {
             <option value="paid">Paid</option>
           </select>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <Btn small variant="primary" onClick={() => setShowRunModal(true)}>Run payroll</Btn>
+            <PermissionGate permission="salary.run">
+              <Btn small variant="primary" onClick={() => setShowRunModal(true)}>Run payroll</Btn>
+            </PermissionGate>
           </div>
         </div>
 
@@ -226,14 +230,18 @@ const RunDetail = ({ run, onClose }) => {
         )}
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {run.status === 'draft' && (
-            <Btn variant="primary" onClick={() => approve()} disabled={approving}>
-              {approving ? 'Approving...' : 'Approve run'}
-            </Btn>
-          )}
-          {(run.status === 'approved' || run.status === 'paid') && (
-            <Btn variant="ghost" onClick={handleWpsDownload}>Download WPS</Btn>
-          )}
+          <PermissionGate permission="salary.approve">
+            {run.status === 'draft' && (
+              <Btn variant="primary" onClick={() => approve()} disabled={approving}>
+                {approving ? 'Approving...' : 'Approve run'}
+              </Btn>
+            )}
+          </PermissionGate>
+          <PermissionGate permission="salary.export_wps">
+            {(run.status === 'approved' || run.status === 'paid') && (
+              <Btn variant="ghost" onClick={handleWpsDownload}>Download WPS</Btn>
+            )}
+          </PermissionGate>
         </div>
       </div>
     </SidePanel>

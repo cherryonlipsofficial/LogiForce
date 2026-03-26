@@ -10,6 +10,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
 import { useAuth } from '../../context/AuthContext';
+import PermissionGate from '../../components/ui/PermissionGate';
 import { getSuppliers, createSupplier, updateSupplier, deleteSupplier } from '../../api/suppliersApi';
 import Pagination from '../../components/ui/Pagination';
 
@@ -22,7 +23,7 @@ const fallbackSuppliers = [
 
 const isSupplierActive = (s) => s.isActive !== undefined ? s.isActive : s.status === 'active';
 
-const canEdit = (role) => role === 'admin' || role === 'accountant';
+// Legacy canEdit removed — using PermissionGate / hasPermission instead
 
 const Suppliers = () => {
   const [search, setSearch] = useState('');
@@ -30,7 +31,7 @@ const Suppliers = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingSupplierId, setEditingSupplierId] = useState(null);
   const [page, setPage] = useState(1);
-  const { role } = useAuth();
+  const { hasPermission } = useAuth();
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -83,7 +84,9 @@ const Suppliers = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
           <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search suppliers..." style={{ width: 260, height: 34 }} />
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            {canEdit(role) && <Btn small variant="primary" onClick={() => setShowAddModal(true)}>+ Add supplier</Btn>}
+            <PermissionGate permission="suppliers.create">
+              <Btn small variant="primary" onClick={() => setShowAddModal(true)}>+ Add supplier</Btn>
+            </PermissionGate>
           </div>
         </div>
 
@@ -146,14 +149,14 @@ const Suppliers = () => {
         />
       </div>
 
-      {selectedSupplier && <SupplierDetail supplier={selectedSupplier} onClose={() => setSelectedSupplierId(null)} onEdit={handleEdit} onDelete={handleDelete} role={role} />}
+      {selectedSupplier && <SupplierDetail supplier={selectedSupplier} onClose={() => setSelectedSupplierId(null)} onEdit={handleEdit} onDelete={handleDelete} hasPermission={hasPermission} />}
       {showAddModal && <SupplierFormModal onClose={() => setShowAddModal(false)} />}
       {editingSupplier && <SupplierFormModal supplier={editingSupplier} onClose={() => setEditingSupplierId(null)} />}
     </div>
   );
 };
 
-const SupplierDetail = ({ supplier, onClose, onEdit, onDelete, role }) => {
+const SupplierDetail = ({ supplier, onClose, onEdit, onDelete, hasPermission }) => {
   const active = isSupplierActive(supplier);
   return (
     <SidePanel onClose={onClose}>
@@ -165,8 +168,8 @@ const SupplierDetail = ({ supplier, onClose, onEdit, onDelete, role }) => {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          {canEdit(role) && <Btn small variant="ghost" onClick={() => onEdit(supplier)}>Edit</Btn>}
-          {role === 'admin' && <Btn small variant="ghost" onClick={() => onDelete(supplier)} style={{ color: '#f87171' }}>Delete</Btn>}
+          {hasPermission('suppliers.edit') && <Btn small variant="ghost" onClick={() => onEdit(supplier)}>Edit</Btn>}
+          {hasPermission('suppliers.delete') && <Btn small variant="ghost" onClick={() => onDelete(supplier)} style={{ color: '#f87171' }}>Delete</Btn>}
           <button onClick={onClose} style={{ background: 'var(--surface3)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 8, padding: '4px 10px', fontSize: 16 }}>&times;</button>
         </div>
       </div>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
+import PermissionGate from '../../components/ui/PermissionGate';
 import KpiCard from '../../components/ui/KpiCard';
 import Avatar from '../../components/ui/Avatar';
 import StatusBadge from '../../components/ui/StatusBadge';
@@ -132,8 +133,10 @@ const Drivers = () => {
           </select>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
             <Btn small variant="ghost" onClick={handleExport}>Export</Btn>
-            <Btn small variant="ghost" onClick={() => setShowBulkImportModal(true)}>Bulk import</Btn>
-            <Btn small variant="primary" onClick={() => setShowAddModal(true)}>+ Add driver</Btn>
+            <PermissionGate permission="drivers.create">
+              <Btn small variant="ghost" onClick={() => setShowBulkImportModal(true)}>Bulk import</Btn>
+              <Btn small variant="primary" onClick={() => setShowAddModal(true)}>+ Add driver</Btn>
+            </PermissionGate>
           </div>
         </div>
 

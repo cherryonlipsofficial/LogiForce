@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
+import PermissionGate from '../../components/ui/PermissionGate';
 import SidePanel from '../../components/ui/SidePanel';
 import Avatar from '../../components/ui/Avatar';
 import StatusBadge from '../../components/ui/StatusBadge';
@@ -520,8 +521,12 @@ const DriverDetail = ({ driver, onClose }) => {
 
       {/* Footer */}
       <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
-        <Btn variant="ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowEdit(true)}>Edit profile</Btn>
-        <Btn variant="ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowStatusChange(true)}>Change status</Btn>
+        <PermissionGate permission="drivers.edit">
+          <Btn variant="ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowEdit(true)}>Edit profile</Btn>
+        </PermissionGate>
+        <PermissionGate permission="drivers.change_status">
+          <Btn variant="ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowStatusChange(true)}>Change status</Btn>
+        </PermissionGate>
       </div>
 
       {showEdit && (

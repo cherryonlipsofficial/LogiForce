@@ -11,6 +11,7 @@ import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
 import { getBatches, uploadFile, getBatch, approveBatch, rejectBatch, deleteBatch } from '../../api/attendanceApi';
 import { useAuth } from '../../context/AuthContext';
+import PermissionGate from '../../components/ui/PermissionGate';
 import { formatDate } from '../../utils/formatters';
 import Pagination from '../../components/ui/Pagination';
 
@@ -54,7 +55,7 @@ const normalizeBatch = (b) => {
 };
 
 const Attendance = () => {
-  const { role } = useAuth();
+  const { hasPermission } = useAuth();
   const [showUpload, setShowUpload] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [clientFilter, setClientFilter] = useState('all');
@@ -93,7 +94,9 @@ const Attendance = () => {
             <option value="Talabat">Talabat</option>
           </select>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <Btn small variant="primary" onClick={() => setShowUpload(true)}>Upload attendance</Btn>
+            <PermissionGate permission="attendance.upload">
+              <Btn small variant="primary" onClick={() => setShowUpload(true)}>Upload attendance</Btn>
+            </PermissionGate>
           </div>
         </div>
 
@@ -164,7 +167,7 @@ const Attendance = () => {
         />
       </div>
 
-      {selectedBatch && <BatchDetail batch={selectedBatch} onClose={() => setSelectedBatch(null)} role={role} />}
+      {selectedBatch && <BatchDetail batch={selectedBatch} onClose={() => setSelectedBatch(null)} hasPermission={hasPermission} />}
       {showUpload && <UploadModal onClose={() => setShowUpload(false)} />}
     </div>
   );
@@ -180,7 +183,7 @@ const ISSUE_LABELS = {
   visa_expired: 'Driver visa has expired',
 };
 
-const BatchDetail = ({ batch, onClose, role }) => {
+const BatchDetail = ({ batch, onClose, hasPermission }) => {
   const qc = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -272,7 +275,7 @@ const BatchDetail = ({ batch, onClose, role }) => {
           </div>
         )}
 
-        {batch.status === 'pending_review' && (
+        {batch.status === 'pending_review' && hasPermission('attendance.approve') && (
           <div>
             {batch.errors > 0 && (
               <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, padding: 12, fontSize: 12, color: '#f87171', marginBottom: 12 }}>
@@ -290,7 +293,7 @@ const BatchDetail = ({ batch, onClose, role }) => {
           </div>
         )}
 
-        {role === 'admin' && batch.status !== 'approved' && batch.status !== 'processed' && (
+        {hasPermission('attendance.override') && batch.status !== 'approved' && batch.status !== 'processed' && (
           <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
             {!confirmDelete ? (
               <Btn variant="danger" onClick={() => setConfirmDelete(true)}>
