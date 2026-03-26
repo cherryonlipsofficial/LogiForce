@@ -404,11 +404,16 @@ const BulkImportModal = ({ onClose }) => {
     setUploading(true);
     try {
       const res = await bulkImportDrivers(file);
-      setResult(res.data);
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
       queryClient.invalidateQueries({ queryKey: ['driverStatusCounts'] });
-      if (res.data.created > 0) {
+      if (res.data.errors?.length > 0) {
+        setResult(res.data);
+        if (res.data.created > 0) {
+          toast.success(`${res.data.created} driver(s) imported, but ${res.data.errors.length} error(s) occurred`);
+        }
+      } else {
         toast.success(`${res.data.created} driver(s) imported successfully`);
+        onClose();
       }
     } catch (err) {
       toast.error(err?.response?.data?.message || 'Import failed');
@@ -441,7 +446,7 @@ const BulkImportModal = ({ onClose }) => {
       <div style={{ marginBottom: 16 }}>
         <p style={{ fontSize: 13, color: 'var(--text2)', margin: '0 0 12px' }}>
           Upload a CSV or Excel file to import multiple drivers at once. Required columns:
-          <strong> fullName, nationality, phoneUae, baseSalary, payStructure, clientId</strong> (client name or ID).
+          <strong> fullName, nationality, phoneUae, baseSalary, payStructure, project</strong> (project name or ID).
         </p>
         <Btn small variant="ghost" onClick={handleDownloadTemplate}>
           Download CSV template
