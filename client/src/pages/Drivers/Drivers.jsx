@@ -441,7 +441,7 @@ const BulkImportModal = ({ onClose }) => {
       <div style={{ marginBottom: 16 }}>
         <p style={{ fontSize: 13, color: 'var(--text2)', margin: '0 0 12px' }}>
           Upload a CSV or Excel file to import multiple drivers at once. Required columns:
-          <strong> fullName, nationality, phoneUae, baseSalary, payStructure, clientId</strong> (client name or ID).
+          <strong> fullName, nationality, phoneUae, baseSalary, payStructure, project</strong> (project name or ID).
         </p>
         <Btn small variant="ghost" onClick={handleDownloadTemplate}>
           Download CSV template
