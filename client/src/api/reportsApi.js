@@ -14,3 +14,6 @@ export const getFleetUtilisation = (params) =>
 
 export const getVehicleCostPerDriver = (params) =>
   axiosInstance.get('/reports/vehicle-cost-per-driver', { params }).then(r => r.data);
+
+export const getProjectPipeline = () =>
+  axiosInstance.get('/reports/project-pipeline').then(r => r.data);

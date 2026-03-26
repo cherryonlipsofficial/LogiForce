@@ -431,10 +431,9 @@ const seed = async () => {
   console.log('  Accountant: accountant@logiforce.com / Account@123');
   console.log('  Ops:        ops@logiforce.com / Ops@1234');
   console.log('---');
-  console.log('Projects:');
-  console.log('  Amazon UAE: 3 projects (Last Mile Dubai, Grocery Abu Dhabi, Fresh Sharjah)');
-  console.log('  Noon: 2 projects (Express Delivery, NoonFood Riders)');
-  console.log('  Talabat: 1 project (Talabat Riders Dubai)');
+  console.log('Projects created: 6 (3 Amazon UAE, 2 Noon, 1 Talabat)');
+  console.log('Driver assignments: 20 drivers assigned to projects');
+  console.log('Contracts active: 6');
 
   process.exit(0);
 };

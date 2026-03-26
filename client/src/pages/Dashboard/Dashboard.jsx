@@ -17,7 +17,7 @@ import StatusBadge from '../../components/ui/StatusBadge';
 import SectionHeader from '../../components/ui/SectionHeader';
 import Btn from '../../components/ui/Btn';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import { getPayrollSummary, getFleetUtilisation } from '../../api/reportsApi';
+import { getPayrollSummary, getFleetUtilisation, getProjectPipeline } from '../../api/reportsApi';
 import { getInvoices } from '../../api/invoicesApi';
 import { getExpiringContracts, getFleetSummary } from '../../api/vehiclesApi';
 import { getProjectsExpiringContracts } from '../../api/projectsApi';
@@ -150,6 +150,13 @@ const Dashboard = () => {
     (p) => p.activeContract && p.activeContract.endDate &&
       Math.ceil((new Date(p.activeContract.endDate) - new Date()) / (1000 * 60 * 60 * 24)) <= 7
   );
+
+  const { data: pipelineData } = useQuery({
+    queryKey: ['project-pipeline'],
+    queryFn: () => getProjectPipeline(),
+    retry: 1,
+  });
+  const pipelineProjects = pipelineData?.data || [];
 
   const fleetSuppliers = fleetData?.data?.bySupplier || fallbackFleet;
 
@@ -386,6 +393,45 @@ const Dashboard = () => {
           </div>
         </Card>
       </div>
+
+      {/* Project pipeline */}
+      <Card>
+        <SectionHeader title="Project pipeline" />
+        {pipelineProjects.length === 0 ? (
+          <div style={{ fontSize: 12, color: 'var(--text3)', padding: '12px 0' }}>No active projects</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <tbody>
+              {pipelineProjects.map((proj) => (
+                <tr key={proj._id} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '10px 0', fontSize: 12 }}>
+                    <span style={{ color: 'var(--text3)', marginRight: 8 }}>{proj.clientName}</span>
+                    <span style={{ fontWeight: 500 }}>{proj.projectName}</span>
+                  </td>
+                  <td style={{ padding: '10px 0', textAlign: 'right', fontSize: 12, fontFamily: 'var(--mono)' }}>
+                    <span style={{ color: proj.driverCount >= proj.plannedDriverCount ? '#4ade80' : 'var(--text2)' }}>
+                      {proj.driverCount}
+                    </span>
+                    <span style={{ color: 'var(--text3)' }}> / {proj.plannedDriverCount}</span>
+                  </td>
+                  <td style={{ padding: '10px 0', textAlign: 'right', width: 80 }}>
+                    {proj.contractDaysLeft != null ? (
+                      <Badge variant={proj.contractDaysLeft <= 30 ? 'warning' : proj.contractDaysLeft <= 7 ? 'danger' : 'info'}>
+                        {proj.contractDaysLeft}d
+                      </Badge>
+                    ) : (
+                      <span style={{ fontSize: 11, color: 'var(--text3)' }}>--</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <div style={{ marginTop: 10 }}>
+          <Btn small variant="ghost" onClick={() => navigate('/projects')}>View all projects →</Btn>
+        </div>
+      </Card>
 
       {/* Contracts expiring widget */}
       {expiringContracts.length > 0 && (

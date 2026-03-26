@@ -6,6 +6,8 @@ import Badge from '../../components/ui/Badge';
 import Btn from '../../components/ui/Btn';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { getPayrollSummary, getInvoiceAging, getCostPerDriver, getFleetUtilisation } from '../../api/reportsApi';
+import { getClients } from '../../api/clientsApi';
+import { getProjects } from '../../api/projectsApi';
 import { formatCurrencyFull, formatCurrency } from '../../utils/formatters';
 import { useNavigate } from 'react-router-dom';
 
@@ -67,11 +69,31 @@ const periodOptions = [
 const Reports = () => {
   const navigate = useNavigate();
   const [periodIdx, setPeriodIdx] = useState(0);
+  const [selectedClientId, setSelectedClientId] = useState('');
+  const [selectedProjectId, setSelectedProjectId] = useState('');
   const selected = periodOptions[periodIdx];
 
+  const { data: clientsData } = useQuery({
+    queryKey: ['reports-clients'],
+    queryFn: () => getClients({ limit: 1000 }),
+    staleTime: 5 * 60 * 1000,
+  });
+  const clients = clientsData?.data || [];
+
+  const { data: projectsData } = useQuery({
+    queryKey: ['reports-projects', selectedClientId],
+    queryFn: () => getProjects({ clientId: selectedClientId }),
+    enabled: !!selectedClientId,
+    staleTime: 5 * 60 * 1000,
+  });
+  const projects = projectsData?.data || [];
+
+  const payrollParams = { year: selected.year, month: selected.month };
+  if (selectedProjectId) payrollParams.projectId = selectedProjectId;
+
   const { data: payrollData, isLoading: loadingPayroll } = useQuery({
-    queryKey: ['reports-payroll', selected.year, selected.month],
-    queryFn: () => getPayrollSummary({ year: selected.year, month: selected.month }),
+    queryKey: ['reports-payroll', selected.year, selected.month, selectedProjectId],
+    queryFn: () => getPayrollSummary(payrollParams),
     retry: 1,
   });
 
@@ -156,11 +178,35 @@ const Reports = () => {
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 500 }}>Payroll trend (6 months)</div>
-              <select value={periodIdx} onChange={(e) => setPeriodIdx(Number(e.target.value))} style={{ height: 30, fontSize: 12 }}>
-                {periodOptions.map((p, i) => (
-                  <option key={p.label} value={i}>{p.label}</option>
-                ))}
-              </select>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <select
+                  value={selectedClientId}
+                  onChange={(e) => { setSelectedClientId(e.target.value); setSelectedProjectId(''); }}
+                  style={{ height: 30, fontSize: 12 }}
+                >
+                  <option value="">All clients</option>
+                  {clients.map((c) => (
+                    <option key={c._id} value={c._id}>{c.name}</option>
+                  ))}
+                </select>
+                {selectedClientId && (
+                  <select
+                    value={selectedProjectId}
+                    onChange={(e) => setSelectedProjectId(e.target.value)}
+                    style={{ height: 30, fontSize: 12 }}
+                  >
+                    <option value="">All projects</option>
+                    {projects.map((p) => (
+                      <option key={p._id} value={p._id}>{p.name}</option>
+                    ))}
+                  </select>
+                )}
+                <select value={periodIdx} onChange={(e) => setPeriodIdx(Number(e.target.value))} style={{ height: 30, fontSize: 12 }}>
+                  {periodOptions.map((p, i) => (
+                    <option key={p.label} value={i}>{p.label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <ResponsiveContainer width="100%" height={280}>
               <AreaChart data={payroll.trends}>

@@ -1,25 +1,31 @@
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
-const { SalaryRun, Invoice, Driver, Advance, DriverDocument, Supplier } = require('../models');
+const { SalaryRun, Invoice, Driver, Advance, DriverDocument, Supplier, Project } = require('../models');
 const { sendSuccess, sendError } = require('../utils/responseHelper');
 
 // All routes are protected
 router.use(protect);
 
 // GET /api/reports/payroll-summary — total gross/net/deductions for period, grouped by client
+// Optional: ?projectId=xxx to filter by a specific project
 router.get('/payroll-summary', async (req, res) => {
-  const { year, month } = req.query;
+  const { year, month, projectId } = req.query;
   if (!year || !month) return sendError(res, 'year and month are required', 400);
 
+  const matchStage = {
+    'period.year': parseInt(year),
+    'period.month': parseInt(month),
+    status: { $in: ['approved', 'paid'] },
+  };
+
+  if (projectId) {
+    const mongoose = require('mongoose');
+    matchStage.projectId = new mongoose.Types.ObjectId(projectId);
+  }
+
   const summary = await SalaryRun.aggregate([
-    {
-      $match: {
-        'period.year': parseInt(year),
-        'period.month': parseInt(month),
-        status: { $in: ['approved', 'paid'] },
-      },
-    },
+    { $match: matchStage },
     {
       $group: {
         _id: '$clientId',
@@ -51,6 +57,49 @@ router.get('/payroll-summary', async (req, res) => {
   ]);
 
   sendSuccess(res, summary);
+});
+
+// GET /api/reports/project-pipeline — 5 most recently active projects with stats
+router.get('/project-pipeline', async (req, res) => {
+  try {
+    const mongoose = require('mongoose');
+
+    const projects = await Project.find({ status: 'active' })
+      .sort({ updatedAt: -1 })
+      .limit(5)
+      .populate('clientId', 'name')
+      .lean();
+
+    const result = [];
+    for (const proj of projects) {
+      const driverCount = await Driver.countDocuments({ projectId: proj._id, status: 'active' });
+
+      // Find the active contract for this project
+      const { ProjectContract } = require('../models');
+      const contract = await ProjectContract.findOne({
+        projectId: proj._id,
+        status: 'active',
+      }).lean();
+
+      let contractDaysLeft = null;
+      if (contract?.endDate) {
+        contractDaysLeft = Math.ceil((new Date(contract.endDate) - new Date()) / (1000 * 60 * 60 * 24));
+      }
+
+      result.push({
+        _id: proj._id,
+        projectName: proj.name,
+        clientName: proj.clientId?.name || 'Unknown',
+        driverCount,
+        plannedDriverCount: proj.plannedDriverCount || 0,
+        contractDaysLeft,
+      });
+    }
+
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
 });
 
 // GET /api/reports/invoice-aging — outstanding invoices grouped by age
