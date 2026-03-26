@@ -1,6 +1,9 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import FleetSummaryBar from '../../components/vehicles/FleetSummaryBar';
 import FleetFilters from '../../components/vehicles/FleetFilters';
+import AssignVehicleModal from '../../components/vehicles/AssignVehicleModal';
+import ReturnVehicleModal from '../../components/vehicles/ReturnVehicleModal';
 
 const tabPill = (active) => ({
   padding: '7px 18px',
@@ -16,7 +19,10 @@ const tabPill = (active) => ({
 });
 
 const VehiclesPage = () => {
+  const queryClient = useQueryClient();
   const [view, setView] = useState('fleet');
+  const [assignVehicle, setAssignVehicle] = useState(null);
+  const [returnVehicle, setReturnVehicle] = useState(null);
   const [filters, setFilters] = useState({
     type: '',
     supplierId: '',
@@ -79,6 +85,21 @@ const VehiclesPage = () => {
         <div style={{ color: 'var(--text3)', fontSize: 13 }}>
           Supplier catalog — coming soon
         </div>
+      )}
+      {assignVehicle && (
+        <AssignVehicleModal
+          vehicle={assignVehicle}
+          onClose={() => setAssignVehicle(null)}
+          onSuccess={() => queryClient.invalidateQueries({ queryKey: ['vehicles'] })}
+        />
+      )}
+
+      {returnVehicle && (
+        <ReturnVehicleModal
+          vehicle={returnVehicle}
+          onClose={() => setReturnVehicle(null)}
+          onSuccess={() => queryClient.invalidateQueries({ queryKey: ['vehicles'] })}
+        />
       )}
     </div>
   );
