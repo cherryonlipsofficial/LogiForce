@@ -57,3 +57,15 @@ export const bulkImportDrivers = (file) => {
 
 export const downloadImportTemplate = () =>
   axiosInstance.get('/drivers/bulk-import/template', { responseType: 'blob' }).then(r => r);
+
+export const verifyContacts = (driverId) =>
+  axiosInstance.post(`/drivers/${driverId}/verify-contacts`).then(r => r.data);
+
+export const setClientUserId = (driverId, clientUserId) =>
+  axiosInstance.put(`/drivers/${driverId}/client-user-id`, { clientUserId }).then(r => r.data);
+
+export const getStatusSummary = (driverId) =>
+  axiosInstance.get(`/drivers/${driverId}/status-summary`).then(r => r.data);
+
+export const getDriverHistory = (driverId, page = 1) =>
+  axiosInstance.get(`/drivers/${driverId}/history`, { params: { page, limit: 30 } }).then(r => r.data);
