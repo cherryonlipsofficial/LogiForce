@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect, restrictTo } = require('../middleware/auth');
+const { protect, requirePermission } = require('../middleware/auth');
 const projectService = require('../services/project.service');
 const { Driver } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
@@ -23,7 +23,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/projects — create (admin, ops)
-router.post('/', restrictTo('admin', 'ops'), async (req, res) => {
+router.post('/', requirePermission('projects.create'), async (req, res) => {
   const project = await projectService.createProject(req.body, req.user._id);
   sendSuccess(res, project, 'Project created', 201);
 });
@@ -41,7 +41,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // PUT /api/projects/:id — update project fields (admin, ops)
-router.put('/:id', restrictTo('admin', 'ops'), async (req, res) => {
+router.put('/:id', requirePermission('projects.edit'), async (req, res) => {
   const project = await projectService.updateProject(
     req.params.id,
     req.body,
@@ -51,7 +51,7 @@ router.put('/:id', restrictTo('admin', 'ops'), async (req, res) => {
 });
 
 // DELETE /api/projects/:id — soft-delete (admin only)
-router.delete('/:id', restrictTo('admin'), async (req, res) => {
+router.delete('/:id', requirePermission('projects.delete'), async (req, res) => {
   const driverCount = await Driver.countDocuments({
     projectId: req.params.id,
   });
@@ -91,7 +91,7 @@ router.get('/:id/contracts', async (req, res) => {
 });
 
 // POST /api/projects/:id/contracts — create new contract (admin)
-router.post('/:id/contracts', restrictTo('admin'), async (req, res) => {
+router.post('/:id/contracts', requirePermission('projects.manage_contracts'), async (req, res) => {
   const contract = await projectService.createProjectContract(
     req.params.id,
     req.body,
@@ -101,7 +101,7 @@ router.post('/:id/contracts', restrictTo('admin'), async (req, res) => {
 });
 
 // POST /api/projects/:id/contracts/renew — renew active contract (admin)
-router.post('/:id/contracts/renew', restrictTo('admin'), async (req, res) => {
+router.post('/:id/contracts/renew', requirePermission('projects.manage_contracts'), async (req, res) => {
   const contract = await projectService.renewProjectContract(
     req.params.id,
     req.body,
@@ -113,7 +113,7 @@ router.post('/:id/contracts/renew', restrictTo('admin'), async (req, res) => {
 // PUT /api/projects/contracts/:contractId/terminate — terminate (admin)
 router.put(
   '/contracts/:contractId/terminate',
-  restrictTo('admin'),
+  requirePermission('projects.manage_contracts'),
   async (req, res) => {
     const contract = await projectService.terminateProjectContract(
       req.params.contractId,
@@ -127,7 +127,7 @@ router.put(
 // ─── Driver Assignment ────────────────────────────────────────────────────────
 
 // POST /api/projects/:id/assign-driver — assign driver (admin, ops)
-router.post('/:id/assign-driver', restrictTo('admin', 'ops'), async (req, res) => {
+router.post('/:id/assign-driver', requirePermission('projects.assign_drivers'), async (req, res) => {
   const { driverId, reason, contractId } = req.body;
   if (!driverId) return sendError(res, 'driverId is required', 400);
 
@@ -141,7 +141,7 @@ router.post('/:id/assign-driver', restrictTo('admin', 'ops'), async (req, res) =
 });
 
 // POST /api/projects/unassign-driver — unassign driver (admin, ops)
-router.post('/unassign-driver', restrictTo('admin', 'ops'), async (req, res) => {
+router.post('/unassign-driver', requirePermission('projects.assign_drivers'), async (req, res) => {
   const { driverId, reason } = req.body;
   if (!driverId) return sendError(res, 'driverId is required', 400);
 

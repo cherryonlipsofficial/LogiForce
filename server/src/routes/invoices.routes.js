@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect, restrictTo } = require('../middleware/auth');
+const { protect, requirePermission } = require('../middleware/auth');
 const invoiceService = require('../services/invoice.service');
 const { Invoice, Client } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
@@ -13,7 +13,7 @@ const { generateInvoiceValidation, updateInvoiceStatusValidation, creditNoteVali
 router.use(protect);
 
 // POST /api/invoices/generate — generate invoice for client/period
-router.post('/generate', restrictTo('admin', 'accountant'), validate(generateInvoiceValidation), async (req, res) => {
+router.post('/generate', requirePermission('invoices.generate'), validate(generateInvoiceValidation), async (req, res) => {
   const { clientId, year, month } = req.body;
 
   const invoice = await invoiceService.generateInvoice(
@@ -64,7 +64,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // PUT /api/invoices/:id/status — update status
-router.put('/:id/status', restrictTo('admin', 'accountant'), validate(updateInvoiceStatusValidation), async (req, res) => {
+router.put('/:id/status', requirePermission('invoices.edit'), validate(updateInvoiceStatusValidation), async (req, res) => {
   const { status } = req.body;
 
   const invoice = await Invoice.findById(req.params.id);
@@ -82,7 +82,7 @@ router.put('/:id/status', restrictTo('admin', 'accountant'), validate(updateInvo
 });
 
 // POST /api/invoices/:id/credit-note — add credit note
-router.post('/:id/credit-note', restrictTo('admin', 'accountant'), validate(creditNoteValidation), async (req, res) => {
+router.post('/:id/credit-note', requirePermission('invoices.credit_note'), validate(creditNoteValidation), async (req, res) => {
   const { driverId, amount, reason } = req.body;
 
   const invoice = await invoiceService.addCreditNote(

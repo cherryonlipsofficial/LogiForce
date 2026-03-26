@@ -21,11 +21,20 @@ const userSchema = new mongoose.Schema(
       minlength: 6,
       select: false,
     },
-    role: {
-      type: String,
-      enum: ['admin', 'accountant', 'ops'],
-      default: 'ops',
+    roleId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Role',
+      required: true,
+      index: true,
     },
+    // User-level permission overrides on top of the role permissions
+    permissionOverrides: [{
+      key: { type: String },          // permission key
+      granted: { type: Boolean },     // true = explicitly grant, false = explicitly deny
+      reason: { type: String },       // admin note about why this override exists
+      grantedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      grantedAt: { type: Date, default: Date.now },
+    }],
     isActive: {
       type: Boolean,
       default: true,
@@ -47,6 +56,26 @@ userSchema.pre('save', async function (next) {
 
 userSchema.methods.comparePassword = async function (plaintext) {
   return bcrypt.compare(plaintext, this.password);
+};
+
+userSchema.methods.getPermissions = async function () {
+  await this.populate('roleId');
+  const rolePerms = new Set(this.roleId?.permissions || []);
+
+  // Apply overrides
+  for (const override of this.permissionOverrides || []) {
+    if (override.granted) {
+      rolePerms.add(override.key);
+    } else {
+      rolePerms.delete(override.key);
+    }
+  }
+  return [...rolePerms];
+};
+
+userSchema.methods.hasPermission = async function (permissionKey) {
+  const perms = await this.getPermissions();
+  return perms.includes(permissionKey);
 };
 
 userSchema.methods.toJSON = function () {

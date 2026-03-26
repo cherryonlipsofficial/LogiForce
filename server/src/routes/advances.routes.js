@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect, restrictTo } = require('../middleware/auth');
+const { protect, requirePermission } = require('../middleware/auth');
 const { Advance, DriverLedger } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
@@ -12,7 +12,7 @@ const auditLogger = require('../utils/auditLogger');
 router.use(protect);
 
 // POST /api/advances — issue advance to driver
-router.post('/', restrictTo('admin', 'accountant'), validate(issueAdvanceValidation), async (req, res) => {
+router.post('/', requirePermission('advances.issue'), validate(issueAdvanceValidation), async (req, res) => {
   const { driverId, amountIssued, notes } = req.body;
 
   const advance = await Advance.create({
@@ -69,7 +69,7 @@ router.get('/', async (req, res) => {
 });
 
 // PUT /api/advances/:id/recover — manual recovery entry
-router.put('/:id/recover', restrictTo('admin', 'accountant'), validate(recoverAdvanceValidation), async (req, res) => {
+router.put('/:id/recover', requirePermission('advances.recover'), validate(recoverAdvanceValidation), async (req, res) => {
   const { amount, salaryRunId } = req.body;
 
   const advance = await Advance.findById(req.params.id);

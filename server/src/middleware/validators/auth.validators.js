@@ -21,9 +21,9 @@ const registerValidation = [
   body('password')
     .notEmpty().withMessage('Password is required')
     .isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-  body('role')
-    .optional()
-    .isIn(['admin', 'accountant', 'ops']).withMessage('Role must be admin, accountant, or ops'),
+  body('roleId')
+    .notEmpty().withMessage('Role is required')
+    .isMongoId().withMessage('roleId must be a valid ObjectId'),
 ];
 
 const changePasswordValidation = [

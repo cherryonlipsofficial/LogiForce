@@ -1,4 +1,5 @@
 const User = require('./User');
+const Role = require('./Role');
 const Driver = require('./Driver');
 const Client = require('./Client');
 const Supplier = require('./Supplier');
@@ -17,6 +18,7 @@ const DriverProjectAssignment = require('./DriverProjectAssignment');
 
 module.exports = {
   User,
+  Role,
   Driver,
   Client,
   Supplier,
