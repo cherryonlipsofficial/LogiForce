@@ -1,7 +1,11 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { useSyncTime } from '../../hooks/useSyncTime.jsx';
+import toast from 'react-hot-toast';
+import axiosInstance from '../../api/axiosInstance';
+import Modal from '../ui/Modal';
+import Btn from '../ui/Btn';
 
 const pageTitles = {
   dashboard: 'Finance overview',
@@ -12,12 +16,207 @@ const pageTitles = {
   clients: 'Client management',
   suppliers: 'Supplier management',
   reports: 'Reports & analytics',
+  settings: 'Settings',
+  users: 'Settings',
+  roles: 'Settings',
 };
 
+/* ── My Permissions Modal ── */
+const MyPermissionsModal = ({ onClose }) => {
+  const { data, isLoading } = useQuery({
+    queryKey: ['my-permissions'],
+    queryFn: () => axiosInstance.get('/auth/permissions').then((r) => r.data.data),
+  });
+
+  const perms = data?.permissions || [];
+  const role = data?.role || {};
+  const [collapsed, setCollapsed] = useState({});
+
+  // Group permissions by module (using the key prefix)
+  const grouped = {};
+  perms.forEach((key) => {
+    const mod = key.split('.')[0];
+    if (!grouped[mod]) grouped[mod] = [];
+    grouped[mod].push(key);
+  });
+
+  return (
+    <Modal title="Your access permissions" width={500} onClose={onClose}>
+      <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 16, lineHeight: 1.5 }}>
+        Role: <strong style={{ color: 'var(--text)' }}>{role.displayName || role.name || '—'}</strong>{' '}
+        · {perms.length} permissions granted
+      </div>
+
+      {isLoading ? (
+        <div style={{ padding: 24, textAlign: 'center', color: 'var(--text3)' }}>Loading...</div>
+      ) : (
+        <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+          {Object.keys(grouped).sort().map((mod) => {
+            const isCollapsed = collapsed[mod];
+            return (
+              <div key={mod} style={{ marginBottom: 4 }}>
+                <button
+                  onClick={() => setCollapsed((c) => ({ ...c, [mod]: !c[mod] }))}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    width: '100%',
+                    padding: '8px 12px',
+                    background: 'var(--surface2)',
+                    borderRadius: 8,
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text)',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 10,
+                      color: 'var(--text3)',
+                      transition: 'transform .15s',
+                      transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                    }}
+                  >
+                    ▼
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}>{mod}</span>
+                  <span style={{ fontSize: 10, color: 'var(--text3)' }}>{grouped[mod].length}</span>
+                </button>
+                {!isCollapsed &&
+                  grouped[mod].sort().map((key) => (
+                    <div
+                      key={key}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '6px 12px 6px 32px',
+                        borderBottom: '1px solid var(--border)',
+                      }}
+                    >
+                      <span style={{ color: '#4ade80', fontSize: 12 }}>✓</span>
+                      <span style={{ fontSize: 12, color: 'var(--text2)' }}>{key}</span>
+                    </div>
+                  ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 16, lineHeight: 1.5 }}>
+        Need additional access? Contact your system administrator.
+      </div>
+    </Modal>
+  );
+};
+
+/* ── Change Password Modal ── */
+const ChangePasswordModal = ({ onClose }) => {
+  const [form, setForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const inputStyle = {
+    width: '100%',
+    padding: '8px 12px',
+    borderRadius: 8,
+    border: '1px solid var(--border2)',
+    background: 'var(--surface2)',
+    color: 'var(--text)',
+    fontSize: 13,
+    outline: 'none',
+  };
+
+  const labelStyle = {
+    display: 'block',
+    fontSize: 11,
+    fontWeight: 500,
+    color: 'var(--text2)',
+    marginBottom: 4,
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!form.currentPassword || !form.newPassword) {
+      setError('All fields are required');
+      return;
+    }
+    if (form.newPassword.length < 8) {
+      setError('New password must be at least 8 characters');
+      return;
+    }
+    if (form.newPassword !== form.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    setLoading(true);
+    try {
+      await axiosInstance.put('/auth/change-password', {
+        currentPassword: form.currentPassword,
+        newPassword: form.newPassword,
+      });
+      toast.success('Password changed successfully');
+      onClose();
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to change password');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal title="Change password" width={400} onClose={onClose}>
+      <form onSubmit={handleSubmit}>
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>Current password</label>
+          <input
+            style={inputStyle}
+            type="password"
+            value={form.currentPassword}
+            onChange={(e) => setForm({ ...form, currentPassword: e.target.value })}
+          />
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>New password</label>
+          <input
+            style={inputStyle}
+            type="password"
+            value={form.newPassword}
+            onChange={(e) => setForm({ ...form, newPassword: e.target.value })}
+          />
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <label style={labelStyle}>Confirm new password</label>
+          <input
+            style={inputStyle}
+            type="password"
+            value={form.confirmPassword}
+            onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
+          />
+        </div>
+        {error && <div style={{ fontSize: 12, color: '#f87171', marginBottom: 12 }}>{error}</div>}
+        <Btn variant="primary" type="submit" disabled={loading} style={{ width: '100%', justifyContent: 'center' }}>
+          {loading ? 'Changing...' : 'Change password'}
+        </Btn>
+      </form>
+    </Modal>
+  );
+};
+
+/* ── Topbar ── */
 const Topbar = ({ page }) => {
-  const { user } = useAuth();
+  const { user, logout, role } = useAuth();
   const searchRef = useRef(null);
   const lastSynced = useSyncTime();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showPerms, setShowPerms] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const menuRef = useRef(null);
+
+  const roleName = user?.roleId?.displayName || role || 'User';
 
   // Cmd/Ctrl+K shortcut to focus search
   const handleKeyDown = useCallback((e) => {
@@ -32,120 +231,247 @@ const Topbar = ({ page }) => {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
+  // Close menu on click outside
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClick = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [menuOpen]);
+
+  const initials = user?.name
+    ?.split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase() || 'U';
+
   return (
-    <div
-      style={{
-        height: 'var(--topbar-h)',
-        background: 'var(--surface)',
-        borderBottom: '1px solid var(--border)',
-        position: 'fixed',
-        top: 0,
-        left: 'var(--sidebar-w)',
-        right: 0,
-        zIndex: 40,
-        display: 'flex',
-        alignItems: 'center',
-        padding: '0 24px',
-        gap: 16,
-      }}
-    >
-      <div style={{ flex: 1 }}>
-        <h1
-          style={{
-            fontSize: 15,
-            fontWeight: 500,
-            letterSpacing: '-0.2px',
-            margin: 0,
-          }}
-        >
-          {pageTitles[page] || page}
-        </h1>
-        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>
-          March 2026 · UAE/GCC Operations
+    <>
+      <div
+        style={{
+          height: 'var(--topbar-h)',
+          background: 'var(--surface)',
+          borderBottom: '1px solid var(--border)',
+          position: 'fixed',
+          top: 0,
+          left: 'var(--sidebar-w)',
+          right: 0,
+          zIndex: 40,
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 24px',
+          gap: 16,
+        }}
+      >
+        <div style={{ flex: 1 }}>
+          <h1
+            style={{
+              fontSize: 15,
+              fontWeight: 500,
+              letterSpacing: '-0.2px',
+              margin: 0,
+            }}
+          >
+            {pageTitles[page] || page}
+          </h1>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>
+            March 2026 · UAE/GCC Operations
+          </div>
         </div>
-      </div>
-      <div style={{ position: 'relative', width: 220 }}>
-        <input
-          ref={searchRef}
-          placeholder="Search drivers, invoices..."
-          style={{ paddingLeft: 32, paddingRight: 40, fontSize: 12, height: 34, width: '100%' }}
-        />
-        <span
-          style={{
-            position: 'absolute',
-            left: 10,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: 'var(--text3)',
-            fontSize: 13,
-            pointerEvents: 'none',
-          }}
-        >
-          &#x2315;
-        </span>
-        <span
-          style={{
-            position: 'absolute',
-            right: 8,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: 'var(--text3)',
-            fontSize: 10,
-            pointerEvents: 'none',
-            background: 'var(--surface2)',
-            border: '1px solid var(--border)',
-            borderRadius: 4,
-            padding: '1px 5px',
-            fontFamily: 'var(--mono)',
-          }}
-        >
-          ⌘K
-        </span>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {lastSynced && (
+        <div style={{ position: 'relative', width: 220 }}>
+          <input
+            ref={searchRef}
+            placeholder="Search drivers, invoices..."
+            style={{ paddingLeft: 32, paddingRight: 40, fontSize: 12, height: 34, width: '100%' }}
+          />
           <span
             style={{
-              fontSize: 10,
+              position: 'absolute',
+              left: 10,
+              top: '50%',
+              transform: 'translateY(-50%)',
               color: 'var(--text3)',
-              whiteSpace: 'nowrap',
+              fontSize: 13,
+              pointerEvents: 'none',
             }}
-            title={`Last synced: ${lastSynced.toLocaleTimeString()}`}
           >
-            Synced {formatTimeSince(lastSynced)}
+            &#x2315;
           </span>
-        )}
-        <button
-          style={{
-            background: 'rgba(239,68,68,0.12)',
-            color: '#ef6060',
-            border: '1px solid rgba(239,68,68,0.2)',
-            borderRadius: 8,
-            padding: '6px 14px',
-            fontSize: 12,
-            fontWeight: 500,
-          }}
-        >
-          9 alerts
-        </button>
-        <button
-          style={{
-            background:
-              'linear-gradient(135deg,var(--accent),var(--accent2))',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 8,
-            padding: '7px 16px',
-            fontSize: 12,
-            fontWeight: 500,
-          }}
-        >
-          + Run payroll
-        </button>
+          <span
+            style={{
+              position: 'absolute',
+              right: 8,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--text3)',
+              fontSize: 10,
+              pointerEvents: 'none',
+              background: 'var(--surface2)',
+              border: '1px solid var(--border)',
+              borderRadius: 4,
+              padding: '1px 5px',
+              fontFamily: 'var(--mono)',
+            }}
+          >
+            ⌘K
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {lastSynced && (
+            <span
+              style={{
+                fontSize: 10,
+                color: 'var(--text3)',
+                whiteSpace: 'nowrap',
+              }}
+              title={`Last synced: ${lastSynced.toLocaleTimeString()}`}
+            >
+              Synced {formatTimeSince(lastSynced)}
+            </span>
+          )}
+          <button
+            style={{
+              background: 'rgba(239,68,68,0.12)',
+              color: '#ef6060',
+              border: '1px solid rgba(239,68,68,0.2)',
+              borderRadius: 8,
+              padding: '6px 14px',
+              fontSize: 12,
+              fontWeight: 500,
+            }}
+          >
+            9 alerts
+          </button>
+          <button
+            style={{
+              background:
+                'linear-gradient(135deg,var(--accent),var(--accent2))',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 8,
+              padding: '7px 16px',
+              fontSize: 12,
+              fontWeight: 500,
+            }}
+          >
+            + Run payroll
+          </button>
+
+          {/* User avatar dropdown trigger */}
+          <div ref={menuRef} style={{ position: 'relative' }}>
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '4px 8px',
+                borderRadius: 8,
+                border: '1px solid var(--border2)',
+                background: menuOpen ? 'var(--surface2)' : 'transparent',
+                cursor: 'pointer',
+                transition: 'all .15s',
+              }}
+            >
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: '50%',
+                  background: 'rgba(79,142,247,0.15)',
+                  border: '1px solid rgba(79,142,247,0.25)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 10,
+                  fontWeight: 500,
+                  color: 'var(--accent)',
+                }}
+              >
+                {initials}
+              </div>
+              <span style={{ fontSize: 10, color: 'var(--text3)' }}>▼</span>
+            </button>
+
+            {/* Dropdown menu */}
+            {menuOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: 6,
+                  width: 220,
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                  overflow: 'hidden',
+                  zIndex: 100,
+                  animation: 'fadeIn .12s ease',
+                }}
+              >
+                <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>
+                    {user?.name || 'User'}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{roleName}</div>
+                </div>
+                <div style={{ padding: '4px' }}>
+                  <MenuButton
+                    label="My permissions"
+                    onClick={() => { setMenuOpen(false); setShowPerms(true); }}
+                  />
+                  <MenuButton
+                    label="Change password"
+                    onClick={() => { setMenuOpen(false); setShowPassword(true); }}
+                  />
+                  <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
+                  <MenuButton
+                    label="Sign out"
+                    danger
+                    onClick={() => { setMenuOpen(false); logout(); }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-    </div>
+
+      {/* Modals rendered outside the topbar */}
+      {showPerms && <MyPermissionsModal onClose={() => setShowPerms(false)} />}
+      {showPassword && <ChangePasswordModal onClose={() => setShowPassword(false)} />}
+    </>
   );
 };
+
+const MenuButton = ({ label, onClick, danger = false }) => (
+  <button
+    onClick={onClick}
+    style={{
+      display: 'block',
+      width: '100%',
+      textAlign: 'left',
+      padding: '8px 10px',
+      borderRadius: 6,
+      border: 'none',
+      background: 'transparent',
+      color: danger ? '#f87171' : 'var(--text2)',
+      fontSize: 12,
+      cursor: 'pointer',
+      transition: 'background .1s',
+    }}
+    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface2)')}
+    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+  >
+    {label}
+  </button>
+);
 
 function formatTimeSince(date) {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
