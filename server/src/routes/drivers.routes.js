@@ -25,15 +25,23 @@ router.get('/expiring-documents', async (req, res) => {
   sendSuccess(res, docs);
 });
 
-// GET /api/drivers/uploads/:fileKey — redirect to Cloudinary URL (must be before /:id)
+// GET /api/drivers/uploads/:fileKey — serve uploaded file (Cloudinary redirect or local)
 router.get('/uploads/:fileKey', async (req, res) => {
   const fileKey = req.params.fileKey;
-  // Look up the document to get its Cloudinary URL
   const doc = await DriverDocument.findOne({ fileKey });
-  if (!doc || !doc.fileUrl) {
+  if (!doc) {
     return sendError(res, 'File not found', 404);
   }
-  res.redirect(doc.fileUrl);
+  // If we have a Cloudinary URL (starts with http), redirect to it
+  if (doc.fileUrl && doc.fileUrl.startsWith('http')) {
+    return res.redirect(doc.fileUrl);
+  }
+  // Otherwise serve from local uploads directory
+  const localPath = path.join(__dirname, '../../uploads/driver-documents', fileKey);
+  if (fs.existsSync(localPath)) {
+    return res.sendFile(localPath);
+  }
+  return sendError(res, 'File not found', 404);
 });
 
 // GET /api/drivers/status-counts — counts by status for KPI cards
