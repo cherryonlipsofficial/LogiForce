@@ -263,7 +263,9 @@ const UserPermissionsModal = ({ user, onClose }) => {
   const extraOverrides = overrides.filter((o) => o.granted);
   const deniedOverrides = overrides.filter((o) => !o.granted);
 
-  const allPermsList = allPerms?.permissions || allPerms || [];
+  const allPermsList = allPerms?.data
+    ? Object.values(allPerms.data.byModule || {}).flat()
+    : allPerms?.permissions || [];
   const rolePermKeys = rolePerms.map((p) => (typeof p === 'string' ? p : p.key));
   const overrideKeys = overrides.map((o) => o.key);
 
@@ -470,8 +472,8 @@ const UsersPanel = () => {
     queryFn: getRoles,
   });
 
-  const roles = rolesData?.roles || rolesData || [];
-  const users = usersData?.users || usersData || [];
+  const roles = rolesData?.data || rolesData?.roles || [];
+  const users = usersData?.data || usersData?.users || [];
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => updateUser(id, data),

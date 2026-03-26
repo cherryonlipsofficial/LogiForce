@@ -360,8 +360,10 @@ const RolesPanel = () => {
     queryFn: getPermissionsList,
   });
 
-  const roles = rolesData?.roles || rolesData || [];
-  const allPerms = allPermsData?.permissions || allPermsData || [];
+  const roles = rolesData?.data || rolesData?.roles || [];
+  const allPerms = allPermsData?.data
+    ? Object.values(allPermsData.data.byModule || {}).flat()
+    : allPermsData?.permissions || [];
 
   // Auto-select first role
   useEffect(() => {
@@ -379,7 +381,7 @@ const RolesPanel = () => {
     enabled: !!selectedId,
   });
 
-  const detail = roleDetail?.role || roleDetail || selectedRole;
+  const detail = roleDetail?.data || roleDetail?.role || selectedRole;
 
   // Sync local perms when role changes
   useEffect(() => {

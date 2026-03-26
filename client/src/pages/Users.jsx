@@ -44,13 +44,13 @@ export default function UsersPage() {
 
   // Data fetching
   const { data: usersData, isLoading: usersLoading } =
-    useQuery({ queryKey: ['users'], queryFn: () => getUsers().then(r => r.data) });
+    useQuery({ queryKey: ['users'], queryFn: getUsers });
 
   const { data: rolesData } =
-    useQuery({ queryKey: ['roles'], queryFn: () => getRoles().then(r => r.data) });
+    useQuery({ queryKey: ['roles'], queryFn: getRoles });
 
-  const users = usersData?.users || [];
-  const roles = rolesData?.roles || [];
+  const users = usersData?.data || [];
+  const roles = rolesData?.data || [];
 
   // Filter users client-side
   const filtered = users.filter(u => {
