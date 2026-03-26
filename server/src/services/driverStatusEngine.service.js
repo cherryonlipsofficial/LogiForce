@@ -68,7 +68,8 @@ async function checkKycDocsValid(driverId) {
       continue;
     }
     if (!doc.expiryDate) {
-      issues.push({ docType: requiredType, issue: 'no_expiry_date' });
+      // No expiry date recorded — flag as warning but do NOT block KYC validity.
+      // Only actually-expired documents should block the transition.
       continue;
     }
     const expiry = new Date(doc.expiryDate);

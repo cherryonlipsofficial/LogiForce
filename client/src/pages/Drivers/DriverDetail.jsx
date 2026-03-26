@@ -692,6 +692,9 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
       await uploadDriverDocument(driverId, formData);
       setDocUploads((prev) => ({ ...prev, [docType]: file.name }));
       queryClient.invalidateQueries({ queryKey: ['driverDocuments', driverId] });
+      queryClient.invalidateQueries({ queryKey: ['driver-status-summary', driverId] });
+      queryClient.invalidateQueries({ queryKey: ['driver', driverId] });
+      queryClient.invalidateQueries({ queryKey: ['drivers'] });
       toast.success('Document uploaded');
     } catch {
       toast.error('Failed to upload document');
