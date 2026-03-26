@@ -14,6 +14,7 @@ import Pagination from '../../components/ui/Pagination';
 import DriverDetail from './DriverDetail';
 import { getDrivers, createDriver, getDriverStatusCounts, exportDriversCsv, bulkImportDrivers, downloadImportTemplate } from '../../api/driversApi';
 import { getClients } from '../../api/clientsApi';
+import { getProjects } from '../../api/projectsApi';
 
 const fallbackDrivers = [
   { id: 'DRV-00814', name: 'Mohamed Al Farsi', nationality: 'Emirati', client: 'Amazon UAE', supplier: 'Own vehicle', status: 'active', baseSalary: 2800, netSalary: 2313, advanceBalance: 500, workingDays: 22, overtimeHrs: 4.5, grossSalary: 2800, deductions: 487, joinDate: '03 Mar 2023', visaExpiry: '15 Apr 2026', emiratesId: '784-1985-1234567-1', phone: '+971 55 123 4567', vehicle: 'AB-12345', payStructure: 'Monthly fixed' },
@@ -32,12 +33,12 @@ const Drivers = () => {
   const [showBulkImportModal, setShowBulkImportModal] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [clientFilter, setClientFilter] = useState('all');
+  const [projectFilter, setProjectFilter] = useState('all');
   const [page, setPage] = useState(1);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['drivers', { search, status: statusFilter, clientId: clientFilter, page }],
-    queryFn: () => getDrivers({ search, status: statusFilter !== 'all' ? statusFilter : undefined, clientId: clientFilter !== 'all' ? clientFilter : undefined, page, limit: 20 }),
+    queryKey: ['drivers', { search, status: statusFilter, projectId: projectFilter, page }],
+    queryFn: () => getDrivers({ search, status: statusFilter !== 'all' ? statusFilter : undefined, projectId: projectFilter !== 'all' ? projectFilter : undefined, page, limit: 20 }),
     retry: 1,
     onError: () => toast.error('Failed to load drivers'),
   });
@@ -47,11 +48,11 @@ const Drivers = () => {
     queryFn: () => getDriverStatusCounts(),
   });
 
-  const { data: clientsData } = useQuery({
-    queryKey: ['clients-list'],
-    queryFn: () => getClients({ limit: 1000 }),
+  const { data: projectsData } = useQuery({
+    queryKey: ['projects-list'],
+    queryFn: () => getProjects({ limit: 1000 }),
   });
-  const clientsList = clientsData?.data || [];
+  const projectsList = projectsData?.data || [];
 
   const drivers = data?.data || fallbackDrivers;
   const pagination = data?.pagination;
@@ -61,7 +62,7 @@ const Drivers = () => {
     try {
       const params = {
         status: statusFilter !== 'all' ? statusFilter : undefined,
-        clientId: clientFilter !== 'all' ? clientFilter : undefined,
+        projectId: projectFilter !== 'all' ? projectFilter : undefined,
         search: search || undefined,
       };
       const response = await exportDriversCsv(params);
@@ -125,9 +126,9 @@ const Drivers = () => {
             <option value="on_leave">On leave</option>
             <option value="suspended">Suspended</option>
           </select>
-          <select value={clientFilter} onChange={(e) => { setClientFilter(e.target.value); setPage(1); }} style={{ width: 160, height: 34 }}>
-            <option value="all">All clients</option>
-            {clientsList.map((c) => (
+          <select value={projectFilter} onChange={(e) => { setProjectFilter(e.target.value); setPage(1); }} style={{ width: 160, height: 34 }}>
+            <option value="all">All projects</option>
+            {projectsList.map((c) => (
               <option key={c._id} value={c._id}>{c.name}</option>
             ))}
           </select>
@@ -147,7 +148,7 @@ const Drivers = () => {
             <table style={{ width: '100%' }}>
               <thead>
                 <tr>
-                  {['Driver', 'ID', 'Client', 'Supplier', 'Status', 'Base salary', 'Mar net pay', 'Advance'].map((h) => (
+                  {['Driver', 'ID', 'Project', 'Vehicle', 'Status', 'Base salary', 'Mar net pay', 'Advance'].map((h) => (
                     <th
                       key={h}
                       style={{
@@ -187,8 +188,8 @@ const Drivers = () => {
                     <td style={{ padding: '11px 14px' }}>
                       <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>{d.employeeCode || d.id}</span>
                     </td>
-                    <td style={{ padding: '11px 14px', fontSize: 12 }}>{d.clientId?.name || d.client}</td>
-                    <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--text2)' }}>{d.supplierId?.name || d.supplier}</td>
+                    <td style={{ padding: '11px 14px', fontSize: 12 }}>{d.projectId?.name || d.project || '—'}</td>
+                    <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--text2)' }}>{d.vehiclePlate || '—'}</td>
                     <td style={{ padding: '11px 14px' }}><StatusBadge status={d.status} /></td>
                     <td style={{ padding: '11px 14px' }}>
                       <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>AED {(d.baseSalary || 0).toLocaleString()}</span>

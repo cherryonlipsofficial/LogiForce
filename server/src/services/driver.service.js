@@ -14,6 +14,9 @@ const findAll = async (filters = {}, pagination = {}) => {
   if (filters.clientId) {
     query.clientId = filters.clientId;
   }
+  if (filters.projectId) {
+    query.projectId = filters.projectId;
+  }
   if (filters.search) {
     query.$or = [
       { fullName: { $regex: filters.search, $options: 'i' } },
@@ -27,6 +30,7 @@ const findAll = async (filters = {}, pagination = {}) => {
     Driver.find(query)
       .populate('clientId', 'name')
       .populate('supplierId', 'name')
+      .populate('projectId', 'name')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),
