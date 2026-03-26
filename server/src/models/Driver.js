@@ -95,6 +95,7 @@ const driverSchema = new mongoose.Schema(
       enum: [
         'draft',
         'pending_kyc',
+        'pending_verification',
         'active',
         'on_leave',
         'suspended',
@@ -102,6 +103,24 @@ const driverSchema = new mongoose.Schema(
         'offboarding',
       ],
       default: 'draft',
+    },
+    contactsVerified: {
+      type: Boolean,
+      default: false,
+    },
+    clientUserId: {
+      type: String,
+      default: null,
+    },
+    lastStatusChange: {
+      from: String,
+      to: String,
+      reason: String,
+      changedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+      changedAt: Date,
     },
     clientId: {
       type: mongoose.Schema.Types.ObjectId,
