@@ -41,15 +41,16 @@ router.post('/register', validate(registerValidation), async (req, res) => {
 router.post('/login', loginLimiter, validate(loginValidation), async (req, res) => {
   const { email, password } = req.body;
   const { token, user } = await authService.login(email, password);
-  sendSuccess(res, { token, user });
+  const authData = await authService.buildAuthResponse(user);
+  sendSuccess(res, { token, ...authData });
 });
 
 // GET /api/auth/me
 router.get('/me', protect, async (req, res) => {
   const user = await User.findById(req.user.id).populate('roleId');
   if (!user) return sendError(res, 'User not found', 404);
-  const permissions = await user.getPermissions();
-  sendSuccess(res, { ...user.toJSON(), permissions });
+  const authData = await authService.buildAuthResponse(user);
+  sendSuccess(res, authData);
 });
 
 // PUT /api/auth/change-password
