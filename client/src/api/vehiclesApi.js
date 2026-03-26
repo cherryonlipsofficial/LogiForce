@@ -51,6 +51,9 @@ export const renewContract = (vehicleId, data) =>
 export const getExpiringContracts = (days) =>
   axiosInstance.get('/vehicles/contracts/expiring', { params: { days } }).then((r) => r.data);
 
+export const terminateContract = (vehicleId, data) =>
+  axiosInstance.put(`/vehicles/${vehicleId}/contract/terminate`, data).then((r) => r.data);
+
 // History
 export const getVehicleHistory = (vehicleId) =>
   axiosInstance.get(`/vehicles/${vehicleId}/history`).then((r) => r.data);

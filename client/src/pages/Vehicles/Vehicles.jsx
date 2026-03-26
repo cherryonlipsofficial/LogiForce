@@ -6,6 +6,7 @@ import FleetFilters from '../../components/vehicles/FleetFilters';
 import VehicleCard from '../../components/vehicles/VehicleCard';
 import AssignVehicleModal from '../../components/vehicles/AssignVehicleModal';
 import ReturnVehicleModal from '../../components/vehicles/ReturnVehicleModal';
+import VehicleDetailPanel from '../../components/vehicles/VehicleDetailPanel';
 
 const skeletonPulse = {
   animation: 'vehiclePulse 1.5s ease-in-out infinite',
@@ -194,7 +195,14 @@ const VehiclesPage = () => {
         />
       )}
 
-      {detailVehicle && <div>Detail panel coming in 3e</div>}
+      {detailVehicle && (
+        <VehicleDetailPanel
+          vehicleId={detailVehicle._id}
+          onClose={() => setDetailVehicle(null)}
+          onAssignClick={(v) => { setDetailVehicle(null); setAssignVehicle(v); }}
+          onReturnClick={(v) => { setDetailVehicle(null); setReturnVehicle(v); }}
+        />
+      )}
     </div>
   );
 };
