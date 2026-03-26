@@ -31,4 +31,45 @@ const register = async (userData) => {
   return { token, user };
 };
 
-module.exports = { generateToken, login, register };
+/**
+ * Build a unified auth response containing user, permissions, and isAdmin flag.
+ * Used by both login and /me endpoints to avoid a second round-trip.
+ */
+const buildAuthResponse = async (user) => {
+  if (!user.roleId || typeof user.roleId === 'string') {
+    await user.populate('roleId');
+  }
+
+  const isAdmin = user.roleId?.isSystemRole === true
+                  && user.roleId?.name === 'admin';
+
+  if (isAdmin) {
+    const { getAllKeys } = require('../config/permissions');
+    return {
+      user: {
+        _id: user._id, name: user.name, email: user.email,
+        isActive: user.isActive, lastLogin: user.lastLogin,
+        roleId: user.roleId,
+      },
+      permissions: getAllKeys(),
+      isAdmin: true,
+    };
+  }
+
+  const rolePerms = new Set(user.roleId?.permissions || []);
+  for (const ov of user.permissionOverrides || []) {
+    ov.granted ? rolePerms.add(ov.key) : rolePerms.delete(ov.key);
+  }
+
+  return {
+    user: {
+      _id: user._id, name: user.name, email: user.email,
+      isActive: user.isActive, lastLogin: user.lastLogin,
+      roleId: user.roleId,
+    },
+    permissions: [...rolePerms],
+    isAdmin: false,
+  };
+};
+
+module.exports = { generateToken, login, register, buildAuthResponse };

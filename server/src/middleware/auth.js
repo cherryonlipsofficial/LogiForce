@@ -32,22 +32,25 @@ const requirePermission = (permissionKey) => {
         return res.status(401).json({ success: false, message: 'Not authenticated' });
       }
 
-      // Populate roleId if not already populated
-      if (!req.user.roleId || typeof req.user.roleId === 'string') {
-        await req.user.populate('roleId', 'permissions name isSystemRole');
+      const user = await User.findById(req.user._id)
+        .populate('roleId', 'permissions name isSystemRole');
+
+      if (!user) {
+        return res.status(401).json({ success: false, message: 'User not found' });
+      }
+
+      // ── ADMIN BYPASS ──
+      // System admin always passes all permission checks
+      if (user.roleId?.isSystemRole === true && user.roleId?.name === 'admin') {
+        req.userPermissions = ['*'];
+        return next();
       }
 
       // Build effective permission set: role permissions + user overrides
-      const rolePerms = new Set(req.user.roleId?.permissions || []);
-      for (const override of req.user.permissionOverrides || []) {
+      const rolePerms = new Set(user.roleId?.permissions || []);
+      for (const override of user.permissionOverrides || []) {
         if (override.granted) rolePerms.add(override.key);
         else rolePerms.delete(override.key);
-      }
-
-      // Admin system role bypasses all permission checks
-      if (req.user.roleId?.name === 'admin' && req.user.roleId?.isSystemRole) {
-        req.userPermissions = [...rolePerms];
-        return next();
       }
 
       if (!rolePerms.has(permissionKey)) {

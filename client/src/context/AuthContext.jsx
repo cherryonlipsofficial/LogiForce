@@ -4,82 +4,78 @@ import axiosInstance from '../api/axiosInstance';
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('token'));
-  const [loading, setLoading] = useState(true);
-  const [permissions, setPermissions] = useState([]);
-
-  const fetchPermissions = async () => {
-    try {
-      const res = await axiosInstance.get('/auth/permissions');
-      setPermissions(res.data.data?.permissions || []);
-    } catch {
-      setPermissions([]);
-    }
-  };
+  const [state, setState] = useState({
+    user: null,
+    token: localStorage.getItem('token') || null,
+    permissions: [],
+    isAdmin: false,
+    isAuthenticated: false,
+    isLoading: true,
+  });
 
   useEffect(() => {
-    if (token) {
-      axiosInstance
-        .get('/auth/me')
-        .then((res) => {
-          setUser(res.data.data);
-          return fetchPermissions();
-        })
-        .catch(() => {
-          localStorage.removeItem('token');
-          setToken(null);
-          setPermissions([]);
-        })
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setState(s => ({ ...s, isLoading: false }));
+      return;
     }
-  }, [token]);
+    axiosInstance.get('/auth/me')
+      .then(res => {
+        const { user, permissions, isAdmin } = res.data.data;
+        setState({
+          user,
+          token,
+          permissions: permissions || [],
+          isAdmin: !!isAdmin,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+      })
+      .catch(() => {
+        localStorage.removeItem('token');
+        setState({ user: null, token: null, permissions: [],
+                   isAdmin: false, isAuthenticated: false, isLoading: false });
+      });
+  }, []);
 
   const login = async (credentials) => {
     const res = await axiosInstance.post('/auth/login', credentials);
-    const { token: newToken, user: newUser } = res.data.data;
-    localStorage.setItem('token', newToken);
-    setToken(newToken);
-    setUser(newUser);
-    // Fetch permissions immediately after login
-    try {
-      const permRes = await axiosInstance.get('/auth/permissions', {
-        headers: { Authorization: `Bearer ${newToken}` },
-      });
-      setPermissions(permRes.data.data?.permissions || []);
-    } catch {
-      setPermissions([]);
-    }
+    const { token, user, permissions, isAdmin } = res.data.data;
+    localStorage.setItem('token', token);
+    setState({ user, token, permissions: permissions || [],
+               isAdmin: !!isAdmin, isAuthenticated: true, isLoading: false });
     return res.data;
   };
 
   const logout = () => {
     localStorage.removeItem('token');
-    setToken(null);
-    setUser(null);
-    setPermissions([]);
+    setState({ user: null, token: null, permissions: [],
+               isAdmin: false, isAuthenticated: false, isLoading: false });
   };
 
   const hasPermission = useCallback(
-    (key) => permissions.includes(key),
-    [permissions]
+    (key) => {
+      if (state.isAdmin) return true;
+      return state.permissions.includes(key);
+    },
+    [state.permissions, state.isAdmin]
   );
 
   const value = useMemo(
     () => ({
-      user,
-      token,
-      loading,
+      user: state.user,
+      token: state.token,
+      loading: state.isLoading,
+      isLoading: state.isLoading,
+      isAdmin: state.isAdmin,
       login,
       logout,
-      isAuthenticated: !!user,
-      role: user?.roleId?.name || user?.role || null,
-      permissions,
+      isAuthenticated: state.isAuthenticated,
+      role: state.user?.roleId?.name || state.user?.role || null,
+      permissions: state.permissions,
       hasPermission,
     }),
-    [user, token, loading, permissions, hasPermission]
+    [state, hasPermission]
   );
 
   return (
