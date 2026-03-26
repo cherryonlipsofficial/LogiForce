@@ -129,6 +129,36 @@ router.post('/bulk-import', requirePermission('drivers.create'), (req, res, next
       return sendError(res, 'Unsupported file format. Use .csv or .xlsx', 400);
     }
 
+    // Normalize row keys: strip BOM, trim whitespace, and map common
+    // header variations (e.g. "Full Name", "full_name") to camelCase keys
+    const KEY_MAP = {
+      fullname: 'fullName', full_name: 'fullName', 'full name': 'fullName',
+      nationality: 'nationality',
+      phoneuae: 'phoneUae', phone_uae: 'phoneUae', 'phone uae': 'phoneUae', 'uae phone': 'phoneUae',
+      emiratesid: 'emiratesId', emirates_id: 'emiratesId', 'emirates id': 'emiratesId',
+      project: 'project',
+      paystructure: 'payStructure', pay_structure: 'payStructure', 'pay structure': 'payStructure',
+      basesalary: 'baseSalary', base_salary: 'baseSalary', 'base salary': 'baseSalary',
+      joindate: 'joinDate', join_date: 'joinDate', 'join date': 'joinDate',
+      joiningdate: 'joinDate', joining_date: 'joinDate', 'joining date': 'joinDate',
+      passportnumber: 'passportNumber', passport_number: 'passportNumber', 'passport number': 'passportNumber',
+      visanumber: 'visaNumber', visa_number: 'visaNumber', 'visa number': 'visaNumber',
+      bankname: 'bankName', bank_name: 'bankName', 'bank name': 'bankName',
+      iban: 'iban',
+      vehicleplate: 'vehiclePlate', vehicle_plate: 'vehiclePlate', 'vehicle plate': 'vehiclePlate',
+      vehicletype: 'vehicleType', vehicle_type: 'vehicleType', 'vehicle type': 'vehicleType',
+    };
+    rows = rows.map(row => {
+      const normalized = {};
+      for (const [key, value] of Object.entries(row)) {
+        // Strip BOM (\uFEFF), trim whitespace, lowercase for lookup
+        const clean = key.replace(/^\uFEFF/, '').trim().toLowerCase();
+        const mapped = KEY_MAP[clean] || key.replace(/^\uFEFF/, '').trim();
+        normalized[mapped] = value;
+      }
+      return normalized;
+    });
+
     if (rows.length === 0) return sendError(res, 'File is empty or has no data rows', 400);
     if (rows.length > 500) return sendError(res, 'Maximum 500 rows per import', 400);
 
