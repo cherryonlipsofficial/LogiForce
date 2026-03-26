@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getVehicles } from '../../api/vehiclesApi';
 import FleetSummaryBar from '../../components/vehicles/FleetSummaryBar';
 import FleetFilters from '../../components/vehicles/FleetFilters';
+import SupplierCatalogView from '../../components/vehicles/SupplierCatalogView';
 import VehicleCard from '../../components/vehicles/VehicleCard';
 import AssignVehicleModal from '../../components/vehicles/AssignVehicleModal';
 import ReturnVehicleModal from '../../components/vehicles/ReturnVehicleModal';
@@ -174,9 +175,7 @@ const VehiclesPage = () => {
           )}
         </div>
       ) : (
-        <div style={{ color: 'var(--text3)', fontSize: 13 }}>
-          Supplier catalog — coming soon
-        </div>
+        <SupplierCatalogView />
       )}
 
       {assignVehicle && (
