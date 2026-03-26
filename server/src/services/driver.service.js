@@ -68,17 +68,24 @@ const create = async (data, userId) => {
   return driver;
 };
 
-const update = async (id, data, userId) => {
-  const driver = await Driver.findByIdAndUpdate(id, data, {
-    new: true,
-    runValidators: true,
-  });
-
-  if (!driver) {
+const update = async (id, data, userId, { isAdmin = false } = {}) => {
+  // If driver is active, only admin users can edit
+  const existing = await Driver.findById(id);
+  if (!existing) {
     const err = new Error('Driver not found');
     err.statusCode = 404;
     throw err;
   }
+  if (existing.status === 'active' && !isAdmin) {
+    const err = new Error('Only admin users can edit an active driver');
+    err.statusCode = 403;
+    throw err;
+  }
+
+  const driver = await Driver.findByIdAndUpdate(id, data, {
+    new: true,
+    runValidators: true,
+  });
 
   await evaluateAndTransition(id, userId);
 
