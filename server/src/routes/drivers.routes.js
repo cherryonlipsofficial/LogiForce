@@ -140,14 +140,39 @@ router.post('/bulk-import', requirePermission('drivers.create'), (req, res, next
   }
 });
 
-// GET /api/drivers/bulk-import/template — download CSV template
+// GET /api/drivers/bulk-import/template — download XLSX template
 router.get('/bulk-import/template', async (req, res) => {
+  const XLSX = require('xlsx');
   const headers = ['fullName', 'nationality', 'phoneUae', 'baseSalary', 'payStructure', 'project', 'emiratesId', 'joinDate', 'passportNumber', 'visaNumber', 'bankName', 'iban', 'vehiclePlate', 'vehicleType', 'status'];
   const exampleRow = ['Mohamed Al Farsi', 'Emirati', '+971501234567', '2800', 'MONTHLY_FIXED', 'Amazon Last Mile', '784-1985-1234567-1', '2023-03-01', '', '', '', '', '', '', ''];
-  const csv = [headers.join(','), exampleRow.join(',')].join('\n');
-  res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', 'attachment; filename=drivers-import-template.csv');
-  res.send(csv);
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, exampleRow]);
+
+  // Set phone, visa, emirates ID, passport, IBAN columns to text format (@)
+  // so Excel doesn't convert large numbers to scientific notation
+  const textColumns = ['phoneUae', 'emiratesId', 'passportNumber', 'visaNumber', 'iban'];
+  const textColIndices = textColumns.map(h => headers.indexOf(h)).filter(i => i !== -1);
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (const colIdx of textColIndices) {
+    for (let row = range.s.r; row <= range.e.r; row++) {
+      const cellRef = XLSX.utils.encode_cell({ r: row, c: colIdx });
+      if (ws[cellRef]) {
+        ws[cellRef].t = 's';
+        ws[cellRef].z = '@';
+      }
+    }
+    // Set column width for readability
+    if (!ws['!cols']) ws['!cols'] = [];
+    ws['!cols'][colIdx] = { wch: 20 };
+  }
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Drivers');
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', 'attachment; filename=drivers-import-template.xlsx');
+  res.send(buf);
 });
 
 // GET /api/drivers — list with pagination, search, filter
