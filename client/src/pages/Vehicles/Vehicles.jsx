@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import FleetSummaryBar from '../../components/vehicles/FleetSummaryBar';
 import FleetFilters from '../../components/vehicles/FleetFilters';
+import SupplierCatalogView from '../../components/vehicles/SupplierCatalogView';
 
 const tabPill = (active) => ({
   padding: '7px 18px',
@@ -76,9 +77,7 @@ const VehiclesPage = () => {
           {/* Vehicle card grid will go here */}
         </div>
       ) : (
-        <div style={{ color: 'var(--text3)', fontSize: 13 }}>
-          Supplier catalog — coming soon
-        </div>
+        <SupplierCatalogView />
       )}
     </div>
   );
