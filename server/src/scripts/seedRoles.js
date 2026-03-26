@@ -1,0 +1,111 @@
+const Role = require('../models/Role');
+const { PERMISSIONS } = require('../config/permissions');
+
+const allKeys = Object.keys(PERMISSIONS);
+
+const defaultRoles = [
+  {
+    name: 'admin',
+    displayName: 'Administrator',
+    description: 'Full access to all modules',
+    isSystemRole: true,
+    permissions: allKeys, // admin gets everything
+  },
+  {
+    name: 'accountant',
+    displayName: 'Accountant',
+    description: 'Finance and payroll access, read-only on operations',
+    isSystemRole: false,
+    permissions: [
+      'drivers.view', 'drivers.view_ledger',
+      'clients.view',
+      'projects.view',
+      'suppliers.view',
+      'vehicles.view',
+      'attendance.view', 'attendance.approve',
+      'salary.view', 'salary.run', 'salary.approve',
+      'salary.adjust', 'salary.export_wps',
+      'invoices.view', 'invoices.generate', 'invoices.edit',
+      'invoices.credit_note', 'invoices.download',
+      'advances.view', 'advances.issue', 'advances.recover',
+      'reports.view', 'reports.export', 'reports.financial',
+      'settings.view',
+      'users.view',
+    ],
+  },
+  {
+    name: 'ops',
+    displayName: 'Operations Manager',
+    description: 'Driver and fleet operations, read-only on finance',
+    isSystemRole: false,
+    permissions: [
+      'drivers.view', 'drivers.create', 'drivers.edit',
+      'drivers.manage_docs', 'drivers.change_status',
+      'clients.view', 'clients.create', 'clients.edit',
+      'projects.view', 'projects.create', 'projects.edit',
+      'projects.assign_drivers',
+      'suppliers.view',
+      'vehicles.view', 'vehicles.create', 'vehicles.edit',
+      'vehicles.assign', 'vehicles.manage_catalog',
+      'attendance.view', 'attendance.upload', 'attendance.override',
+      'salary.view',
+      'invoices.view',
+      'advances.view',
+      'reports.view', 'reports.export',
+      'settings.view',
+    ],
+  },
+  {
+    name: 'hr',
+    displayName: 'HR Manager',
+    description: 'Driver HR, documents, status changes. No financial access.',
+    isSystemRole: false,
+    permissions: [
+      'drivers.view', 'drivers.create', 'drivers.edit',
+      'drivers.manage_docs', 'drivers.change_status',
+      'clients.view',
+      'projects.view', 'projects.assign_drivers',
+      'suppliers.view',
+      'vehicles.view',
+      'attendance.view', 'attendance.upload',
+      'salary.view',
+      'reports.view',
+    ],
+  },
+  {
+    name: 'viewer',
+    displayName: 'Read-Only Viewer',
+    description: 'View-only access to all non-financial modules',
+    isSystemRole: false,
+    permissions: [
+      'drivers.view',
+      'clients.view',
+      'projects.view',
+      'suppliers.view',
+      'vehicles.view',
+      'attendance.view',
+      'salary.view',
+      'invoices.view',
+      'reports.view',
+    ],
+  },
+];
+
+const seedRoles = async () => {
+  console.log('Seeding roles...');
+
+  const roles = {};
+  for (const roleData of defaultRoles) {
+    const role = await Role.findOneAndUpdate(
+      { name: roleData.name },
+      { $set: roleData },
+      { upsert: true, new: true }
+    );
+    roles[roleData.name] = role;
+  }
+
+  console.log(`  Created/updated ${Object.keys(roles).length} roles`);
+  return roles;
+};
+
+module.exports = { seedRoles, defaultRoles };

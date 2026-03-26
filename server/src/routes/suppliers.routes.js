@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect, restrictTo } = require('../middleware/auth');
+const { protect, requirePermission } = require('../middleware/auth');
 const { Supplier, Vehicle } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
@@ -45,7 +45,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/suppliers
-router.post('/', restrictTo('admin', 'accountant'), validate(createSupplierValidation), async (req, res) => {
+router.post('/', requirePermission('suppliers.create'), validate(createSupplierValidation), async (req, res) => {
   const supplier = await Supplier.create(req.body);
   sendSuccess(res, supplier, 'Supplier created', 201);
 });
@@ -58,7 +58,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // PUT /api/suppliers/:id
-router.put('/:id', restrictTo('admin', 'accountant'), validate(updateSupplierValidation), async (req, res) => {
+router.put('/:id', requirePermission('suppliers.edit'), validate(updateSupplierValidation), async (req, res) => {
   const supplier = await Supplier.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
     runValidators: true,
@@ -68,7 +68,7 @@ router.put('/:id', restrictTo('admin', 'accountant'), validate(updateSupplierVal
 });
 
 // DELETE /api/suppliers/:id
-router.delete('/:id', restrictTo('admin'), async (req, res) => {
+router.delete('/:id', requirePermission('suppliers.delete'), async (req, res) => {
   const supplier = await Supplier.findByIdAndDelete(req.params.id);
   if (!supplier) return sendError(res, 'Supplier not found', 404);
   sendSuccess(res, null, 'Supplier deleted');

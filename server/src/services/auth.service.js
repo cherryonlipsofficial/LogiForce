@@ -8,7 +8,9 @@ const generateToken = (userId) => {
 };
 
 const login = async (email, password) => {
-  const user = await User.findOne({ email, isActive: true }).select('+password');
+  const user = await User.findOne({ email, isActive: true })
+    .select('+password')
+    .populate('roleId');
   if (!user || !(await user.comparePassword(password))) {
     const err = new Error('Invalid email or password');
     err.statusCode = 401;
@@ -24,6 +26,7 @@ const login = async (email, password) => {
 
 const register = async (userData) => {
   const user = await User.create(userData);
+  await user.populate('roleId');
   const token = generateToken(user._id);
   return { token, user };
 };

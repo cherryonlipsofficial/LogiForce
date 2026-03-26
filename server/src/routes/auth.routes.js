@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const rateLimit = require('express-rate-limit');
-const { protect, restrictTo } = require('../middleware/auth');
+const { protect } = require('../middleware/auth');
 const authService = require('../services/auth.service');
 const User = require('../models/User');
 const { sendSuccess, sendError } = require('../utils/responseHelper');
@@ -25,7 +25,7 @@ router.post('/register', validate(registerValidation), async (req, res) => {
       await new Promise((resolve, reject) => {
         protect(req, res, (err) => (err ? reject(err) : resolve()));
       });
-      if (req.user.role !== 'admin') {
+      if (req.user.roleId?.name !== 'admin') {
         return sendError(res, 'Only admins can register users', 403);
       }
     } catch {
@@ -46,9 +46,10 @@ router.post('/login', loginLimiter, validate(loginValidation), async (req, res) 
 
 // GET /api/auth/me
 router.get('/me', protect, async (req, res) => {
-  const user = await User.findById(req.user.id);
+  const user = await User.findById(req.user.id).populate('roleId');
   if (!user) return sendError(res, 'User not found', 404);
-  sendSuccess(res, user);
+  const permissions = await user.getPermissions();
+  sendSuccess(res, { ...user.toJSON(), permissions });
 });
 
 // PUT /api/auth/change-password

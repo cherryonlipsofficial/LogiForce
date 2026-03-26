@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const connectDB = require('../config/db');
 const {
   User,
+  Role,
   Client,
   Supplier,
   Driver,
@@ -13,6 +14,7 @@ const {
   ProjectContract,
   DriverProjectAssignment,
 } = require('../models');
+const { seedRoles } = require('./seedRoles');
 
 const seed = async () => {
   await connectDB();
@@ -20,6 +22,7 @@ const seed = async () => {
   console.log('Clearing existing data...');
   await Promise.all([
     User.deleteMany({}),
+    Role.deleteMany({}),
     Client.deleteMany({}),
     Supplier.deleteMany({}),
     Driver.deleteMany({}),
@@ -37,12 +40,15 @@ const seed = async () => {
   );
   await Counter.deleteMany({});
 
+  // --- Roles ---
+  const roles = await seedRoles();
+
   // --- Users ---
   console.log('Creating users...');
   const [admin, accountant, ops] = await User.create([
-    { name: 'Admin User', email: 'admin@logiforce.com', password: 'Admin@123', role: 'admin' },
-    { name: 'Sarah Accountant', email: 'accountant@logiforce.com', password: 'Account@123', role: 'accountant' },
-    { name: 'Omar Ops', email: 'ops@logiforce.com', password: 'Ops@1234', role: 'ops' },
+    { name: 'Admin User', email: 'admin@logiforce.com', password: 'Admin@123', roleId: roles.admin._id },
+    { name: 'Sarah Accountant', email: 'accountant@logiforce.com', password: 'Account@123', roleId: roles.accountant._id },
+    { name: 'Omar Ops', email: 'ops@logiforce.com', password: 'Ops@1234', roleId: roles.ops._id },
   ]);
   console.log('  Created 3 users');
 
@@ -305,15 +311,10 @@ const seed = async () => {
     await driver.save();
   };
 
-  // First 8 Amazon drivers → Amazon Project 1 (first 8)
+  // First 8 Amazon drivers → Amazon Project 1
   for (const d of amazonDrivers.slice(0, 8)) {
     await assignDriver(d, amazonProj1);
   }
-
-  // Next 4 → Amazon Project 2 (reuse some amazon drivers — but we only have 8 total)
-  // Per the spec: "Next 4 drivers → Amazon UAE Project 2" — these are the 9th–12th overall
-  // But Amazon only has 8 drivers. So we'll assign first 4 Noon drivers to Noon Project 1
-  // and follow the original assignment intent with what we have.
 
   // Noon: First 5 → Noon Project 1
   for (const d of noonDrivers.slice(0, 5)) {
@@ -431,6 +432,7 @@ const seed = async () => {
   console.log('  Accountant: accountant@logiforce.com / Account@123');
   console.log('  Ops:        ops@logiforce.com / Ops@1234');
   console.log('---');
+  console.log('Roles created: admin, accountant, ops, hr, viewer');
   console.log('Projects created: 6 (3 Amazon UAE, 2 Noon, 1 Talabat)');
   console.log('Driver assignments: 20 drivers assigned to projects');
   console.log('Contracts active: 6');

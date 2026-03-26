@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const router = express.Router();
-const { protect, restrictTo } = require('../middleware/auth');
+const { protect, requirePermission } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const driverService = require('../services/driver.service');
 const { Driver, DriverDocument, SalaryRun } = require('../models');
@@ -78,7 +78,7 @@ router.get('/export', async (req, res) => {
 // POST /api/drivers/bulk-import — bulk import from CSV/XLSX
 // Use memory storage (not Cloudinary) since we need to parse the file locally
 const memoryUpload = require('multer')({ storage: require('multer').memoryStorage() });
-router.post('/bulk-import', restrictTo('ops', 'admin'), (req, res, next) => {
+router.post('/bulk-import', requirePermission('drivers.create'), (req, res, next) => {
   memoryUpload.single('file')(req, res, (err) => {
     if (err) {
       return sendError(res, `File upload error: ${err.message}`, 400);
@@ -144,7 +144,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/drivers — create (ops, admin)
-router.post('/', restrictTo('ops', 'admin'), validate(createDriverValidation), async (req, res) => {
+router.post('/', requirePermission('drivers.create'), validate(createDriverValidation), async (req, res) => {
   const driver = await driverService.create(req.body, req.user._id);
   sendSuccess(res, driver, 'Driver created', 201);
 });
@@ -156,13 +156,13 @@ router.get('/:id', async (req, res) => {
 });
 
 // PUT /api/drivers/:id — update (ops, admin)
-router.put('/:id', restrictTo('ops', 'admin'), validate(updateDriverValidation), async (req, res) => {
+router.put('/:id', requirePermission('drivers.edit'), validate(updateDriverValidation), async (req, res) => {
   const driver = await driverService.update(req.params.id, req.body);
   sendSuccess(res, driver, 'Driver updated');
 });
 
 // DELETE /api/drivers/:id — soft delete (admin only)
-router.delete('/:id', restrictTo('admin'), async (req, res) => {
+router.delete('/:id', requirePermission('drivers.delete'), async (req, res) => {
   const driver = await driverService.softDelete(req.params.id);
   sendSuccess(res, driver, 'Driver set to resigned');
 });
@@ -190,7 +190,7 @@ router.get('/:id/documents', async (req, res) => {
 });
 
 // POST /api/drivers/:id/documents — upload document
-router.post('/:id/documents', restrictTo('ops', 'admin'), upload.single('file'), async (req, res) => {
+router.post('/:id/documents', requirePermission('drivers.manage_docs'), upload.single('file'), async (req, res) => {
   const driver = await Driver.findById(req.params.id);
   if (!driver) return sendError(res, 'Driver not found', 404);
 
@@ -221,7 +221,7 @@ router.post('/:id/documents', restrictTo('ops', 'admin'), upload.single('file'),
 });
 
 // PUT /api/drivers/:id/status — change status with reason
-router.put('/:id/status', restrictTo('ops', 'admin'), validate(changeStatusValidation), async (req, res) => {
+router.put('/:id/status', requirePermission('drivers.change_status'), validate(changeStatusValidation), async (req, res) => {
   const { status, reason } = req.body;
 
   const driver = await Driver.findById(req.params.id);

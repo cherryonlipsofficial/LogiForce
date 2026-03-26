@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const { protect, restrictTo } = require('../middleware/auth');
+const { protect, requirePermission } = require('../middleware/auth');
 const { Client, Driver } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
@@ -44,7 +44,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/clients — create (admin, accountant)
-router.post('/', restrictTo('admin', 'accountant'), validate(createClientValidation), async (req, res) => {
+router.post('/', requirePermission('clients.create'), validate(createClientValidation), async (req, res) => {
   const client = await Client.create(req.body);
   sendSuccess(res, client, 'Client created', 201);
 });
@@ -62,7 +62,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // PUT /api/clients/:id — update (admin, accountant)
-router.put('/:id', restrictTo('admin', 'accountant'), validate(updateClientValidation), async (req, res) => {
+router.put('/:id', requirePermission('clients.edit'), validate(updateClientValidation), async (req, res) => {
   const client = await Client.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
     runValidators: true,
@@ -73,14 +73,14 @@ router.put('/:id', restrictTo('admin', 'accountant'), validate(updateClientValid
 });
 
 // DELETE /api/clients/:id — delete (admin)
-router.delete('/:id', restrictTo('admin'), async (req, res) => {
+router.delete('/:id', requirePermission('clients.delete'), async (req, res) => {
   const client = await Client.findByIdAndDelete(req.params.id);
   if (!client) return sendError(res, 'Client not found', 404);
   sendSuccess(res, null, 'Client deleted');
 });
 
 // POST /api/clients/:id/contract — upload contract PDF (admin, accountant)
-router.post('/:id/contract', restrictTo('admin', 'accountant'), memUpload.single('file'), async (req, res) => {
+router.post('/:id/contract', requirePermission('clients.edit'), memUpload.single('file'), async (req, res) => {
   if (!req.file) return sendError(res, 'No file uploaded');
 
   const client = await Client.findById(req.params.id).select('-contractFile.data');
@@ -115,7 +115,7 @@ router.get('/:id/contract', async (req, res) => {
 });
 
 // DELETE /api/clients/:id/contract — remove contract file (admin, accountant)
-router.delete('/:id/contract', restrictTo('admin', 'accountant'), async (req, res) => {
+router.delete('/:id/contract', requirePermission('clients.edit'), async (req, res) => {
   const client = await Client.findById(req.params.id).select('-contractFile.data');
   if (!client) return sendError(res, 'Client not found', 404);
   if (!client.contractFile?.originalName) return sendError(res, 'No contract file found', 404);

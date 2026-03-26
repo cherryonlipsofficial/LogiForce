@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect, restrictTo } = require('../middleware/auth');
+const { protect, requirePermission } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const attendanceService = require('../services/attendance.service');
 const { AttendanceBatch, AttendanceRecord } = require('../models');
@@ -38,7 +38,7 @@ router.get('/batches', async (req, res) => {
 });
 
 // POST /api/attendance/upload — upload attendance file
-router.post('/upload', restrictTo('ops', 'admin'), upload.single('file'), validate(uploadAttendanceValidation), async (req, res) => {
+router.post('/upload', requirePermission('attendance.upload'), upload.single('file'), validate(uploadAttendanceValidation), async (req, res) => {
   if (!req.file) return sendError(res, 'No file uploaded', 400);
 
   const { clientId, year, month, columnMapping } = req.body;
@@ -121,7 +121,7 @@ router.get('/batches/:id', async (req, res) => {
 });
 
 // PUT /api/attendance/batches/:id/approve — approve batch
-router.put('/batches/:id/approve', restrictTo('admin', 'accountant'), async (req, res) => {
+router.put('/batches/:id/approve', requirePermission('attendance.approve'), async (req, res) => {
   const batch = await AttendanceBatch.findById(req.params.id);
   if (!batch) return sendError(res, 'Batch not found', 404);
 
@@ -147,7 +147,7 @@ router.put('/batches/:id/approve', restrictTo('admin', 'accountant'), async (req
 });
 
 // PUT /api/attendance/batches/:id/reject — reject batch
-router.put('/batches/:id/reject', restrictTo('admin', 'accountant'), async (req, res) => {
+router.put('/batches/:id/reject', requirePermission('attendance.approve'), async (req, res) => {
   const batch = await AttendanceBatch.findById(req.params.id);
   if (!batch) return sendError(res, 'Batch not found', 404);
 
@@ -164,7 +164,7 @@ router.put('/batches/:id/reject', restrictTo('admin', 'accountant'), async (req,
 });
 
 // DELETE /api/attendance/batches/:id — delete batch and its records (admin only)
-router.delete('/batches/:id', restrictTo('admin'), async (req, res) => {
+router.delete('/batches/:id', requirePermission('attendance.approve'), async (req, res) => {
   const batch = await AttendanceBatch.findById(req.params.id);
   if (!batch) return sendError(res, 'Batch not found', 404);
 
@@ -195,7 +195,7 @@ router.get('/:driverId/:year/:month', async (req, res) => {
 });
 
 // PUT /api/attendance/records/:id/override — override a flagged record
-router.put('/records/:id/override', restrictTo('admin', 'accountant'), validate(overrideRecordValidation), async (req, res) => {
+router.put('/records/:id/override', requirePermission('attendance.override'), validate(overrideRecordValidation), async (req, res) => {
   const { reason, workingDays, overtimeHours } = req.body;
 
   const record = await AttendanceRecord.findById(req.params.id);

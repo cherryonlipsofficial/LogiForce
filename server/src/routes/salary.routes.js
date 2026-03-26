@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect, restrictTo } = require('../middleware/auth');
+const { protect, requirePermission } = require('../middleware/auth');
 const salaryService = require('../services/salary.service');
 const { SalaryRun } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
@@ -13,7 +13,7 @@ const auditLogger = require('../utils/auditLogger');
 router.use(protect);
 
 // POST /api/salary/run — trigger payroll run for client/period
-router.post('/run', restrictTo('admin'), validate(runSalaryValidation), async (req, res) => {
+router.post('/run', requirePermission('salary.run'), validate(runSalaryValidation), async (req, res) => {
   const { clientId, year, month } = req.body;
 
   // Check for existing runs in this period (duplicate check)
@@ -87,7 +87,7 @@ router.get('/runs/:id', async (req, res) => {
 });
 
 // PUT /api/salary/runs/:id/approve — approve single run
-router.put('/runs/:id/approve', restrictTo('admin', 'accountant'), async (req, res) => {
+router.put('/runs/:id/approve', requirePermission('salary.approve'), async (req, res) => {
   const run = await salaryService.approveSalaryRun(req.params.id, req.user._id);
 
   // Audit log
@@ -97,7 +97,7 @@ router.put('/runs/:id/approve', restrictTo('admin', 'accountant'), async (req, r
 });
 
 // PUT /api/salary/runs/:id/adjust — add manual adjustment with reason
-router.put('/runs/:id/adjust', restrictTo('admin', 'accountant'), validate(adjustSalaryValidation), async (req, res) => {
+router.put('/runs/:id/adjust', requirePermission('salary.adjust'), validate(adjustSalaryValidation), async (req, res) => {
   const { type, amount, reason } = req.body;
 
   const run = await SalaryRun.findById(req.params.id);
@@ -158,7 +158,7 @@ router.post('/runs/:id/dispute', validate(disputeSalaryValidation), async (req, 
 });
 
 // GET /api/salary/wps-file — generate WPS-format CSV for period
-router.get('/wps-file', restrictTo('admin', 'accountant'), async (req, res) => {
+router.get('/wps-file', requirePermission('salary.export_wps'), async (req, res) => {
   const { clientId, year, month } = req.query;
 
   if (!year || !month) {
