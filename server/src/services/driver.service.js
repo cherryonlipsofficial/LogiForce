@@ -149,6 +149,7 @@ const getStatusCounts = async () => {
 
 const bulkCreate = async (rows, userId) => {
   const { Project } = require('../models');
+  const { evaluateAndTransition } = require('./driverStatusEngine.service');
   const results = { created: 0, errors: [] };
 
   // Helper to safely convert any value to trimmed string (XLSX may return numbers)
@@ -175,13 +176,18 @@ const bulkCreate = async (rows, userId) => {
       const payStructure = str(row.payStructure);
       const projectRef = str(row.project);
 
+      const emiratesId = expandNumber(row.emiratesId);
+      const joinDate = str(row.joinDate);
+
       // Validate required fields
       if (!fullName) throw new Error('Full name is required');
       if (!nationality) throw new Error('Nationality is required');
       if (!phoneUae) throw new Error('UAE phone is required');
+      if (!emiratesId) throw new Error('Emirates ID is required');
       if (!baseSalary) throw new Error('Base salary is required');
       if (!payStructure) throw new Error('Pay structure is required');
       if (!projectRef) throw new Error('Project is required');
+      if (!joinDate) throw new Error('Joining date is required');
 
       // Validate payStructure
       if (!['MONTHLY_FIXED', 'DAILY_RATE', 'PER_TRIP'].includes(payStructure)) {
@@ -200,37 +206,38 @@ const bulkCreate = async (rows, userId) => {
         fullName,
         nationality,
         phoneUae,
+        emiratesId,
         baseSalary: Number(baseSalary),
         payStructure,
         projectId,
+        joinDate: new Date(joinDate),
         createdBy: userId,
       };
 
       // Optional fields
-      const emiratesId = expandNumber(row.emiratesId);
-      const joinDate = str(row.joinDate);
       const passportNumber = expandNumber(row.passportNumber);
       const visaNumber = expandNumber(row.visaNumber);
       const bankName = str(row.bankName);
       const iban = expandNumber(row.iban);
       const vehiclePlate = str(row.vehiclePlate);
       const vehicleType = str(row.vehicleType);
-      const status = str(row.status);
 
-      if (emiratesId) driverData.emiratesId = emiratesId;
-      if (joinDate) driverData.joinDate = new Date(joinDate);
       if (passportNumber) driverData.passportNumber = passportNumber;
       if (visaNumber) driverData.visaNumber = visaNumber;
       if (bankName) driverData.bankName = bankName;
       if (iban) driverData.iban = iban;
       if (vehiclePlate) driverData.vehiclePlate = vehiclePlate;
       if (vehicleType) driverData.vehicleType = vehicleType;
-      if (status) driverData.status = status;
 
       const driver = await Driver.create(driverData);
       await logEvent(driver._id, 'field_updated', {
         description: 'Driver profile created via bulk import',
       }, userId);
+
+      // All mandatory profile & employment fields are provided in bulk import,
+      // so auto-transition from draft → pending_kyc (skip draft status)
+      await evaluateAndTransition(driver._id, userId);
+
       results.created++;
     } catch (err) {
       results.errors.push({
