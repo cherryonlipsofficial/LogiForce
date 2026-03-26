@@ -83,7 +83,7 @@ router.get('/export', async (req, res) => {
 });
 
 // POST /api/drivers/bulk-import — bulk import from CSV/XLSX
-// Use memory storage (not Cloudinary) since we need to parse the file locally
+// Use memory storage to parse the file locally
 const memoryUpload = require('multer')({ storage: require('multer').memoryStorage() });
 router.post('/bulk-import', requirePermission('drivers.create'), (req, res, next) => {
   memoryUpload.single('file')(req, res, (err) => {
