@@ -13,6 +13,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useNavigate } from 'react-router-dom';
 import { getDriverLedger, updateDriver, changeDriverStatus, getDriverDocuments, uploadDriverDocument, fetchDocumentFile, getDocumentDirectUrl } from '../../api/driversApi';
 import { getClients } from '../../api/clientsApi';
+import { getVehicle, getDriverVehicleHistory } from '../../api/vehiclesApi';
 
 const DOC_TYPES = [
   { value: 'emirates_id', label: 'Emirates ID' },
@@ -104,6 +105,20 @@ const DriverDetail = ({ driver, onClose }) => {
     queryFn: () => getDriverDocuments(driverId),
     enabled: tab === 'documents',
   });
+
+  const { data: vehicleData } = useQuery({
+    queryKey: ['driver-vehicle', driverId],
+    queryFn: () => getVehicle(d.currentVehicleId),
+    enabled: !!d.currentVehicleId,
+  });
+  const currentVehicle = vehicleData?.data || null;
+
+  const { data: vehicleHistoryData } = useQuery({
+    queryKey: ['driver-vehicle-history', driverId],
+    queryFn: () => getDriverVehicleHistory(driverId),
+    enabled: tab === 'history',
+  });
+  const vehicleHistory = vehicleHistoryData?.data || [];
 
   const ledger = ledgerData?.data || [];
 
@@ -231,6 +246,9 @@ const DriverDetail = ({ driver, onClose }) => {
               ['Phone (UAE)', d.phoneUae || d.phone || '—'],
               ['Client', driverClient || '—'],
               ['Supplier', driverSupplier || '—'],
+              ['Vehicle', d.currentVehicleId && currentVehicle
+                ? `${currentVehicle.plateNumber} — ${currentVehicle.make} ${currentVehicle.model}`
+                : d.ownVehicle ? 'Own vehicle' : '—'],
               ['Pay structure', d.payStructure || '—'],
               ['Base salary', `AED ${(d.baseSalary || 0).toLocaleString()}`],
               ['Join date', formatDate(d.joinDate)],
@@ -262,6 +280,50 @@ const DriverDetail = ({ driver, onClose }) => {
 
         {tab === 'financial' && (
           <div>
+            {/* Current vehicle sub-section */}
+            {d.currentVehicleId && currentVehicle ? (
+              <div style={{
+                background: 'var(--surface2)',
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+                padding: '12px 14px',
+                marginBottom: 14,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 500 }}>{currentVehicle.make} {currentVehicle.model}</span>
+                  <span style={{ fontFamily: '"DM Mono", var(--mono)', fontSize: 12 }}>{currentVehicle.plateNumber}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text3)' }}>{currentVehicle.supplierName || currentVehicle.supplierId?.name || '—'}</span>
+                  <StatusBadge status={currentVehicle.status} />
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>
+                  Assigned since: {formatDate(currentVehicle.assignedDate || currentVehicle.currentAssignment?.assignedDate)}
+                </div>
+                {currentVehicle.monthlyDeductionAmount != null && (
+                  <div style={{ fontSize: 11, color: '#f87171' }}>
+                    Monthly deduction: AED {currentVehicle.monthlyDeductionAmount?.toLocaleString()}
+                  </div>
+                )}
+                <div style={{ marginTop: 8 }}>
+                  <button
+                    onClick={() => { navigate('/vehicles'); }}
+                    style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 11, cursor: 'pointer', padding: 0 }}
+                  >
+                    View vehicle →
+                  </button>
+                </div>
+              </div>
+            ) : d.ownVehicle ? (
+              <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 14, padding: '10px 0' }}>
+                Own vehicle — no rental deduction
+              </div>
+            ) : !d.currentVehicleId ? (
+              <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 14, padding: '10px 0' }}>
+                No company vehicle assigned
+              </div>
+            ) : null}
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
               <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '12px 14px' }}>
                 <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Gross salary</div>
@@ -399,19 +461,61 @@ const DriverDetail = ({ driver, onClose }) => {
           </div>
         )}
 
-        {tab === 'history' && (
-          <div>
-            {history.map((h, i) => (
-              <div key={i} style={{ display: 'flex', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
-                <div style={{ width: 80, fontSize: 10, color: 'var(--text3)', paddingTop: 2, flexShrink: 0 }}>{typeof h.date === 'string' && h.date.length > 12 ? formatDate(h.date) : h.date}</div>
-                <div>
-                  <div style={{ fontSize: 13, marginBottom: 3 }}>{h.event}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text3)' }}>{h.detail}</div>
+        {tab === 'history' && (() => {
+          const employmentEntries = history.map((h) => ({
+            ...h,
+            sortDate: new Date(h.date || 0),
+            type: 'employment',
+          }));
+          const vehicleEntries = vehicleHistory.flatMap((a) => {
+            const entries = [];
+            entries.push({
+              date: a.assignedDate,
+              sortDate: new Date(a.assignedDate || 0),
+              event: `Vehicle assigned: ${a.plateNumber || '—'} — ${a.make || ''} ${a.model || ''} (${a.supplierName || '—'})`,
+              detail: '',
+              type: 'vehicle',
+            });
+            if (a.returnedDate) {
+              entries.push({
+                date: a.returnedDate,
+                sortDate: new Date(a.returnedDate || 0),
+                event: `Vehicle returned: ${a.plateNumber || '—'} — Condition: ${a.returnCondition || '—'}`,
+                detail: '',
+                type: 'vehicle',
+              });
+            }
+            return entries;
+          });
+          const allEntries = [...employmentEntries, ...vehicleEntries].sort(
+            (a, b) => b.sortDate - a.sortDate
+          );
+          return (
+            <div>
+              {allEntries.map((h, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    gap: 12,
+                    padding: '12px 0',
+                    borderBottom: '1px solid var(--border)',
+                    borderLeft: `3px solid ${h.type === 'vehicle' ? '#fbbf24' : '#4f8ef7'}`,
+                    paddingLeft: 10,
+                  }}
+                >
+                  <div style={{ width: 80, fontSize: 10, color: 'var(--text3)', paddingTop: 2, flexShrink: 0 }}>
+                    {typeof h.date === 'string' && h.date.length > 12 ? formatDate(h.date) : (h.date ? formatDate(h.date) : '—')}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, marginBottom: 3 }}>{h.event}</div>
+                    {h.detail && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{h.detail}</div>}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Footer */}
