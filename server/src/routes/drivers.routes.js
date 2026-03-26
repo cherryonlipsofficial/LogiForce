@@ -124,13 +124,23 @@ router.post('/bulk-import', requirePermission('drivers.create'), (req, res, next
           cell.w = cell.v;
         }
       });
-      rows = XLSX.utils.sheet_to_json(sheet);
+      // Use header:1 to get raw arrays, then manually map headers below
+      // This avoids issues where sheet_to_json misidentifies headers
+      const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+      if (rawRows.length > 1) {
+        const headerRow = rawRows[0];
+        for (let r = 1; r < rawRows.length; r++) {
+          const obj = {};
+          headerRow.forEach((h, i) => { obj[String(h)] = rawRows[r][i] ?? ''; });
+          rows.push(obj);
+        }
+      }
     } else {
       return sendError(res, 'Unsupported file format. Use .csv or .xlsx', 400);
     }
 
-    // Normalize row keys: strip BOM, trim whitespace, and map common
-    // header variations (e.g. "Full Name", "full_name") to camelCase keys
+    // Normalize row keys: strip BOM, invisible chars, trim whitespace,
+    // and map common header variations to expected camelCase keys
     const KEY_MAP = {
       fullname: 'fullName', full_name: 'fullName', 'full name': 'fullName',
       nationality: 'nationality',
@@ -151,13 +161,16 @@ router.post('/bulk-import', requirePermission('drivers.create'), (req, res, next
     rows = rows.map(row => {
       const normalized = {};
       for (const [key, value] of Object.entries(row)) {
-        // Strip BOM (\uFEFF), trim whitespace, lowercase for lookup
-        const clean = key.replace(/^\uFEFF/, '').trim().toLowerCase();
-        const mapped = KEY_MAP[clean] || key.replace(/^\uFEFF/, '').trim();
+        // Strip BOM, zero-width chars, trim whitespace, lowercase for lookup
+        const clean = String(key).replace(/[\uFEFF\u200B\u00A0]/g, '').trim().toLowerCase();
+        const mapped = KEY_MAP[clean] || String(key).replace(/[\uFEFF\u200B\u00A0]/g, '').trim();
         normalized[mapped] = value;
       }
       return normalized;
     });
+
+    // Filter out completely empty rows (all values blank)
+    rows = rows.filter(row => Object.values(row).some(v => v !== undefined && v !== null && String(v).trim() !== ''));
 
     if (rows.length === 0) return sendError(res, 'File is empty or has no data rows', 400);
     if (rows.length > 500) return sendError(res, 'Maximum 500 rows per import', 400);
@@ -174,9 +187,8 @@ router.post('/bulk-import', requirePermission('drivers.create'), (req, res, next
 router.get('/bulk-import/template', async (req, res) => {
   const XLSX = require('xlsx');
   const headers = ['fullName', 'nationality', 'phoneUae', 'emiratesId', 'project', 'payStructure', 'baseSalary', 'joinDate', 'passportNumber', 'visaNumber', 'bankName', 'iban', 'vehiclePlate', 'vehicleType'];
-  const exampleRow = ['Mohamed Al Farsi', 'Emirati', '+971501234567', '784-1985-1234567-1', 'Amazon Last Mile', 'MONTHLY_FIXED', '2800', '2023-03-01', '', '', '', '', '', ''];
 
-  const ws = XLSX.utils.aoa_to_sheet([headers, exampleRow]);
+  const ws = XLSX.utils.aoa_to_sheet([headers]);
 
   // Set phone, visa, emirates ID, passport, IBAN columns to text format (@)
   // so Excel doesn't convert large numbers to scientific notation
