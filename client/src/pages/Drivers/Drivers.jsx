@@ -404,11 +404,16 @@ const BulkImportModal = ({ onClose }) => {
     setUploading(true);
     try {
       const res = await bulkImportDrivers(file);
-      setResult(res.data);
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
       queryClient.invalidateQueries({ queryKey: ['driverStatusCounts'] });
-      if (res.data.created > 0) {
+      if (res.data.errors?.length > 0) {
+        setResult(res.data);
+        if (res.data.created > 0) {
+          toast.success(`${res.data.created} driver(s) imported, but ${res.data.errors.length} error(s) occurred`);
+        }
+      } else {
         toast.success(`${res.data.created} driver(s) imported successfully`);
+        onClose();
       }
     } catch (err) {
       toast.error(err?.response?.data?.message || 'Import failed');
