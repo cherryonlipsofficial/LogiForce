@@ -114,7 +114,17 @@ router.post('/bulk-import', requirePermission('drivers.create'), (req, res, next
       const XLSX = require('xlsx');
       const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
-      rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { raw: false });
+      const sheet = workbook.Sheets[sheetName];
+      // Convert numeric cells to strings so large numbers (phone, visa)
+      // don't get truncated to scientific notation like 9.72E+11
+      Object.values(sheet).forEach(cell => {
+        if (cell && cell.t === 'n') {
+          cell.t = 's';
+          cell.v = String(cell.v);
+          cell.w = cell.v;
+        }
+      });
+      rows = XLSX.utils.sheet_to_json(sheet);
     } else {
       return sendError(res, 'Unsupported file format. Use .csv or .xlsx', 400);
     }
