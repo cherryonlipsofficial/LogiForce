@@ -44,6 +44,7 @@ const findById = async (id) => {
   const driver = await Driver.findById(id)
     .populate('clientId')
     .populate('supplierId')
+    .populate('projectId')
     .populate('createdBy', 'name email');
 
   if (!driver) {
