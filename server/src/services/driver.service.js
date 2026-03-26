@@ -227,7 +227,10 @@ const bulkCreate = async (rows, userId) => {
       if (vehicleType) driverData.vehicleType = vehicleType;
       if (status) driverData.status = status;
 
-      await Driver.create(driverData);
+      const driver = await Driver.create(driverData);
+      await logEvent(driver._id, 'field_updated', {
+        description: 'Driver profile created via bulk import',
+      }, userId);
       results.created++;
     } catch (err) {
       results.errors.push({
