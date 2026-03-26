@@ -24,7 +24,10 @@ const ensureAdminRole = async () => {
 
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI);
+    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+      tls: true,
+      tlsAllowInvalidCertificates: false,
+    });
     console.log(`MongoDB connected: ${conn.connection.host}`);
     await ensureAdminRole();
   } catch (error) {

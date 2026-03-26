@@ -202,8 +202,5 @@ driverSchema.pre('save', async function (next) {
 });
 
 driverSchema.index({ clientId: 1 });
-driverSchema.index({ projectId: 1 });
-driverSchema.index({ emiratesId: 1 });
-driverSchema.index({ passportNumber: 1 });
 
 module.exports = mongoose.model('Driver', driverSchema);
