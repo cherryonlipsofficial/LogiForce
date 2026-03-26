@@ -40,12 +40,16 @@ async function logStatusChange(driverId, from, to, reason, performedBy) {
  * Get paginated history for a driver.
  */
 async function getHistory(driverId, page = 1, limit = 30) {
+  page = Math.max(1, parseInt(page) || 1);
+  limit = Math.min(100, Math.max(1, parseInt(limit) || 30));
   const skip = (page - 1) * limit;
+
   const [entries, total] = await Promise.all([
     DriverHistory.find({ driverId })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
+      .populate('performedBy', 'name email')
       .lean(),
     DriverHistory.countDocuments({ driverId }),
   ]);

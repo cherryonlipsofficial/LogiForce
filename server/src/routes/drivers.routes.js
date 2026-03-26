@@ -5,6 +5,8 @@ const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const driverService = require('../services/driver.service');
+const { verifyContacts, setClientUserId, changeStatusManual, getDriverStatusSummary } = require('../services/driverWorkflow.service');
+const { getHistory } = require('../services/driverHistory.service');
 const { Driver, DriverDocument, SalaryRun } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const validate = require('../middleware/validate');
@@ -236,33 +238,61 @@ router.post('/:id/documents', requirePermission('drivers.manage_docs'), upload.s
   sendSuccess(res, doc, 'Document uploaded', 201);
 });
 
-// PUT /api/drivers/:id/status — change status with reason
+// POST /api/drivers/:id/verify-contacts — HR verifies contact details
+router.post('/:id/verify-contacts', requirePermission('drivers.change_status'), async (req, res) => {
+  try {
+    const driver = await verifyContacts(req.params.id, req.user._id);
+    sendSuccess(res, driver, `Contacts verified. Current status: ${driver.status}`);
+  } catch (err) {
+    sendError(res, err.message, err.statusCode || 500);
+  }
+});
+
+// PUT /api/drivers/:id/client-user-id — Operations sets client user ID
+router.put('/:id/client-user-id', requirePermission('drivers.change_status'), async (req, res) => {
+  try {
+    const { clientUserId } = req.body;
+    if (!clientUserId || typeof clientUserId !== 'string' || !clientUserId.trim()) {
+      return sendError(res, 'clientUserId is required and must be a non-empty string', 400);
+    }
+    const driver = await setClientUserId(req.params.id, clientUserId, req.user._id);
+    sendSuccess(res, driver, `Client user ID set. Current status: ${driver.status}`);
+  } catch (err) {
+    sendError(res, err.message, err.statusCode || 500);
+  }
+});
+
+// PUT /api/drivers/:id/status — manual status change (Operations / Admin)
 router.put('/:id/status', requirePermission('drivers.change_status'), validate(changeStatusValidation), async (req, res) => {
-  const { status, reason } = req.body;
+  try {
+    const { status, reason } = req.body;
+    const driver = await changeStatusManual(req.params.id, status, reason, req.user._id);
+    sendSuccess(res, driver, 'Status updated');
+  } catch (err) {
+    sendError(res, err.message, err.statusCode || 500);
+  }
+});
 
-  const driver = await Driver.findById(req.params.id);
-  if (!driver) return sendError(res, 'Driver not found', 404);
+// GET /api/drivers/:id/status-summary — get status summary for frontend
+router.get('/:id/status-summary', requirePermission('drivers.view'), async (req, res) => {
+  try {
+    const summary = await getDriverStatusSummary(req.params.id);
+    sendSuccess(res, summary);
+  } catch (err) {
+    sendError(res, err.message, err.statusCode || 500);
+  }
+});
 
-  const previousStatus = driver.status;
-  driver.status = status;
-  await driver.save();
-
-  // Audit log
-  await auditLogger.logChange('Driver', driver._id, 'status', previousStatus, status, req.user._id, 'status_change');
-
-  // Create a ledger entry as a status log
-  const { DriverLedger } = require('../models');
-  await DriverLedger.create({
-    driverId: driver._id,
-    entryType: 'manual_debit',
-    debit: 0,
-    credit: 0,
-    runningBalance: 0,
-    description: `Status changed from ${previousStatus} to ${status}. Reason: ${reason || 'N/A'}`,
-    createdBy: req.user._id,
-  });
-
-  sendSuccess(res, driver, 'Status updated');
+// GET /api/drivers/:id/history — get driver event history
+router.get('/:id/history', requirePermission('drivers.view'), async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 30;
+    const result = await getHistory(req.params.id, page, limit);
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, err.statusCode || 500);
+  }
 });
 
 module.exports = router;
