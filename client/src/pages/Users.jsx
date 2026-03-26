@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { getUsers, updateUser } from '../api/usersApi';
@@ -11,6 +11,9 @@ import Btn from '../components/ui/Btn';
 import PermissionGate from '../components/ui/PermissionGate';
 import AddUserModal from '../components/settings/AddUserModal';
 import EditUserModal from '../components/settings/EditUserModal';
+import UserPermissionsModal from '../components/settings/UserPermissionsModal';
+import ActionsDropdown from '../components/settings/ActionsDropdown';
+import { useAuth } from '../context/AuthContext';
 
 const ROLE_COLORS = {
   admin:      { bg: 'rgba(124,95,240,0.15)', text: '#a78bfa' },
@@ -26,6 +29,7 @@ function getRoleColor(roleName = '') {
 
 export default function UsersPage() {
   const queryClient = useQueryClient();
+  const { user: currentUser } = useAuth();
 
   const [search, setSearch]                       = useState('');
   const [roleFilter, setRoleFilter]               = useState('all');
@@ -59,6 +63,14 @@ export default function UsersPage() {
       (statusFilter === 'inactive' && !u.isActive);
     return matchSearch && matchRole && matchStatus;
   });
+
+  // Close actions dropdown on outside click
+  useEffect(() => {
+    if (!actionsDropdownId) return;
+    const handler = () => setActionsDropdownId(null);
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [actionsDropdownId]);
 
   // Deactivate mutation
   const deactivateMutation = useMutation({
@@ -297,11 +309,27 @@ export default function UsersPage() {
                                 Permissions
                               </Btn>
                             </PermissionGate>
-                            <Btn small variant="ghost"
-                              onClick={() => setActionsDropdownId(
-                                actionsDropdownId === user._id ? null : user._id
+                            <div style={{ position: 'relative' }}>
+                              <Btn small variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActionsDropdownId(
+                                    actionsDropdownId === user._id ? null : user._id
+                                  );
+                                }}
+                              >•••</Btn>
+                              {actionsDropdownId === user._id && (
+                                <ActionsDropdown
+                                  user={user}
+                                  currentUserId={currentUser?._id}
+                                  isOpen={true}
+                                  onClose={() => setActionsDropdownId(null)}
+                                  onEdit={() => { setEditUser(user); setActionsDropdownId(null); }}
+                                  onPermissions={() => { setPermissionsUser(user); setActionsDropdownId(null); }}
+                                  onDeactivate={() => { setDeactivatingId(user._id); setActionsDropdownId(null); }}
+                                />
                               )}
-                            >•••</Btn>
+                            </div>
                           </div>
                         )}
                       </td>
@@ -341,15 +369,10 @@ export default function UsersPage() {
         />
       )}
       {permissionsUser && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-          zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: 'var(--surface)', borderRadius: 14, padding: 24,
-            color: 'var(--text)', fontSize: 13 }}>
-            Permissions Modal — coming in Prompt 3c
-            <br/><br/>
-            <Btn onClick={() => setPermissionsUser(null)}>Close</Btn>
-          </div>
-        </div>
+        <UserPermissionsModal
+          user={permissionsUser}
+          onClose={() => setPermissionsUser(null)}
+        />
       )}
 
     </div>
