@@ -40,14 +40,14 @@ router.get('/status-counts', async (req, res) => {
 
 // GET /api/drivers/export — export drivers as CSV
 router.get('/export', async (req, res) => {
-  const { status, clientId, search } = req.query;
+  const { status, clientId, projectId, search } = req.query;
   const result = await driverService.findAll(
-    { status, clientId, search },
+    { status, clientId, projectId, search },
     { page: 1, limit: 10000 }
   );
   const drivers = result.drivers;
 
-  const headers = ['Employee Code', 'Full Name', 'Nationality', 'Phone UAE', 'Client', 'Supplier', 'Status', 'Pay Structure', 'Base Salary', 'Join Date', 'Emirates ID'];
+  const headers = ['Employee Code', 'Full Name', 'Nationality', 'Phone UAE', 'Project', 'Vehicle', 'Status', 'Pay Structure', 'Base Salary', 'Join Date', 'Emirates ID'];
   const escapeCsv = (val) => {
     const str = String(val ?? '');
     if (str.includes(',') || str.includes('"') || str.includes('\n')) {
@@ -60,8 +60,8 @@ router.get('/export', async (req, res) => {
     d.fullName,
     d.nationality,
     d.phoneUae,
-    d.clientId?.name || '',
-    d.supplierId?.name || '',
+    d.projectId?.name || '',
+    d.vehiclePlate || '',
     d.status,
     d.payStructure,
     d.baseSalary,
@@ -135,9 +135,9 @@ router.get('/bulk-import/template', async (req, res) => {
 
 // GET /api/drivers — list with pagination, search, filter
 router.get('/', async (req, res) => {
-  const { status, clientId, search, page, limit } = req.query;
+  const { status, clientId, projectId, search, page, limit } = req.query;
   const result = await driverService.findAll(
-    { status, clientId, search },
+    { status, clientId, projectId, search },
     { page, limit }
   );
   sendPaginated(res, result.drivers, result.total, result.page, result.limit);
