@@ -96,8 +96,8 @@ const driverSchema = new mongoose.Schema(
       enum: [
         'draft',               // Created by sales team
         'pending_kyc',         // Profile & Employment fields completed (auto)
-        'pending_verification',// All docs valid, Compliance verified contacts (auto)
-        'active',              // client_user_id set by operations (auto)
+        'pending_verification',// All KYC docs uploaded and valid (auto)
+        'active',              // Activated manually or client_user_id set (auto)
         'on_leave',            // Manual by operations
         'suspended',           // Manual by operations
         'resigned',            // Manual by operations
@@ -126,6 +126,9 @@ const driverSchema = new mongoose.Schema(
     contactsVerified:       { type: Boolean, default: false },
     contactsVerifiedBy:     { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     contactsVerifiedAt:     { type: Date },
+
+    // Tracks whether driver was manually activated from pending_verification
+    activatedManually:      { type: Boolean, default: false },
 
     // Tracks who last changed the status and why
     lastStatusChange: {

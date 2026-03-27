@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import Btn from '../ui/Btn';
 import PermissionGate from '../ui/PermissionGate';
-import { verifyContacts, setClientUserId } from '../../api/driversApi';
+import { verifyContacts, setClientUserId, activateDriver } from '../../api/driversApi';
 
 const formatDate = (val) => {
   if (!val) return '—';
@@ -75,6 +75,16 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
     onError: (err) => toast.error(err?.response?.data?.message || 'Failed to activate driver'),
   });
 
+  const activateDriverMutation = useMutation({
+    mutationFn: () => activateDriver(driverId),
+    onSuccess: () => {
+      toast.success('Driver activated successfully');
+      invalidateDriver();
+      onActionComplete?.();
+    },
+    onError: (err) => toast.error(err?.response?.data?.message || 'Failed to activate driver'),
+  });
+
   // Don't render banner until status summary API has loaded
   if (!statusSummary) return null;
 
@@ -130,7 +140,9 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
     return (
       <div style={boxStyles.amber}>
         <div style={{ fontWeight: 500, marginBottom: 8 }}>
-          Pending KYC — Upload documents. Next: verify contact details.
+          {allDocsValid
+            ? 'Verify contact details and update the status to Active.'
+            : 'Pending KYC — Upload required documents.'}
         </div>
 
         {/* Document validity checklist */}
@@ -210,16 +222,16 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
     return (
       <div style={boxStyles.blue}>
         <div style={{ marginBottom: 6 }}>
-          <CheckIcon /> Documents verified. <CheckIcon /> Contacts verified.
+          <CheckIcon /> All KYC documents uploaded and valid.
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 10 }}>
-          Waiting for Operations to assign a Client User ID.
+        <div style={{ fontWeight: 500, marginBottom: 10 }}>
+          Verify contact details and update the status to Active.
         </div>
         <PermissionGate permission="drivers.change_status">
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginBottom: 8 }}>
             <div style={{ flex: 1 }}>
               <label style={{ display: 'block', fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>
-                Client User ID (assigned by client)
+                Client User ID (optional, assigned by client)
               </label>
               <input
                 type="text"
@@ -230,7 +242,7 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
               />
             </div>
             <Btn
-              variant="success"
+              variant="ghost"
               onClick={() => {
                 if (!clientUserIdInput.trim()) {
                   toast.error('Please enter a Client User ID');
@@ -241,9 +253,19 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
               disabled={setClientUserIdMutation.isPending}
               small
             >
-              {setClientUserIdMutation.isPending ? 'Activating...' : 'Activate driver'}
+              {setClientUserIdMutation.isPending ? 'Saving...' : 'Save Client ID'}
             </Btn>
           </div>
+        </PermissionGate>
+        <PermissionGate permission="drivers.activate">
+          <Btn
+            variant="success"
+            onClick={() => activateDriverMutation.mutate()}
+            disabled={activateDriverMutation.isPending}
+            small
+          >
+            {activateDriverMutation.isPending ? 'Activating...' : 'Activate driver'}
+          </Btn>
         </PermissionGate>
       </div>
     );

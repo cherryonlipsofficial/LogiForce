@@ -10,6 +10,7 @@ module.exports = {
     'drivers.view_ledger':     { label: 'View driver ledger',      module: 'Drivers',    description: 'See full financial ledger per driver' },
     'drivers.manage_docs':     { label: 'Manage documents',        module: 'Drivers',    description: 'Upload and verify driver documents' },
     'drivers.change_status':   { label: 'Change driver status',    module: 'Drivers',    description: 'Suspend, activate, put on leave' },
+    'drivers.activate':        { label: 'Activate driver',          module: 'Drivers',    description: 'Activate a driver from Pending Verify status' },
 
     // ── CLIENTS ──
     'clients.view':            { label: 'View clients',            module: 'Clients',    description: 'See client list and details' },

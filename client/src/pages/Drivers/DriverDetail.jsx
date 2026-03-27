@@ -12,7 +12,7 @@ import Btn from '../../components/ui/Btn';
 import Modal from '../../components/ui/Modal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useNavigate } from 'react-router-dom';
-import { getDriverLedger, updateDriver, changeDriverStatus, getDriverDocuments, uploadDriverDocument, fetchDocumentFile, getDocumentDirectUrl, getStatusSummary, getDriverHistory } from '../../api/driversApi';
+import { getDriverLedger, updateDriver, changeDriverStatus, getDriverDocuments, uploadDriverDocument, fetchDocumentFile, getDocumentDirectUrl, getStatusSummary, getDriverHistory, activateDriver } from '../../api/driversApi';
 import { getProjects } from '../../api/projectsApi';
 import { getVehicle, getCurrentDriverVehicle, getDriverVehicleHistory } from '../../api/vehiclesApi';
 import DriverStatusBanner from '../../components/drivers/DriverStatusBanner';
@@ -64,6 +64,7 @@ const DriverDetail = ({ driver, onClose }) => {
   const [changeStatusOpen, setChangeStatusOpen] = useState(false);
   const [changeStatusPreset, setChangeStatusPreset] = useState(null);
   const [viewingFile, setViewingFile] = useState(null); // { blobUrl, contentType, fileName }
+  const [activating, setActivating] = useState(false);
 
   const handleViewFile = async (fileKey, fileUrl) => {
     try {
@@ -519,6 +520,31 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
         {!(d.status === 'active' && !isAdmin) && (
           <PermissionGate permission="drivers.edit">
             <Btn variant="ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowEdit(true)}>Edit profile</Btn>
+          </PermissionGate>
+        )}
+        {d.status === 'pending_verification' && (
+          <PermissionGate permission="drivers.activate">
+            <Btn
+              variant="success"
+              style={{ flex: 1, justifyContent: 'center' }}
+              disabled={activating}
+              onClick={async () => {
+                setActivating(true);
+                try {
+                  await activateDriver(driverId);
+                  toast.success('Driver activated successfully');
+                  queryClient.invalidateQueries({ queryKey: ['driver', driverId] });
+                  queryClient.invalidateQueries({ queryKey: ['drivers'] });
+                  onClose();
+                } catch (err) {
+                  toast.error(err?.response?.data?.message || 'Failed to activate driver');
+                } finally {
+                  setActivating(false);
+                }
+              }}
+            >
+              {activating ? 'Activating...' : 'Activate'}
+            </Btn>
           </PermissionGate>
         )}
         <PermissionGate permission="drivers.change_status">
