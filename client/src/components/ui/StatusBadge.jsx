@@ -6,7 +6,7 @@ const statusMap = {
   suspended: { label: 'Suspended', variant: 'danger' },
   pending_kyc: { label: 'Pending KYC', variant: 'warning' },
   pending_verification: { label: 'Pending verification', variant: 'warning' },
-  onboarding: { label: 'Onboarding', variant: 'info' },
+  offboarded: { label: 'Offboarded', variant: 'danger' },
   resigned: { label: 'Resigned', variant: 'default' },
   paid: { label: 'Paid', variant: 'success' },
   pending: { label: 'Pending', variant: 'warning' },
