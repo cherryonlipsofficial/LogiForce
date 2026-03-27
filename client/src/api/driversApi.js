@@ -62,6 +62,9 @@ export const verifyContacts = (driverId) =>
 export const setClientUserId = (driverId, clientUserId) =>
   axiosInstance.put(`/drivers/${driverId}/client-user-id`, { clientUserId }).then(r => r.data);
 
+export const activateDriver = (driverId) =>
+  axiosInstance.post(`/drivers/${driverId}/activate`).then(r => r.data);
+
 export const getStatusSummary = (driverId) =>
   axiosInstance.get(`/drivers/${driverId}/status-summary`).then(r => r.data);
 

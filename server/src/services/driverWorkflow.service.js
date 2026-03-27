@@ -19,8 +19,8 @@ async function verifyContacts(driverId, userId) {
     throw err;
   }
 
-  if (driver.status !== 'pending_kyc') {
-    const err = new Error('Can only verify contacts when driver is in pending_kyc status');
+  if (!['pending_kyc', 'pending_verification'].includes(driver.status)) {
+    const err = new Error('Can only verify contacts when driver is in Pending KYC or Pending Verify status');
     err.statusCode = 400;
     throw err;
   }
@@ -67,6 +67,33 @@ async function setClientUserId(driverId, clientUserId, userId) {
   await logEvent(driverId, 'client_user_id_set', {
     description: `Client user ID set: ${clientUserId}`,
     metadata: { clientUserId },
+  }, userId);
+
+  await evaluateAndTransition(driverId, userId);
+
+  const updated = await Driver.findById(driverId);
+  return updated;
+}
+
+async function activateDriver(driverId, userId) {
+  const driver = await Driver.findById(driverId);
+  if (!driver) {
+    const err = new Error('Driver not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (driver.status !== 'pending_verification') {
+    const err = new Error('Can only activate a driver that is in Pending Verify status');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  driver.activatedManually = true;
+  await driver.save();
+
+  await logEvent(driverId, 'driver_activated', {
+    description: 'Driver activated by authorized user',
   }, userId);
 
   await evaluateAndTransition(driverId, userId);
@@ -166,10 +193,10 @@ async function getDriverStatusSummary(driverId) {
   if (driver.status === 'draft' && profileCheck.complete) {
     availableAutoTransitions.push('pending_kyc');
   }
-  if (driver.status === 'pending_kyc' && driver.contactsVerified && kycValidCheck.valid) {
+  if (driver.status === 'pending_kyc' && kycValidCheck.valid) {
     availableAutoTransitions.push('pending_verification');
   }
-  if (driver.status === 'pending_verification' && driver.clientUserId) {
+  if (driver.status === 'pending_verification' && (driver.clientUserId || driver.activatedManually)) {
     availableAutoTransitions.push('active');
   }
 
@@ -195,6 +222,7 @@ async function getDriverStatusSummary(driverId) {
 module.exports = {
   verifyContacts,
   setClientUserId,
+  activateDriver,
   changeStatusManual,
   getDriverStatusSummary,
 };

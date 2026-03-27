@@ -117,19 +117,18 @@ async function evaluateAndTransition(driverId, triggeredBy) {
   }
 
   // Level 2: pending_kyc → pending_verification
-  // Condition: all 3 docs are valid (not expired) AND contacts are verified
+  // Condition: all 3 required KYC docs are valid (uploaded and not expired)
   const kycValid = await checkKycDocsValid(driverId);
-  const contactsOk = driver.contactsVerified === true;
 
-  if (kycValid.valid && contactsOk) {
-    // Driver qualifies for pending_verification
+  if (kycValid.valid) {
+    // Driver qualifies for pending_verification — all docs uploaded and valid
     if (currentStatus === 'draft' || currentStatus === 'pending_kyc') {
       await applyStatusChange(driver, 'pending_verification', null,
-        'All KYC documents valid and contacts verified', triggeredBy);
+        'All KYC documents uploaded and valid', triggeredBy);
       return { transitioned: true, newStatus: 'pending_verification' };
     }
   } else if (profileCheck.complete) {
-    // Profile complete but docs not valid OR contacts not verified
+    // Profile complete but docs not valid
     // → pending_kyc is the right status
     if (currentStatus === 'draft') {
       await applyStatusChange(driver, 'pending_kyc', null,
@@ -139,10 +138,11 @@ async function evaluateAndTransition(driverId, triggeredBy) {
   }
 
   // Level 3: pending_verification → active
-  // Condition: clientUserId is set
-  if (currentStatus === 'pending_verification' && driver.clientUserId) {
+  // Condition: activated manually via 'drivers.activate' permission
+  // (clientUserId assignment also still triggers activation if present)
+  if (currentStatus === 'pending_verification' && (driver.clientUserId || driver.activatedManually)) {
     await applyStatusChange(driver, 'active', null,
-      'Client user ID assigned by operations', triggeredBy);
+      driver.activatedManually ? 'Activated by authorized user' : 'Client user ID assigned by operations', triggeredBy);
     return { transitioned: true, newStatus: 'active' };
   }
 

@@ -4,7 +4,7 @@ const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const driverService = require('../services/driver.service');
-const { verifyContacts, setClientUserId, changeStatusManual, getDriverStatusSummary } = require('../services/driverWorkflow.service');
+const { verifyContacts, setClientUserId, activateDriver, changeStatusManual, getDriverStatusSummary } = require('../services/driverWorkflow.service');
 const { getHistory } = require('../services/driverHistory.service');
 const { getDriverVehicleHistory } = require('../services/vehicleAssignment.service');
 const { Driver, DriverDocument, SalaryRun } = require('../models');
@@ -362,6 +362,16 @@ router.put('/:id/client-user-id', requirePermission('drivers.change_status'), as
     }
     const driver = await setClientUserId(req.params.id, clientUserId, req.user._id);
     sendSuccess(res, driver, `Client user ID set. Current status: ${driver.status}`);
+  } catch (err) {
+    sendError(res, err.message, err.statusCode || 500);
+  }
+});
+
+// POST /api/drivers/:id/activate — Activate driver from pending_verification
+router.post('/:id/activate', requirePermission('drivers.activate'), async (req, res) => {
+  try {
+    const driver = await activateDriver(req.params.id, req.user._id);
+    sendSuccess(res, driver, `Driver activated. Current status: ${driver.status}`);
   } catch (err) {
     sendError(res, err.message, err.statusCode || 500);
   }
