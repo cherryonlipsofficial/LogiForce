@@ -55,7 +55,7 @@ router.get('/export', async (req, res) => {
   );
   const drivers = result.drivers;
 
-  const headers = ['Employee Code', 'Full Name', 'Nationality', 'Phone UAE', 'Project', 'Vehicle', 'Status', 'Pay Structure', 'Base Salary', 'Join Date', 'Emirates ID'];
+  const headers = ['Employee Code', 'Full Name', 'Nationality', 'Phone UAE', 'Project', 'Status', 'Pay Structure', 'Base Salary', 'Join Date', 'Emirates ID'];
   const escapeCsv = (val) => {
     const str = String(val ?? '');
     if (str.includes(',') || str.includes('"') || str.includes('\n')) {
@@ -69,7 +69,6 @@ router.get('/export', async (req, res) => {
     d.nationality,
     d.phoneUae,
     d.projectId?.name || '',
-    d.vehiclePlate || '',
     d.status,
     d.payStructure,
     d.baseSalary,
@@ -156,8 +155,15 @@ router.post('/bulk-import', requirePermission('drivers.create'), (req, res, next
       visanumber: 'visaNumber', visa_number: 'visaNumber', 'visa number': 'visaNumber',
       bankname: 'bankName', bank_name: 'bankName', 'bank name': 'bankName',
       iban: 'iban',
-      vehicleplate: 'vehiclePlate', vehicle_plate: 'vehiclePlate', 'vehicle plate': 'vehiclePlate',
-      vehicletype: 'vehicleType', vehicle_type: 'vehicleType', 'vehicle type': 'vehicleType',
+      employeecode: 'employeeCode', employee_code: 'employeeCode', 'employee code': 'employeeCode',
+      passportexpiry: 'passportExpiry', passport_expiry: 'passportExpiry', 'passport expiry': 'passportExpiry',
+      dateofbirth: 'dateOfBirth', date_of_birth: 'dateOfBirth', 'date of birth': 'dateOfBirth',
+      email: 'email',
+      homecountryphone: 'homeCountryPhone', home_country_phone: 'homeCountryPhone', 'home country phone': 'homeCountryPhone',
+      emergencycontactname: 'emergencyContactName', emergency_contact_name: 'emergencyContactName', 'emergency contact name': 'emergencyContactName',
+      emergencycontactphone: 'emergencyContactPhone', emergency_contact_phone: 'emergencyContactPhone', 'emergency contact phone': 'emergencyContactPhone',
+      emergencycontactrelation: 'emergencyContactRelation', emergency_contact_relation: 'emergencyContactRelation', 'emergency contact relation': 'emergencyContactRelation',
+      clientname: 'clientName', client_name: 'clientName', 'client name': 'clientName',
     };
     rows = rows.map(row => {
       const normalized = {};
@@ -187,13 +193,13 @@ router.post('/bulk-import', requirePermission('drivers.create'), (req, res, next
 // GET /api/drivers/bulk-import/template — download XLSX template
 router.get('/bulk-import/template', async (req, res) => {
   const XLSX = require('xlsx');
-  const headers = ['fullName', 'nationality', 'phoneUae', 'emiratesId', 'project', 'payStructure', 'baseSalary', 'joinDate', 'passportNumber', 'visaNumber', 'bankName', 'iban', 'vehiclePlate', 'vehicleType'];
+  const headers = ['employeeCode', 'fullName', 'nationality', 'phoneUae', 'emiratesId', 'passportNumber', 'passportExpiry', 'dateOfBirth', 'email', 'bankName', 'iban', 'homeCountryPhone', 'emergencyContactName', 'emergencyContactPhone', 'emergencyContactRelation', 'joinDate', 'baseSalary', 'payStructure', 'clientName', 'project'];
 
   const ws = XLSX.utils.aoa_to_sheet([headers]);
 
   // Set phone, visa, emirates ID, passport, IBAN columns to text format (@)
   // so Excel doesn't convert large numbers to scientific notation
-  const textColumns = ['phoneUae', 'emiratesId', 'passportNumber', 'visaNumber', 'iban'];
+  const textColumns = ['phoneUae', 'emiratesId', 'passportNumber', 'iban', 'homeCountryPhone', 'emergencyContactPhone'];
   const textColIndices = textColumns.map(h => headers.indexOf(h)).filter(i => i !== -1);
   const range = XLSX.utils.decode_range(ws['!ref']);
   for (const colIdx of textColIndices) {

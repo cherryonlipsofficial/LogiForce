@@ -147,7 +147,7 @@ const Drivers = () => {
             <table style={{ width: '100%' }}>
               <thead>
                 <tr>
-                  {['Driver', 'Nationality', 'Project', 'Vehicle', 'Status', 'Base salary', 'Mar net pay', 'Advance'].map((h) => (
+                  {['Driver', 'Nationality', 'Project', 'Status', 'Base salary', 'Mar net pay', 'Advance'].map((h) => (
                     <th
                       key={h}
                       style={{
@@ -186,7 +186,6 @@ const Drivers = () => {
                     </td>
                     <td style={{ padding: '11px 14px', fontSize: 12 }}>{d.nationality || '—'}</td>
                     <td style={{ padding: '11px 14px', fontSize: 12 }}>{d.projectId?.name || d.project || '—'}</td>
-                    <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--text2)' }}>{d.vehiclePlate || '—'}</td>
                     <td style={{ padding: '11px 14px' }}><StatusBadge status={d.status} /></td>
                     <td style={{ padding: '11px 14px' }}>
                       <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>AED {(d.baseSalary || 0).toLocaleString()}</span>
@@ -446,6 +445,9 @@ const BulkImportModal = ({ onClose }) => {
           Upload a CSV or Excel file to import multiple drivers at once. Required columns:
           <strong> fullName, nationality, phoneUae, emiratesId, project, payStructure, baseSalary, joinDate</strong>.
           Drivers with all required fields will be imported directly in Pending KYC status.
+        </p>
+        <p style={{ fontSize: 12, color: 'var(--text3)', margin: '0 0 12px' }}>
+          Download the import template. Fill in driver personal and employment details. Vehicle assignment is done separately after the driver is activated.
         </p>
         <Btn small variant="ghost" onClick={handleDownloadTemplate}>
           Download Excel template
