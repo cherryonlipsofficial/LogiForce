@@ -98,10 +98,10 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
       <div style={boxStyles.blue}>
         <div style={{ fontWeight: 500, marginBottom: 8 }}>This driver is in Draft status.</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
-          {allFields.map((field) => (
+          {allFields.filter((field) => missingSet.has(field)).map((field) => (
             <div key={field} style={{ display: 'flex', alignItems: 'center', fontSize: 12 }}>
-              {missingSet.has(field) ? <CrossIcon /> : <CheckIcon />}
-              <span>{fieldLabels[field] || field} {missingSet.has(field) ? '— not filled' : '— filled'}</span>
+              <CrossIcon />
+              <span>{fieldLabels[field] || field} — not filled</span>
             </div>
           ))}
         </div>
