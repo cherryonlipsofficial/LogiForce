@@ -272,9 +272,42 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
     );
   }
 
-  // ── Active — no banner needed ──
+  // ── Active — show Client User ID update for authorized users ──
   if (status === 'active') {
-    return null;
+    return (
+      <PermissionGate permission="drivers.update_client_id">
+        <div style={boxStyles.green}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>
+                {driver.clientUserId ? 'Update Client User ID' : 'Set Client User ID'}
+              </label>
+              <input
+                type="text"
+                placeholder={driver.clientUserId || 'e.g. AMZ-00814'}
+                value={clientUserIdInput}
+                onChange={(e) => setClientUserIdInput(e.target.value)}
+                style={{ width: '100%' }}
+              />
+            </div>
+            <Btn
+              variant="ghost"
+              onClick={() => {
+                if (!clientUserIdInput.trim()) {
+                  toast.error('Please enter a Client User ID');
+                  return;
+                }
+                setClientUserIdMutation.mutate(clientUserIdInput.trim());
+              }}
+              disabled={setClientUserIdMutation.isPending}
+              small
+            >
+              {setClientUserIdMutation.isPending ? 'Saving...' : 'Save'}
+            </Btn>
+          </div>
+        </div>
+      </PermissionGate>
+    );
   }
 
   // ── On Leave ──

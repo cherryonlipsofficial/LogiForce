@@ -48,12 +48,18 @@ const ChangeStatusModal = ({ driver, presetStatus, onClose, onSuccess }) => {
   const currentStatus = driver.status || 'draft';
 
   // Determine available statuses
+  // Non-admin users can only transition to operational statuses:
+  // Active (reinstate), On Leave, Suspended, Resigned, Offboarding
+  // Admin can see and transition to all statuses including early-stage ones
+  const NON_ADMIN_STATUSES = ['active', 'on_leave', 'suspended', 'resigned', 'offboarding'];
   let availableStatuses;
   if (isAdmin) {
     availableStatuses = ALL_STATUSES.filter((s) => s.value !== currentStatus);
   } else {
     const allowed = OPS_TRANSITIONS[currentStatus] || [];
-    availableStatuses = ALL_STATUSES.filter((s) => allowed.includes(s.value));
+    availableStatuses = ALL_STATUSES.filter(
+      (s) => allowed.includes(s.value) && NON_ADMIN_STATUSES.includes(s.value)
+    );
   }
 
   const isAdminOverride = isAdmin && EARLY_STAGES.includes(newStatus);
