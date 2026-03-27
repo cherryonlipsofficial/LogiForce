@@ -127,7 +127,7 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
     return (
       <div style={boxStyles.amber}>
         <div style={{ fontWeight: 500, marginBottom: 8 }}>
-          Pending KYC — documents uploaded. Next: verify contact details.
+          Pending KYC — Upload documents. Next: verify contact details.
         </div>
 
         {/* Document validity checklist */}
