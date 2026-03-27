@@ -257,7 +257,7 @@ router.put('/:id', requirePermission('drivers.edit'), validate(updateDriverValid
 
 // DELETE /api/drivers/:id — soft delete (admin only)
 router.delete('/:id', requirePermission('drivers.delete'), async (req, res) => {
-  const driver = await driverService.softDelete(req.params.id);
+  const driver = await driverService.softDelete(req.params.id, req.user._id);
   sendSuccess(res, driver, 'Driver set to resigned');
 });
 

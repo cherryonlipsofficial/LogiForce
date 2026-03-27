@@ -13,20 +13,26 @@ const DOT_COLORS = {
   document_expired: '#f87171',
   contacts_verified: '#4ade9a',
   client_user_id_set: '#a78bfa',
-  field_updated: 'var(--text3)',
+  field_updated: '#60a5fa',
   note_added: 'var(--text3)',
   vehicle_assignment: '#a78bfa',
+  driver_created: '#4ade80',
+  driver_deleted: '#f87171',
+  driver_activated: '#4ade80',
 };
 
 const DOT_ICONS = {
-  status_change: '↕',
-  document_uploaded: '↑',
-  document_verified: '✓',
-  contacts_verified: '✓',
+  status_change: '\u2195',
+  document_uploaded: '\u2191',
+  document_verified: '\u2713',
+  contacts_verified: '\u2713',
   client_user_id_set: '#',
-  field_updated: '~',
-  note_added: '✎',
-  vehicle_assignment: '🚗',
+  field_updated: '\u270E',
+  note_added: '\u270E',
+  vehicle_assignment: '\u2B21',
+  driver_created: '+',
+  driver_deleted: '\u2717',
+  driver_activated: '\u2713',
 };
 
 const formatTimestamp = (dateStr) => {
@@ -157,8 +163,11 @@ const DriverHistoryTab = ({ driverId }) => {
         {allEntries.map((entry, i) => {
           const isStatusChange = entry.eventType === 'status_change';
           const isVehicle = entry._type === 'vehicle_assignment';
+          const isCreated = entry.eventType === 'driver_created';
+          const isDeleted = entry.eventType === 'driver_deleted';
+          const isHighlight = isStatusChange || isCreated || isDeleted;
           const dotColor = isVehicle ? '#a78bfa' : (DOT_COLORS[entry.eventType] || 'var(--text3)');
-          const icon = isVehicle ? '⬡' : (DOT_ICONS[entry.eventType] || '');
+          const icon = isVehicle ? '\u2B21' : (DOT_ICONS[entry.eventType] || '');
           const isLast = i === allEntries.length - 1;
           const isAdmin =
             entry.performedByRole &&
@@ -178,6 +187,20 @@ const DriverHistoryTab = ({ driverId }) => {
                       borderRadius: 4,
                       marginBottom: 2,
                     }
+                  : isCreated
+                  ? {
+                      background: 'rgba(74,222,128,0.04)',
+                      borderLeft: '2px solid #4ade80',
+                      borderRadius: 4,
+                      marginBottom: 2,
+                    }
+                  : isDeleted
+                  ? {
+                      background: 'rgba(248,113,113,0.04)',
+                      borderLeft: '2px solid #f87171',
+                      borderRadius: 4,
+                      marginBottom: 2,
+                    }
                   : isVehicle
                   ? {
                       background: 'rgba(167,139,250,0.04)',
@@ -189,7 +212,7 @@ const DriverHistoryTab = ({ driverId }) => {
               }}
             >
               {/* Timeline column */}
-              {!isStatusChange && !isVehicle && (
+              {!isHighlight && !isVehicle && (
                 <div
                   style={{
                     width: 40,
@@ -234,7 +257,7 @@ const DriverHistoryTab = ({ driverId }) => {
               <div
                 style={{
                   flex: 1,
-                  padding: (isStatusChange || isVehicle) ? '10px 12px' : '10px 10px 10px 0',
+                  padding: (isHighlight || isVehicle) ? '10px 12px' : '10px 10px 10px 0',
                   minHeight: 40,
                 }}
               >
@@ -252,7 +275,7 @@ const DriverHistoryTab = ({ driverId }) => {
                       style={{
                         fontSize: 13,
                         color: 'var(--text)',
-                        fontWeight: (isStatusChange || isVehicle) ? 600 : 400,
+                        fontWeight: (isHighlight || isVehicle) ? 600 : 400,
                       }}
                     >
                       {entry.description}
@@ -311,6 +334,31 @@ const DriverHistoryTab = ({ driverId }) => {
                         {entry._vehicleAssignment.returnCondition.replace('_', ' ')}
                       </Badge>
                     )}
+                  </div>
+                )}
+
+                {/* Field change details (old → new) */}
+                {entry.eventType === 'field_updated' && entry.oldValue && entry.newValue && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      marginTop: 6,
+                      fontSize: 12,
+                      padding: '4px 8px',
+                      background: 'var(--surface2)',
+                      borderRadius: 4,
+                      border: '1px solid var(--border)',
+                    }}
+                  >
+                    <span style={{ color: '#f87171', textDecoration: 'line-through' }}>
+                      {entry.oldValue}
+                    </span>
+                    <span style={{ color: 'var(--text3)', fontSize: 11 }}>{'\u2192'}</span>
+                    <span style={{ color: '#4ade80', fontWeight: 500 }}>
+                      {entry.newValue}
+                    </span>
                   </div>
                 )}
 
