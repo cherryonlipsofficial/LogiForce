@@ -67,6 +67,9 @@ const create = async (data, userId) => {
     }
   }
 
+  // Driver starts as draft; status engine will auto-transition to pending_kyc
+  // if all required fields are filled
+  data.status = 'draft';
   data.createdBy = userId;
   const driver = await Driver.create(data);
 
@@ -74,6 +77,7 @@ const create = async (data, userId) => {
     description: `Driver profile created`,
   }, userId);
 
+  // Evaluate auto-transition: draft → pending_kyc if all required fields present
   await evaluateAndTransition(driver._id, userId);
 
   return Driver.findById(driver._id);
@@ -215,44 +219,42 @@ const bulkCreate = async (rows, userId) => {
       const emiratesId = expandNumber(row.emiratesId);
       const joinDate = str(row.joinDate);
 
-      // Validate required fields
-      if (!fullName) throw new Error('Full name is required');
-      if (!nationality) throw new Error('Nationality is required');
-      if (!phoneUae) throw new Error('UAE phone is required');
-      if (!emiratesId) throw new Error('Emirates ID is required');
-      if (!baseSalary) throw new Error('Base salary is required');
-      if (!payStructure) throw new Error('Pay structure is required');
-      if (!projectRef) throw new Error('Project is required');
-      if (!joinDate) throw new Error('Joining date is required');
+      // Check for duplicate phone number if provided
+      if (phoneUae) {
+        const existingPhone = await Driver.findOne({ phoneUae: phoneUae });
+        if (existingPhone) throw new Error(`UAE phone number ${phoneUae} already exists`);
+      }
 
-      // Check for duplicate phone number
-      const existingPhone = await Driver.findOne({ phoneUae: phoneUae });
-      if (existingPhone) throw new Error(`UAE phone number ${phoneUae} already exists`);
-
-      // Validate payStructure
-      if (!['MONTHLY_FIXED', 'DAILY_RATE', 'PER_TRIP'].includes(payStructure)) {
+      // Validate payStructure if provided
+      if (payStructure && !['MONTHLY_FIXED', 'DAILY_RATE', 'PER_TRIP'].includes(payStructure)) {
         throw new Error('Pay structure must be MONTHLY_FIXED, DAILY_RATE, or PER_TRIP');
       }
 
-      // Resolve project by name or ID
-      let projectId = projectRef;
-      if (!projectRef.match(/^[0-9a-fA-F]{24}$/)) {
-        const project = await Project.findOne({ name: { $regex: new RegExp(`^${projectRef.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } });
-        if (!project) throw new Error(`Project "${projectRef}" not found`);
-        projectId = project._id;
+      // Resolve project by name or ID if provided
+      let projectId = null;
+      if (projectRef) {
+        if (!projectRef.match(/^[0-9a-fA-F]{24}$/)) {
+          const project = await Project.findOne({ name: { $regex: new RegExp(`^${projectRef.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } });
+          if (!project) throw new Error(`Project "${projectRef}" not found`);
+          projectId = project._id;
+        } else {
+          projectId = projectRef;
+        }
       }
 
+      // Build driver data — missing fields will leave driver in Draft status
       const driverData = {
-        fullName,
-        nationality,
-        phoneUae,
-        emiratesId,
-        baseSalary: Number(baseSalary),
-        payStructure,
-        projectId,
-        joinDate: new Date(joinDate),
+        status: 'draft',
         createdBy: userId,
       };
+      if (fullName) driverData.fullName = fullName;
+      if (nationality) driverData.nationality = nationality;
+      if (phoneUae) driverData.phoneUae = phoneUae;
+      if (emiratesId) driverData.emiratesId = emiratesId;
+      if (baseSalary) driverData.baseSalary = Number(baseSalary);
+      if (payStructure) driverData.payStructure = payStructure;
+      if (projectId) driverData.projectId = projectId;
+      if (joinDate) driverData.joinDate = new Date(joinDate);
 
       // Optional fields
       const passportNumber = expandNumber(row.passportNumber);
@@ -288,8 +290,7 @@ const bulkCreate = async (rows, userId) => {
         description: 'Driver profile created via bulk import',
       }, userId);
 
-      // All mandatory profile & employment fields are provided in bulk import,
-      // so auto-transition from draft → pending_kyc (skip draft status)
+      // Evaluate auto-transition: draft → pending_kyc if all required fields present
       await evaluateAndTransition(driver._id, userId);
 
       results.created++;

@@ -76,7 +76,7 @@ const listProjects = async (clientId, filters = {}, pagination = {}) => {
       {
         $match: {
           projectId: { $in: projectIds },
-          status: { $nin: ['resigned', 'offboarding'] },
+          status: { $nin: ['resigned', 'onboarding'] },
         },
       },
       { $group: { _id: '$projectId', count: { $sum: 1 } } },
@@ -475,7 +475,7 @@ const getProjectStats = async (clientId) => {
     {
       $match: {
         projectId: { $in: projectIds },
-        status: { $nin: ['resigned', 'offboarding'] },
+        status: { $nin: ['resigned', 'onboarding'] },
       },
     },
     { $group: { _id: null, total: { $sum: 1 } } },

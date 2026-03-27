@@ -12,17 +12,17 @@ const ALL_STATUSES = [
   { value: 'pending_kyc', label: 'Pending KYC' },
   { value: 'pending_verification', label: 'Pending Verification' },
   { value: 'active', label: 'Active' },
-  { value: 'on_leave', label: 'On leave' },
+  { value: 'on_leave', label: 'On Leave' },
   { value: 'suspended', label: 'Suspended' },
   { value: 'resigned', label: 'Resigned' },
-  { value: 'offboarding', label: 'Offboarding' },
+  { value: 'onboarding', label: 'Onboarding' },
 ];
 
 const OPS_TRANSITIONS = {
-  active: ['on_leave', 'suspended', 'resigned', 'offboarding'],
+  active: ['on_leave', 'suspended', 'resigned', 'onboarding'],
   on_leave: ['active', 'resigned'],
-  suspended: ['active', 'resigned', 'offboarding'],
-  offboarding: ['resigned'],
+  suspended: ['active', 'resigned', 'onboarding'],
+  onboarding: ['active', 'resigned'],
 };
 
 const EARLY_STAGES = ['draft', 'pending_kyc', 'pending_verification'];
@@ -32,7 +32,7 @@ const BUTTON_TEXT = {
   on_leave: 'Put on leave',
   suspended: 'Suspend driver',
   resigned: 'Mark as resigned',
-  offboarding: 'Begin offboarding',
+  onboarding: 'Move to onboarding',
 };
 
 const DESTRUCTIVE_STATUSES = ['suspended', 'resigned'];
@@ -50,7 +50,7 @@ const ChangeStatusModal = ({ driver, presetStatus, onClose, onSuccess }) => {
   // Determine available statuses
   // Non-admin users can only transition to: Active, On Leave, Suspended, Resigned, Offboarding
   // Only admin can see all statuses (including Draft, Pending KYC, Pending Verification)
-  const NON_ADMIN_STATUSES = ['active', 'on_leave', 'suspended', 'resigned', 'offboarding'];
+  const NON_ADMIN_STATUSES = ['active', 'on_leave', 'suspended', 'resigned', 'onboarding'];
   let availableStatuses;
   if (isAdmin) {
     availableStatuses = ALL_STATUSES.filter((s) => s.value !== currentStatus);
