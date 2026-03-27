@@ -13,6 +13,7 @@ module.exports = {
     'drivers.change_status':   { label: 'Change driver status',    module: 'Drivers',    description: 'Suspend, activate, put on leave' },
     'drivers.activate':        { label: 'Activate driver',          module: 'Drivers',    description: 'Activate a driver from Pending Verify status' },
     'drivers.update_client_id': { label: 'Update Client User ID',   module: 'Drivers',    description: 'Set or update the Client User ID on active drivers' },
+    'drivers.manage_passport': { label: 'Manage passport submission', module: 'Drivers', description: 'Record passport submission, guarantee passports, request extensions' },
 
     // ── CLIENTS ──
     'clients.view':            { label: 'View clients',            module: 'Clients',    description: 'See client list and details' },

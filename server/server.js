@@ -51,6 +51,7 @@ app.use('/api/vehicles', require('./src/routes/vehicles.routes'));
 app.use('/api/projects', require('./src/routes/projects.routes'));
 app.use('/api/roles', require('./src/routes/roles.routes'));
 app.use('/api/users', require('./src/routes/users.routes'));
+app.use('/api', require('./src/routes/guaranteePassport.routes'));
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -63,4 +64,18 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
+
+  // Nightly guarantee passport expiry check at 01:00 AM
+  const cron = require('node-cron');
+  const { runExpiryCheck } = require('./src/services/guaranteePassport.service');
+
+  cron.schedule('0 1 * * *', async () => {
+    console.log('Running guarantee passport expiry check...');
+    try {
+      const result = await runExpiryCheck();
+      console.log(`Expiry check complete: ${result.expiredCount} expired`);
+    } catch (err) {
+      console.error('Expiry check failed:', err.message);
+    }
+  });
 });

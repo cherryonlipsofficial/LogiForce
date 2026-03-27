@@ -170,6 +170,26 @@ const driverSchema = new mongoose.Schema(
       ref: 'TelecomSim',
       default: null,
     },
+
+    // Passport submission tracking
+    isPassportSubmitted: {
+      type: Boolean,
+      default: false,
+    },
+    passportSubmissionType: {
+      type: String,
+      enum: ['own', 'guarantee', null],
+      default: null,
+    },
+    activeGuaranteePassportId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'GuaranteePassport',
+      default: null,
+    },
+    guaranteePassportValid: {
+      type: Boolean,
+      default: null,
+    },
     joinDate: {
       type: Date,
     },
