@@ -15,13 +15,13 @@ const getInitials = (name) =>
     .slice(0, 2);
 
 const conditionOptions = [
-  { value: 'good', label: 'Good condition', sublabel: 'No issues, ready for next assignment' },
-  { value: 'minor_damage', label: 'Minor damage', sublabel: 'Small scratches, dents — operational' },
-  { value: 'major_damage', label: 'Major damage', sublabel: 'Significant damage — needs repair' },
-  { value: 'total_loss', label: 'Total loss', sublabel: 'Vehicle written off or stolen' },
+  { value: 'good', label: 'Good condition', sublabel: 'No damage, ready for next driver', color: '#4ade80' },
+  { value: 'minor_damage', label: 'Minor damage', sublabel: 'Small scratches or dents', color: '#fbbf24' },
+  { value: 'major_damage', label: 'Major damage', sublabel: 'Significant damage, needs repair', color: '#f87171' },
+  { value: 'total_loss', label: 'Total loss', sublabel: 'Written off or stolen', color: '#f87171' },
 ];
 
-const ReturnVehicleModal = ({ vehicle, onClose, onSuccess }) => {
+const ReturnVehicleModal = ({ assignment, vehicle, onClose, onSuccess }) => {
   const queryClient = useQueryClient();
 
   const {
@@ -42,9 +42,11 @@ const ReturnVehicleModal = ({ vehicle, onClose, onSuccess }) => {
   const showDamageFields = condition && condition !== 'good';
   const isDamageCondition = condition && condition !== 'good';
 
-  const driver = vehicle.currentDriverId || vehicle.currentDriver || {};
-  const assignment = vehicle.currentAssignment || {};
-  const assignedDate = assignment.assignedDate || assignment.startDate || vehicle.assignedDate;
+  const driverName = assignment?.driverName || vehicle?.currentDriverName || 'Unknown driver';
+  const driverCode = assignment?.driverEmployeeCode || vehicle?.currentDriverCode || '—';
+  const assignedDate = assignment?.assignedDate;
+  const monthlyDeduction = assignment?.monthlyDeductionAmount;
+  const assignmentId = assignment?._id || vehicle?.currentAssignmentId;
 
   const daysSince = assignedDate
     ? Math.floor((Date.now() - new Date(assignedDate).getTime()) / (1000 * 60 * 60 * 24))
@@ -57,7 +59,7 @@ const ReturnVehicleModal = ({ vehicle, onClose, onSuccess }) => {
 
   const { mutate, isPending } = useMutation({
     mutationFn: (data) =>
-      returnVehicle(vehicle.currentAssignmentId || assignment._id, {
+      returnVehicle(assignmentId, {
         returnCondition: data.returnCondition,
         damageNotes: data.damageNotes || undefined,
         damagePenaltyAmount: data.damagePenaltyAmount ? Number(data.damagePenaltyAmount) : 0,
@@ -65,7 +67,10 @@ const ReturnVehicleModal = ({ vehicle, onClose, onSuccess }) => {
     onSuccess: () => {
       toast.success('Vehicle returned successfully');
       queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['vehicle', vehicle._id] });
       queryClient.invalidateQueries({ queryKey: ['fleet-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['vehicle-current-assignment', vehicle._id] });
+      queryClient.invalidateQueries({ queryKey: ['vehicle-assignment-history', vehicle._id] });
       onSuccess?.();
       onClose();
     },
@@ -78,8 +83,10 @@ const ReturnVehicleModal = ({ vehicle, onClose, onSuccess }) => {
     mutate(data);
   };
 
+  const plateNumber = vehicle?.plateNumber || vehicle?.plate || '';
+
   return (
-    <Modal onClose={onClose} title={`Return vehicle — ${vehicle.plateNumber}`} width={480}>
+    <Modal onClose={onClose} title={`Return vehicle — ${plateNumber}`} width={480}>
       <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
         {/* SECTION 1 — Current assignment summary */}
         <div
@@ -91,27 +98,24 @@ const ReturnVehicleModal = ({ vehicle, onClose, onSuccess }) => {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-            <Avatar initials={getInitials(driver.name)} size={34} />
+            <Avatar initials={getInitials(driverName)} size={34} />
             <div>
-              <div style={{ fontWeight: 500 }}>{driver.name || 'Unknown driver'}</div>
-              <div style={{ color: 'var(--text3)', fontFamily: 'var(--mono, "DM Mono", monospace)', fontSize: 11 }}>
-                {driver.employeeCode || '—'}
+              <div style={{ fontWeight: 500 }}>{driverName}</div>
+              <div style={{ color: 'var(--text3)', fontFamily: 'var(--mono)', fontSize: 11 }}>
+                {driverCode}
               </div>
             </div>
           </div>
           <div style={{ color: 'var(--text3)', fontSize: 12, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <span>Assigned since: {formatDate(assignedDate)}</span>
             {daysSince != null && <span>Duration: {daysSince} days</span>}
-            {(assignment.monthlyRate ?? vehicle.activeContract?.monthlyRate) != null && (
-              <span>
-                Monthly deduction: AED{' '}
-                {(assignment.monthlyRate ?? vehicle.activeContract?.monthlyRate).toLocaleString()}
-              </span>
+            {monthlyDeduction != null && (
+              <span>Monthly deduction: AED {Number(monthlyDeduction).toLocaleString()}</span>
             )}
           </div>
         </div>
 
-        {/* SECTION 2 — Return condition */}
+        {/* SECTION 2 — Return condition (2x2 grid) */}
         <div>
           <label style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 500, display: 'block', marginBottom: 8 }}>
             Vehicle condition on return
@@ -121,7 +125,7 @@ const ReturnVehicleModal = ({ vehicle, onClose, onSuccess }) => {
             control={control}
             rules={{ required: 'Please select a condition' }}
             render={({ field }) => (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 {conditionOptions.map((opt) => {
                   const selected = field.value === opt.value;
                   return (
@@ -129,11 +133,11 @@ const ReturnVehicleModal = ({ vehicle, onClose, onSuccess }) => {
                       key={opt.value}
                       onClick={() => field.onChange(opt.value)}
                       style={{
-                        padding: '12px 14px',
-                        border: `1px solid ${selected ? 'var(--accent)' : 'var(--border2)'}`,
+                        padding: 12,
+                        border: `1px solid ${selected ? opt.color : 'var(--border2)'}`,
                         borderRadius: 8,
                         cursor: 'pointer',
-                        background: selected ? 'rgba(79,142,247,0.08)' : 'transparent',
+                        background: selected ? `${opt.color}12` : 'transparent',
                         transition: 'all .15s',
                       }}
                     >
@@ -155,13 +159,13 @@ const ReturnVehicleModal = ({ vehicle, onClose, onSuccess }) => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
               <label style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 500, display: 'block', marginBottom: 6 }}>
-                Damage description (required)
+                Damage description *
               </label>
               <textarea
                 {...register('damageNotes', {
                   required: showDamageFields ? 'Damage description is required' : false,
                 })}
-                placeholder="Describe the damage..."
+                placeholder="Describe the damage in detail..."
                 style={{
                   width: '100%',
                   minHeight: 80,
@@ -184,7 +188,7 @@ const ReturnVehicleModal = ({ vehicle, onClose, onSuccess }) => {
 
             <div>
               <label style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 500, display: 'block', marginBottom: 6 }}>
-                Penalty amount to deduct from driver
+                Penalty to deduct from driver salary
               </label>
               <div style={{ position: 'relative' }}>
                 <span
@@ -222,7 +226,7 @@ const ReturnVehicleModal = ({ vehicle, onClose, onSuccess }) => {
           </div>
         )}
 
-        {/* SECTION 4 — Return confirmation note */}
+        {/* SECTION 4 — Confirmation note */}
         <div
           style={{
             background: 'var(--surface2)',
@@ -236,8 +240,8 @@ const ReturnVehicleModal = ({ vehicle, onClose, onSuccess }) => {
           Returning this vehicle will:
           <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
             <li>Set vehicle status to Available</li>
-            <li>End the current driver assignment</li>
-            <li>Post any damage penalty to the driver ledger</li>
+            <li>End this driver's vehicle assignment</li>
+            <li>Create a return record in the assignment history</li>
           </ul>
         </div>
 
@@ -266,7 +270,7 @@ const ReturnVehicleModal = ({ vehicle, onClose, onSuccess }) => {
                     width: 14,
                     height: 14,
                     border: '2px solid rgba(255,255,255,0.3)',
-                    borderTopColor: isDamageCondition ? '#f87171' : '#fff',
+                    borderTopColor: '#fff',
                     borderRadius: '50%',
                     display: 'inline-block',
                     animation: 'spin 0.6s linear infinite',

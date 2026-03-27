@@ -198,8 +198,6 @@ const VehiclesPage = () => {
         <VehicleDetailPanel
           vehicleId={detailVehicle._id}
           onClose={() => setDetailVehicle(null)}
-          onAssignClick={(v) => { setDetailVehicle(null); setAssignVehicle(v); }}
-          onReturnClick={(v) => { setDetailVehicle(null); setReturnVehicle(v); }}
         />
       )}
     </div>

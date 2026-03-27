@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import Modal from '../ui/Modal';
 import Btn from '../ui/Btn';
@@ -17,8 +17,13 @@ const getInitials = (name) =>
     .slice(0, 2);
 
 const AssignVehicleModal = ({ vehicle, onClose, onSuccess }) => {
-  const { register, handleSubmit, setValue, watch } = useForm({
-    defaultValues: { expectedReturnDate: '' },
+  const qc = useQueryClient();
+  const { register, handleSubmit } = useForm({
+    defaultValues: {
+      expectedReturnDate: '',
+      monthlyDeductionAmount: vehicle.activeContract?.monthlyRate || 0,
+      notes: '',
+    },
   });
 
   const [searchValue, setSearchValue] = useState('');
@@ -26,10 +31,10 @@ const AssignVehicleModal = ({ vehicle, onClose, onSuccess }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState(null);
   const [searching, setSearching] = useState(false);
+  const [apiError, setApiError] = useState(null);
   const debounceRef = useRef(null);
   const dropdownRef = useRef(null);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handler = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -48,7 +53,7 @@ const AssignVehicleModal = ({ vehicle, onClose, onSuccess }) => {
     }
     setSearching(true);
     try {
-      const data = await getDrivers({ status: 'active', search: query, limit: 8 });
+      const data = await getDrivers({ status: 'active', search: query, limit: 10 });
       setResults(data.drivers || data || []);
       setShowDropdown(true);
     } catch {
@@ -66,42 +71,86 @@ const AssignVehicleModal = ({ vehicle, onClose, onSuccess }) => {
   };
 
   const handleSelectDriver = (driver) => {
+    if (driver.currentVehicleId) return;
     setSelectedDriver(driver);
     setSearchValue('');
     setShowDropdown(false);
     setResults([]);
+    setApiError(null);
   };
 
   const clearDriver = () => {
     setSelectedDriver(null);
+    setApiError(null);
   };
 
   const { mutate, isPending } = useMutation({
     mutationFn: (data) => assignVehicle(vehicle._id, data),
     onSuccess: () => {
-      toast.success(`Vehicle assigned to ${selectedDriver.name}`);
+      toast.success(`Vehicle ${vehicle.plateNumber || vehicle.plate} assigned to ${selectedDriver.fullName || selectedDriver.name}`);
+      qc.invalidateQueries({ queryKey: ['vehicles'] });
+      qc.invalidateQueries({ queryKey: ['vehicle', vehicle._id] });
+      qc.invalidateQueries({ queryKey: ['fleet-summary'] });
+      qc.invalidateQueries({ queryKey: ['vehicle-current-assignment', vehicle._id] });
+      qc.invalidateQueries({ queryKey: ['vehicle-assignment-history', vehicle._id] });
       onSuccess?.();
       onClose();
     },
     onError: (err) => {
-      toast.error(err?.response?.data?.message || 'Failed to assign vehicle');
+      setApiError(err?.response?.data?.message || 'Failed to assign vehicle');
     },
   });
 
   const onSubmit = (formData) => {
     if (!selectedDriver) return;
+    setApiError(null);
     mutate({
       driverId: selectedDriver._id,
       expectedReturnDate: formData.expectedReturnDate || undefined,
+      monthlyDeductionAmount: formData.monthlyDeductionAmount ? Number(formData.monthlyDeductionAmount) : 0,
+      notes: formData.notes || undefined,
     });
   };
 
   const contract = vehicle.activeContract;
-  const driverHasVehicle = selectedDriver?.currentVehicle || selectedDriver?.currentVehicleId;
+  const driverHasVehicle = selectedDriver?.currentVehicleId;
+
+  const inputStyle = {
+    width: '100%',
+    padding: '8px 12px',
+    borderRadius: 8,
+    border: '1px solid var(--border2)',
+    background: 'var(--surface2)',
+    color: 'var(--text)',
+    fontSize: 13,
+    outline: 'none',
+    boxSizing: 'border-box',
+  };
 
   return (
-    <Modal onClose={onClose} title={`Assign driver to ${vehicle.plateNumber}`} width={480}>
+    <Modal onClose={onClose} title="Assign vehicle" width={500}>
+      <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: -8, marginBottom: 12 }}>
+        {vehicle.plateNumber || vehicle.plate} — {vehicle.make} {vehicle.model}
+      </div>
+
       <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {/* API error display */}
+        {apiError && (
+          <div
+            style={{
+              background: 'rgba(239,68,68,0.08)',
+              border: '1px solid rgba(239,68,68,0.25)',
+              borderRadius: 8,
+              padding: '10px 14px',
+              fontSize: 13,
+              color: '#f87171',
+              lineHeight: 1.5,
+            }}
+          >
+            {apiError}
+          </div>
+        )}
+
         {/* SECTION 1 — Vehicle summary */}
         <div
           style={{
@@ -114,13 +163,14 @@ const AssignVehicleModal = ({ vehicle, onClose, onSuccess }) => {
             gap: 4,
           }}
         >
-          <div style={{ fontWeight: 500 }}>
-            {vehicle.make} {vehicle.model}
-            <span style={{ color: 'var(--text3)', fontWeight: 400 }}> — {vehicle.category || vehicle.type}</span>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: 15, fontWeight: 500 }}>
+            {vehicle.plateNumber || vehicle.plate}
           </div>
-          <div style={{ color: 'var(--text3)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ color: 'var(--text2)' }}>
+            {vehicle.make} {vehicle.model}
+          </div>
+          <div style={{ color: 'var(--text3)', display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 12 }}>
             {vehicle.supplierName && <span>Supplier: {vehicle.supplierName}</span>}
-            <span style={{ fontFamily: 'var(--mono, "DM Mono", monospace)' }}>{vehicle.plateNumber}</span>
             {contract?.monthlyRate != null && (
               <span>Monthly rate: AED {contract.monthlyRate.toLocaleString()}</span>
             )}
@@ -132,6 +182,21 @@ const AssignVehicleModal = ({ vehicle, onClose, onSuccess }) => {
           <label style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 500, display: 'block', marginBottom: 6 }}>
             Select driver
           </label>
+
+          {/* Info banner */}
+          <div
+            style={{
+              background: 'rgba(79,142,247,0.08)',
+              border: '1px solid rgba(79,142,247,0.15)',
+              borderRadius: 8,
+              padding: '8px 12px',
+              fontSize: 12,
+              color: 'var(--accent)',
+              marginBottom: 10,
+            }}
+          >
+            Only active drivers can be assigned a vehicle.
+          </div>
 
           {selectedDriver ? (
             <div
@@ -146,8 +211,8 @@ const AssignVehicleModal = ({ vehicle, onClose, onSuccess }) => {
                 fontSize: 13,
               }}
             >
-              <Avatar initials={getInitials(selectedDriver.name)} size={22} />
-              <span style={{ fontWeight: 500 }}>{selectedDriver.name}</span>
+              <Avatar initials={getInitials(selectedDriver.fullName || selectedDriver.name)} size={22} />
+              <span style={{ fontWeight: 500 }}>{selectedDriver.fullName || selectedDriver.name}</span>
               <button
                 type="button"
                 onClick={clearDriver}
@@ -171,17 +236,7 @@ const AssignVehicleModal = ({ vehicle, onClose, onSuccess }) => {
                 value={searchValue}
                 onChange={handleSearchChange}
                 placeholder="Search by name or employee code..."
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  border: '1px solid var(--border2)',
-                  background: 'var(--surface2)',
-                  color: 'var(--text)',
-                  fontSize: 13,
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                }}
+                style={inputStyle}
               />
               {showDropdown && results.length > 0 && (
                 <div
@@ -200,33 +255,57 @@ const AssignVehicleModal = ({ vehicle, onClose, onSuccess }) => {
                     boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
                   }}
                 >
-                  {results.map((d) => (
-                    <div
-                      key={d._id}
-                      onClick={() => handleSelectDriver(d)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        padding: '10px 12px',
-                        cursor: 'pointer',
-                        fontSize: 13,
-                        borderBottom: '1px solid var(--border)',
-                        transition: 'background .1s',
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface2)')}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                    >
-                      <Avatar initials={getInitials(d.name)} size={30} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 500 }}>{d.name}</div>
-                        <div style={{ color: 'var(--text3)', fontSize: 11, display: 'flex', gap: 8 }}>
-                          <span style={{ fontFamily: 'var(--mono, "DM Mono", monospace)' }}>{d.employeeCode}</span>
-                          {d.projectName && <span>{d.projectName}</span>}
+                  {results.map((d) => {
+                    const hasVehicle = !!d.currentVehicleId;
+                    return (
+                      <div
+                        key={d._id}
+                        onClick={() => handleSelectDriver(d)}
+                        title={hasVehicle ? 'This driver already has a vehicle. Return it first.' : undefined}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: '10px 12px',
+                          cursor: hasVehicle ? 'not-allowed' : 'pointer',
+                          fontSize: 13,
+                          borderBottom: '1px solid var(--border)',
+                          transition: 'background .1s',
+                          opacity: hasVehicle ? 0.5 : 1,
+                        }}
+                        onMouseEnter={(e) => { if (!hasVehicle) e.currentTarget.style.background = 'var(--surface2)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        <Avatar initials={getInitials(d.fullName || d.name)} size={24} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontWeight: 500, fontSize: 13 }}>{d.fullName || d.name}</span>
+                            <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text3)' }}>{d.employeeCode}</span>
+                          </div>
+                          <div style={{ color: 'var(--text3)', fontSize: 11, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            {d.clientId?.name && <span>{d.clientId.name}</span>}
+                            {d.projectId?.name && <span>{d.projectId.name}</span>}
+                          </div>
+                          {hasVehicle && (
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                marginTop: 3,
+                                fontSize: 10,
+                                background: 'rgba(245,158,11,0.12)',
+                                border: '1px solid rgba(245,158,11,0.25)',
+                                color: '#f59e0b',
+                                borderRadius: 10,
+                                padding: '1px 8px',
+                              }}
+                            >
+                              Has vehicle: {d.vehiclePlate || 'assigned'}
+                            </span>
+                          )}
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
               {showDropdown && results.length === 0 && searchValue && !searching && (
@@ -264,52 +343,30 @@ const AssignVehicleModal = ({ vehicle, onClose, onSuccess }) => {
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                <Avatar initials={getInitials(selectedDriver.name)} size={34} />
+                <Avatar initials={getInitials(selectedDriver.fullName || selectedDriver.name)} size={34} />
                 <div>
-                  <div style={{ fontWeight: 500 }}>{selectedDriver.name}</div>
-                  <div style={{ color: 'var(--text3)', fontFamily: 'var(--mono, "DM Mono", monospace)', fontSize: 11 }}>
+                  <div style={{ fontWeight: 500 }}>{selectedDriver.fullName || selectedDriver.name}</div>
+                  <div style={{ color: 'var(--text3)', fontFamily: 'var(--mono)', fontSize: 11 }}>
                     {selectedDriver.employeeCode}
                   </div>
                 </div>
               </div>
               <div style={{ color: 'var(--text3)', fontSize: 12, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                {selectedDriver.clientName && <span>Client: {selectedDriver.clientName}</span>}
-                {selectedDriver.projectName && <span>Project: {selectedDriver.projectName}</span>}
+                {(selectedDriver.clientId?.name || selectedDriver.clientName) && (
+                  <span>Client: {selectedDriver.clientId?.name || selectedDriver.clientName}</span>
+                )}
+                {(selectedDriver.projectId?.name || selectedDriver.projectName) && (
+                  <span>Project: {selectedDriver.projectId?.name || selectedDriver.projectName}</span>
+                )}
                 <span>
                   Current vehicle:{' '}
                   {driverHasVehicle ? (
-                    <span style={{ color: '#f59e0b' }}>
-                      &#9888; {selectedDriver.currentVehicle?.plateNumber || selectedDriver.currentVehiclePlate || 'Assigned'}
-                    </span>
+                    <span style={{ color: '#f59e0b' }}>&#9888; Assigned</span>
                   ) : (
                     <span style={{ color: '#4ade80' }}>None</span>
                   )}
                 </span>
               </div>
-
-              {driverHasVehicle && (
-                <div
-                  style={{
-                    marginTop: 10,
-                    background: 'rgba(245,158,11,0.08)',
-                    border: '1px solid rgba(245,158,11,0.2)',
-                    borderRadius: 8,
-                    padding: '10px 12px',
-                    fontSize: 12,
-                    color: '#f59e0b',
-                    lineHeight: 1.5,
-                  }}
-                >
-                  &#9888; This driver is currently assigned{' '}
-                  <strong>
-                    {selectedDriver.currentVehicle?.plateNumber || selectedDriver.currentVehiclePlate || 'a vehicle'}
-                    {selectedDriver.currentVehicle
-                      ? ` — ${selectedDriver.currentVehicle.make} ${selectedDriver.currentVehicle.model}`
-                      : ''}
-                  </strong>
-                  . Assigning a new vehicle will NOT automatically return the current one. Please return the current vehicle first, or confirm this is intentional.
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -323,40 +380,67 @@ const AssignVehicleModal = ({ vehicle, onClose, onSuccess }) => {
             <input
               type="date"
               {...register('expectedReturnDate')}
-              placeholder="Open-ended"
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                borderRadius: 8,
-                border: '1px solid var(--border2)',
-                background: 'var(--surface2)',
-                color: 'var(--text)',
-                fontSize: 13,
-                outline: 'none',
-                boxSizing: 'border-box',
-              }}
+              min={new Date().toISOString().split('T')[0]}
+              style={inputStyle}
             />
           </div>
 
-          {contract?.monthlyRate != null && (
+          <div>
+            <label style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 500, display: 'block', marginBottom: 6 }}>
+              Monthly salary deduction
+            </label>
+            <div style={{ position: 'relative' }}>
+              <span
+                style={{
+                  position: 'absolute',
+                  left: 12,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  fontSize: 13,
+                  color: 'var(--text3)',
+                }}
+              >
+                AED
+              </span>
+              <input
+                type="number"
+                step="any"
+                {...register('monthlyDeductionAmount', { min: 0 })}
+                style={{ ...inputStyle, paddingLeft: 42 }}
+              />
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+              This amount will be deducted from the driver's salary each month
+            </div>
             <div
               style={{
-                background: 'rgba(79,142,247,0.08)',
-                borderRadius: 8,
-                padding: '12px 14px',
+                marginTop: 6,
+                background: 'var(--surface2)',
+                borderRadius: 6,
+                padding: '6px 10px',
+                fontSize: 11,
+                color: 'var(--text3)',
               }}
             >
-              <div style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 500, marginBottom: 4 }}>
-                Monthly deduction from driver salary
-              </div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>
-                AED {contract.monthlyRate.toLocaleString()} / month
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
-                This amount will be deducted from driver salary each month
-              </div>
+              Amount is locked at assignment and used for payroll
             </div>
-          )}
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 500, display: 'block', marginBottom: 6 }}>
+              Notes (optional)
+            </label>
+            <textarea
+              {...register('notes')}
+              rows={3}
+              placeholder="Any notes about this assignment..."
+              style={{
+                ...inputStyle,
+                resize: 'vertical',
+                fontFamily: 'inherit',
+              }}
+            />
+          </div>
         </div>
 
         {/* FOOTER */}
@@ -389,7 +473,7 @@ const AssignVehicleModal = ({ vehicle, onClose, onSuccess }) => {
                 Assigning...
               </>
             ) : (
-              'Confirm assignment'
+              'Assign vehicle'
             )}
           </Btn>
         </div>

@@ -8,6 +8,9 @@ import Badge from '../ui/Badge';
 import Btn from '../ui/Btn';
 import SectionHeader from '../ui/SectionHeader';
 import Avatar from '../ui/Avatar';
+import AssignVehicleModal from './AssignVehicleModal';
+import ReturnVehicleModal from './ReturnVehicleModal';
+import VehicleAssignmentHistory from './VehicleAssignmentHistory';
 import { useAuth } from '../../context/AuthContext';
 import {
   getVehicle,
@@ -15,6 +18,7 @@ import {
   createContract,
   terminateContract,
   offHireVehicle,
+  getCurrentAssignment,
 } from '../../api/vehiclesApi';
 
 /* ── helpers ── */
@@ -39,6 +43,14 @@ const vehicleStatusLabel = (s) => {
   const map = { available: 'Available', assigned: 'Assigned', off_hired: 'Off-hired', maintenance: 'Maintenance' };
   return map[s] || s;
 };
+
+const getInitials = (name) =>
+  (name || '??')
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 
 /* ── styles ── */
 const label = { fontSize: 12, color: 'var(--text3)', whiteSpace: 'nowrap' };
@@ -111,7 +123,7 @@ const ContractForm = ({ vehicleId, onDone }) => {
   );
 };
 
-const TerminateForm = ({ vehicleId, onDone, onClose }) => {
+const TerminateForm = ({ vehicleId, onDone }) => {
   const [reason, setReason] = useState('');
   const qc = useQueryClient();
   const { mutate, isPending } = useMutation({
@@ -137,10 +149,12 @@ const TerminateForm = ({ vehicleId, onDone, onClose }) => {
 };
 
 /* ── main component ── */
-const VehicleDetailPanel = ({ vehicleId, onClose, onAssignClick, onReturnClick }) => {
+const VehicleDetailPanel = ({ vehicleId, onClose }) => {
   const { hasPermission } = useAuth();
   const canEditVehicle = hasPermission('vehicles.edit');
   const canOffHire = hasPermission('vehicles.off_hire');
+
+  const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ['vehicle', vehicleId],
@@ -148,14 +162,24 @@ const VehicleDetailPanel = ({ vehicleId, onClose, onAssignClick, onReturnClick }
     enabled: !!vehicleId,
   });
 
+  const vehicle = data?.data || data;
+
+  const { data: currentAssignmentData } = useQuery({
+    queryKey: ['vehicle-current-assignment', vehicleId],
+    queryFn: () => getCurrentAssignment(vehicleId).then((r) => r.data),
+    enabled: !!vehicleId,
+  });
+  const currentAssignment = currentAssignmentData || null;
+
   const [showRenew, setShowRenew] = useState(false);
   const [showTerminate, setShowTerminate] = useState(false);
   const [showAddContract, setShowAddContract] = useState(false);
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(true);
   const [offHireConfirm, setOffHireConfirm] = useState(false);
   const [offHireReason, setOffHireReason] = useState('');
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [returnModalOpen, setReturnModalOpen] = useState(false);
 
-  const qc = useQueryClient();
   const offHireMut = useMutation({
     mutationFn: (d) => offHireVehicle(vehicleId, d),
     onSuccess: () => {
@@ -168,9 +192,12 @@ const VehicleDetailPanel = ({ vehicleId, onClose, onAssignClick, onReturnClick }
     onError: (e) => toast.error(e?.response?.data?.message || 'Failed to off-hire'),
   });
 
-  const vehicle = data?.data || data;
   const activeContract = vehicle?.activeContract;
-  const history = vehicle?.assignmentHistory || [];
+
+  // Driver info from current assignment or vehicle
+  const assignmentDriver = currentAssignment?.driverId;
+  const driverName = assignmentDriver?.fullName || currentAssignment?.driverName || vehicle?.currentDriverName || '';
+  const driverCode = assignmentDriver?.employeeCode || currentAssignment?.driverEmployeeCode || vehicle?.currentDriverCode || '';
 
   return (
     <SidePanel onClose={onClose} width={560}>
@@ -272,7 +299,6 @@ const VehicleDetailPanel = ({ vehicleId, onClose, onAssignClick, onReturnClick }
                   </div>
                 )}
 
-                {/* Days remaining */}
                 {activeContract.endDate && (() => {
                   const daysLeft = Math.ceil((new Date(activeContract.endDate) - new Date()) / 86400000);
                   const color = daysLeft > 90 ? '#4ade80' : daysLeft > 30 ? '#fbbf24' : '#f87171';
@@ -284,7 +310,6 @@ const VehicleDetailPanel = ({ vehicleId, onClose, onAssignClick, onReturnClick }
                   );
                 })()}
 
-                {/* Admin actions */}
                 {canEditVehicle && (
                   <div style={{ display: 'flex', gap: 8 }}>
                     <Btn small onClick={() => { setShowRenew(!showRenew); setShowTerminate(false); }}>Renew contract</Btn>
@@ -292,7 +317,7 @@ const VehicleDetailPanel = ({ vehicleId, onClose, onAssignClick, onReturnClick }
                   </div>
                 )}
                 {showRenew && <RenewForm vehicleId={vehicleId} onDone={() => setShowRenew(false)} />}
-                {showTerminate && <TerminateForm vehicleId={vehicleId} onDone={() => setShowTerminate(false)} onClose={onClose} />}
+                {showTerminate && <TerminateForm vehicleId={vehicleId} onDone={() => setShowTerminate(false)} />}
               </div>
             ) : (
               <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8, padding: 14, textAlign: 'center' }}>
@@ -310,41 +335,64 @@ const VehicleDetailPanel = ({ vehicleId, onClose, onAssignClick, onReturnClick }
           {/* ── SECTION 3: Current assignment ── */}
           <div style={section}>
             <SectionHeader title="Current assignment" />
-            {vehicle.status === 'assigned' && vehicle.currentDriverId ? (
+            {vehicle.status === 'assigned' && currentAssignment ? (
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                  <Avatar initials={(vehicle.currentDriverName || '??').split(' ').map((n) => n[0]).join('').slice(0, 2)} size={36} />
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{vehicle.currentDriverName}</div>
-                    <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text3)' }}>{vehicle.currentDriverCode}</div>
+                <div
+                  style={{
+                    background: 'rgba(79,142,247,0.06)',
+                    border: '1px solid rgba(79,142,247,0.15)',
+                    borderRadius: 10,
+                    padding: '12px 14px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                    <Avatar initials={getInitials(driverName)} size={36} />
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{driverName}</div>
+                      <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text3)' }}>{driverCode}</div>
+                    </div>
                   </div>
+                  {currentAssignment.clientId && <DetailRow k="Client" v={currentAssignment.clientId?.name || '—'} />}
+                  {currentAssignment.projectId && <DetailRow k="Project" v={currentAssignment.projectId?.name || '—'} />}
+                  <DetailRow k="Assigned since" v={fmt(currentAssignment.assignedDate)} />
+                  <DetailRow
+                    k="Monthly deduction"
+                    v={currentAssignment.monthlyDeductionAmount != null ? `AED ${Number(currentAssignment.monthlyDeductionAmount).toLocaleString()}` : '—'}
+                    isMono
+                  />
+                  <DetailRow k="Expected return" v={currentAssignment.expectedReturnDate ? fmt(currentAssignment.expectedReturnDate) : 'Open-ended'} />
                 </div>
-                <DetailRow k="Client" v={vehicle.clientName} />
-                <DetailRow k="Project" v={vehicle.projectName} />
-                <DetailRow k="Assigned since" v={fmt(vehicle.assignedDate)} />
-                <DetailRow k="Monthly deduction" v={vehicle.monthlyDeductionAmount != null ? `AED ${Number(vehicle.monthlyDeductionAmount).toLocaleString()}` : '—'} isMono />
-                <DetailRow k="Expected return" v={vehicle.expectedReturnDate ? fmt(vehicle.expectedReturnDate) : 'Open-ended'} />
-                {onReturnClick && (
-                  <PermissionGate permission="vehicles.off_hire">
-                    <Btn variant="danger" style={{ width: '100%', justifyContent: 'center', marginTop: 10 }} onClick={() => { onReturnClick(vehicle); onClose(); }}>
-                      Return vehicle
-                    </Btn>
-                  </PermissionGate>
-                )}
+                <PermissionGate permission="vehicles.assign">
+                  <Btn
+                    variant="danger"
+                    style={{ width: '100%', justifyContent: 'center', marginTop: 10 }}
+                    onClick={() => setReturnModalOpen(true)}
+                  >
+                    Return vehicle
+                  </Btn>
+                </PermissionGate>
               </div>
             ) : vehicle.status === 'available' ? (
               <div style={{ textAlign: 'center', padding: '8px 0' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 10 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#4ade80', display: 'inline-block' }} />
-                  <span style={{ fontSize: 13, color: 'var(--text2)' }}>Available for assignment</span>
+                <div
+                  style={{
+                    background: 'rgba(74,222,128,0.06)',
+                    border: '1px solid rgba(74,222,128,0.15)',
+                    borderRadius: 10,
+                    padding: '14px',
+                    marginBottom: 10,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#4ade80', display: 'inline-block' }} />
+                    <span style={{ fontSize: 13, color: 'var(--text2)' }}>Available for assignment</span>
+                  </div>
                 </div>
-                {onAssignClick && (
-                  <PermissionGate permission="vehicles.assign">
-                    <Btn variant="primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => { onAssignClick(vehicle); onClose(); }}>
-                      Assign driver
-                    </Btn>
-                  </PermissionGate>
-                )}
+                <PermissionGate permission="vehicles.assign">
+                  <Btn variant="primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setAssignModalOpen(true)}>
+                    Assign to driver
+                  </Btn>
+                </PermissionGate>
               </div>
             ) : (
               <div style={{ fontSize: 13, color: 'var(--text3)' }}>—</div>
@@ -359,49 +407,9 @@ const VehicleDetailPanel = ({ vehicleId, onClose, onAssignClick, onReturnClick }
               style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: 0, color: 'var(--text2)', fontSize: 12, fontWeight: 500, fontFamily: 'var(--sans)' }}
             >
               <span style={{ fontSize: 10 }}>{historyOpen ? '▾' : '▸'}</span>
-              Assignment history ({history.length})
+              Assignment history
             </button>
-            {historyOpen && (
-              <div style={{ marginTop: 10 }}>
-                {history.length === 0 ? (
-                  <div style={{ fontSize: 12, color: 'var(--text3)' }}>No previous assignments</div>
-                ) : (
-                  history.map((h, i) => (
-                    <div key={h._id || i} style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
-                      {/* timeline line + dot */}
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />
-                        {i < history.length - 1 && <div style={{ width: 1, flex: 1, background: 'var(--border2)', marginTop: 2 }} />}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                          <span style={{ fontSize: 13, color: 'var(--text)' }}>{h.driverName}</span>
-                          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text3)' }}>{h.employeeCode}</span>
-                        </div>
-                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
-                          {fmt(h.assignedDate)} → {h.returnedDate ? fmt(h.returnedDate) : 'Present'}
-                        </div>
-                        {h.assignedDate && (
-                          <div style={{ fontSize: 11, color: 'var(--text3)' }}>
-                            Duration: {Math.ceil(((h.returnedDate ? new Date(h.returnedDate) : new Date()) - new Date(h.assignedDate)) / 86400000)} days
-                          </div>
-                        )}
-                        {h.returnedDate && h.conditionOnReturn && (
-                          <Badge variant={h.conditionOnReturn === 'good' ? 'success' : h.conditionOnReturn === 'damaged' ? 'danger' : 'warning'} style={{ marginTop: 4 }}>
-                            {h.conditionOnReturn}
-                          </Badge>
-                        )}
-                        {h.damagePenalty > 0 && (
-                          <div style={{ fontSize: 11, color: '#f87171', fontFamily: 'var(--mono)', marginTop: 2 }}>
-                            Damage penalty: AED {Number(h.damagePenalty).toLocaleString()}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
+            {historyOpen && <VehicleAssignmentHistory vehicleId={vehicleId} />}
           </div>
 
           {/* ── SECTION 5: Off-hire ── */}
@@ -434,6 +442,34 @@ const VehicleDetailPanel = ({ vehicleId, onClose, onAssignClick, onReturnClick }
             </div>
           )}
         </div>
+      )}
+
+      {/* ── Modals ── */}
+      {assignModalOpen && vehicle && (
+        <AssignVehicleModal
+          vehicle={vehicle}
+          onClose={() => setAssignModalOpen(false)}
+          onSuccess={() => {
+            setAssignModalOpen(false);
+            qc.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
+            qc.invalidateQueries({ queryKey: ['vehicle-current-assignment', vehicleId] });
+            qc.invalidateQueries({ queryKey: ['vehicle-assignment-history', vehicleId] });
+          }}
+        />
+      )}
+
+      {returnModalOpen && vehicle && currentAssignment && (
+        <ReturnVehicleModal
+          assignment={currentAssignment}
+          vehicle={vehicle}
+          onClose={() => setReturnModalOpen(false)}
+          onSuccess={() => {
+            setReturnModalOpen(false);
+            qc.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
+            qc.invalidateQueries({ queryKey: ['vehicle-current-assignment', vehicleId] });
+            qc.invalidateQueries({ queryKey: ['vehicle-assignment-history', vehicleId] });
+          }}
+        />
       )}
     </SidePanel>
   );

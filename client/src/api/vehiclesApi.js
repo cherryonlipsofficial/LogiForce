@@ -54,9 +54,15 @@ export const getExpiringContracts = (days) =>
 export const terminateContract = (vehicleId, data) =>
   axiosInstance.put(`/vehicles/${vehicleId}/contract/terminate`, data).then((r) => r.data);
 
-// History
-export const getVehicleHistory = (vehicleId) =>
-  axiosInstance.get(`/vehicles/${vehicleId}/history`).then((r) => r.data);
+// Assignment history & current assignment
+export const getVehicleAssignmentHistory = (vehicleId, page = 1, limit = 20) =>
+  axiosInstance.get(`/vehicles/${vehicleId}/assignment-history`, { params: { page, limit } }).then((r) => r.data);
 
-export const getDriverVehicleHistory = (driverId) =>
-  axiosInstance.get(`/drivers/${driverId}/vehicle-history`).then((r) => r.data);
+export const getCurrentAssignment = (vehicleId) =>
+  axiosInstance.get(`/vehicles/${vehicleId}/current-assignment`).then((r) => r.data);
+
+export const getCurrentDriverVehicle = (driverId) =>
+  axiosInstance.get(`/drivers/${driverId}/current-vehicle`).then((r) => r.data);
+
+export const getDriverVehicleHistory = (driverId, page = 1, limit = 20) =>
+  axiosInstance.get(`/drivers/${driverId}/vehicle-history`, { params: { page, limit } }).then((r) => r.data);
