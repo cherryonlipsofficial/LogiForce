@@ -1,4 +1,4 @@
-const { Driver, DriverLedger, DriverDocument } = require('../models');
+const { Driver, DriverLedger, DriverDocument, DriverHistory, VehicleAssignment, DriverProjectAssignment, Advance, AttendanceRecord, SalaryRun } = require('../models');
 const { PAGINATION } = require('../config/constants');
 const { evaluateAndTransition } = require('./driverStatusEngine.service');
 const { logEvent } = require('./driverHistory.service');
@@ -200,7 +200,7 @@ const update = async (id, data, userId, { isAdmin = false, canEditActive = false
   return driver;
 };
 
-const softDelete = async (id, userId) => {
+const hardDelete = async (id) => {
   const existing = await Driver.findById(id);
   if (!existing) {
     const err = new Error('Driver not found');
@@ -208,22 +208,20 @@ const softDelete = async (id, userId) => {
     throw err;
   }
 
-  const oldStatus = existing.status;
-  const driver = await Driver.findByIdAndUpdate(
-    id,
-    { status: 'resigned' },
-    { new: true }
-  );
+  await Promise.all([
+    DriverLedger.deleteMany({ driverId: id }),
+    DriverHistory.deleteMany({ driverId: id }),
+    DriverDocument.deleteMany({ driverId: id }),
+    VehicleAssignment.deleteMany({ driverId: id }),
+    DriverProjectAssignment.deleteMany({ driverId: id }),
+    Advance.deleteMany({ driverId: id }),
+    AttendanceRecord.deleteMany({ driverId: id }),
+    SalaryRun.deleteMany({ driverId: id }),
+  ]);
 
-  if (userId) {
-    await logEvent(id, 'driver_deleted', {
-      description: `Driver offboarded — status changed from ${oldStatus} to resigned`,
-      statusFrom: oldStatus,
-      statusTo: 'resigned',
-    }, userId);
-  }
+  await Driver.findByIdAndDelete(id);
 
-  return driver;
+  return { _id: id };
 };
 
 const getLedger = async (driverId, pagination = {}) => {
@@ -390,7 +388,7 @@ module.exports = {
   findById,
   create,
   update,
-  softDelete,
+  hardDelete,
   getLedger,
   getExpiringDocuments,
   getStatusCounts,

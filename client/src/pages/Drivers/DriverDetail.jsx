@@ -634,7 +634,7 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
       {showDeleteConfirm && (
         <Modal title="Delete driver" onClose={() => setShowDeleteConfirm(false)} width={420}>
           <div style={{ padding: '8px 0' }}>
-            <p style={{ marginBottom: 16 }}>Are you sure you want to delete <strong>{driverName}</strong>? This will set the driver status to resigned.</p>
+            <p style={{ marginBottom: 16 }}>Are you sure you want to permanently delete <strong>{driverName}</strong>? This action cannot be undone.</p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <Btn variant="ghost" onClick={() => setShowDeleteConfirm(false)} disabled={deleting}>Cancel</Btn>
               <Btn
