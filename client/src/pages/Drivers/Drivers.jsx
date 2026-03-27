@@ -88,11 +88,12 @@ const Drivers = () => {
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* KPI row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12 }}>
         <KpiCard label="Total drivers" value={(counts.total ?? 0).toLocaleString()} />
         <KpiCard label="Active" value={(counts.active ?? 0).toLocaleString()} color="#4ade80" />
         <KpiCard label="On leave" value={(counts.onLeave ?? 0).toLocaleString()} color="#7eb3fc" />
         <KpiCard label="Suspended" value={(counts.suspended ?? 0).toLocaleString()} color="#f87171" />
+        <KpiCard label="Resigned" value={(counts.resigned ?? 0).toLocaleString()} color="#a1a1aa" />
       </div>
 
       {/* Table */}
@@ -124,6 +125,7 @@ const Drivers = () => {
             <option value="active">Active</option>
             <option value="on_leave">On leave</option>
             <option value="suspended">Suspended</option>
+            <option value="resigned">Resigned</option>
           </select>
           <select value={projectFilter} onChange={(e) => { setProjectFilter(e.target.value); setPage(1); }} style={{ width: 160, height: 34 }}>
             <option value="all">All projects</option>

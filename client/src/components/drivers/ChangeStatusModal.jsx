@@ -74,6 +74,7 @@ const ChangeStatusModal = ({ driver, presetStatus, onClose, onSuccess }) => {
       toast.success(`Status changed to ${label}`);
       queryClient.invalidateQueries({ queryKey: ['driver', driverId] });
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      queryClient.invalidateQueries({ queryKey: ['driverStatusCounts'] });
       onSuccess?.();
       onClose();
     },
