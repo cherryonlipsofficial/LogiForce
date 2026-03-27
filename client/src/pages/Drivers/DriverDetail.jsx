@@ -12,7 +12,7 @@ import Btn from '../../components/ui/Btn';
 import Modal from '../../components/ui/Modal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useNavigate } from 'react-router-dom';
-import { getDriver, getDriverLedger, updateDriver, changeDriverStatus, getDriverDocuments, uploadDriverDocument, fetchDocumentFile, getDocumentDirectUrl, getStatusSummary, getDriverHistory, activateDriver, deleteDriver } from '../../api/driversApi';
+import { getDriver, getDriverLedger, updateDriver, getDriverDocuments, uploadDriverDocument, fetchDocumentFile, getDocumentDirectUrl, getStatusSummary, getDriverHistory, activateDriver, deleteDriver } from '../../api/driversApi';
 import { getProjects } from '../../api/projectsApi';
 import { getVehicle, getCurrentDriverVehicle, getDriverVehicleHistory } from '../../api/vehiclesApi';
 import DriverStatusBanner from '../../components/drivers/DriverStatusBanner';
@@ -581,10 +581,10 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
       )}
 
       {showStatusChange && (
-        <ChangeStatusModal
+        <ChangeStatusModalNew
           driver={d}
           onClose={() => setShowStatusChange(false)}
-          onSaved={() => {
+          onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ['driver', driverId] });
             queryClient.invalidateQueries({ queryKey: ['driver-status-summary', driverId] });
             queryClient.invalidateQueries({ queryKey: ['drivers'] });
@@ -968,78 +968,6 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
           <Btn variant="primary" type="submit" disabled={submitting}>
             {submitting ? 'Saving...' : 'Save changes'}
-          </Btn>
-        </div>
-      </form>
-    </Modal>
-  );
-};
-
-const statusOptions = [
-  { value: 'draft', label: 'Draft' },
-  { value: 'pending_kyc', label: 'Pending KYC' },
-  { value: 'active', label: 'Active' },
-  { value: 'on_leave', label: 'On leave' },
-  { value: 'suspended', label: 'Suspended' },
-  { value: 'resigned', label: 'Resigned' },
-  { value: 'offboarding', label: 'Offboarding' },
-];
-
-const ChangeStatusModal = ({ driver, onClose, onSaved }) => {
-  const { register, handleSubmit, formState: { errors } } = useForm({
-    defaultValues: { status: driver.status || 'draft', reason: '' },
-  });
-  const [submitting, setSubmitting] = useState(false);
-
-  const onSubmit = async (formData) => {
-    setSubmitting(true);
-    try {
-      await changeDriverStatus(driver._id || driver.id, {
-        status: formData.status,
-        reason: formData.reason || undefined,
-      });
-      toast.success('Status updated successfully');
-      onSaved();
-    } catch (err) {
-      toast.error(err?.response?.data?.message || 'Failed to update status');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 4 };
-  const errorStyle = { color: '#f87171', fontSize: 11, marginTop: 2, display: 'block' };
-
-  return (
-    <Modal title="Change driver status" onClose={onClose} width={400}>
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>Current status</label>
-          <StatusBadge status={driver.status || 'draft'} />
-        </div>
-        <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>New status *</label>
-          <select {...register('status', { required: 'Status is required' })}>
-            {statusOptions.map((s) => (
-              <option key={s.value} value={s.value}>{s.label}</option>
-            ))}
-          </select>
-          {errors.status && <span style={errorStyle}>{errors.status.message}</span>}
-        </div>
-        <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>Reason</label>
-          <textarea
-            {...register('reason', { maxLength: { value: 500, message: 'Must be under 500 characters' } })}
-            rows={3}
-            placeholder="Optional reason for status change..."
-            style={{ width: '100%', resize: 'vertical' }}
-          />
-          {errors.reason && <span style={errorStyle}>{errors.reason.message}</span>}
-        </div>
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-          <Btn variant="primary" type="submit" disabled={submitting}>
-            {submitting ? 'Updating...' : 'Update status'}
           </Btn>
         </div>
       </form>
