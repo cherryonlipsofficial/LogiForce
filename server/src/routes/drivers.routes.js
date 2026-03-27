@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const router = express.Router();
-const { protect, requirePermission } = require('../middleware/auth');
+const { protect, requirePermission, attachPermissions } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const driverService = require('../services/driver.service');
 const { verifyContacts, setClientUserId, activateDriver, changeStatusManual, getDriverStatusSummary } = require('../services/driverWorkflow.service');
@@ -354,8 +354,14 @@ router.post('/:id/verify-contacts', requirePermission('drivers.change_status'), 
 });
 
 // PUT /api/drivers/:id/client-user-id — Operations sets client user ID
-router.put('/:id/client-user-id', requirePermission('drivers.change_status'), async (req, res) => {
+// Requires either drivers.change_status or drivers.update_client_id
+router.put('/:id/client-user-id', attachPermissions, async (req, res) => {
   try {
+    const perms = req.userPermissions || [];
+    const hasAccess = perms.includes('*') || perms.includes('drivers.change_status') || perms.includes('drivers.update_client_id');
+    if (!hasAccess) {
+      return sendError(res, 'Access denied. Required permission: drivers.change_status or drivers.update_client_id', 403);
+    }
     const { clientUserId } = req.body;
     if (!clientUserId || typeof clientUserId !== 'string' || !clientUserId.trim()) {
       return sendError(res, 'clientUserId is required and must be a non-empty string', 400);
