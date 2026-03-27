@@ -157,6 +157,16 @@ const driverSchema = new mongoose.Schema(
       ref: 'DriverProjectAssignment',
       default: null,
     },
+    currentVehicleId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Vehicle',
+      default: null,
+    },
+    currentVehicleAssignmentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'VehicleAssignment',
+      default: null,
+    },
     telecomSimId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'TelecomSim',
