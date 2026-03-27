@@ -50,6 +50,9 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
   const status = driver.status;
   const summary = statusSummary || {};
 
+  // Don't render banner until status summary API has loaded
+  if (!statusSummary) return null;
+
   const invalidateDriver = () => {
     queryClient.invalidateQueries({ queryKey: ['driver', driverId] });
     queryClient.invalidateQueries({ queryKey: ['drivers'] });
@@ -127,7 +130,7 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
     return (
       <div style={boxStyles.amber}>
         <div style={{ fontWeight: 500, marginBottom: 8 }}>
-          Pending KYC — documents uploaded. Next: verify contact details.
+          Pending KYC — Upload documents. Next: verify contact details.
         </div>
 
         {/* Document validity checklist */}
