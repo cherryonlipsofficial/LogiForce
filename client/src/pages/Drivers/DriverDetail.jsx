@@ -526,11 +526,9 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
 
       {/* Footer */}
       <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
-        {!(d.status === 'active' && !isAdmin) && (
-          <PermissionGate permission="drivers.edit">
-            <Btn variant="ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowEdit(true)}>Edit profile</Btn>
-          </PermissionGate>
-        )}
+        <PermissionGate permission="drivers.edit">
+          <Btn variant="ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowEdit(true)}>Edit profile</Btn>
+        </PermissionGate>
         {d.status === 'pending_verification' && (
           <PermissionGate permission="drivers.activate">
             <Btn
