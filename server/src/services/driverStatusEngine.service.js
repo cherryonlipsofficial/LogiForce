@@ -129,7 +129,28 @@ async function evaluateAndTransition(driverId, triggeredBy) {
     }
   } else if (profileCheck.complete) {
     // Profile complete but docs not valid
-    // → pending_kyc is the right status
+    // → pending_kyc is the right status, but passport submission is mandatory first
+
+    // Passport submission is mandatory before pending_kyc
+    if (!driver.isPassportSubmitted) {
+      return {
+        ready: false,
+        reason: 'Passport not yet submitted',
+        missingCheck: 'passport_submission',
+      };
+    }
+
+    // If passport is guarantee type, check it is still valid
+    if (driver.passportSubmissionType === 'guarantee') {
+      if (!driver.guaranteePassportValid) {
+        return {
+          ready: false,
+          reason: 'Guarantee passport has expired or is not valid',
+          missingCheck: 'guarantee_passport_expired',
+        };
+      }
+    }
+
     if (currentStatus === 'draft') {
       await applyStatusChange(driver, 'pending_kyc', null,
         'Profile and employment details completed', triggeredBy);
