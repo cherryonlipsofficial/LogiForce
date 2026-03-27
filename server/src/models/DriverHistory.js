@@ -21,6 +21,7 @@ const driverHistorySchema = new Schema({
       'document_expired',      // system detected expiry
       'contacts_verified',     // Compliance clicked Verified
       'client_user_id_set',    // Operations entered client_user_id
+      'driver_activated',      // driver manually activated from pending_verification
       'field_updated',         // general profile field update
       'note_added',            // manual note added
     ],
