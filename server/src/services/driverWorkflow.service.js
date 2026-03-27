@@ -96,8 +96,10 @@ async function activateDriver(driverId, userId) {
   driver.activatedManually = true;
   await driver.save();
 
+  const activatingUser = await User.findById(userId).select('email').lean();
+  const activatedByLabel = activatingUser?.email ? `Driver activated by ${activatingUser.email}` : 'Driver activated by authorized user';
   await logEvent(driverId, 'driver_activated', {
-    description: 'Driver activated by authorized user',
+    description: activatedByLabel,
   }, userId);
 
   await evaluateAndTransition(driverId, userId);
@@ -138,7 +140,7 @@ async function changeStatusManual(driverId, newStatus, reason, userId) {
   let description;
 
   if (isAdmin) {
-    description = `Status force-changed by admin: "${currentStatus}" → "${newStatus}". Reason: ${reason}`;
+    description = `Status force-changed by ${user.email || 'admin'}`;
   } else {
     const allowed = OPERATIONS_ALLOWED[currentStatus];
     if (!allowed || !allowed.includes(newStatus)) {
@@ -146,7 +148,7 @@ async function changeStatusManual(driverId, newStatus, reason, userId) {
       err.statusCode = 403;
       throw err;
     }
-    description = `Status changed: "${currentStatus}" → "${newStatus}". Reason: ${reason}`;
+    description = `Status changed by ${user.email || 'user'}`;
   }
 
   await applyStatusChange(driver, newStatus, reason, description, userId);

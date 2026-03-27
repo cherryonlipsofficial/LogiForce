@@ -32,7 +32,7 @@ async function logStatusChange(driverId, from, to, reason, performedBy) {
     statusFrom:  from,
     statusTo:    to,
     reason:      reason,
-    description: `Status changed from "${from}" to "${to}"${reason ? ': ' + reason : ''}`,
+    description: reason || `Status transitioned`,
   }, performedBy);
 }
 

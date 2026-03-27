@@ -1,4 +1,4 @@
-const { Driver, DriverDocument } = require('../models');
+const { Driver, DriverDocument, User } = require('../models');
 const { logStatusChange } = require('./driverHistory.service');
 
 const REQUIRED_KYC_DOCS = ['emirates_id', 'passport', 'driving_licence'];
@@ -141,8 +141,10 @@ async function evaluateAndTransition(driverId, triggeredBy) {
   // Condition: activated manually by compliance via 'drivers.activate' permission only
   // clientUserId no longer triggers activation — it's set by Operations after driver is active
   if (currentStatus === 'pending_verification' && driver.activatedManually) {
+    const activatingUser = await User.findById(typeof triggeredBy === 'object' ? triggeredBy._id : triggeredBy).select('email').lean();
+    const activatedByLabel = activatingUser?.email ? `Activated by ${activatingUser.email}` : 'Activated by authorized user';
     await applyStatusChange(driver, 'active', null,
-      'Activated by authorized user', triggeredBy);
+      activatedByLabel, triggeredBy);
     return { transitioned: true, newStatus: 'active' };
   }
 
