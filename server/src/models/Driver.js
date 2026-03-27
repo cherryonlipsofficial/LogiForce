@@ -61,6 +61,7 @@ const driverSchema = new mongoose.Schema(
     phoneUae: {
       type: String,
       required: [true, 'UAE phone number is required'],
+      unique: true,
     },
     phoneHomeCountry: {
       type: String,
