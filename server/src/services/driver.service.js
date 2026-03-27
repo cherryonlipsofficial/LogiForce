@@ -79,11 +79,16 @@ const create = async (data, userId) => {
   return Driver.findById(driver._id);
 };
 
-const update = async (id, data, userId, { isAdmin = false } = {}) => {
+const update = async (id, data, userId, { isAdmin = false, canEditActive = false } = {}) => {
   const existing = await Driver.findById(id);
   if (!existing) {
     const err = new Error('Driver not found');
     err.statusCode = 404;
+    throw err;
+  }
+  if (existing.status === 'active' && !isAdmin && !canEditActive) {
+    const err = new Error('You do not have permission to edit an active driver');
+    err.statusCode = 403;
     throw err;
   }
 

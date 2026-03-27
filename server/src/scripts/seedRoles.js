@@ -61,7 +61,7 @@ const defaultRoles = [
     description: 'Compliance team — manages driver documents, KYC and contact verification',
     isSystemRole: false,
     permissions: [
-      'drivers.view', 'drivers.create', 'drivers.edit',
+      'drivers.view', 'drivers.create', 'drivers.edit', 'drivers.edit_active',
       'drivers.manage_docs', 'drivers.change_status',
       'clients.view',
       'projects.view', 'projects.assign_drivers',

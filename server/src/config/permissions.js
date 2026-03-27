@@ -6,6 +6,7 @@ module.exports = {
     'drivers.view':            { label: 'View drivers',            module: 'Drivers',    description: 'See driver list and profiles' },
     'drivers.create':          { label: 'Add new drivers',         module: 'Drivers',    description: 'Create new driver records' },
     'drivers.edit':            { label: 'Edit driver details',     module: 'Drivers',    description: 'Update driver profile fields' },
+    'drivers.edit_active':     { label: 'Edit active drivers',     module: 'Drivers',    description: 'Edit driver details when driver status is Active (e.g. upload renewed documents)' },
     'drivers.delete':          { label: 'Delete / offboard',       module: 'Drivers',    description: 'Offboard or delete driver records' },
     'drivers.view_ledger':     { label: 'View driver ledger',      module: 'Drivers',    description: 'See full financial ledger per driver' },
     'drivers.manage_docs':     { label: 'Manage documents',        module: 'Drivers',    description: 'Upload and verify driver documents' },

@@ -19,6 +19,7 @@ import DriverStatusBanner from '../../components/drivers/DriverStatusBanner';
 import ChangeStatusModalNew from '../../components/drivers/ChangeStatusModal';
 import DriverHistoryTab from '../../components/drivers/DriverHistoryTab';
 import { useAuth } from '../../context/AuthContext';
+import { usePermission } from '../../hooks/usePermission';
 
 const DOC_TYPES = [
   { value: 'emirates_id', label: 'Emirates ID' },
@@ -58,6 +59,7 @@ const EyeIcon = () => (
 
 const DriverDetail = ({ driver, onClose }) => {
   const { isAdmin } = useAuth();
+  const canEditActive = usePermission('drivers.edit_active');
   const [tab, setTab] = useState('profile');
   const [showEdit, setShowEdit] = useState(false);
   const [showStatusChange, setShowStatusChange] = useState(false);
@@ -526,9 +528,11 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
 
       {/* Footer */}
       <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
-        <PermissionGate permission="drivers.edit">
-          <Btn variant="ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowEdit(true)}>Edit profile</Btn>
-        </PermissionGate>
+        {(d.status !== 'active' || canEditActive) && (
+          <PermissionGate permission="drivers.edit">
+            <Btn variant="ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowEdit(true)}>Edit profile</Btn>
+          </PermissionGate>
+        )}
         {d.status === 'pending_verification' && (
           <PermissionGate permission="drivers.activate">
             <Btn
