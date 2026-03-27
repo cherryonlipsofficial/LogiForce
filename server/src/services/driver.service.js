@@ -65,7 +65,9 @@ const create = async (data, userId) => {
     description: `Driver profile created`,
   }, userId);
 
-  return driver;
+  await evaluateAndTransition(driver._id, userId);
+
+  return Driver.findById(driver._id);
 };
 
 const update = async (id, data, userId, { isAdmin = false } = {}) => {
