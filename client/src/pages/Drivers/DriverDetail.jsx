@@ -571,10 +571,11 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
           driver={d}
           onClose={() => setShowEdit(false)}
           onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ['driver', driverId] });
+            queryClient.invalidateQueries({ queryKey: ['driver-status-summary', driverId] });
             queryClient.invalidateQueries({ queryKey: ['drivers'] });
             queryClient.invalidateQueries({ queryKey: ['driverDocuments', driverId] });
             setShowEdit(false);
-            onClose();
           }}
         />
       )}
@@ -584,9 +585,10 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
           driver={d}
           onClose={() => setShowStatusChange(false)}
           onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ['driver', driverId] });
+            queryClient.invalidateQueries({ queryKey: ['driver-status-summary', driverId] });
             queryClient.invalidateQueries({ queryKey: ['drivers'] });
             setShowStatusChange(false);
-            onClose();
           }}
         />
       )}
