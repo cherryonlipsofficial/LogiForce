@@ -255,10 +255,10 @@ router.put('/:id', requirePermission('drivers.edit'), validate(updateDriverValid
   sendSuccess(res, driver, 'Driver updated');
 });
 
-// DELETE /api/drivers/:id — soft delete (admin only)
+// DELETE /api/drivers/:id — hard delete (admin only)
 router.delete('/:id', requirePermission('drivers.delete'), async (req, res) => {
-  const driver = await driverService.softDelete(req.params.id, req.user._id);
-  sendSuccess(res, driver, 'Driver set to resigned');
+  await driverService.hardDelete(req.params.id);
+  sendSuccess(res, null, 'Driver permanently deleted');
 });
 
 // GET /api/drivers/:id/ledger — paginated ledger
