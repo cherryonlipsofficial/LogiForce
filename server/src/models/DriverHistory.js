@@ -24,6 +24,8 @@ const driverHistorySchema = new Schema({
       'driver_activated',      // driver manually activated from pending_verification
       'field_updated',         // general profile field update
       'note_added',            // manual note added
+      'driver_created',        // driver profile initially created
+      'driver_deleted',        // driver soft-deleted / offboarded
     ],
   },
 

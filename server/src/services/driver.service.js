@@ -73,8 +73,8 @@ const create = async (data, userId) => {
   data.createdBy = userId;
   const driver = await Driver.create(data);
 
-  await logEvent(driver._id, 'field_updated', {
-    description: `Driver profile created`,
+  await logEvent(driver._id, 'driver_created', {
+    description: `Driver profile created — ${driver.fullName || 'unnamed'}`,
   }, userId);
 
   // Evaluate auto-transition: draft → pending_kyc if all required fields present
@@ -83,8 +83,52 @@ const create = async (data, userId) => {
   return Driver.findById(driver._id);
 };
 
+// Fields to track changes for in driver history
+const TRACKED_FIELDS = [
+  'fullName', 'fullNameArabic', 'nationality', 'emiratesId', 'emiratesIdExpiry',
+  'passportNumber', 'passportExpiry', 'visaNumber', 'visaType', 'visaExpiry',
+  'labourCardNo', 'labourCardExpiry', 'drivingLicenceExpiry', 'mulkiyaExpiry',
+  'phoneUae', 'phoneHomeCountry', 'bankName', 'iban',
+  'vehicleType', 'vehiclePlate', 'ownVehicle', 'baseSalary', 'payStructure',
+  'clientUserId', 'emergencyContactName', 'emergencyContactPhone',
+  'emergencyContactRelation', 'alternatePhone', 'homeCountryPhone', 'homeCountryAddress',
+  'joinDate', 'contractEndDate', 'email',
+  'clientId', 'supplierId', 'projectId',
+];
+
+// Human-readable labels for field names
+const FIELD_LABELS = {
+  fullName: 'Full Name', fullNameArabic: 'Full Name (Arabic)', nationality: 'Nationality',
+  emiratesId: 'Emirates ID', emiratesIdExpiry: 'Emirates ID Expiry',
+  passportNumber: 'Passport Number', passportExpiry: 'Passport Expiry',
+  visaNumber: 'Visa Number', visaType: 'Visa Type', visaExpiry: 'Visa Expiry',
+  labourCardNo: 'Labour Card No', labourCardExpiry: 'Labour Card Expiry',
+  drivingLicenceExpiry: 'Driving Licence Expiry', mulkiyaExpiry: 'Mulkiya Expiry',
+  phoneUae: 'UAE Phone', phoneHomeCountry: 'Home Country Phone',
+  bankName: 'Bank Name', iban: 'IBAN',
+  vehicleType: 'Vehicle Type', vehiclePlate: 'Vehicle Plate', ownVehicle: 'Own Vehicle',
+  baseSalary: 'Base Salary', payStructure: 'Pay Structure',
+  clientUserId: 'Client User ID',
+  emergencyContactName: 'Emergency Contact Name', emergencyContactPhone: 'Emergency Contact Phone',
+  emergencyContactRelation: 'Emergency Contact Relation',
+  alternatePhone: 'Alternate Phone', homeCountryPhone: 'Home Country Phone',
+  homeCountryAddress: 'Home Country Address',
+  joinDate: 'Join Date', contractEndDate: 'Contract End Date', email: 'Email',
+  clientId: 'Client', supplierId: 'Supplier', projectId: 'Project',
+};
+
+const formatFieldValue = (value) => {
+  if (value === null || value === undefined || value === '') return '(empty)';
+  if (value instanceof Date) return value.toISOString().split('T')[0];
+  if (typeof value === 'object' && value._id) return value.name || String(value._id);
+  return String(value);
+};
+
 const update = async (id, data, userId, { isAdmin = false, canEditActive = false } = {}) => {
-  const existing = await Driver.findById(id);
+  const existing = await Driver.findById(id)
+    .populate('clientId', 'name')
+    .populate('supplierId', 'name')
+    .populate('projectId', 'name');
   if (!existing) {
     const err = new Error('Driver not found');
     err.statusCode = 404;
@@ -105,10 +149,34 @@ const update = async (id, data, userId, { isAdmin = false, canEditActive = false
     }
   }
 
+  // Detect changed fields before updating
+  const changedFields = [];
+  for (const field of TRACKED_FIELDS) {
+    if (data[field] === undefined) continue;
+    const oldVal = existing[field];
+    const newVal = data[field];
+    const oldStr = formatFieldValue(oldVal);
+    const newStr = formatFieldValue(newVal);
+    if (oldStr !== newStr) {
+      changedFields.push({ field, oldValue: oldStr, newValue: newStr });
+    }
+  }
+
   const driver = await Driver.findByIdAndUpdate(id, data, {
     new: true,
     runValidators: true,
   });
+
+  // Log each field change to history
+  for (const change of changedFields) {
+    const label = FIELD_LABELS[change.field] || change.field;
+    await logEvent(id, 'field_updated', {
+      fieldName: change.field,
+      oldValue: change.oldValue,
+      newValue: change.newValue,
+      description: `${label} changed from "${change.oldValue}" to "${change.newValue}"`,
+    }, userId);
+  }
 
   // Sync expiry dates from Driver fields to corresponding DriverDocument records
   const expiryMapping = [
@@ -132,18 +200,29 @@ const update = async (id, data, userId, { isAdmin = false, canEditActive = false
   return driver;
 };
 
-const softDelete = async (id) => {
+const softDelete = async (id, userId) => {
+  const existing = await Driver.findById(id);
+  if (!existing) {
+    const err = new Error('Driver not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const oldStatus = existing.status;
   const driver = await Driver.findByIdAndUpdate(
     id,
     { status: 'resigned' },
     { new: true }
   );
 
-  if (!driver) {
-    const err = new Error('Driver not found');
-    err.statusCode = 404;
-    throw err;
+  if (userId) {
+    await logEvent(id, 'driver_deleted', {
+      description: `Driver offboarded — status changed from ${oldStatus} to resigned`,
+      statusFrom: oldStatus,
+      statusTo: 'resigned',
+    }, userId);
   }
+
   return driver;
 };
 
@@ -286,8 +365,8 @@ const bulkCreate = async (rows, userId) => {
       if (clientName) driverData.clientName = clientName;
 
       const driver = await Driver.create(driverData);
-      await logEvent(driver._id, 'field_updated', {
-        description: 'Driver profile created via bulk import',
+      await logEvent(driver._id, 'driver_created', {
+        description: `Driver profile created via bulk import — ${driver.fullName || 'unnamed'}`,
       }, userId);
 
       // Evaluate auto-transition: draft → pending_kyc if all required fields present
