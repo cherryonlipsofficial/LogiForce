@@ -52,6 +52,7 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
 
   const invalidateDriver = () => {
     queryClient.invalidateQueries({ queryKey: ['driver', driverId] });
+    queryClient.invalidateQueries({ queryKey: ['driver-status-summary', driverId] });
     queryClient.invalidateQueries({ queryKey: ['drivers'] });
   };
 
