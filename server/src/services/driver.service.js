@@ -260,15 +260,29 @@ const bulkCreate = async (rows, userId) => {
       const visaNumber = expandNumber(row.visaNumber);
       const bankName = str(row.bankName);
       const iban = expandNumber(row.iban);
-      const vehiclePlate = str(row.vehiclePlate);
-      const vehicleType = str(row.vehicleType);
+      const passportExpiry = str(row.passportExpiry);
+      const dateOfBirth = str(row.dateOfBirth);
+      const email = str(row.email);
+      const homeCountryPhone = expandNumber(row.homeCountryPhone);
+      const emergencyContactName = str(row.emergencyContactName);
+      const emergencyContactPhone = expandNumber(row.emergencyContactPhone);
+      const emergencyContactRelation = str(row.emergencyContactRelation);
+      const employeeCode = str(row.employeeCode);
+      const clientName = str(row.clientName);
 
       if (passportNumber) driverData.passportNumber = passportNumber;
       if (visaNumber) driverData.visaNumber = visaNumber;
       if (bankName) driverData.bankName = bankName;
       if (iban) driverData.iban = iban;
-      if (vehiclePlate) driverData.vehiclePlate = vehiclePlate;
-      if (vehicleType) driverData.vehicleType = vehicleType;
+      if (passportExpiry) driverData.passportExpiry = new Date(passportExpiry);
+      if (dateOfBirth) driverData.dateOfBirth = new Date(dateOfBirth);
+      if (email) driverData.email = email;
+      if (homeCountryPhone) driverData.homeCountryPhone = homeCountryPhone;
+      if (emergencyContactName) driverData.emergencyContactName = emergencyContactName;
+      if (emergencyContactPhone) driverData.emergencyContactPhone = emergencyContactPhone;
+      if (emergencyContactRelation) driverData.emergencyContactRelation = emergencyContactRelation;
+      if (employeeCode) driverData.employeeCode = employeeCode;
+      if (clientName) driverData.clientName = clientName;
 
       const driver = await Driver.create(driverData);
       await logEvent(driver._id, 'field_updated', {
