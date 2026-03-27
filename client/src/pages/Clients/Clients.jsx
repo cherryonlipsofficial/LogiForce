@@ -109,7 +109,7 @@ const Clients = () => {
             <table style={{ width: '100%' }}>
               <thead>
                 <tr>
-                  {['Client', 'Contact', 'Drivers', 'Rate/Driver', 'Payment terms', 'Contract end', 'Status'].map((h) => (
+                  {['Client', 'Contact', 'Trade Licence No.', 'TRN No.', 'Payment terms', 'Contract end', 'Status'].map((h) => (
                     <th key={h} style={{ padding: '9px 14px', fontSize: 11, color: 'var(--text3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'left', background: 'var(--surface2)' }}>
                       {h}
                     </th>
@@ -134,11 +134,11 @@ const Clients = () => {
                         <div style={{ fontSize: 12 }}>{c.contactName}</div>
                         <div style={{ fontSize: 10, color: 'var(--text3)' }}>{c.contactEmail}</div>
                       </td>
-                      <td style={{ padding: '11px 14px' }}>
-                        <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{c.driverCount}</span>
+                      <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--text2)' }}>
+                        {c.tradeLicenceNo || '—'}
                       </td>
-                      <td style={{ padding: '11px 14px' }}>
-                        <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{c.ratePerDriver ? formatCurrencyFull(c.ratePerDriver) : '—'}</span>
+                      <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--text2)' }}>
+                        {c.vatNo || '—'}
                       </td>
                       <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--text2)' }}>{c.paymentTerms}</td>
                       <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--text3)' }}>{formatDate(c.contractEnd)}</td>
@@ -362,7 +362,7 @@ const ClientFormModal = ({ client, onClose }) => {
     mutationFn: (data) => {
       const payload = {
         ...data,
-        ratePerDriver: Number(data.ratePerDriver),
+        ratePerDriver: data.ratePerDriver !== '' && data.ratePerDriver != null ? Number(data.ratePerDriver) : undefined,
         isActive: data.isActive === true || data.isActive === 'true',
         contractStart: data.contractStart || null,
         contractEnd: data.contractEnd || null,
@@ -399,12 +399,13 @@ const ClientFormModal = ({ client, onClose }) => {
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Phone</label>
-            <input {...register('contactPhone')} placeholder="+971 4 123 4567" />
+            <input {...register('contactPhone', { validate: (v) => !v || !/\s/.test(v) || 'Phone number must not contain spaces' })} placeholder="+97141234567" onKeyDown={(e) => { if (e.key === ' ') e.preventDefault(); }} onPaste={(e) => { const pasted = e.clipboardData.getData('text'); if (/\s/.test(pasted)) { e.preventDefault(); const cleaned = pasted.replace(/\s/g, ''); document.execCommand('insertText', false, cleaned); } }} />
+            {errors.contactPhone && <span style={{ color: '#f87171', fontSize: 11 }}>{errors.contactPhone.message}</span>}
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>Rate per driver *</label>
-            <input type="number" step="any" {...register('ratePerDriver', { required: true, min: 0 })} placeholder="2500" />
-            {errors.ratePerDriver && <span style={{ color: '#f87171', fontSize: 11 }}>Required (positive number)</span>}
+            <label style={labelStyle}>Rate per driver</label>
+            <input type="number" step="any" {...register('ratePerDriver', { min: 0 })} placeholder="2500" />
+            {errors.ratePerDriver && <span style={{ color: '#f87171', fontSize: 11 }}>Must be a positive number</span>}
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Billing currency</label>
@@ -447,7 +448,7 @@ const ClientFormModal = ({ client, onClose }) => {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
-          <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+          <Btn variant="ghost" onClick={onClose} disabled={isLoading}>Cancel</Btn>
           <Btn variant="primary" type="submit" disabled={isLoading}>{isLoading ? (isEdit ? 'Saving...' : 'Creating...') : (isEdit ? 'Save changes' : 'Create client')}</Btn>
         </div>
       </form>
