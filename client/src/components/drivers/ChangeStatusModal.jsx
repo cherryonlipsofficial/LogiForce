@@ -15,14 +15,14 @@ const ALL_STATUSES = [
   { value: 'on_leave', label: 'On Leave' },
   { value: 'suspended', label: 'Suspended' },
   { value: 'resigned', label: 'Resigned' },
-  { value: 'onboarding', label: 'Onboarding' },
+  { value: 'offboarded', label: 'Offboarded' },
 ];
 
 const OPS_TRANSITIONS = {
-  active: ['on_leave', 'suspended', 'resigned', 'onboarding'],
+  active: ['on_leave', 'suspended', 'resigned', 'offboarded'],
   on_leave: ['active', 'resigned'],
-  suspended: ['active', 'resigned', 'onboarding'],
-  onboarding: ['active', 'resigned'],
+  suspended: ['active', 'resigned', 'offboarded'],
+  offboarded: ['active', 'resigned'],
 };
 
 const EARLY_STAGES = ['draft', 'pending_kyc', 'pending_verification'];
@@ -32,7 +32,7 @@ const BUTTON_TEXT = {
   on_leave: 'Put on leave',
   suspended: 'Suspend driver',
   resigned: 'Mark as resigned',
-  onboarding: 'Move to onboarding',
+  offboarded: 'Mark as offboarded',
 };
 
 const DESTRUCTIVE_STATUSES = ['suspended', 'resigned'];
@@ -51,7 +51,7 @@ const ChangeStatusModal = ({ driver, presetStatus, onClose, onSuccess }) => {
   // Non-admin (Operations) users can only change status from Active/On Leave/Suspended/Onboarding
   // Early stages (Draft, Pending KYC, Pending Verify) are not changeable by Operations
   // Only admin can see all statuses and force transitions
-  const NON_ADMIN_STATUSES = ['active', 'on_leave', 'suspended', 'resigned', 'onboarding'];
+  const NON_ADMIN_STATUSES = ['active', 'on_leave', 'suspended', 'resigned', 'offboarded'];
   let availableStatuses;
   if (isAdmin) {
     availableStatuses = ALL_STATUSES.filter((s) => s.value !== currentStatus);

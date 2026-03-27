@@ -99,7 +99,7 @@ async function evaluateAndTransition(driverId, triggeredBy) {
   const currentStatus = driver.status;
 
   // Only auto-transitions apply to drivers in early-stage statuses.
-  // If driver is active, on_leave, suspended, resigned, or onboarding
+  // If driver is active, on_leave, suspended, resigned, or offboarded
   // the engine does NOT override those statuses.
   const autoEligible = ['draft', 'pending_kyc', 'pending_verification'];
   if (!autoEligible.includes(currentStatus)) {

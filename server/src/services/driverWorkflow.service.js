@@ -2,13 +2,13 @@ const { Driver, User, DriverDocument } = require('../models');
 const { applyStatusChange, evaluateAndTransition, checkKycDocsUploaded, checkKycDocsValid, checkProfileAndEmploymentComplete, REQUIRED_KYC_DOCS, REQUIRED_PROFILE_FIELDS, REQUIRED_EMPLOYMENT_FIELDS } = require('./driverStatusEngine.service');
 const { logEvent } = require('./driverHistory.service');
 
-const VALID_STATUSES = ['draft', 'pending_kyc', 'pending_verification', 'active', 'on_leave', 'suspended', 'resigned', 'onboarding'];
+const VALID_STATUSES = ['draft', 'pending_kyc', 'pending_verification', 'active', 'on_leave', 'suspended', 'resigned', 'offboarded'];
 
 const OPERATIONS_ALLOWED = {
-  active: ['on_leave', 'suspended', 'resigned', 'onboarding'],
+  active: ['on_leave', 'suspended', 'resigned', 'offboarded'],
   on_leave: ['active', 'resigned'],
-  suspended: ['active', 'resigned', 'onboarding'],
-  onboarding: ['active', 'resigned'],
+  suspended: ['active', 'resigned', 'offboarded'],
+  offboarded: ['active', 'resigned'],
 };
 
 async function verifyContacts(driverId, userId) {

@@ -22,7 +22,7 @@ const createDriverValidation = [
     .isIn(['MONTHLY_FIXED', 'DAILY_RATE', 'PER_TRIP']).withMessage('Pay structure must be MONTHLY_FIXED, DAILY_RATE, or PER_TRIP'),
   body('status')
     .optional()
-    .isIn(['draft', 'pending_kyc', 'pending_verification', 'active', 'on_leave', 'suspended', 'resigned', 'onboarding'])
+    .isIn(['draft', 'pending_kyc', 'pending_verification', 'active', 'on_leave', 'suspended', 'resigned', 'offboarded'])
     .withMessage('Invalid status value'),
   body('visaType')
     .optional()
@@ -91,7 +91,7 @@ const updateDriverValidation = [
     .isIn(['MONTHLY_FIXED', 'DAILY_RATE', 'PER_TRIP']).withMessage('Pay structure must be MONTHLY_FIXED, DAILY_RATE, or PER_TRIP'),
   body('status')
     .optional()
-    .isIn(['draft', 'pending_kyc', 'pending_verification', 'active', 'on_leave', 'suspended', 'resigned', 'onboarding'])
+    .isIn(['draft', 'pending_kyc', 'pending_verification', 'active', 'on_leave', 'suspended', 'resigned', 'offboarded'])
     .withMessage('Invalid status value'),
   body('visaType')
     .optional()
@@ -140,7 +140,7 @@ const updateDriverValidation = [
 const changeStatusValidation = [
   body('status')
     .notEmpty().withMessage('Status is required')
-    .isIn(['draft', 'pending_kyc', 'pending_verification', 'active', 'on_leave', 'suspended', 'resigned', 'onboarding'])
+    .isIn(['draft', 'pending_kyc', 'pending_verification', 'active', 'on_leave', 'suspended', 'resigned', 'offboarded'])
     .withMessage('Invalid status value'),
   body('reason')
     .optional()

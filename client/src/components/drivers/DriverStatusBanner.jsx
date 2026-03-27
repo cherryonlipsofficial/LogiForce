@@ -322,12 +322,12 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
     );
   }
 
-  // ── Onboarding ──
-  if (status === 'onboarding') {
+  // ── Offboarded ──
+  if (status === 'offboarded') {
     const reason = summary.lastStatusChange?.reason || '';
     return (
       <div style={boxStyles.purple}>
-        <span style={{ fontWeight: 500 }}>Onboarding</span>
+        <span style={{ fontWeight: 500 }}>Offboarded</span>
         {reason && <span style={{ color: 'var(--text3)' }}> — {reason}</span>}
       </div>
     );

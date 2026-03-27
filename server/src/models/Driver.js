@@ -97,7 +97,7 @@ const driverSchema = new mongoose.Schema(
         'on_leave',            // Manual by operations
         'suspended',           // Manual by operations
         'resigned',            // Manual by operations
-        'onboarding',          // Manual by operations
+        'offboarded',          // Manual by operations
       ],
       default: 'draft',
       index: true,
