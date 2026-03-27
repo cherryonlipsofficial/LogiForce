@@ -286,7 +286,7 @@ router.get('/fleet-utilisation', requirePermission('reports.view'), async (req, 
       ).length;
       const offHired = drivers.filter(
         (d) =>
-          ['resigned', 'offboarding'].includes(d.status) && d.vehiclePlate
+          ['resigned', 'onboarding'].includes(d.status) && d.vehiclePlate
       ).length;
 
       bySupplier.push({

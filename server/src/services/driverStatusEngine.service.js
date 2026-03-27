@@ -99,7 +99,7 @@ async function evaluateAndTransition(driverId, triggeredBy) {
   const currentStatus = driver.status;
 
   // Only auto-transitions apply to drivers in early-stage statuses.
-  // If driver is active, on_leave, suspended, resigned, or offboarding
+  // If driver is active, on_leave, suspended, resigned, or onboarding
   // the engine does NOT override those statuses.
   const autoEligible = ['draft', 'pending_kyc', 'pending_verification'];
   if (!autoEligible.includes(currentStatus)) {
@@ -138,11 +138,11 @@ async function evaluateAndTransition(driverId, triggeredBy) {
   }
 
   // Level 3: pending_verification → active
-  // Condition: activated manually via 'drivers.activate' permission
-  // (clientUserId assignment also still triggers activation if present)
-  if (currentStatus === 'pending_verification' && (driver.clientUserId || driver.activatedManually)) {
+  // Condition: activated manually by compliance via 'drivers.activate' permission only
+  // clientUserId no longer triggers activation — it's set by Operations after driver is active
+  if (currentStatus === 'pending_verification' && driver.activatedManually) {
     await applyStatusChange(driver, 'active', null,
-      driver.activatedManually ? 'Activated by authorized user' : 'Client user ID assigned by operations', triggeredBy);
+      'Activated by authorized user', triggeredBy);
     return { transitioned: true, newStatus: 'active' };
   }
 

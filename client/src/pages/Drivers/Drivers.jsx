@@ -244,16 +244,15 @@ const AddDriverModal = ({ onClose }) => {
   const onSubmit = async (formData) => {
     setSubmitting(true);
     try {
-      const payload = {
-        fullName: formData.fullName,
-        nationality: formData.nationality,
-        phoneUae: formData.phoneUae,
-        baseSalary: Number(formData.baseSalary),
-        payStructure: formData.payStructure,
-        projectId: formData.projectId,
-        emiratesId: formData.emiratesId || undefined,
-        joinDate: formData.joinDate || undefined,
-      };
+      const payload = {};
+      if (formData.fullName) payload.fullName = formData.fullName;
+      if (formData.nationality) payload.nationality = formData.nationality;
+      if (formData.phoneUae) payload.phoneUae = formData.phoneUae;
+      if (formData.baseSalary) payload.baseSalary = Number(formData.baseSalary);
+      if (formData.payStructure) payload.payStructure = formData.payStructure;
+      if (formData.projectId) payload.projectId = formData.projectId;
+      if (formData.emiratesId) payload.emiratesId = formData.emiratesId;
+      if (formData.joinDate) payload.joinDate = formData.joinDate;
       await createDriver(payload);
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
       toast.success('Driver created successfully');
@@ -279,12 +278,14 @@ const AddDriverModal = ({ onClose }) => {
   return (
     <Modal title="Add new driver" onClose={onClose} width={520}>
       <form onSubmit={handleSubmit(onSubmit)}>
+        <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 10, padding: '6px 10px', background: 'rgba(79,142,247,0.06)', borderRadius: 6 }}>
+          Fill all fields to auto-progress to Pending KYC. Partial saves will be saved as Draft.
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div style={fieldStyle}>
-            <label style={labelStyle}>Full name *</label>
+            <label style={labelStyle}>Full name</label>
             <input
               {...register('fullName', {
-                required: 'Full name is required',
                 minLength: { value: 2, message: 'Must be at least 2 characters' },
                 maxLength: { value: 200, message: 'Must be under 200 characters' },
               })}
@@ -293,18 +294,17 @@ const AddDriverModal = ({ onClose }) => {
             {errors.fullName && <span style={errorStyle}>{errors.fullName.message}</span>}
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>Nationality *</label>
+            <label style={labelStyle}>Nationality</label>
             <input
-              {...register('nationality', { required: 'Nationality is required' })}
+              {...register('nationality')}
               placeholder="Emirati"
             />
             {errors.nationality && <span style={errorStyle}>{errors.nationality.message}</span>}
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>UAE Phone *</label>
+            <label style={labelStyle}>UAE Phone</label>
             <input
               {...register('phoneUae', {
-                required: 'UAE phone number is required',
                 pattern: {
                   value: /^\+971\d{9}$/,
                   message: 'Must match format +971XXXXXXXXX',
@@ -329,8 +329,8 @@ const AddDriverModal = ({ onClose }) => {
           </div>
 
           <div style={fieldStyle}>
-            <label style={labelStyle}>Project *</label>
-            <select {...register('projectId', { required: 'Project is required' })}>
+            <label style={labelStyle}>Project</label>
+            <select {...register('projectId')}>
               <option value="">Select project</option>
               {projects.map((c) => (
                 <option key={c._id} value={c._id}>{c.name}</option>
@@ -339,8 +339,8 @@ const AddDriverModal = ({ onClose }) => {
             {errors.projectId && <span style={errorStyle}>{errors.projectId.message}</span>}
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>Pay structure *</label>
-            <select {...register('payStructure', { required: 'Pay structure is required' })}>
+            <label style={labelStyle}>Pay structure</label>
+            <select {...register('payStructure')}>
               <option value="">Select pay structure</option>
               <option value="MONTHLY_FIXED">Monthly fixed</option>
               <option value="DAILY_RATE">Daily rate</option>
@@ -349,12 +349,11 @@ const AddDriverModal = ({ onClose }) => {
             {errors.payStructure && <span style={errorStyle}>{errors.payStructure.message}</span>}
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>Base salary *</label>
+            <label style={labelStyle}>Base salary</label>
             <input
               type="number"
               step="any"
               {...register('baseSalary', {
-                required: 'Base salary is required',
                 min: { value: 0.01, message: 'Must be a positive number' },
               })}
               placeholder="2800"

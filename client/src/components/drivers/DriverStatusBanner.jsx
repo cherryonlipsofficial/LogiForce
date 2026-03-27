@@ -227,38 +227,8 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
           <CheckIcon /> All KYC documents uploaded and valid.
         </div>
         <div style={{ fontWeight: 500, marginBottom: 10 }}>
-          Verify contact details and update the status to Active.
+          Compliance team can now activate this driver.
         </div>
-        <PermissionGate permission="drivers.change_status">
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginBottom: 8 }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ display: 'block', fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>
-                Client User ID (optional, assigned by client)
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. AMZ-00814"
-                value={clientUserIdInput}
-                onChange={(e) => setClientUserIdInput(e.target.value)}
-                style={{ width: '100%' }}
-              />
-            </div>
-            <Btn
-              variant="ghost"
-              onClick={() => {
-                if (!clientUserIdInput.trim()) {
-                  toast.error('Please enter a Client User ID');
-                  return;
-                }
-                setClientUserIdMutation.mutate(clientUserIdInput.trim());
-              }}
-              disabled={setClientUserIdMutation.isPending}
-              small
-            >
-              {setClientUserIdMutation.isPending ? 'Saving...' : 'Save Client ID'}
-            </Btn>
-          </div>
-        </PermissionGate>
         <PermissionGate permission="drivers.activate">
           <Btn
             variant="success"
@@ -273,11 +243,16 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
     );
   }
 
-  // ── Active — show Client User ID update for authorized users ──
+  // ── Active — show Client User ID update for Operations / Admin ──
   if (status === 'active') {
     return (
       <PermissionGate permission="drivers.update_client_id">
         <div style={boxStyles.green}>
+          {driver.clientUserId && (
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 8 }}>
+              Current Client User ID: <strong style={{ color: 'var(--text1)' }}>{driver.clientUserId}</strong>
+            </div>
+          )}
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
             <div style={{ flex: 1 }}>
               <label style={{ display: 'block', fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>
@@ -347,11 +322,13 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
     );
   }
 
-  // ── Offboarding ──
-  if (status === 'offboarding') {
+  // ── Onboarding ──
+  if (status === 'onboarding') {
+    const reason = summary.lastStatusChange?.reason || '';
     return (
       <div style={boxStyles.purple}>
-        <span style={{ fontWeight: 500 }}>Offboarding in progress</span>
+        <span style={{ fontWeight: 500 }}>Onboarding</span>
+        {reason && <span style={{ color: 'var(--text3)' }}> — {reason}</span>}
       </div>
     );
   }

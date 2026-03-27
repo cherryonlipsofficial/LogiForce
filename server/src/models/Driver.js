@@ -9,7 +9,6 @@ const driverSchema = new mongoose.Schema(
     },
     fullName: {
       type: String,
-      required: [true, 'Full name is required'],
       trim: true,
     },
     fullNameArabic: {
@@ -18,7 +17,6 @@ const driverSchema = new mongoose.Schema(
     },
     nationality: {
       type: String,
-      required: [true, 'Nationality is required'],
     },
     emiratesId: {
       type: String,
@@ -60,8 +58,8 @@ const driverSchema = new mongoose.Schema(
     },
     phoneUae: {
       type: String,
-      required: [true, 'UAE phone number is required'],
       unique: true,
+      sparse: true,
     },
     phoneHomeCountry: {
       type: String,
@@ -84,12 +82,10 @@ const driverSchema = new mongoose.Schema(
     },
     baseSalary: {
       type: Number,
-      required: [true, 'Base salary is required'],
     },
     payStructure: {
       type: String,
       enum: ['MONTHLY_FIXED', 'DAILY_RATE', 'PER_TRIP'],
-      required: [true, 'Pay structure is required'],
     },
     status: {
       type: String,
@@ -97,11 +93,11 @@ const driverSchema = new mongoose.Schema(
         'draft',               // Created by sales team
         'pending_kyc',         // Profile & Employment fields completed (auto)
         'pending_verification',// All KYC docs uploaded and valid (auto)
-        'active',              // Activated manually or client_user_id set (auto)
+        'active',              // Activated manually by compliance
         'on_leave',            // Manual by operations
         'suspended',           // Manual by operations
         'resigned',            // Manual by operations
-        'offboarding',         // Manual by operations
+        'onboarding',          // Manual by operations
       ],
       default: 'draft',
       index: true,
@@ -152,7 +148,6 @@ const driverSchema = new mongoose.Schema(
     projectId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Project',
-      required: [true, 'Project is required'],
       index: true,
     },
     currentProjectAssignmentId: {

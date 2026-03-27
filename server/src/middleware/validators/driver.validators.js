@@ -1,26 +1,28 @@
 const { body } = require('express-validator');
 
+// All fields are optional to allow saving as Draft with partial data.
+// The status engine auto-transitions to pending_kyc when all required fields are filled.
 const createDriverValidation = [
   body('fullName')
+    .optional()
     .trim()
-    .notEmpty().withMessage('Full name is required')
     .isLength({ min: 2, max: 200 }).withMessage('Full name must be 2-200 characters'),
   body('nationality')
-    .trim()
-    .notEmpty().withMessage('Nationality is required'),
+    .optional()
+    .trim(),
   body('phoneUae')
+    .optional()
     .trim()
-    .notEmpty().withMessage('UAE phone number is required')
     .matches(/^\+?971\d{8,9}$/).withMessage('UAE phone must match format +971XXXXXXXXX'),
   body('baseSalary')
-    .notEmpty().withMessage('Base salary is required')
+    .optional()
     .isFloat({ min: 0 }).withMessage('Base salary must be a positive number'),
   body('payStructure')
-    .notEmpty().withMessage('Pay structure is required')
+    .optional()
     .isIn(['MONTHLY_FIXED', 'DAILY_RATE', 'PER_TRIP']).withMessage('Pay structure must be MONTHLY_FIXED, DAILY_RATE, or PER_TRIP'),
   body('status')
     .optional()
-    .isIn(['draft', 'pending_kyc', 'pending_verification', 'active', 'on_leave', 'suspended', 'resigned', 'offboarding'])
+    .isIn(['draft', 'pending_kyc', 'pending_verification', 'active', 'on_leave', 'suspended', 'resigned', 'onboarding'])
     .withMessage('Invalid status value'),
   body('visaType')
     .optional()
@@ -32,7 +34,7 @@ const createDriverValidation = [
     .optional()
     .isMongoId().withMessage('supplierId must be a valid ID'),
   body('projectId')
-    .notEmpty().withMessage('Project is required')
+    .optional()
     .isMongoId().withMessage('projectId must be a valid ID'),
   body('phoneHomeCountry')
     .optional()
@@ -89,7 +91,7 @@ const updateDriverValidation = [
     .isIn(['MONTHLY_FIXED', 'DAILY_RATE', 'PER_TRIP']).withMessage('Pay structure must be MONTHLY_FIXED, DAILY_RATE, or PER_TRIP'),
   body('status')
     .optional()
-    .isIn(['draft', 'pending_kyc', 'pending_verification', 'active', 'on_leave', 'suspended', 'resigned', 'offboarding'])
+    .isIn(['draft', 'pending_kyc', 'pending_verification', 'active', 'on_leave', 'suspended', 'resigned', 'onboarding'])
     .withMessage('Invalid status value'),
   body('visaType')
     .optional()
@@ -138,7 +140,7 @@ const updateDriverValidation = [
 const changeStatusValidation = [
   body('status')
     .notEmpty().withMessage('Status is required')
-    .isIn(['draft', 'pending_kyc', 'pending_verification', 'active', 'on_leave', 'suspended', 'resigned', 'offboarding'])
+    .isIn(['draft', 'pending_kyc', 'pending_verification', 'active', 'on_leave', 'suspended', 'resigned', 'onboarding'])
     .withMessage('Invalid status value'),
   body('reason')
     .optional()

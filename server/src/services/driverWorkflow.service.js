@@ -2,13 +2,13 @@ const { Driver, User, DriverDocument } = require('../models');
 const { applyStatusChange, evaluateAndTransition, checkKycDocsUploaded, checkKycDocsValid, checkProfileAndEmploymentComplete, REQUIRED_KYC_DOCS, REQUIRED_PROFILE_FIELDS, REQUIRED_EMPLOYMENT_FIELDS } = require('./driverStatusEngine.service');
 const { logEvent } = require('./driverHistory.service');
 
-const VALID_STATUSES = ['draft', 'pending_kyc', 'pending_verification', 'active', 'on_leave', 'suspended', 'resigned', 'offboarding'];
+const VALID_STATUSES = ['draft', 'pending_kyc', 'pending_verification', 'active', 'on_leave', 'suspended', 'resigned', 'onboarding'];
 
 const OPERATIONS_ALLOWED = {
-  active: ['on_leave', 'suspended', 'resigned', 'offboarding'],
+  active: ['on_leave', 'suspended', 'resigned', 'onboarding'],
   on_leave: ['active', 'resigned'],
-  suspended: ['active', 'resigned', 'offboarding'],
-  offboarding: ['resigned'],
+  suspended: ['active', 'resigned', 'onboarding'],
+  onboarding: ['active', 'resigned'],
 };
 
 async function verifyContacts(driverId, userId) {
@@ -49,8 +49,8 @@ async function setClientUserId(driverId, clientUserId, userId) {
     throw err;
   }
 
-  if (!['pending_verification', 'active'].includes(driver.status)) {
-    const err = new Error('Cannot set client user ID unless driver is in Pending Verify or Active status');
+  if (driver.status !== 'active') {
+    const err = new Error('Cannot set client user ID unless driver is in Active status');
     err.statusCode = 400;
     throw err;
   }
@@ -61,15 +61,19 @@ async function setClientUserId(driverId, clientUserId, userId) {
     throw err;
   }
 
+  const oldClientUserId = driver.clientUserId || null;
   driver.clientUserId = clientUserId.trim();
   await driver.save();
 
   await logEvent(driverId, 'client_user_id_set', {
-    description: `Client user ID set: ${clientUserId}`,
-    metadata: { clientUserId },
+    fieldName: 'clientUserId',
+    oldValue: oldClientUserId,
+    newValue: clientUserId.trim(),
+    description: oldClientUserId
+      ? `Client user ID changed from "${oldClientUserId}" to "${clientUserId.trim()}"`
+      : `Client user ID set: ${clientUserId.trim()}`,
+    metadata: { clientUserId: clientUserId.trim(), previousClientUserId: oldClientUserId },
   }, userId);
-
-  await evaluateAndTransition(driverId, userId);
 
   const updated = await Driver.findById(driverId);
   return updated;
@@ -196,7 +200,7 @@ async function getDriverStatusSummary(driverId) {
   if (driver.status === 'pending_kyc' && kycValidCheck.valid) {
     availableAutoTransitions.push('pending_verification');
   }
-  if (driver.status === 'pending_verification' && (driver.clientUserId || driver.activatedManually)) {
+  if (driver.status === 'pending_verification' && driver.activatedManually) {
     availableAutoTransitions.push('active');
   }
 
@@ -214,7 +218,8 @@ async function getDriverStatusSummary(driverId) {
     requiredEmploymentFields: REQUIRED_EMPLOYMENT_FIELDS,
     availableAutoTransitions,
     canVerifyContacts: driver.status === 'pending_kyc' && !driver.contactsVerified,
-    canSetClientUserId: driver.status === 'pending_verification' && !driver.clientUserId,
+    canSetClientUserId: driver.status === 'active',
+    canActivate: driver.status === 'pending_verification',
     lastStatusChange: driver.lastStatusChange || null,
   };
 }
