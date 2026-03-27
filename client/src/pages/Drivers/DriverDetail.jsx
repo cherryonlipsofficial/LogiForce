@@ -194,21 +194,30 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
           </div>
           <StatusBadge status={d.status || 'active'} />
           <PermissionGate permission="drivers.change_status">
-            <button
-              onClick={() => setChangeStatusOpen(true)}
-              style={{
-                background: 'var(--surface3)',
-                border: '1px solid var(--border2)',
-                color: 'var(--text2)',
-                borderRadius: 8,
-                padding: '5px 10px',
-                cursor: 'pointer',
-                fontSize: 11,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              Change status
-            </button>
+            {(() => {
+              const earlyStage = ['draft', 'pending_kyc', 'pending_verification'].includes(d.status);
+              const disabled = earlyStage && !isAdmin;
+              return (
+                <button
+                  onClick={() => !disabled && setChangeStatusOpen(true)}
+                  disabled={disabled}
+                  title={disabled ? 'Status change not available at this stage' : 'Change driver status'}
+                  style={{
+                    background: 'var(--surface3)',
+                    border: '1px solid var(--border2)',
+                    color: disabled ? 'var(--text4)' : 'var(--text2)',
+                    borderRadius: 8,
+                    padding: '5px 10px',
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                    fontSize: 11,
+                    whiteSpace: 'nowrap',
+                    opacity: disabled ? 0.5 : 1,
+                  }}
+                >
+                  Change status
+                </button>
+              );
+            })()}
           </PermissionGate>
           <button
             onClick={onClose}
