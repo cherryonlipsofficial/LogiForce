@@ -50,9 +50,6 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
   const status = driver.status;
   const summary = statusSummary || {};
 
-  // Don't render banner until status summary API has loaded
-  if (!statusSummary) return null;
-
   const invalidateDriver = () => {
     queryClient.invalidateQueries({ queryKey: ['driver', driverId] });
     queryClient.invalidateQueries({ queryKey: ['drivers'] });
@@ -77,6 +74,9 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
     },
     onError: (err) => toast.error(err?.response?.data?.message || 'Failed to activate driver'),
   });
+
+  // Don't render banner until status summary API has loaded
+  if (!statusSummary) return null;
 
   // ── Draft ──
   if (status === 'draft') {
