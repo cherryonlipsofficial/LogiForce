@@ -38,10 +38,21 @@ const vehicleSchema = new mongoose.Schema(
       ref: 'Driver',
       default: null,
     },
+    currentDriverId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Driver',
+      default: null,
+    },
+    currentAssignmentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'VehicleAssignment',
+      default: null,
+    },
     status: {
       type: String,
       enum: ['available', 'assigned', 'maintenance', 'off_hired', 'reserved'],
       default: 'available',
+      index: true,
     },
     monthlyRate: {
       type: Number,
