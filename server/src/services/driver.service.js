@@ -58,6 +58,15 @@ const findById = async (id) => {
 };
 
 const create = async (data, userId) => {
+  if (data.phoneUae) {
+    const existing = await Driver.findOne({ phoneUae: data.phoneUae });
+    if (existing) {
+      const err = new Error('A driver with this UAE phone number already exists');
+      err.statusCode = 409;
+      throw err;
+    }
+  }
+
   data.createdBy = userId;
   const driver = await Driver.create(data);
 
@@ -82,6 +91,15 @@ const update = async (id, data, userId, { isAdmin = false } = {}) => {
     const err = new Error('Only admin users can edit an active driver');
     err.statusCode = 403;
     throw err;
+  }
+
+  if (data.phoneUae) {
+    const duplicate = await Driver.findOne({ phoneUae: data.phoneUae, _id: { $ne: id } });
+    if (duplicate) {
+      const err = new Error('A driver with this UAE phone number already exists');
+      err.statusCode = 409;
+      throw err;
+    }
   }
 
   const driver = await Driver.findByIdAndUpdate(id, data, {
@@ -190,6 +208,10 @@ const bulkCreate = async (rows, userId) => {
       if (!payStructure) throw new Error('Pay structure is required');
       if (!projectRef) throw new Error('Project is required');
       if (!joinDate) throw new Error('Joining date is required');
+
+      // Check for duplicate phone number
+      const existingPhone = await Driver.findOne({ phoneUae: phoneUae });
+      if (existingPhone) throw new Error(`UAE phone number ${phoneUae} already exists`);
 
       // Validate payStructure
       if (!['MONTHLY_FIXED', 'DAILY_RATE', 'PER_TRIP'].includes(payStructure)) {
