@@ -390,8 +390,24 @@ const DriverHistoryTab = ({ driverId }) => {
                     <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text)' }}>
                       {entry.performedByName}
                     </span>
-                    {entry.performedByRole && (
+                    {entry.performedBy?.email && (
                       <span style={{ fontSize: 11, color: 'var(--text3)' }}>
+                        ({entry.performedBy.email})
+                      </span>
+                    )}
+                    {entry.performedByRole && (
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 500,
+                          color: 'var(--accent)',
+                          background: 'var(--surface2)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 9999,
+                          padding: '1px 7px',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
                         {entry.performedByRole}
                       </span>
                     )}

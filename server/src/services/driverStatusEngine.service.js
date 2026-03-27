@@ -165,7 +165,7 @@ async function applyStatusChange(driver, newStatus, reason, description, perform
     changedAt: new Date(),
   };
   await driver.save();
-  await logStatusChange(driver._id, oldStatus, newStatus, reason || description, performedBy);
+  await logStatusChange(driver._id, oldStatus, newStatus, reason, description, performedBy);
 }
 
 module.exports = {
