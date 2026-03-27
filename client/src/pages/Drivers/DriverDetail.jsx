@@ -607,7 +607,7 @@ const editTabs = ['profile', 'employment', 'documents'];
 
 const EditDriverModal = ({ driver, onClose, onSaved }) => {
   const [editTab, setEditTab] = useState('profile');
-  const { register, handleSubmit, formState: { errors } } = useForm({
+  const { register, handleSubmit, getValues, formState: { errors } } = useForm({
     defaultValues: {
       fullName: driver.fullName || driver.name || '',
       nationality: driver.nationality || '',
@@ -870,7 +870,7 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
                           accept="image/*,.pdf"
                           onChange={(e) => {
                             const file = e.target.files[0];
-                            if (file) handleDocUpload(doc.type, file);
+                            if (file) handleDocUpload(doc.type, file, doc.expiryField ? getValues(doc.expiryField) : undefined);
                           }}
                           disabled={isUploading}
                           style={{ fontSize: 12, flex: 1 }}
