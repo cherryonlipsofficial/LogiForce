@@ -107,6 +107,23 @@ const update = async (id, data, userId, { isAdmin = false } = {}) => {
     runValidators: true,
   });
 
+  // Sync expiry dates from Driver fields to corresponding DriverDocument records
+  const expiryMapping = [
+    { docType: 'passport', field: 'passportExpiry' },
+    { docType: 'emirates_id', field: 'emiratesIdExpiry' },
+    { docType: 'driving_licence', field: 'drivingLicenceExpiry' },
+    { docType: 'visa', field: 'visaExpiry' },
+    { docType: 'labour_card', field: 'labourCardExpiry' },
+  ];
+  for (const { docType, field } of expiryMapping) {
+    if (data[field]) {
+      await DriverDocument.updateOne(
+        { driverId: id, docType },
+        { expiryDate: data[field] },
+      );
+    }
+  }
+
   await evaluateAndTransition(id, userId);
 
   return driver;
