@@ -176,6 +176,37 @@ const driverSchema = new mongoose.Schema(
     contractEndDate: {
       type: Date,
     },
+    // ── Passport submission ──
+    isPassportSubmitted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
+    // 'own'       = driver submitted their own passport
+    // 'guarantee' = a guarantor submitted their passport on driver's behalf
+    // null        = not yet submitted
+    passportSubmissionType: {
+      type: String,
+      enum: ['own', 'guarantee', null],
+      default: null,
+    },
+
+    // Set when passportSubmissionType = 'guarantee'
+    // References the active GuaranteePassport record
+    activeGuaranteePassportId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'GuaranteePassport',
+      default: null,
+    },
+
+    // Denormalized flag — true if guarantee passport is currently valid
+    // Updated by the nightly expiry checker
+    guaranteePassportValid: {
+      type: Boolean,
+      default: null,  // null = no guarantee involved
+    },
+
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
