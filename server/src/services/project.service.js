@@ -418,21 +418,26 @@ const unassignDriverFromProject = async (driverId, { reason }, userId) => {
     driverId,
     status: 'active',
   });
-  if (!assignment) throwErr('Driver has no active project assignment', 400);
 
-  // 2. Close assignment
-  assignment.status = 'completed';
-  assignment.unassignedDate = new Date();
-  assignment.reason = reason || 'Unassigned from project';
-  assignment.closedBy = userId;
-  await assignment.save();
+  if (!assignment && !driver.projectId) {
+    throwErr('Driver has no active project assignment', 400);
+  }
+
+  // 2. Close assignment if one exists
+  if (assignment) {
+    assignment.status = 'completed';
+    assignment.unassignedDate = new Date();
+    assignment.reason = reason || 'Unassigned from project';
+    assignment.closedBy = userId;
+    await assignment.save();
+  }
 
   // 3. Clear driver references (do NOT change driver.status)
   driver.projectId = null;
   driver.currentProjectAssignmentId = null;
   await driver.save();
 
-  return assignment;
+  return assignment || { driverId, status: 'completed', reason: reason || 'Unassigned from project' };
 };
 
 // ─── getProjectDriverHistory ──────────────────────────────────────────────────
