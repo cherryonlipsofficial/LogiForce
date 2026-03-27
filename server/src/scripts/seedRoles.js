@@ -40,7 +40,7 @@ const defaultRoles = [
     isSystemRole: false,
     permissions: [
       'drivers.view', 'drivers.create', 'drivers.edit',
-      'drivers.manage_docs', 'drivers.change_status',
+      'drivers.manage_docs', 'drivers.change_status', 'drivers.manage_passport',
       'clients.view', 'clients.create', 'clients.edit',
       'projects.view', 'projects.create', 'projects.edit',
       'projects.assign_drivers',
@@ -62,7 +62,7 @@ const defaultRoles = [
     isSystemRole: false,
     permissions: [
       'drivers.view', 'drivers.create', 'drivers.edit', 'drivers.edit_active',
-      'drivers.manage_docs', 'drivers.change_status',
+      'drivers.manage_docs', 'drivers.change_status', 'drivers.manage_passport',
       'clients.view',
       'projects.view', 'projects.assign_drivers',
       'suppliers.view',
