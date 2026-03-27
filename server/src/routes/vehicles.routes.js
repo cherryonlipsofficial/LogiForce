@@ -5,7 +5,12 @@ const XLSX = require('xlsx');
 const csvParser = require('csv-parser');
 const { Readable } = require('stream');
 const { protect, requirePermission } = require('../middleware/auth');
-const { Vehicle, Supplier, Driver } = require('../models');
+const { Vehicle, Supplier, Driver, VehicleAssignment } = require('../models');
+const {
+  assignVehicle,
+  returnVehicle,
+  getVehicleHistory,
+} = require('../services/vehicleAssignment.service');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 
 const memUpload = multer({
@@ -404,6 +409,30 @@ router.post('/bulk-upload', requirePermission('vehicles.create'), memUpload.sing
   }
 });
 
+// POST /api/vehicles/assignments/:assignmentId/return — return a vehicle
+router.post('/assignments/:assignmentId/return', requirePermission('vehicles.assign'), async (req, res) => {
+  try {
+    const { returnCondition, damageNotes, damagePenaltyAmount } = req.body;
+
+    if (returnCondition && returnCondition !== 'good' && !damageNotes) {
+      return sendError(res, 'Damage notes are required when condition is not good', 400);
+    }
+
+    const assignment = await returnVehicle(
+      req.params.assignmentId,
+      {
+        returnCondition: returnCondition,
+        damageNotes: damageNotes,
+        damagePenaltyAmount: damagePenaltyAmount || 0,
+      },
+      req.user._id
+    );
+    sendSuccess(res, assignment, 'Vehicle returned successfully');
+  } catch (err) {
+    sendError(res, err.message, err.statusCode || 500);
+  }
+});
+
 // GET /api/vehicles/:id — single vehicle
 router.get('/:id', async (req, res) => {
   try {
@@ -499,6 +528,72 @@ router.put('/:id/unassign', requirePermission('vehicles.assign'), async (req, re
     sendSuccess(res, vehicle, 'Vehicle unassigned');
   } catch (err) {
     sendError(res, err.message, 500);
+  }
+});
+
+// POST /api/vehicles/:id/assign — assign vehicle to driver (with full tracking)
+router.post('/:id/assign', requirePermission('vehicles.assign'), async (req, res) => {
+  try {
+    const { driverId, expectedReturnDate, monthlyDeductionAmount, notes } = req.body;
+
+    if (!driverId) {
+      return sendError(res, 'driverId is required', 400);
+    }
+    if (!/^[0-9a-fA-F]{24}$/.test(driverId)) {
+      return sendError(res, 'driverId must be a valid ObjectId', 400);
+    }
+    if (expectedReturnDate && new Date(expectedReturnDate) <= new Date()) {
+      return sendError(res, 'expectedReturnDate must be a future date', 400);
+    }
+
+    const assignment = await assignVehicle(
+      req.params.id,
+      driverId,
+      {
+        expectedReturnDate: expectedReturnDate,
+        monthlyDeductionAmount: monthlyDeductionAmount,
+        notes: notes,
+      },
+      req.user._id
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Vehicle assigned successfully',
+      data: assignment,
+    });
+  } catch (err) {
+    sendError(res, err.message, err.statusCode || 500);
+  }
+});
+
+// GET /api/vehicles/:id/assignment-history — vehicle assignment history
+router.get('/:id/assignment-history', requirePermission('vehicles.view'), async (req, res) => {
+  try {
+    const result = await getVehicleHistory(
+      req.params.id,
+      parseInt(req.query.page) || 1,
+      parseInt(req.query.limit) || 20
+    );
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, err.statusCode || 500);
+  }
+});
+
+// GET /api/vehicles/:id/current-assignment — active assignment for a vehicle
+router.get('/:id/current-assignment', requirePermission('vehicles.view'), async (req, res) => {
+  try {
+    const assignment = await VehicleAssignment.findOne({
+      vehicleId: req.params.id,
+      status: 'active',
+    })
+      .populate('driverId', 'fullName employeeCode phoneUae status')
+      .populate('assignedBy', 'name');
+
+    sendSuccess(res, assignment || null);
+  } catch (err) {
+    sendError(res, err.message, err.statusCode || 500);
   }
 });
 

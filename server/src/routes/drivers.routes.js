@@ -6,6 +6,7 @@ const upload = require('../middleware/upload');
 const driverService = require('../services/driver.service');
 const { verifyContacts, setClientUserId, changeStatusManual, getDriverStatusSummary } = require('../services/driverWorkflow.service');
 const { getHistory } = require('../services/driverHistory.service');
+const { getDriverVehicleHistory } = require('../services/vehicleAssignment.service');
 const { Driver, DriverDocument, SalaryRun } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const validate = require('../middleware/validate');
@@ -388,6 +389,40 @@ router.get('/:id/history', requirePermission('drivers.view'), async (req, res) =
     const limit = parseInt(req.query.limit) || 30;
     const result = await getHistory(req.params.id, page, limit);
     sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, err.statusCode || 500);
+  }
+});
+
+// GET /api/drivers/:id/vehicle-history — vehicle assignment history for a driver
+router.get('/:id/vehicle-history', requirePermission('drivers.view'), async (req, res) => {
+  try {
+    const result = await getDriverVehicleHistory(
+      req.params.id,
+      parseInt(req.query.page) || 1,
+      parseInt(req.query.limit) || 20
+    );
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, err.statusCode || 500);
+  }
+});
+
+// GET /api/drivers/:id/current-vehicle — currently assigned vehicle for a driver
+router.get('/:id/current-vehicle', requirePermission('drivers.view'), async (req, res) => {
+  try {
+    const driver = await Driver.findById(req.params.id)
+      .select('currentVehicleId currentVehicleAssignmentId')
+      .populate('currentVehicleId');
+
+    if (!driver) {
+      return sendError(res, 'Driver not found', 404);
+    }
+
+    sendSuccess(res, {
+      vehicle: driver.currentVehicleId || null,
+      assignment: driver.currentVehicleAssignmentId || null,
+    });
   } catch (err) {
     sendError(res, err.message, err.statusCode || 500);
   }
