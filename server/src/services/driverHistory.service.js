@@ -27,12 +27,12 @@ async function logEvent(driverId, eventType, details, performedBy) {
 /**
  * Convenience: log a status change specifically.
  */
-async function logStatusChange(driverId, from, to, reason, performedBy) {
+async function logStatusChange(driverId, from, to, reason, description, performedBy) {
   await logEvent(driverId, 'status_change', {
     statusFrom:  from,
     statusTo:    to,
     reason:      reason,
-    description: reason || `Status transitioned`,
+    description: description || `Status transitioned from ${from} to ${to}`,
   }, performedBy);
 }
 
