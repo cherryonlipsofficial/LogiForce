@@ -257,13 +257,14 @@ const getExpiringDocuments = async (days = 30) => {
 };
 
 const getStatusCounts = async () => {
-  const [total, active, onLeave, suspended] = await Promise.all([
+  const [total, active, onLeave, suspended, resigned] = await Promise.all([
     Driver.countDocuments({}),
     Driver.countDocuments({ status: 'active' }),
     Driver.countDocuments({ status: 'on_leave' }),
     Driver.countDocuments({ status: 'suspended' }),
+    Driver.countDocuments({ status: 'resigned' }),
   ]);
-  return { total, active, onLeave, suspended };
+  return { total, active, onLeave, suspended, resigned };
 };
 
 const bulkCreate = async (rows, userId) => {
