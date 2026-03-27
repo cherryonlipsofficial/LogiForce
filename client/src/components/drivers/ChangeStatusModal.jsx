@@ -48,9 +48,9 @@ const ChangeStatusModal = ({ driver, presetStatus, onClose, onSuccess }) => {
   const currentStatus = driver.status || 'draft';
 
   // Determine available statuses
-  // Non-admin users can only transition to: On Leave, Suspended, Resigned, Offboarding
-  // Only admin can see all statuses (including Active, Draft, Pending KYC, etc.)
-  const NON_ADMIN_STATUSES = ['on_leave', 'suspended', 'resigned', 'offboarding'];
+  // Non-admin users can only transition to: Active, On Leave, Suspended, Resigned, Offboarding
+  // Only admin can see all statuses (including Draft, Pending KYC, Pending Verification)
+  const NON_ADMIN_STATUSES = ['active', 'on_leave', 'suspended', 'resigned', 'offboarding'];
   let availableStatuses;
   if (isAdmin) {
     availableStatuses = ALL_STATUSES.filter((s) => s.value !== currentStatus);
