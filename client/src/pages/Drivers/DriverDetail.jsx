@@ -568,7 +568,21 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
           </PermissionGate>
         )}
         <PermissionGate permission="drivers.change_status">
-          <Btn variant="ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowStatusChange(true)}>Change status</Btn>
+          {(() => {
+            const earlyStage = ['draft', 'pending_kyc', 'pending_verification'].includes(d.status);
+            const disabled = earlyStage && !isAdmin;
+            return (
+              <Btn
+                variant="ghost"
+                style={{ flex: 1, justifyContent: 'center', opacity: disabled ? 0.5 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
+                onClick={() => !disabled && setShowStatusChange(true)}
+                disabled={disabled}
+                title={disabled ? 'Status change not available at this stage' : 'Change driver status'}
+              >
+                Change status
+              </Btn>
+            );
+          })()}
         </PermissionGate>
         <PermissionGate permission="drivers.delete">
           <Btn variant="danger" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowDeleteConfirm(true)}>Delete</Btn>
