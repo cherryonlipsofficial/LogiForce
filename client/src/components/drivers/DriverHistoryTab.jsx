@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getDriverHistory } from '../../api/driversApi';
+import { getDriverVehicleHistory } from '../../api/vehiclesApi';
 import StatusBadge from '../ui/StatusBadge';
 import Avatar from '../ui/Avatar';
+import Badge from '../ui/Badge';
 
 const DOT_COLORS = {
   status_change: '#fbbf24',
@@ -13,6 +15,7 @@ const DOT_COLORS = {
   client_user_id_set: '#a78bfa',
   field_updated: 'var(--text3)',
   note_added: 'var(--text3)',
+  vehicle_assignment: '#a78bfa',
 };
 
 const DOT_ICONS = {
@@ -23,6 +26,7 @@ const DOT_ICONS = {
   client_user_id_set: '#',
   field_updated: '~',
   note_added: '✎',
+  vehicle_assignment: '🚗',
 };
 
 const formatTimestamp = (dateStr) => {
@@ -41,6 +45,9 @@ const formatTimestamp = (dateStr) => {
 
   return `${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} at ${time}`;
 };
+
+const fmt = (d) =>
+  d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
 const getInitials = (name) => {
   if (!name) return '?';
@@ -66,10 +73,49 @@ const DriverHistoryTab = ({ driverId }) => {
     keepPreviousData: true,
   });
 
+  const { data: vhData } = useQuery({
+    queryKey: ['driver-vehicle-history', driverId],
+    queryFn: () => getDriverVehicleHistory(driverId, 1, 50).then((r) => r.data),
+    enabled: !!driverId,
+  });
+
   const entries = data?.entries || [];
   const total = data?.total || 0;
   const limit = data?.limit || 30;
   const totalPages = Math.ceil(total / limit);
+
+  // Convert vehicle assignments to timeline entries and merge
+  const vehicleEntries = (vhData?.assignments || []).flatMap((a) => {
+    const items = [];
+    items.push({
+      _id: `va-assign-${a._id}`,
+      _type: 'vehicle_assignment',
+      eventType: 'vehicle_assignment',
+      description: `Vehicle assigned: ${a.vehiclePlateNumber || 'Unknown'} — ${a.vehicleMakeModel || ''}`,
+      createdAt: a.assignedDate,
+      performedByName: a.assignedByName || a.assignedBy?.name,
+      _vehicleAssignment: a,
+      _subType: 'assigned',
+    });
+    if (a.status === 'returned' && a.returnedDate) {
+      items.push({
+        _id: `va-return-${a._id}`,
+        _type: 'vehicle_assignment',
+        eventType: 'vehicle_assignment',
+        description: `Vehicle returned: ${a.vehiclePlateNumber || 'Unknown'} — Condition: ${a.returnCondition || 'good'}`,
+        createdAt: a.returnedDate,
+        performedByName: a.returnedByName || a.returnedBy?.name,
+        _vehicleAssignment: a,
+        _subType: 'returned',
+      });
+    }
+    return items;
+  });
+
+  // Merge and sort by date (newest first)
+  const allEntries = [...entries, ...vehicleEntries].sort(
+    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+  );
 
   if (isLoading && entries.length === 0) {
     return (
@@ -83,7 +129,7 @@ const DriverHistoryTab = ({ driverId }) => {
     );
   }
 
-  if (!isLoading && entries.length === 0) {
+  if (!isLoading && allEntries.length === 0) {
     return (
       <div
         style={{
@@ -108,11 +154,12 @@ const DriverHistoryTab = ({ driverId }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {entries.map((entry, i) => {
+        {allEntries.map((entry, i) => {
           const isStatusChange = entry.eventType === 'status_change';
-          const dotColor = DOT_COLORS[entry.eventType] || 'var(--text3)';
-          const icon = DOT_ICONS[entry.eventType] || '';
-          const isLast = i === entries.length - 1;
+          const isVehicle = entry._type === 'vehicle_assignment';
+          const dotColor = isVehicle ? '#a78bfa' : (DOT_COLORS[entry.eventType] || 'var(--text3)');
+          const icon = isVehicle ? '⬡' : (DOT_ICONS[entry.eventType] || '');
+          const isLast = i === allEntries.length - 1;
           const isAdmin =
             entry.performedByRole &&
             (entry.performedByRole.toLowerCase().includes('admin') ||
@@ -131,11 +178,18 @@ const DriverHistoryTab = ({ driverId }) => {
                       borderRadius: 4,
                       marginBottom: 2,
                     }
+                  : isVehicle
+                  ? {
+                      background: 'rgba(167,139,250,0.04)',
+                      borderLeft: '2px solid #a78bfa',
+                      borderRadius: 4,
+                      marginBottom: 2,
+                    }
                   : {}),
               }}
             >
               {/* Timeline column */}
-              {!isStatusChange && (
+              {!isStatusChange && !isVehicle && (
                 <div
                   style={{
                     width: 40,
@@ -180,7 +234,7 @@ const DriverHistoryTab = ({ driverId }) => {
               <div
                 style={{
                   flex: 1,
-                  padding: isStatusChange ? '10px 12px' : '10px 10px 10px 0',
+                  padding: (isStatusChange || isVehicle) ? '10px 12px' : '10px 10px 10px 0',
                   minHeight: 40,
                 }}
               >
@@ -198,7 +252,7 @@ const DriverHistoryTab = ({ driverId }) => {
                       style={{
                         fontSize: 13,
                         color: 'var(--text)',
-                        fontWeight: isStatusChange ? 600 : 400,
+                        fontWeight: (isStatusChange || isVehicle) ? 600 : 400,
                       }}
                     >
                       {entry.description}
@@ -232,7 +286,7 @@ const DriverHistoryTab = ({ driverId }) => {
                   </span>
                 </div>
 
-                {/* Row 2: status badges */}
+                {/* Status badges */}
                 {isStatusChange && entry.statusFrom && entry.statusTo && (
                   <div
                     style={{
@@ -248,7 +302,19 @@ const DriverHistoryTab = ({ driverId }) => {
                   </div>
                 )}
 
-                {/* Row 3: reason */}
+                {/* Vehicle assignment details */}
+                {isVehicle && entry._vehicleAssignment && (
+                  <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text3)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <span>{fmt(entry._vehicleAssignment.assignedDate)}</span>
+                    {entry._subType === 'returned' && entry._vehicleAssignment.returnCondition && (
+                      <Badge variant={entry._vehicleAssignment.returnCondition === 'good' ? 'success' : 'warning'}>
+                        {entry._vehicleAssignment.returnCondition.replace('_', ' ')}
+                      </Badge>
+                    )}
+                  </div>
+                )}
+
+                {/* Reason */}
                 {entry.reason && (
                   <div
                     style={{
@@ -262,7 +328,7 @@ const DriverHistoryTab = ({ driverId }) => {
                   </div>
                 )}
 
-                {/* Row 4: performer */}
+                {/* Performer */}
                 {entry.performedByName && (
                   <div
                     style={{

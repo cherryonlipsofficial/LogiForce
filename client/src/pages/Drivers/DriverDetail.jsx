@@ -14,7 +14,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useNavigate } from 'react-router-dom';
 import { getDriverLedger, updateDriver, changeDriverStatus, getDriverDocuments, uploadDriverDocument, fetchDocumentFile, getDocumentDirectUrl, getStatusSummary, getDriverHistory } from '../../api/driversApi';
 import { getProjects } from '../../api/projectsApi';
-import { getVehicle } from '../../api/vehiclesApi';
+import { getVehicle, getCurrentDriverVehicle, getDriverVehicleHistory } from '../../api/vehiclesApi';
 import DriverStatusBanner from '../../components/drivers/DriverStatusBanner';
 import ChangeStatusModalNew from '../../components/drivers/ChangeStatusModal';
 import DriverHistoryTab from '../../components/drivers/DriverHistoryTab';
@@ -116,11 +116,12 @@ const DriverDetail = ({ driver, onClose }) => {
   });
 
   const { data: vehicleData } = useQuery({
-    queryKey: ['driver-vehicle', driverId],
-    queryFn: () => getVehicle(d.currentVehicleId),
-    enabled: !!d.currentVehicleId,
+    queryKey: ['driver-current-vehicle', driverId],
+    queryFn: () => getCurrentDriverVehicle(driverId).then((r) => r.data),
+    enabled: !!driverId,
   });
-  const currentVehicle = vehicleData?.data || null;
+  const currentVehicle = vehicleData?.vehicle || null;
+  const currentVehicleAssignment = vehicleData?.assignment || null;
 
 const { data: statusSummaryData } = useQuery({
     queryKey: ['driver-status-summary', driverId],
@@ -293,9 +294,9 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
               ['Emirates ID', d.emiratesId || '—'],
               ['Phone (UAE)', d.phoneUae || d.phone || '—'],
               ['Project', driverProject || '—'],
-              ['Vehicle', d.currentVehicleId && currentVehicle
-                ? `${currentVehicle.plateNumber} — ${currentVehicle.make} ${currentVehicle.model}`
-                : d.ownVehicle ? 'Own vehicle' : '—'],
+              ['Assigned vehicle', currentVehicle
+                ? `${currentVehicle.plateNumber || currentVehicle.plate} — ${currentVehicle.make || ''} ${currentVehicle.model || ''}`
+                : d.ownVehicle ? 'Own vehicle' : 'No vehicle assigned'],
               ['Pay structure', d.payStructure || '—'],
               ['Base salary', `AED ${(d.baseSalary || 0).toLocaleString()}`],
               ['Join date', formatDate(d.joinDate)],
