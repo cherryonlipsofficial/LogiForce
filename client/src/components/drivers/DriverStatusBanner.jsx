@@ -68,11 +68,12 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
   const setClientUserIdMutation = useMutation({
     mutationFn: (value) => setClientUserId(driverId, value),
     onSuccess: () => {
-      toast.success('Driver activated successfully');
+      toast.success('Client User ID saved successfully');
+      setClientUserIdInput('');
       invalidateDriver();
       onActionComplete?.();
     },
-    onError: (err) => toast.error(err?.response?.data?.message || 'Failed to activate driver'),
+    onError: (err) => toast.error(err?.response?.data?.message || 'Failed to save Client User ID'),
   });
 
   const activateDriverMutation = useMutation({
@@ -274,19 +275,45 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
   // ── Active ──
   if (status === 'active') {
     return (
-      <div style={{
-        ...boxStyles.green,
-        padding: '8px 14px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-      }}>
-        <CheckIcon /> <span style={{ fontWeight: 500 }}>Active</span>
-        {driver.clientUserId && (
-          <span style={{ color: 'var(--text3)', marginLeft: 4 }}>
-            — Client User ID: <span style={{ fontFamily: 'var(--mono)', color: 'var(--text)' }}>{driver.clientUserId}</span>
-          </span>
-        )}
+      <div style={boxStyles.green}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 0 4px' }}>
+          <CheckIcon /> <span style={{ fontWeight: 500 }}>Active</span>
+          {driver.clientUserId && (
+            <span style={{ color: 'var(--text3)', marginLeft: 4 }}>
+              — Client User ID: <span style={{ fontFamily: 'var(--mono)', color: 'var(--text)' }}>{driver.clientUserId}</span>
+            </span>
+          )}
+        </div>
+        <PermissionGate permission="drivers.update_client_id">
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginTop: 8 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>
+                {driver.clientUserId ? 'Update Client User ID' : 'Set Client User ID'}
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. AMZ-00814"
+                value={clientUserIdInput}
+                onChange={(e) => setClientUserIdInput(e.target.value)}
+                style={{ width: '100%' }}
+              />
+            </div>
+            <Btn
+              variant="ghost"
+              onClick={() => {
+                if (!clientUserIdInput.trim()) {
+                  toast.error('Please enter a Client User ID');
+                  return;
+                }
+                setClientUserIdMutation.mutate(clientUserIdInput.trim());
+              }}
+              disabled={setClientUserIdMutation.isPending}
+              small
+            >
+              {setClientUserIdMutation.isPending ? 'Saving...' : 'Save'}
+            </Btn>
+          </div>
+        </PermissionGate>
       </div>
     );
   }

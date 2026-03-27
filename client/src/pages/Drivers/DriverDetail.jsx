@@ -12,7 +12,7 @@ import Btn from '../../components/ui/Btn';
 import Modal from '../../components/ui/Modal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useNavigate } from 'react-router-dom';
-import { getDriverLedger, updateDriver, changeDriverStatus, getDriverDocuments, uploadDriverDocument, fetchDocumentFile, getDocumentDirectUrl, getStatusSummary, getDriverHistory, activateDriver } from '../../api/driversApi';
+import { getDriver, getDriverLedger, updateDriver, changeDriverStatus, getDriverDocuments, uploadDriverDocument, fetchDocumentFile, getDocumentDirectUrl, getStatusSummary, getDriverHistory, activateDriver, deleteDriver } from '../../api/driversApi';
 import { getProjects } from '../../api/projectsApi';
 import { getVehicle, getCurrentDriverVehicle, getDriverVehicleHistory } from '../../api/vehiclesApi';
 import DriverStatusBanner from '../../components/drivers/DriverStatusBanner';
@@ -65,6 +65,8 @@ const DriverDetail = ({ driver, onClose }) => {
   const [changeStatusPreset, setChangeStatusPreset] = useState(null);
   const [viewingFile, setViewingFile] = useState(null); // { blobUrl, contentType, fileName }
   const [activating, setActivating] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleViewFile = async (fileKey, fileUrl) => {
     try {
@@ -94,8 +96,15 @@ const DriverDetail = ({ driver, onClose }) => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  const d = driver;
-  const driverId = d._id || d.id;
+  const driverId = driver._id || driver.id;
+
+  // Fetch fresh driver data so the view updates after actions (activate, status change, etc.)
+  const { data: freshDriverData } = useQuery({
+    queryKey: ['driver', driverId],
+    queryFn: () => getDriver(driverId),
+    initialData: { data: driver },
+  });
+  const d = freshDriverData?.data || driver;
   const driverName = d.fullName || d.name || '';
   const driverClient = d.clientId?.name || d.client || '';
   const driverSupplier = d.supplierId?.name || d.supplier || '';
@@ -534,8 +543,8 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
                   await activateDriver(driverId);
                   toast.success('Driver activated successfully');
                   queryClient.invalidateQueries({ queryKey: ['driver', driverId] });
+                  queryClient.invalidateQueries({ queryKey: ['driver-status-summary', driverId] });
                   queryClient.invalidateQueries({ queryKey: ['drivers'] });
-                  onClose();
                 } catch (err) {
                   toast.error(err?.response?.data?.message || 'Failed to activate driver');
                 } finally {
@@ -549,6 +558,9 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
         )}
         <PermissionGate permission="drivers.change_status">
           <Btn variant="ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowStatusChange(true)}>Change status</Btn>
+        </PermissionGate>
+        <PermissionGate permission="drivers.delete">
+          <Btn variant="danger" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowDeleteConfirm(true)}>Delete</Btn>
         </PermissionGate>
       </div>
 
@@ -590,6 +602,37 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
             queryClient.invalidateQueries({ queryKey: ['drivers'] });
           }}
         />
+      )}
+
+      {showDeleteConfirm && (
+        <Modal title="Delete driver" onClose={() => setShowDeleteConfirm(false)} width={420}>
+          <div style={{ padding: '8px 0' }}>
+            <p style={{ marginBottom: 16 }}>Are you sure you want to delete <strong>{driverName}</strong>? This will set the driver status to resigned.</p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <Btn variant="ghost" onClick={() => setShowDeleteConfirm(false)} disabled={deleting}>Cancel</Btn>
+              <Btn
+                variant="danger"
+                disabled={deleting}
+                onClick={async () => {
+                  setDeleting(true);
+                  try {
+                    await deleteDriver(driverId);
+                    toast.success('Driver deleted successfully');
+                    queryClient.invalidateQueries({ queryKey: ['drivers'] });
+                    setShowDeleteConfirm(false);
+                    onClose();
+                  } catch (err) {
+                    toast.error(err?.response?.data?.message || 'Failed to delete driver');
+                  } finally {
+                    setDeleting(false);
+                  }
+                }}
+              >
+                {deleting ? 'Deleting...' : 'Delete'}
+              </Btn>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {viewingFile && (

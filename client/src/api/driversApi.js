@@ -12,6 +12,9 @@ export const createDriver = (data) =>
 export const updateDriver = (id, data) =>
   axiosInstance.put(`/drivers/${id}`, data).then(r => r.data);
 
+export const deleteDriver = (id) =>
+  axiosInstance.delete(`/drivers/${id}`).then(r => r.data);
+
 export const getDriverLedger = (id, params) =>
   axiosInstance.get(`/drivers/${id}/ledger`, { params }).then(r => r.data);
 

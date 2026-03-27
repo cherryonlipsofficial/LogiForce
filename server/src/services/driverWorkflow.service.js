@@ -49,8 +49,8 @@ async function setClientUserId(driverId, clientUserId, userId) {
     throw err;
   }
 
-  if (driver.status !== 'pending_verification') {
-    const err = new Error('Cannot set client user ID unless driver is in pending_verification status');
+  if (!['pending_verification', 'active'].includes(driver.status)) {
+    const err = new Error('Cannot set client user ID unless driver is in Pending Verify or Active status');
     err.statusCode = 400;
     throw err;
   }
