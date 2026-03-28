@@ -240,7 +240,7 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
     enabled: !!batch?._id,
   });
 
-  const { mutate: reject, isLoading: rejecting } = useMutation({
+  const { mutate: reject, isPending: rejecting } = useMutation({
     mutationFn: () => rejectBatch(batch._id),
     onSuccess: () => {
       toast.success('Batch rejected');
@@ -250,7 +250,7 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to reject batch'),
   });
 
-  const { mutate: removeBatch, isLoading: deleting } = useMutation({
+  const { mutate: removeBatch, isPending: deleting } = useMutation({
     mutationFn: () => deleteBatch(batch._id),
     onSuccess: () => {
       toast.success('Batch deleted');
@@ -441,14 +441,18 @@ const UploadModal = ({ onClose }) => {
   const [file, setFile] = useState(null);
   const qc = useQueryClient();
 
-  const { mutate: upload, isLoading } = useMutation({
+  const { mutate: upload, isPending } = useMutation({
     mutationFn: (formData) => uploadFile(formData),
     onSuccess: () => {
       toast.success('Attendance uploaded successfully');
       qc.invalidateQueries(['attendance-batches']);
       onClose();
     },
-    onError: (err) => toast.error(err.response?.data?.message || 'Upload failed'),
+    onError: (err) => {
+      toast.error(err.response?.data?.message || 'Upload failed');
+      setFile(null);
+      if (fileRef.current) fileRef.current.value = '';
+    },
   });
 
   const handleSubmit = (e) => {
@@ -560,8 +564,8 @@ const UploadModal = ({ onClose }) => {
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-          <Btn variant="primary" type="submit" disabled={isLoading}>
-            {isLoading ? 'Uploading...' : 'Upload'}
+          <Btn variant="primary" type="submit" disabled={isPending}>
+            {isPending ? 'Uploading...' : 'Upload'}
           </Btn>
         </div>
       </form>
