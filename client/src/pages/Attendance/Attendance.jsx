@@ -448,7 +448,11 @@ const UploadModal = ({ onClose }) => {
       qc.invalidateQueries(['attendance-batches']);
       onClose();
     },
-    onError: (err) => toast.error(err.response?.data?.message || 'Upload failed'),
+    onError: (err) => {
+      toast.error(err.response?.data?.message || 'Upload failed');
+      setFile(null);
+      if (fileRef.current) fileRef.current.value = '';
+    },
   });
 
   const handleSubmit = (e) => {
