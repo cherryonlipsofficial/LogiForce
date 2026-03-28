@@ -31,7 +31,7 @@ const PassportSubmissionModal = ({ driverId, currentData, onClose, onSuccess, fo
   const { register, handleSubmit, watch, formState: { errors } } = useForm({
     defaultValues: {
       guarantorName: '',
-      relation: '',
+      guarantorRelation: '',
       guarantorPhone: '',
       employeeCode: '',
       guarantorPassportNumber: '',
@@ -67,7 +67,7 @@ const PassportSubmissionModal = ({ driverId, currentData, onClose, onSuccess, fo
   const handleGuaranteeSubmit = (formData) => {
     guaranteeMutation.mutate({
       guarantorName: formData.guarantorName,
-      guarantorRelation: formData.relation,
+      guarantorRelation: formData.guarantorRelation,
       guarantorPhone: formData.guarantorPhone || undefined,
       employeeCode: formData.employeeCode || undefined,
       guarantorPassportNumber: formData.guarantorPassportNumber,
@@ -175,7 +175,7 @@ const PassportSubmissionModal = ({ driverId, currentData, onClose, onSuccess, fo
 
           <div style={fieldStyle}>
             <label style={labelStyle}>Relation to driver *</label>
-            <select {...register('relation', { required: 'Relation is required' })}>
+            <select {...register('guarantorRelation', { required: 'Relation is required' })}>
               <option value="">Select relation</option>
               <option value="colleague">Colleague</option>
               <option value="fellow_employee">Fellow employee</option>
@@ -183,7 +183,7 @@ const PassportSubmissionModal = ({ driverId, currentData, onClose, onSuccess, fo
               <option value="family_member">Family member</option>
               <option value="other">Other</option>
             </select>
-            {errors.relation && <span style={errorStyle}>{errors.relation.message}</span>}
+            {errors.guarantorRelation && <span style={errorStyle}>{errors.guarantorRelation.message}</span>}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
