@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import Modal from '../ui/Modal';
 import Btn from '../ui/Btn';
@@ -27,6 +27,7 @@ const PassportSubmissionModal = ({ driverId, currentData, onClose, onSuccess, fo
   const [step, setStep] = useState(forceGuaranteeStep ? 2 : 1);
   const [selectedType, setSelectedType] = useState(forceGuaranteeStep ? 'guarantee' : (currentData?.passportSubmissionType || 'own'));
   const [isSubmitted, setIsSubmitted] = useState(currentData?.isPassportSubmitted ?? true);
+  const queryClient = useQueryClient();
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm({
     defaultValues: {
@@ -44,10 +45,18 @@ const PassportSubmissionModal = ({ driverId, currentData, onClose, onSuccess, fo
   const submittedDate = watch('submittedDate');
   const computedExpiry = computeExpiry(submittedDate);
 
+  const invalidateDriverQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ['drivers'] });
+    queryClient.invalidateQueries({ queryKey: ['driver', driverId] });
+    queryClient.invalidateQueries({ queryKey: ['driver-guarantee', driverId] });
+    queryClient.invalidateQueries({ queryKey: ['driver-status-summary', driverId] });
+  };
+
   const ownMutation = useMutation({
     mutationFn: () => submitOwnPassport(driverId),
     onSuccess: () => {
       toast.success('Own passport submission recorded');
+      invalidateDriverQueries();
       onSuccess?.();
     },
     onError: (err) => toast.error(err?.response?.data?.message || 'Failed to record passport submission'),
@@ -57,6 +66,7 @@ const PassportSubmissionModal = ({ driverId, currentData, onClose, onSuccess, fo
     mutationFn: (data) => recordGuaranteePassport(driverId, data),
     onSuccess: () => {
       toast.success(`Guarantee passport recorded \u2014 expires ${computedExpiry ? formatDatePreview(computedExpiry) : 'in 30 days'}`);
+      invalidateDriverQueries();
       onSuccess?.();
     },
     onError: (err) => toast.error(err?.response?.data?.message || 'Failed to record guarantee passport'),
