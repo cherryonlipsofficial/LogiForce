@@ -26,7 +26,7 @@ router.get('/expiring-documents', async (req, res) => {
 });
 
 // GET /api/drivers/expired-documents — drivers with expired documents, filterable by docType
-router.get('/expired-documents', requirePermission('drivers.view'), async (req, res) => {
+router.get('/expired-documents', requirePermission('expired_documents.view'), async (req, res) => {
   try {
     const docType = req.query.docType || 'all'; // all, emirates_id, passport, visa, labour_card, driving_licence, mulkiya, guarantee_passport
     const now = new Date();

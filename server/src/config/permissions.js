@@ -15,6 +15,10 @@ module.exports = {
     'drivers.update_client_id': { label: 'Update Client User ID',   module: 'Drivers',    description: 'Set or update the Client User ID on active drivers' },
     'drivers.manage_passport': { label: 'Manage passport submission', module: 'Drivers', description: 'Record passport submission, guarantee passports, request extensions' },
 
+    // ── COMPLIANCE ──
+    'guarantee_passports.view':  { label: 'View guarantee passports',  module: 'Compliance', description: 'View all guarantee passports and their status' },
+    'expired_documents.view':    { label: 'View expired documents',    module: 'Compliance', description: 'View drivers with expired documents across all document types' },
+
     // ── CLIENTS ──
     'clients.view':            { label: 'View clients',            module: 'Clients',    description: 'See client list and details' },
     'clients.create':          { label: 'Add new clients',         module: 'Clients',    description: 'Create new client accounts' },

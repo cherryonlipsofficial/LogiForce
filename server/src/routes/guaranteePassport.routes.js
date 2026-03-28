@@ -80,7 +80,7 @@ router.get(
 // List all guarantee passports (for compliance dashboard)
 router.get(
   '/guarantee-passports',
-  requirePermission('drivers.view'),
+  requirePermission('guarantee_passports.view'),
   async (req, res) => {
     const records = await GuaranteePassport.find()
       .populate('driverId', 'fullName employeeCode')
