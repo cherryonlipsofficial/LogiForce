@@ -223,10 +223,10 @@ const Topbar = ({ page }) => {
 
   const { data: alertData } = useQuery({
     queryKey: ['alert-count'],
-    queryFn: () => axiosInstance.get('/reports/alert-count').then((r) => r.data.data),
+    queryFn: () => axiosInstance.get('/reports/alert-count').then((r) => r.data?.data || { total: 0 }),
     enabled: !!user,
     refetchInterval: 5 * 60 * 1000,
-    retry: 1,
+    retry: false,
   });
   const alertCount = alertData?.total ?? 0;
 

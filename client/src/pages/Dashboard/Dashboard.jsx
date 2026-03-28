@@ -177,9 +177,9 @@ const Dashboard = () => {
 
   const { data: alertData } = useQuery({
     queryKey: ['alert-count'],
-    queryFn: () => axiosInstance.get('/reports/alert-count').then((r) => r.data.data),
+    queryFn: () => axiosInstance.get('/reports/alert-count').then((r) => r.data?.data || { total: 0, breakdown: {} }),
     refetchInterval: 5 * 60 * 1000,
-    retry: 1,
+    retry: false,
   });
   const alertBreakdown = alertData?.breakdown || {};
   const totalAlerts = alertData?.total || 0;
@@ -324,7 +324,7 @@ const Dashboard = () => {
           ))}
         </Card>
         <Card>
-          <SectionHeader title="Attendance alerts" action={<Badge variant="danger">9 errors</Badge>} />
+          <SectionHeader title="Attendance alerts" action={<Badge variant="danger">{alerts.length} error{alerts.length !== 1 ? 's' : ''}</Badge>} />
           <table style={{ width: '100%' }}>
             <tbody>
               {alerts.map((a, i) => (
