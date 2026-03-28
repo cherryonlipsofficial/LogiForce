@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
 const { Role, User } = require('../models');
-const { PERMISSIONS, getByModule, getAllKeys } = require('../config/permissions');
+const { PERMISSIONS, getByModule, getAllKeys, migrateLegacyKeys } = require('../config/permissions');
 const { sendSuccess, sendError } = require('../utils/responseHelper');
 
 // All routes require authentication
@@ -63,9 +63,10 @@ router.post('/', requirePermission('roles.manage'), async (req, res) => {
     return sendError(res, `Role "${name}" already exists`, 409);
   }
 
-  // Validate permission keys
-  if (permissions && permissions.length > 0) {
-    const invalid = permissions.filter(k => !(k in PERMISSIONS));
+  // Migrate legacy permission keys and validate
+  const resolvedPerms = permissions ? migrateLegacyKeys(permissions) : [];
+  if (resolvedPerms.length > 0) {
+    const invalid = resolvedPerms.filter(k => !(k in PERMISSIONS));
     if (invalid.length > 0) {
       return sendError(res, `Invalid permission keys: ${invalid.join(', ')}`);
     }
@@ -75,7 +76,7 @@ router.post('/', requirePermission('roles.manage'), async (req, res) => {
     name,
     displayName,
     description,
-    permissions: permissions || [],
+    permissions: resolvedPerms,
     createdBy: req.user._id,
   });
 
@@ -115,13 +116,14 @@ router.put('/:id', requirePermission('roles.manage'), async (req, res) => {
     return sendError(res, 'Cannot modify permissions of the admin system role. Admin always has all permissions.');
   }
 
-  // Validate permission keys
+  // Migrate legacy permission keys and validate
   if (permissions) {
-    const invalid = permissions.filter(k => !(k in PERMISSIONS));
+    const resolvedPerms = migrateLegacyKeys(permissions);
+    const invalid = resolvedPerms.filter(k => !(k in PERMISSIONS));
     if (invalid.length > 0) {
       return sendError(res, `Invalid permission keys: ${invalid.join(', ')}`);
     }
-    role.permissions = permissions;
+    role.permissions = resolvedPerms;
   }
 
   if (displayName) role.displayName = displayName;

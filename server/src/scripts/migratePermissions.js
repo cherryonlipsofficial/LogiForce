@@ -62,6 +62,23 @@ async function migrate() {
     }
   }
 
+  // Migrate legacy keys in ALL roles (including custom ones)
+  const { LEGACY_KEY_MAP } = require('../config/permissions');
+  for (const [oldKey, newKey] of Object.entries(LEGACY_KEY_MAP)) {
+    const result = await db.collection('roles').updateMany(
+      { permissions: oldKey },
+      [{ $set: { permissions: {
+        $setUnion: [
+          { $filter: { input: '$permissions', cond: { $ne: ['$$this', oldKey] } } },
+          [newKey]
+        ]
+      }}}]
+    );
+    if (result.modifiedCount > 0) {
+      console.log(`Migrated ${result.modifiedCount} role(s): ${oldKey} → ${newKey}`);
+    }
+  }
+
   // Admin gets ALL permissions — update via getAllKeys
   const { PERMISSIONS } = require('../config/permissions');
   const allKeys = Object.keys(PERMISSIONS);
