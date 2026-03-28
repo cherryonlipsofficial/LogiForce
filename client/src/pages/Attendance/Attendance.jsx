@@ -9,11 +9,16 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
-import { getBatches, uploadFile, getBatch, approveBatch, rejectBatch, deleteBatch } from '../../api/attendanceApi';
+import { getBatches, uploadFile, getBatch, approveBatch, rejectBatch, deleteBatch, getBatchApprovals, getBatchDisputes } from '../../api/attendanceApi';
 import { useAuth } from '../../context/AuthContext';
 import PermissionGate from '../../components/ui/PermissionGate';
-import { formatDate } from '../../utils/formatters';
+import { formatDate, formatRelativeTime } from '../../utils/formatters';
 import Pagination from '../../components/ui/Pagination';
+import ApprovalStatusCard from '../../components/attendance/ApprovalStatusCard';
+import ApproveModal from '../../components/attendance/ApproveModal';
+import DisputeModal from '../../components/attendance/DisputeModal';
+import DisputeResponseModal from '../../components/attendance/DisputeResponseModal';
+import InvoicePreviewModal from '../../components/attendance/InvoicePreviewModal';
 
 const fallbackBatches = [
   { _id: 'ATT-001', client: 'Amazon UAE', period: 'Mar 2026', uploadedBy: 'Sara Ali', uploadedAt: '2026-03-20T10:30:00Z', status: 'pending_review', totalRecords: 342, validRecords: 338, errors: 4, fileName: 'amazon_mar2026.csv' },
@@ -24,12 +29,18 @@ const fallbackBatches = [
 ];
 
 const statusMap = {
+  uploaded: { label: 'Uploaded', variant: 'default' },
   pending_review: { label: 'Pending review', variant: 'warning' },
   pending_approval: { label: 'Pending review', variant: 'warning' },
+  sales_approved: { label: 'Sales approved', variant: 'info' },
+  ops_approved: { label: 'Ops approved', variant: 'info' },
+  fully_approved: { label: 'Both approved ✓', variant: 'success' },
   approved: { label: 'Approved', variant: 'success' },
+  disputed: { label: 'Disputed', variant: 'danger' },
+  dispute_responded: { label: 'Response sent', variant: 'warning' },
+  invoiced: { label: 'Invoiced', variant: 'purple' },
   rejected: { label: 'Rejected', variant: 'danger' },
   processing: { label: 'Processing', variant: 'info' },
-  uploaded: { label: 'Uploaded', variant: 'info' },
   validating: { label: 'Validating', variant: 'info' },
   processed: { label: 'Processed', variant: 'success' },
 };
@@ -52,6 +63,24 @@ const normalizeBatch = (b) => {
     fileName: b.s3Key || b.fileName || '',
     validationErrors: b.validationErrors || [],
   };
+};
+
+const dotColor = (approval) => {
+  if (!approval) return 'var(--text3)';
+  if (approval.status === 'approved') return '#4ade80';
+  if (approval.status === 'disputed') return '#f87171';
+  return 'var(--text3)';
+};
+
+const ApprovalDots = ({ batch }) => {
+  const sales = batch.approvals?.find(a => a.role === 'sales');
+  const ops = batch.approvals?.find(a => a.role === 'ops');
+  return (
+    <span style={{ display: 'inline-flex', gap: 3, marginLeft: 2 }} title="Sales / Ops approval">
+      <span style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor(sales), display: 'inline-block', opacity: 0.9 }} />
+      <span style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor(ops), display: 'inline-block', opacity: 0.9 }} />
+    </span>
+  );
 };
 
 const Attendance = () => {
@@ -145,7 +174,10 @@ const Attendance = () => {
                         )}
                       </td>
                       <td style={{ padding: '11px 14px' }}>
-                        <Badge variant={st.variant}>{st.label}</Badge>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Badge variant={st.variant}>{st.label}</Badge>
+                          <ApprovalDots batch={b} />
+                        </div>
                       </td>
                       <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--text3)' }}>
                         {formatDate(b.uploadedAt)}
@@ -184,17 +216,24 @@ const ISSUE_LABELS = {
 };
 
 const BatchDetail = ({ batch, onClose, hasPermission }) => {
+  const { user, role } = useAuth();
   const qc = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [approveModal, setApproveModal] = useState(null);
+  const [disputeModal, setDisputeModal] = useState(null);
+  const [respondModal, setRespondModal] = useState(null);
+  const [invoiceModal, setInvoiceModal] = useState(null);
 
-  const { mutate: approve, isLoading: approving } = useMutation({
-    mutationFn: () => approveBatch(batch._id),
-    onSuccess: () => {
-      toast.success('Batch approved');
-      qc.invalidateQueries(['attendance-batches']);
-      onClose();
-    },
-    onError: (err) => toast.error(err.response?.data?.message || 'Failed to approve batch'),
+  const { data: approvalData } = useQuery({
+    queryKey: ['batch-approvals', batch?._id],
+    queryFn: () => getBatchApprovals(batch._id).then(r => r.data),
+    enabled: !!batch?._id,
+  });
+
+  const { data: disputesData } = useQuery({
+    queryKey: ['batch-disputes', batch?._id],
+    queryFn: () => getBatchDisputes(batch._id).then(r => r.data),
+    enabled: !!batch?._id,
   });
 
   const { mutate: reject, isLoading: rejecting } = useMutation({
@@ -217,9 +256,12 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to delete batch'),
   });
 
-  const st = statusMap[batch.status] || statusMap.pending_review;
+  const activeBatch = approvalData?.batch || { ...batch, approvals: approvalData?.approvals || batch.approvals };
+  const currentUserRole = role || user?.roleId?.name || '';
+  const st = statusMap[activeBatch.status || batch.status] || statusMap.pending_review;
   const displayId = batch.batchId || batch._id;
   const validationErrors = batch.validationErrors || [];
+  const openDisputes = (disputesData?.disputes || disputesData || []).filter(d => d.status === 'open');
 
   return (
     <SidePanel onClose={onClose}>
@@ -231,6 +273,44 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
         <button onClick={onClose} style={{ background: 'var(--surface3)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 8, padding: '4px 10px', fontSize: 16 }}>&times;</button>
       </div>
       <div style={{ padding: 24, overflowY: 'auto', flex: 1 }}>
+        <ApprovalStatusCard
+          batch={activeBatch}
+          currentUserRole={currentUserRole}
+          onApprove={() => setApproveModal(batch)}
+          onDispute={() => setDisputeModal(batch)}
+          onGenerateInvoice={() => setInvoiceModal(batch)}
+        />
+
+        {openDisputes.length > 0 && currentUserRole?.toLowerCase() === 'accountant' && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>Open disputes</div>
+            {openDisputes.map(dispute => (
+              <div key={dispute._id} style={{
+                background: 'rgba(239,68,68,0.06)',
+                border: '1px solid rgba(239,68,68,0.2)',
+                borderRadius: 10, padding: '12px 14px', marginBottom: 8,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1 }}>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: '#f87171' }}>
+                      Dispute — {dispute.disputeType?.replace(/_/g, ' ')}
+                    </span>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>
+                      By {dispute.raisedBy?.name || 'Unknown'} · {formatRelativeTime(dispute.raisedAt || dispute.createdAt)}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 6 }}>
+                      {dispute.reason}
+                    </div>
+                  </div>
+                  <Btn small variant="ghost" onClick={() => setRespondModal(dispute)}>
+                    Respond
+                  </Btn>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
           <InfoRow label="File" value={batch.fileName} />
           <InfoRow label="Status" value={<Badge variant={st.variant}>{st.label}</Badge>} />
@@ -283,9 +363,6 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
               </div>
             )}
             <div style={{ display: 'flex', gap: 8 }}>
-              <Btn variant="primary" onClick={() => approve()} disabled={approving || batch.errors > 0}>
-                {approving ? 'Approving...' : 'Approve batch'}
-              </Btn>
               <Btn variant="danger" onClick={() => reject()} disabled={rejecting}>
                 {rejecting ? 'Rejecting...' : 'Reject'}
               </Btn>
@@ -293,7 +370,7 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
           </div>
         )}
 
-        {hasPermission('attendance.override') && batch.status !== 'approved' && batch.status !== 'processed' && (
+        {hasPermission('attendance.override') && batch.status !== 'approved' && batch.status !== 'processed' && batch.status !== 'fully_approved' && batch.status !== 'invoiced' && (
           <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
             {!confirmDelete ? (
               <Btn variant="danger" onClick={() => setConfirmDelete(true)}>
@@ -315,6 +392,11 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
           </div>
         )}
       </div>
+
+      {approveModal && <ApproveModal batch={approveModal} onClose={() => setApproveModal(null)} onSuccess={() => setApproveModal(null)} />}
+      {disputeModal && <DisputeModal batch={disputeModal} onClose={() => setDisputeModal(null)} onSuccess={() => setDisputeModal(null)} />}
+      {respondModal && <DisputeResponseModal dispute={respondModal} onClose={() => setRespondModal(null)} onSuccess={() => setRespondModal(null)} />}
+      {invoiceModal && <InvoicePreviewModal batch={invoiceModal} onClose={() => setInvoiceModal(null)} onSuccess={() => setInvoiceModal(null)} />}
     </SidePanel>
   );
 };
