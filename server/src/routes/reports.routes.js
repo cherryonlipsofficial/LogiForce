@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
-const { SalaryRun, Invoice, Driver, Advance, DriverDocument, Supplier, Project } = require('../models');
+const { SalaryRun, Invoice, Driver, Advance, DriverDocument, Supplier, Project, ProjectContract, GuaranteePassport } = require('../models');
 const { sendSuccess, sendError } = require('../utils/responseHelper');
 
 // All routes are protected
@@ -367,6 +367,63 @@ router.get('/vehicle-cost-per-driver', requirePermission('reports.financial'), a
       });
 
     sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/alert-count — count actionable alerts for the logged-in user
+router.get('/alert-count', async (req, res) => {
+  try {
+    const now = new Date();
+    const in30Days = new Date();
+    in30Days.setDate(in30Days.getDate() + 30);
+    const in7Days = new Date();
+    in7Days.setDate(in7Days.getDate() + 7);
+
+    // Run all counts in parallel
+    const [
+      overdueInvoices,
+      expiringDocuments,
+      expiringContracts,
+      pendingExtensions,
+      expiringGuarantees,
+    ] = await Promise.all([
+      // Overdue invoices
+      Invoice.countDocuments({ status: 'overdue' }),
+      // Driver documents expiring within 30 days
+      DriverDocument.countDocuments({
+        expiryDate: { $gte: now, $lte: in30Days },
+        status: { $ne: 'expired' },
+      }),
+      // Project contracts expiring within 30 days
+      ProjectContract.countDocuments({
+        endDate: { $gte: now, $lte: in30Days },
+        status: 'active',
+      }),
+      // Pending guarantee extensions
+      GuaranteePassport.countDocuments({
+        'extensionRequest.status': 'pending',
+      }),
+      // Guarantees expiring within 7 days
+      GuaranteePassport.countDocuments({
+        expiryDate: { $gte: now, $lte: in7Days },
+        status: { $in: ['active', 'extended'] },
+      }),
+    ]);
+
+    const total = overdueInvoices + expiringDocuments + expiringContracts + pendingExtensions + expiringGuarantees;
+
+    sendSuccess(res, {
+      total,
+      breakdown: {
+        overdueInvoices,
+        expiringDocuments,
+        expiringContracts,
+        pendingExtensions,
+        expiringGuarantees,
+      },
+    });
   } catch (err) {
     sendError(res, err.message, 500);
   }

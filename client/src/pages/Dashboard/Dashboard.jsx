@@ -22,6 +22,7 @@ import { getInvoices } from '../../api/invoicesApi';
 import { getExpiringContracts, getFleetSummary } from '../../api/vehiclesApi';
 import { getProjectsExpiringContracts } from '../../api/projectsApi';
 import { getPendingExtensions, getExpiringGuarantees } from '../../api/guaranteeApi';
+import axiosInstance from '../../api/axiosInstance';
 import { useAuth } from '../../context/AuthContext';
 import PermissionGate from '../../components/ui/PermissionGate';
 import { useNavigate } from 'react-router-dom';
@@ -174,6 +175,15 @@ const Dashboard = () => {
     refetchInterval: 5 * 60 * 1000,
   });
 
+  const { data: alertData } = useQuery({
+    queryKey: ['alert-count'],
+    queryFn: () => axiosInstance.get('/reports/alert-count').then((r) => r.data.data),
+    refetchInterval: 5 * 60 * 1000,
+    retry: 1,
+  });
+  const alertBreakdown = alertData?.breakdown || {};
+  const totalAlerts = alertData?.total || 0;
+
   const fleetSuppliers = fleetData?.data?.bySupplier || fallbackFleet;
 
   // Contract alerts: suppliers with contractEnd within 30 days — derive from fleet or use fallback
@@ -203,9 +213,16 @@ const Dashboard = () => {
       >
         <span style={{ fontSize: 16 }}>&#x26A0;</span>
         <span>
-          <strong>Action required:</strong> 9 attendance errors, 1 overdue
-          invoice (Noon — AED 1.01M), 2 drivers with visa expiry within 30
-          days.
+          <strong>Action required:</strong>
+          {alertBreakdown.overdueInvoices > 0 && (
+            <> {alertBreakdown.overdueInvoices} overdue invoice{alertBreakdown.overdueInvoices > 1 ? 's' : ''}.</>
+          )}
+          {alertBreakdown.expiringDocuments > 0 && (
+            <> {alertBreakdown.expiringDocuments} driver document{alertBreakdown.expiringDocuments > 1 ? 's' : ''} expiring within 30 days.</>
+          )}
+          {alertBreakdown.expiringContracts > 0 && (
+            <> {alertBreakdown.expiringContracts} project contract{alertBreakdown.expiringContracts > 1 ? 's' : ''} expiring within 30 days.</>
+          )}
           {projectsExpiring7Days.length > 0 && (
             <> {projectsExpiring7Days.length} project contract{projectsExpiring7Days.length > 1 ? 's' : ''} expiring within 7 days — <strong onClick={() => navigate('/projects')} style={{ cursor: 'pointer', textDecoration: 'underline' }}>review now</strong></>
           )}
@@ -215,9 +232,12 @@ const Dashboard = () => {
           {Array.isArray(expiringGuarantees) && expiringGuarantees.length > 0 && (
             <>{' '}{expiringGuarantees.length} guarantee passport{expiringGuarantees.length > 1 ? 's' : ''} expiring within 7 days.</>
           )}
+          {totalAlerts === 0 && !projectsExpiring7Days.length && !(Array.isArray(pendingExtensions) && pendingExtensions.length) && !(Array.isArray(expiringGuarantees) && expiringGuarantees.length) && (
+            <> No alerts at this time.</>
+          )}
         </span>
         <Btn small variant="danger" style={{ marginLeft: 'auto', flexShrink: 0 }}>
-          Review alerts{projectsExpiring7Days.length > 0 ? ` (${3 + projectsExpiring7Days.length})` : ''}
+          Review alerts{totalAlerts > 0 ? ` (${totalAlerts})` : ''}
         </Btn>
       </div>
 
