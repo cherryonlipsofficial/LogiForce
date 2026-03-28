@@ -27,10 +27,15 @@ router.post(
   '/drivers/:driverId/passport/guarantee',
   requirePermission('drivers.edit'),
   async (req, res) => {
-    const { guarantorName, guarantorRelation, guarantorPassportNumber } = req.body;
+    const { guarantorName, guarantorRelation, relation, guarantorPassportNumber } = req.body;
 
-    if (!guarantorName || !guarantorRelation || !guarantorPassportNumber) {
+    if (!guarantorName || (!guarantorRelation && !relation) || !guarantorPassportNumber) {
       return sendError(res, 'guarantorName, guarantorRelation, and guarantorPassportNumber are required.', 400);
+    }
+
+    // Normalize: accept "relation" as alias for "guarantorRelation"
+    if (!req.body.guarantorRelation && req.body.relation) {
+      req.body.guarantorRelation = req.body.relation;
     }
 
     const result = await guaranteePassportService.recordGuaranteePassport(
