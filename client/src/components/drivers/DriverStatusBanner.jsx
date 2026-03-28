@@ -139,8 +139,9 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
             </div>
           )}
         </div>
+
         <div style={{ fontSize: 11, color: 'var(--text3)' }}>
-          Upload all 3 documents AND confirm passport submission to progress to Pending KYC.
+          Fill all Profile &amp; Employment fields, submit passport, and save to progress to Pending KYC.
         </div>
       </div>
     );

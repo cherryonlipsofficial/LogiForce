@@ -223,6 +223,9 @@ async function getDriverStatusSummary(driverId) {
     canSetClientUserId: driver.status === 'active',
     canActivate: driver.status === 'pending_verification',
     lastStatusChange: driver.lastStatusChange || null,
+    isPassportSubmitted: driver.isPassportSubmitted || false,
+    passportSubmissionType: driver.passportSubmissionType || null,
+    guaranteePassportValid: driver.guaranteePassportValid,
   };
 }
 

@@ -83,6 +83,8 @@ export const getDriverHistorySummary = (days = 30) =>
 export const getMyDrivers = (params) =>
   axiosInstance.get('/drivers/my', { params }).then(r => r.data);
 
+// ── Guarantee Passport ──
+
 export const submitOwnPassport = (driverId) =>
   axiosInstance.post(`/drivers/${driverId}/passport/own`).then(r => r.data);
 
@@ -95,8 +97,14 @@ export const getActiveGuarantee = (driverId) =>
 export const getGuaranteeHistory = (driverId) =>
   axiosInstance.get(`/drivers/${driverId}/passport/guarantee/history`).then(r => r.data);
 
-export const requestExtension = (guaranteeId, data) =>
-  axiosInstance.post(`/drivers/passport/guarantee/${guaranteeId}/extension`, data).then(r => r.data);
+export const requestGuaranteeExtension = (guaranteeId, data) =>
+  axiosInstance.post(`/guarantee-passports/${guaranteeId}/request-extension`, data).then(r => r.data);
 
-export const returnGuaranteePassport = (guaranteeId) =>
-  axiosInstance.post(`/drivers/passport/guarantee/${guaranteeId}/return`).then(r => r.data);
+export const requestExtension = (guaranteeId, data) =>
+  axiosInstance.post(`/guarantee-passports/${guaranteeId}/request-extension`, data).then(r => r.data);
+
+export const reviewGuaranteeExtension = (guaranteeId, data) =>
+  axiosInstance.put(`/guarantee-passports/${guaranteeId}/review-extension`, data).then(r => r.data);
+
+export const returnGuaranteePassport = (guaranteeId, notes) =>
+  axiosInstance.post(`/guarantee-passports/${guaranteeId}/return`, { notes }).then(r => r.data);
