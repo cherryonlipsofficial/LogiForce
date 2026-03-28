@@ -1,20 +1,24 @@
 const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
 
-const attendanceBatchSchema = new mongoose.Schema(
+const attendanceBatchSchema = new Schema(
   {
     batchId: {
       type: String,
       unique: true,
     },
-    clientId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Client',
-      required: true,
-    },
     projectId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: 'Project',
       required: true,
+      index: true,
+    },
+    // Denormalized from project.clientId at time of creation
+    clientId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Client',
+      required: true,
+      index: true,
     },
     period: {
       year: { type: Number, required: true },
@@ -52,7 +56,7 @@ const attendanceBatchSchema = new mongoose.Schema(
       type: Number,
     },
     uploadedBy: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: 'User',
     },
     uploadedByName: { type: String },
@@ -64,7 +68,7 @@ const attendanceBatchSchema = new mongoose.Schema(
         enum: ['pending', 'approved', 'disputed'],
         default: 'pending',
       },
-      approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      approvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
       approvedByName: { type: String },
       approvedAt: { type: Date },
       notes: { type: String },
@@ -77,7 +81,7 @@ const attendanceBatchSchema = new mongoose.Schema(
         enum: ['pending', 'approved', 'disputed'],
         default: 'pending',
       },
-      approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      approvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
       approvedByName: { type: String },
       approvedAt: { type: Date },
       notes: { type: String },
@@ -85,37 +89,25 @@ const attendanceBatchSchema = new mongoose.Schema(
 
     // Notification tracking
     notificationSentAt: { type: Date },
-    notifiedUsers: [
-      {
-        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-        name: { type: String },
-        role: { type: String },
-        sentAt: { type: Date },
-      },
-    ],
+    notifiedUserIds: [{ type: Schema.Types.ObjectId, ref: 'User' }],
 
-    // Invoice reference once generated
-    invoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice', default: null },
+    // Disputes
+    disputes: [{ type: Schema.Types.ObjectId, ref: 'AttendanceDispute' }],
+
+    // Invoice linkage
+    invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice', default: null },
     invoicedAt: { type: Date },
-    invoicedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-
-    // Disputes array — full history of all disputes on this batch
-    disputes: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'AttendanceDispute',
-      },
-    ],
+    invoicedBy: { type: Schema.Types.ObjectId, ref: 'User' },
 
     approvedBy: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: 'User',
     },
     approvedAt: {
       type: Date,
     },
     rejectedBy: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: 'User',
     },
     rejectedAt: {
@@ -129,7 +121,7 @@ const attendanceBatchSchema = new mongoose.Schema(
     },
     validationErrors: [
       {
-        driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'Driver' },
+        driverId: { type: Schema.Types.ObjectId, ref: 'Driver' },
         employeeCode: String,
         issue: String,
         details: String,
@@ -140,6 +132,9 @@ const attendanceBatchSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+// Prevents duplicate batch for same project + period
+attendanceBatchSchema.index({ projectId: 1, 'period.year': 1, 'period.month': 1 }, { unique: true });
 
 // Auto-generate batchId: ATT-YYYY-MM-PROJECTCODE
 attendanceBatchSchema.pre('save', async function (next) {

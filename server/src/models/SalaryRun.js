@@ -1,25 +1,33 @@
 const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
 
-const salaryRunSchema = new mongoose.Schema(
+const salaryRunSchema = new Schema(
   {
     runId: {
       type: String,
       unique: true,
     },
     driverId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: 'Driver',
       required: true,
     },
+    projectId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Project',
+      required: true,
+      index: true,
+    },
     clientId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: 'Client',
       required: true,
     },
-    projectId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Project',
-      index: true,
+    attendanceBatchId: {
+      type: Schema.Types.ObjectId,
+      ref: 'AttendanceBatch',
+      required: true,
+      // Salary can only run if attendance is fully_approved
     },
     projectRatePerDriver: {
       type: Number,
@@ -29,7 +37,7 @@ const salaryRunSchema = new mongoose.Schema(
       month: { type: Number },
     },
     attendanceRecordId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: 'AttendanceRecord',
     },
     workingDays: {
@@ -71,17 +79,26 @@ const salaryRunSchema = new mongoose.Schema(
     netSalary: {
       type: Number,
     },
+    // Advance deductions applied in this run
+    advanceDeductions: [
+      {
+        advanceId: { type: Schema.Types.ObjectId, ref: 'DriverAdvance' },
+        scheduleId: { type: Schema.Types.ObjectId }, // which installment
+        amount: { type: Number },
+        description: { type: String },
+      },
+    ],
     status: {
       type: String,
       enum: ['draft', 'pending_approval', 'approved', 'paid', 'disputed'],
       default: 'draft',
     },
     processedBy: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: 'User',
     },
     approvedBy: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: 'User',
     },
     approvedAt: {
@@ -97,6 +114,12 @@ const salaryRunSchema = new mongoose.Schema(
   {
     timestamps: true,
   }
+);
+
+// Compound unique: one salary run per driver per project per period
+salaryRunSchema.index(
+  { driverId: 1, projectId: 1, 'period.year': 1, 'period.month': 1 },
+  { unique: true }
 );
 
 // Auto-generate runId: SAL-YYYY-MM-XXXXX

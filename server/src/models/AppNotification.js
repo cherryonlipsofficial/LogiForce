@@ -19,10 +19,14 @@ const appNotificationSchema = new Schema(
       enum: [
         'attendance_uploaded',
         'attendance_approved',
-        'attendance_fully_approved',
         'attendance_disputed',
+        'attendance_fully_approved',
         'dispute_responded',
         'invoice_generated',
+        'salary_run_ready',
+        'advance_requested',
+        'advance_approved',
+        'advance_rejected',
       ],
     },
 
