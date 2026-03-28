@@ -51,7 +51,7 @@ const GuaranteePassportCard = ({ driverId, guarantee, onActionComplete }) => {
     return (
       <div style={{ marginTop: 8 }}>
         <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 8 }}>No guarantee passport on record</div>
-        <PermissionGate anyOf={["drivers.manage_passport", "drivers.edit"]}>
+        <PermissionGate permission="drivers.manage_passport">
           <Btn small variant="ghost" onClick={() => setShowNewGuarantee(true)}>Record guarantee passport</Btn>
         </PermissionGate>
         {showNewGuarantee && (

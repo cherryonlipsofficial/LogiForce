@@ -12,7 +12,7 @@ router.use(protect);
 // Mark own passport submitted
 router.post(
   '/drivers/:driverId/passport/own',
-  requirePermission('drivers.edit'),
+  requirePermission('drivers.manage_passport'),
   async (req, res) => {
     const driver = await guaranteePassportService.submitOwnPassport(
       req.params.driverId,
@@ -25,7 +25,7 @@ router.post(
 // Record a guarantee passport
 router.post(
   '/drivers/:driverId/passport/guarantee',
-  requirePermission('drivers.edit'),
+  requirePermission('drivers.manage_passport'),
   async (req, res) => {
     const { guarantorName, guarantorRelation, relation, guarantorPassportNumber } = req.body;
 
@@ -139,7 +139,7 @@ router.post(
 // Request extension
 router.post(
   '/guarantee-passports/:id/request-extension',
-  requirePermission('drivers.edit'),
+  requirePermission('drivers.manage_passport'),
   async (req, res) => {
     const { requestedDays, reason } = req.body;
 
@@ -186,7 +186,7 @@ router.put(
 // Return guarantee passport
 router.post(
   '/guarantee-passports/:id/return',
-  requirePermission('drivers.edit'),
+  requirePermission('drivers.manage_passport'),
   async (req, res) => {
     const result = await guaranteePassportService.returnGuarantee(
       req.params.id,
