@@ -53,6 +53,13 @@ export const AuthProvider = ({ children }) => {
                isAdmin: false, isAuthenticated: false, isLoading: false });
   };
 
+  const updateUser = useCallback((updates) => {
+    setState(prev => ({
+      ...prev,
+      user: { ...prev.user, ...updates },
+    }));
+  }, []);
+
   const hasPermission = useCallback(
     (key) => {
       if (state.isAdmin) return true;
@@ -70,6 +77,7 @@ export const AuthProvider = ({ children }) => {
       isAdmin: state.isAdmin,
       login,
       logout,
+      updateUser,
       isAuthenticated: state.isAuthenticated,
       role: state.user?.roleId?.name || state.user?.role || null,
       permissions: state.permissions,
