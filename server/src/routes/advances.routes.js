@@ -1,12 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
-const { Advance, DriverLedger } = require('../models');
+const { Advance, DriverLedger, DriverAdvance } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
 const validate = require('../middleware/validate');
 const { issueAdvanceValidation, recoverAdvanceValidation } = require('../middleware/validators/advance.validators');
 const auditLogger = require('../utils/auditLogger');
+const { requestAdvance, reviewAdvance } = require('../services/driverAdvance.service');
 
 // All routes are protected
 router.use(protect);
@@ -116,6 +117,85 @@ router.put('/:id/recover', requirePermission('advances.recover'), validate(recov
   });
 
   sendSuccess(res, advance, 'Recovery recorded successfully');
+});
+
+// ─── Driver Advance (request → review workflow) ───────────────────────
+
+// POST /api/advances/driver — Sales or Ops requests an advance for a driver
+router.post('/driver', requirePermission('advances.issue'), async (req, res) => {
+  const { driverId, projectId, clientId, amount, reason } = req.body;
+
+  if (!amount || amount <= 0) {
+    return sendError(res, 'Amount must be greater than zero', 400);
+  }
+  if (!reason || !reason.trim()) {
+    return sendError(res, 'Reason is required', 400);
+  }
+
+  const advance = await requestAdvance(
+    { driverId, projectId, clientId, amount, reason },
+    req.user._id
+  );
+  sendSuccess(res, advance, 'Advance requested', 201);
+});
+
+// GET /api/advances/driver — list driver advances with filters
+router.get('/driver', requirePermission('advances.view'), async (req, res) => {
+  const filter = {};
+  if (req.query.status) filter.status = req.query.status;
+  if (req.query.driverId) filter.driverId = req.query.driverId;
+  if (req.query.projectId) filter.projectId = req.query.projectId;
+
+  const advances = await DriverAdvance.find(filter)
+    .populate('driverId', 'fullName employeeCode')
+    .populate('projectId', 'name')
+    .populate('requestedBy', 'name')
+    .sort({ requestedAt: -1 });
+  res.json({ success: true, data: advances });
+});
+
+// GET /api/advances/driver/:id — single driver advance
+router.get('/driver/:id', requirePermission('advances.view'), async (req, res) => {
+  const advance = await DriverAdvance.findById(req.params.id)
+    .populate('driverId', 'fullName employeeCode baseSalary')
+    .populate('projectId', 'name')
+    .populate('requestedBy', 'name')
+    .populate('reviewedBy', 'name');
+  if (!advance) return sendError(res, 'Advance not found', 404);
+  res.json({ success: true, data: advance });
+});
+
+// PUT /api/advances/driver/:id/review — Accounts approves or rejects
+router.put('/driver/:id/review', requirePermission('advances.issue'), async (req, res) => {
+  const { decision, reviewNotes, recoverySchedule } = req.body;
+
+  if (!['approved', 'rejected'].includes(decision)) {
+    return sendError(res, 'Decision must be "approved" or "rejected"', 400);
+  }
+  if (decision === 'approved' && (!recoverySchedule || !recoverySchedule.length)) {
+    return sendError(res, 'Recovery schedule is required when approving', 400);
+  }
+
+  const advance = await reviewAdvance(
+    req.params.id,
+    decision,
+    { reviewNotes, recoverySchedule },
+    req.user._id
+  );
+  res.json({
+    success: true,
+    message: `Advance ${decision}.`,
+    data: advance,
+  });
+});
+
+// GET /api/advances/by-driver/:id — advances for a specific driver
+router.get('/by-driver/:id', requirePermission('advances.view'), async (req, res) => {
+  const advances = await DriverAdvance.find({ driverId: req.params.id })
+    .populate('requestedBy', 'name')
+    .populate('reviewedBy', 'name')
+    .sort({ createdAt: -1 });
+  res.json({ success: true, data: advances });
 });
 
 module.exports = router;
