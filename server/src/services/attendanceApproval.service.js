@@ -1,6 +1,14 @@
 const { AttendanceBatch, AttendanceDispute, User } = require('../models');
 const { notifyByRole, notifyUsers } = require('./notification.service');
 
+const MONTH_NAMES = [
+  '', 'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+/**
+ * Notify Sales and Ops users after attendance upload.
+ */
 async function notifyAfterUpload(batchId, uploadedByUserId) {
   const batch = await AttendanceBatch.findById(batchId)
     .populate('clientId', 'name');
@@ -27,27 +35,45 @@ async function notifyAfterUpload(batchId, uploadedByUserId) {
   return { notifiedCount: count };
 }
 
+/**
+ * Approve a batch (Sales or Ops user).
+ * Determines which team the user belongs to and records the approval.
+ * If both teams have approved, marks the batch as fully_approved.
+ */
 async function approveAttendance(batchId, userId, notes) {
-  const user = await User.findById(userId).populate('roleId', 'name');
-  const batch = await AttendanceBatch.findById(batchId)
-    .populate('clientId', 'name');
+  const batch = await AttendanceBatch.findById(batchId).populate('clientId', 'name');
+  if (!batch) {
+    const err = new Error('Batch not found');
+    err.statusCode = 404;
+    throw err;
+  }
 
-  if (!['pending_review', 'sales_approved', 'ops_approved', 'dispute_responded'].includes(batch.status)) {
-    throw Object.assign(
-      new Error(`Cannot approve a batch with status "${batch.status}"`),
-      { statusCode: 400 }
-    );
+  const allowedStatuses = ['pending_review', 'sales_approved', 'ops_approved', 'dispute_responded'];
+  if (!allowedStatuses.includes(batch.status)) {
+    const err = new Error(`Cannot approve a batch with status "${batch.status}"`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const user = await User.findById(userId).populate('roleId', 'name');
+  if (!user) {
+    const err = new Error('User not found');
+    err.statusCode = 404;
+    throw err;
   }
 
   const roleName = user.roleId?.name;
+  const isSales = ['sales', 'Sales', 'admin'].includes(roleName);
+  const isOps = ['operations', 'ops', 'admin'].includes(roleName);
 
-  if (roleName === 'sales' || roleName === 'Sales') {
-    if (batch.salesApproval.status === 'approved') {
-      throw Object.assign(
-        new Error('Sales team has already approved this batch'),
-        { statusCode: 400 }
-      );
-    }
+  if (!isSales && !isOps) {
+    const err = new Error('Only Sales or Operations users can approve attendance');
+    err.statusCode = 403;
+    throw err;
+  }
+
+  // Determine which approval to set
+  if (isSales && batch.salesApproval?.status !== 'approved') {
     batch.salesApproval = {
       status: 'approved',
       approvedBy: userId,
@@ -55,13 +81,9 @@ async function approveAttendance(batchId, userId, notes) {
       approvedAt: new Date(),
       notes: notes || '',
     };
-  } else if (roleName === 'ops' || roleName === 'operations') {
-    if (batch.opsApproval.status === 'approved') {
-      throw Object.assign(
-        new Error('Operations team has already approved this batch'),
-        { statusCode: 400 }
-      );
-    }
+  }
+
+  if (isOps && batch.opsApproval?.status !== 'approved') {
     batch.opsApproval = {
       status: 'approved',
       approvedBy: userId,
@@ -69,95 +91,150 @@ async function approveAttendance(batchId, userId, notes) {
       approvedAt: new Date(),
       notes: notes || '',
     };
-  } else {
-    throw Object.assign(
-      new Error('Only Sales or Operations users can approve attendance'),
-      { statusCode: 403 }
-    );
   }
 
-  const salesDone = batch.salesApproval.status === 'approved';
-  const opsDone = batch.opsApproval.status === 'approved';
+  // Determine batch status
+  const salesApproved = batch.salesApproval?.status === 'approved';
+  const opsApproved = batch.opsApproval?.status === 'approved';
 
-  if (salesDone && opsDone) {
+  if (salesApproved && opsApproved) {
     batch.status = 'fully_approved';
-
-    const monthName = new Date(batch.period.year, batch.period.month - 1)
-      .toLocaleString('en', { month: 'long' });
-
-    if (batch.uploadedBy) {
-      await notifyUsers([batch.uploadedBy], {
-        type: 'attendance_fully_approved',
-        title: 'Attendance fully approved',
-        message: `Attendance for ${batch.clientId.name} ${monthName} ${batch.period.year} has been approved by both Sales and Operations. You can now generate the invoice.`,
-        referenceModel: 'AttendanceBatch',
-        referenceId: batchId,
-        triggeredBy: userId,
-        triggeredByName: user.name,
-      });
-    }
-  } else if (salesDone) {
+  } else if (salesApproved) {
     batch.status = 'sales_approved';
-  } else {
+  } else if (opsApproved) {
     batch.status = 'ops_approved';
   }
 
   await batch.save();
+
+  // Notify relevant parties
+  const monthName = MONTH_NAMES[batch.period.month] || '';
+  const periodStr = `${monthName} ${batch.period.year}`;
+  const clientName = batch.clientId?.name || 'Unknown Client';
+
+  if (batch.status === 'fully_approved') {
+    // Notify accounts (uploader) that both teams have approved
+    const notifyTargets = [];
+    if (batch.uploadedBy) notifyTargets.push(batch.uploadedBy);
+
+    if (notifyTargets.length) {
+      await notifyUsers(notifyTargets, {
+        type: 'attendance_fully_approved',
+        title: 'Attendance fully approved',
+        message: `Attendance for ${clientName} — ${periodStr} has been approved by both Sales and Operations. Invoice can now be generated.`,
+        referenceModel: 'AttendanceBatch',
+        referenceId: batch._id,
+        triggeredBy: userId,
+        triggeredByName: user.name,
+      });
+    }
+
+    await notifyByRole(['accountant', 'accounts'], {
+      type: 'attendance_fully_approved',
+      title: 'Attendance fully approved',
+      message: `Attendance for ${clientName} — ${periodStr} has been approved by both Sales and Operations. Invoice can now be generated.`,
+      referenceModel: 'AttendanceBatch',
+      referenceId: batch._id,
+      triggeredBy: userId,
+      triggeredByName: user.name,
+    });
+  } else {
+    // Notify the other team
+    const notifyRole = salesApproved && !opsApproved ? ['operations', 'ops'] : ['sales'];
+    await notifyByRole(notifyRole, {
+      type: 'attendance_approved',
+      title: 'Attendance approved',
+      message: `${user.name} (${roleName}) approved attendance for ${clientName} — ${periodStr}. Waiting for your team's approval.`,
+      referenceModel: 'AttendanceBatch',
+      referenceId: batch._id,
+      triggeredBy: userId,
+      triggeredByName: user.name,
+    });
+  }
+
   return batch;
 }
 
-async function raiseDispute(batchId, userId, disputeData) {
-  const user = await User.findById(userId).populate('roleId', 'name');
-  const batch = await AttendanceBatch.findById(batchId)
-    .populate('clientId', 'name');
-
-  const allowed = ['pending_review', 'sales_approved', 'ops_approved', 'dispute_responded'];
-  if (!allowed.includes(batch.status)) {
-    throw Object.assign(
-      new Error(`Cannot dispute a batch with status "${batch.status}"`),
-      { statusCode: 400 }
-    );
+/**
+ * Raise a dispute on a batch.
+ */
+async function raiseDispute(batchId, userId, body) {
+  const batch = await AttendanceBatch.findById(batchId).populate('clientId', 'name');
+  if (!batch) {
+    const err = new Error('Batch not found');
+    err.statusCode = 404;
+    throw err;
   }
 
-  if (!disputeData.reason || disputeData.reason.length < 10) {
-    throw Object.assign(
-      new Error('Dispute reason must be at least 10 characters'),
-      { statusCode: 400 }
-    );
+  const allowedStatuses = ['pending_review', 'sales_approved', 'ops_approved', 'dispute_responded'];
+  if (!allowedStatuses.includes(batch.status)) {
+    const err = new Error(`Cannot dispute a batch with status "${batch.status}"`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const user = await User.findById(userId).populate('roleId', 'name');
+  if (!user) {
+    const err = new Error('User not found');
+    err.statusCode = 404;
+    throw err;
   }
 
   const roleName = user.roleId?.name;
+  const isSales = ['sales', 'Sales', 'admin'].includes(roleName);
+  const isOps = ['operations', 'ops', 'admin'].includes(roleName);
 
+  // Create dispute record
   const dispute = await AttendanceDispute.create({
     batchId,
-    clientId: batch.clientId,
+    clientId: batch.clientId._id || batch.clientId,
     raisedBy: userId,
     raisedByName: user.name,
     raisedByRole: roleName,
-    disputeType: disputeData.disputeType,
-    reason: disputeData.reason,
-    disputedDriverIds: disputeData.disputedDriverIds || [],
-    disputedDriverCodes: disputeData.disputedDriverCodes || [],
+    disputeType: body.disputeType,
+    reason: body.reason,
+    disputedDriverIds: body.disputedDriverIds || [],
+    disputedDriverCodes: body.disputedDriverCodes || [],
     status: 'open',
   });
 
-  if (roleName === 'sales' || roleName === 'Sales') {
-    batch.salesApproval.status = 'disputed';
-  } else {
-    batch.opsApproval.status = 'disputed';
+  // Update the relevant approval to disputed
+  if (isSales) {
+    batch.salesApproval = {
+      ...batch.salesApproval?.toObject?.() || {},
+      status: 'disputed',
+    };
   }
+  if (isOps) {
+    batch.opsApproval = {
+      ...batch.opsApproval?.toObject?.() || {},
+      status: 'disputed',
+    };
+  }
+
   batch.status = 'disputed';
   batch.disputes.push(dispute._id);
   await batch.save();
 
-  const monthName = new Date(batch.period.year, batch.period.month - 1)
-    .toLocaleString('en', { month: 'long' });
+  // Notify accounts team and the uploader
+  const monthName = MONTH_NAMES[batch.period.month] || '';
+  const clientName = batch.clientId?.name || 'Unknown Client';
+
+  await notifyByRole(['accountant', 'accounts'], {
+    type: 'attendance_disputed',
+    title: 'Attendance disputed',
+    message: `${user.name} (${roleName}) raised a dispute for ${clientName} — ${monthName} ${batch.period.year}: ${body.reason.substring(0, 100)}`,
+    referenceModel: 'AttendanceBatch',
+    referenceId: batch._id,
+    triggeredBy: userId,
+    triggeredByName: user.name,
+  });
 
   if (batch.uploadedBy) {
     await notifyUsers([batch.uploadedBy], {
       type: 'attendance_disputed',
       title: 'Attendance dispute raised',
-      message: `${user.name} (${roleName}) raised a dispute on ${batch.clientId.name} attendance for ${monthName} ${batch.period.year}. Reason: ${disputeData.reason.substring(0, 80)}`,
+      message: `${user.name} (${roleName}) raised a dispute on ${clientName} attendance for ${monthName} ${batch.period.year}. Reason: ${body.reason.substring(0, 80)}`,
       referenceModel: 'AttendanceBatch',
       referenceId: batchId,
       triggeredBy: userId,
@@ -165,24 +242,32 @@ async function raiseDispute(batchId, userId, disputeData) {
     });
   }
 
-  return { batch, dispute };
+  return dispute;
 }
 
+/**
+ * Accounts responds to an open dispute.
+ */
 async function respondToDispute(disputeId, userId, message) {
   const dispute = await AttendanceDispute.findById(disputeId);
   if (!dispute) {
-    throw Object.assign(new Error('Dispute not found'), { statusCode: 404 });
-  }
-  if (dispute.status !== 'open') {
-    throw Object.assign(
-      new Error(`Cannot respond to a dispute with status "${dispute.status}"`),
-      { statusCode: 400 }
-    );
+    const err = new Error('Dispute not found');
+    err.statusCode = 404;
+    throw err;
   }
 
-  const user = await User.findById(userId);
-  const batch = await AttendanceBatch.findById(dispute.batchId)
-    .populate('clientId', 'name');
+  if (dispute.status !== 'open') {
+    const err = new Error(`Cannot respond to a dispute in "${dispute.status}" status`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const user = await User.findById(userId).select('name');
+  if (!user) {
+    const err = new Error('User not found');
+    err.statusCode = 404;
+    throw err;
+  }
 
   dispute.status = 'responded';
   dispute.response = {
@@ -193,38 +278,49 @@ async function respondToDispute(disputeId, userId, message) {
   };
   await dispute.save();
 
-  batch.status = 'dispute_responded';
-  if (dispute.raisedByRole === 'sales' || dispute.raisedByRole === 'Sales') {
-    batch.salesApproval.status = 'pending';
-  } else {
-    batch.opsApproval.status = 'pending';
+  // Update batch status and reset the disputed approval to pending
+  const batch = await AttendanceBatch.findById(dispute.batchId)
+    .populate('clientId', 'name');
+  if (batch) {
+    batch.status = 'dispute_responded';
+    if (dispute.raisedByRole === 'sales' || dispute.raisedByRole === 'Sales') {
+      batch.salesApproval.status = 'pending';
+    } else {
+      batch.opsApproval.status = 'pending';
+    }
+    await batch.save();
   }
-  await batch.save();
 
-  const clientName = batch.clientId?.name || 'Unknown';
+  // Notify the user who raised the dispute
   await notifyUsers([dispute.raisedBy], {
     type: 'dispute_responded',
-    title: 'Accounts responded to your dispute',
-    message: `Your dispute on ${clientName} attendance has been responded to by ${user.name}. Please review and re-approve or escalate.`,
+    title: 'Dispute response received',
+    message: `${user.name} responded to your dispute: ${message.substring(0, 100)}`,
     referenceModel: 'AttendanceBatch',
-    referenceId: batch._id,
+    referenceId: dispute.batchId,
     triggeredBy: userId,
     triggeredByName: user.name,
   });
 
-  return { batch, dispute };
+  return dispute;
 }
 
+/**
+ * Get batch with full approval details.
+ */
 async function getBatchWithApprovals(batchId) {
   return AttendanceBatch.findById(batchId)
     .populate('clientId', 'name')
     .populate('uploadedBy', 'name email')
     .populate('salesApproval.approvedBy', 'name')
     .populate('opsApproval.approvedBy', 'name')
+    .populate('invoiceId')
     .populate({
       path: 'disputes',
-      match: { status: { $in: ['open', 'responded'] } },
-      populate: { path: 'raisedBy', select: 'name' },
+      populate: [
+        { path: 'raisedBy', select: 'name' },
+        { path: 'response.respondedBy', select: 'name' },
+      ],
     });
 }
 
