@@ -71,9 +71,13 @@ module.exports = {
     'invoices.download':       { label: 'Download invoice PDF',    module: 'Invoices',   description: 'Export invoices as PDF' },
 
     // ── ADVANCES ──
-    'advances.view':           { label: 'View advances',           module: 'Advances',   description: 'See advance and loan records' },
-    'advances.issue':          { label: 'Issue advances',          module: 'Advances',   description: 'Issue salary advances to drivers' },
-    'advances.recover':        { label: 'Manage recovery',         module: 'Advances',   description: 'Adjust advance recovery schedules' },
+    'advances.view':           { label: 'View advances',           module: 'Advances',   description: 'View driver advance requests and history' },
+    'advances.request':        { label: 'Request advance',         module: 'Advances',   description: 'Submit advance requests for drivers (Sales and Operations)' },
+    'advances.approve':        { label: 'Approve or reject advances', module: 'Advances', description: 'Review advance requests and set recovery schedule (Accounts)' },
+    'advances.manage_recovery': { label: 'Manage recovery schedule', module: 'Advances',  description: 'Edit advance recovery installments' },
+
+    // ── NOTIFICATIONS ──
+    'notifications.view':     { label: 'View notifications',      module: 'Notifications', description: 'Receive and view in-app notifications' },
 
     // ── REPORTS ──
     'reports.view':            { label: 'View reports',            module: 'Reports',    description: 'Access the reports section' },

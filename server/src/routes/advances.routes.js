@@ -13,7 +13,7 @@ const { requestAdvance, reviewAdvance } = require('../services/driverAdvance.ser
 router.use(protect);
 
 // POST /api/advances — issue advance to driver
-router.post('/', requirePermission('advances.issue'), validate(issueAdvanceValidation), async (req, res) => {
+router.post('/', requirePermission('advances.approve'), validate(issueAdvanceValidation), async (req, res) => {
   const { driverId, amountIssued, notes } = req.body;
 
   const advance = await Advance.create({
@@ -47,7 +47,7 @@ router.post('/', requirePermission('advances.issue'), validate(issueAdvanceValid
 });
 
 // GET /api/advances — list all advances
-router.get('/', async (req, res) => {
+router.get('/', requirePermission('advances.view'), async (req, res) => {
   const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
   const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (page - 1) * limit;
@@ -70,7 +70,7 @@ router.get('/', async (req, res) => {
 });
 
 // PUT /api/advances/:id/recover — manual recovery entry
-router.put('/:id/recover', requirePermission('advances.recover'), validate(recoverAdvanceValidation), async (req, res) => {
+router.put('/:id/recover', requirePermission('advances.manage_recovery'), validate(recoverAdvanceValidation), async (req, res) => {
   const { amount, salaryRunId } = req.body;
 
   const advance = await Advance.findById(req.params.id);
@@ -122,7 +122,7 @@ router.put('/:id/recover', requirePermission('advances.recover'), validate(recov
 // ─── Driver Advance (request → review workflow) ───────────────────────
 
 // POST /api/advances/driver — Sales or Ops requests an advance for a driver
-router.post('/driver', requirePermission('advances.issue'), async (req, res) => {
+router.post('/driver', requirePermission('advances.request'), async (req, res) => {
   const { driverId, projectId, clientId, amount, reason } = req.body;
 
   if (!amount || amount <= 0) {
@@ -166,7 +166,7 @@ router.get('/driver/:id', requirePermission('advances.view'), async (req, res) =
 });
 
 // PUT /api/advances/driver/:id/review — Accounts approves or rejects
-router.put('/driver/:id/review', requirePermission('advances.issue'), async (req, res) => {
+router.put('/driver/:id/review', requirePermission('advances.approve'), async (req, res) => {
   const { decision, reviewNotes, recoverySchedule } = req.body;
 
   if (!['approved', 'rejected'].includes(decision)) {

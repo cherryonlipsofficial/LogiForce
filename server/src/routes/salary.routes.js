@@ -45,7 +45,7 @@ router.post('/run', requirePermission('salary.run'), validate(runSalaryValidatio
 });
 
 // GET /api/salary/runs — list runs with filters
-router.get('/runs', async (req, res) => {
+router.get('/runs', requirePermission('salary.view'), async (req, res) => {
   const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
   const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (page - 1) * limit;
@@ -73,7 +73,7 @@ router.get('/runs', async (req, res) => {
 });
 
 // GET /api/salary/runs/:id — get single run with full breakdown
-router.get('/runs/:id', async (req, res) => {
+router.get('/runs/:id', requirePermission('salary.view'), async (req, res) => {
   const run = await SalaryRun.findById(req.params.id)
     .populate('driverId', 'fullName employeeCode bankName iban payStructure')
     .populate('clientId', 'name')

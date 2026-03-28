@@ -19,7 +19,7 @@ const { uploadAttendanceValidation, overrideRecordValidation } = require('../mid
 router.use(protect);
 
 // GET /api/attendance/batches — list batches with filters
-router.get('/batches', async (req, res) => {
+router.get('/batches', requirePermission('attendance.view'), async (req, res) => {
   const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
   const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (page - 1) * limit;
@@ -125,7 +125,7 @@ router.post('/upload', requirePermission('attendance.upload'), attendanceUpload.
 });
 
 // GET /api/attendance/batches/:id — get batch with validation results
-router.get('/batches/:id', async (req, res) => {
+router.get('/batches/:id', requirePermission('attendance.view'), async (req, res) => {
   const batch = await AttendanceBatch.findById(req.params.id)
     .populate('clientId', 'name')
     .populate('projectId', 'name projectCode')
@@ -173,7 +173,7 @@ router.delete('/batches/:id', requirePermission('attendance.approve'), async (re
 });
 
 // GET /api/attendance/:driverId/:year/:month — specific attendance record
-router.get('/:driverId/:year/:month', async (req, res) => {
+router.get('/:driverId/:year/:month', requirePermission('attendance.view'), async (req, res) => {
   const { driverId, year, month } = req.params;
 
   const record = await AttendanceRecord.findOne({

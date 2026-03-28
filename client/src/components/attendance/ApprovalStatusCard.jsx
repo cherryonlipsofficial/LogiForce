@@ -1,5 +1,6 @@
 import Badge from '../ui/Badge';
 import Btn from '../ui/Btn';
+import PermissionGate from '../ui/PermissionGate';
 import { formatDate } from '../../utils/formatters';
 
 const approvalIcon = (status) => {
@@ -57,10 +58,10 @@ const ApprovalStatusCard = ({ batch, currentUserRole, onApprove, onDispute, onGe
   const ownApproval = isSales ? salesApproval : isOps ? opsApproval : null;
   const hasApproved = ownApproval?.status === 'approved';
 
-  const showApproveActions = isSalesOrOps && canAct && !hasApproved;
-  const showGenerateInvoice = roleName === 'accountant' && status === 'fully_approved';
+  const showApproveActions = canAct && !hasApproved;
+  const showGenerateInvoice = status === 'fully_approved';
   const isInvoiced = status === 'invoiced';
-  const isDisputed = roleName === 'accountant' && status === 'disputed';
+  const isDisputed = status === 'disputed';
 
   return (
     <div style={{
@@ -75,32 +76,40 @@ const ApprovalStatusCard = ({ batch, currentUserRole, onApprove, onDispute, onGe
 
       {showApproveActions && (
         <div style={{ display: 'flex', gap: 8, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-          <Btn variant="success" onClick={onApprove}>✓ Approve</Btn>
-          <Btn variant="ghost" onClick={onDispute} style={{
-            color: '#fbbf24', border: '1px solid rgba(245,158,11,0.25)',
-          }}>⚑ Raise dispute</Btn>
+          <PermissionGate permission="attendance.approve">
+            <Btn variant="success" onClick={onApprove}>✓ Approve</Btn>
+          </PermissionGate>
+          <PermissionGate permission="attendance.dispute">
+            <Btn variant="ghost" onClick={onDispute} style={{
+              color: '#fbbf24', border: '1px solid rgba(245,158,11,0.25)',
+            }}>⚑ Raise dispute</Btn>
+          </PermissionGate>
         </div>
       )}
 
       {showGenerateInvoice && (
-        <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-          <Btn variant="primary" onClick={onGenerateInvoice} style={{ width: '100%', justifyContent: 'center', padding: '10px 16px', fontSize: 14 }}>
-            Generate invoice →
-          </Btn>
-          <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center', marginTop: 6 }}>
-            Both teams have approved. Invoice will include VAT (5%).
+        <PermissionGate permission="invoices.generate">
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+            <Btn variant="primary" onClick={onGenerateInvoice} style={{ width: '100%', justifyContent: 'center', padding: '10px 16px', fontSize: 14 }}>
+              Generate invoice →
+            </Btn>
+            <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center', marginTop: 6 }}>
+              Both teams have approved. Invoice will include VAT (5%).
+            </div>
           </div>
-        </div>
+        </PermissionGate>
       )}
 
       {isDisputed && (
-        <div style={{
-          marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)',
-          background: 'rgba(239,68,68,0.04)', borderRadius: 8, padding: 12,
-          fontSize: 12, color: '#f87171',
-        }}>
-          A dispute has been raised. Review the dispute below and respond.
-        </div>
+        <PermissionGate permission="attendance.respond_dispute">
+          <div style={{
+            marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)',
+            background: 'rgba(239,68,68,0.04)', borderRadius: 8, padding: 12,
+            fontSize: 12, color: '#f87171',
+          }}>
+            A dispute has been raised. Review the dispute below and respond.
+          </div>
+        </PermissionGate>
       )}
 
       {isInvoiced && (
