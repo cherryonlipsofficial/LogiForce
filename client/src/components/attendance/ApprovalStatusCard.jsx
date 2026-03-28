@@ -1,5 +1,6 @@
 import Badge from '../ui/Badge';
 import Btn from '../ui/Btn';
+import PermissionGate from '../ui/PermissionGate';
 import { formatDate } from '../../utils/formatters';
 
 const approvalIcon = (status) => {
@@ -63,15 +64,14 @@ const ApprovalStatusCard = ({ batch, currentUserRole, onApprove, onDispute, onGe
   const canAct = ['pending_review', 'sales_approved', 'ops_approved', 'dispute_responded'].includes(status);
   const isSales = roleName === 'sales';
   const isOps = roleName === 'ops' || roleName === 'operations';
-  const isSalesOrOps = isSales || isOps;
 
   const ownApproval = isSales ? salesApproval : isOps ? opsApproval : null;
   const hasApproved = ownApproval?.status === 'approved';
 
-  const showApproveActions = isSalesOrOps && canAct && !hasApproved;
-  const showGenerateInvoice = roleName === 'accountant' && status === 'fully_approved';
+  const showApproveActions = canAct && !hasApproved;
+  const showGenerateInvoice = status === 'fully_approved';
   const isInvoiced = status === 'invoiced';
-  const isDisputed = roleName === 'accountant' && status === 'disputed';
+  const isDisputed = status === 'disputed';
 
   const summary = statusSummary[status] || statusSummary.pending_review;
 
@@ -97,22 +97,30 @@ const ApprovalStatusCard = ({ batch, currentUserRole, onApprove, onDispute, onGe
 
       {showApproveActions && (
         <div style={{ display: 'flex', gap: 8, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-          <Btn variant="success" onClick={onApprove}>✓ Approve attendance</Btn>
-          <Btn variant="ghost" onClick={onDispute} style={{
-            color: '#fbbf24', border: '1px solid rgba(245,158,11,0.25)',
-          }}>⚑ Raise dispute</Btn>
+          <PermissionGate permission="attendance.approve">
+            <Btn variant="success" onClick={onApprove}>✓ Approve attendance</Btn>
+          </PermissionGate>
+          <PermissionGate permission="attendance.dispute">
+            <Btn variant="ghost" onClick={onDispute} style={{
+              color: '#fbbf24', border: '1px solid rgba(245,158,11,0.25)',
+            }}>⚑ Raise dispute</Btn>
+          </PermissionGate>
         </div>
       )}
 
       {showGenerateInvoice && (
         <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-          <Btn variant="primary" onClick={onGenerateInvoice} style={{ width: '100%', justifyContent: 'center', padding: '10px 16px', fontSize: 14 }}>
-            Generate invoice →
-          </Btn>
-          {onRunSalary && (
-            <Btn variant="ghost" onClick={onRunSalary} style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}>
-              Run salary →
+          <PermissionGate permission="invoices.generate">
+            <Btn variant="primary" onClick={onGenerateInvoice} style={{ width: '100%', justifyContent: 'center', padding: '10px 16px', fontSize: 14 }}>
+              Generate invoice →
             </Btn>
+          </PermissionGate>
+          {onRunSalary && (
+            <PermissionGate permission="salary.run">
+              <Btn variant="ghost" onClick={onRunSalary} style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}>
+                Run salary →
+              </Btn>
+            </PermissionGate>
           )}
           <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center', marginTop: 6 }}>
             Both teams have approved. Invoice will include VAT (5%).
@@ -121,13 +129,15 @@ const ApprovalStatusCard = ({ batch, currentUserRole, onApprove, onDispute, onGe
       )}
 
       {isDisputed && (
-        <div style={{
-          marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)',
-          background: 'rgba(245,158,11,0.06)', borderRadius: 8, padding: 12,
-          fontSize: 12, color: '#f59e0b',
-        }}>
-          Dispute raised. Coordinate with client, then upload revised attendance.
-        </div>
+        <PermissionGate permission="attendance.respond_dispute">
+          <div style={{
+            marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)',
+            background: 'rgba(245,158,11,0.06)', borderRadius: 8, padding: 12,
+            fontSize: 12, color: '#f59e0b',
+          }}>
+            Dispute raised. Coordinate with client, then upload revised attendance.
+          </div>
+        </PermissionGate>
       )}
 
       {isInvoiced && (

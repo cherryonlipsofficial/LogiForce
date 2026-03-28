@@ -46,7 +46,7 @@ router.post('/generate', requirePermission('invoices.generate'), validate(genera
 });
 
 // GET /api/invoices — list with filters
-router.get('/', async (req, res) => {
+router.get('/', requirePermission('invoices.view'), async (req, res) => {
   const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
   const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (page - 1) * limit;
@@ -71,7 +71,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/invoices/:id — get invoice with line items
-router.get('/:id', async (req, res) => {
+router.get('/:id', requirePermission('invoices.view'), async (req, res) => {
   const invoice = await Invoice.findById(req.params.id)
     .populate('clientId')
     .populate('createdBy', 'name')
@@ -114,7 +114,7 @@ router.post('/:id/credit-note', requirePermission('invoices.credit_note'), valid
 });
 
 // GET /api/invoices/:id/pdf — generate PDF
-router.get('/:id/pdf', async (req, res) => {
+router.get('/:id/pdf', requirePermission('invoices.download'), async (req, res) => {
   const invoice = await Invoice.findById(req.params.id)
     .populate('lineItems.driverId', 'fullName employeeCode')
     .populate('creditNotes.driverId', 'fullName employeeCode');

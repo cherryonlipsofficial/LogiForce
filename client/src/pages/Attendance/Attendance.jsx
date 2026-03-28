@@ -300,7 +300,7 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
           }}
         />
 
-        {openDisputes.length > 0 && currentUserRole?.toLowerCase() === 'accountant' && (
+        {openDisputes.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>Open disputes</div>
             {openDisputes.map(dispute => (
@@ -321,9 +321,11 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
                       {dispute.reason}
                     </div>
                   </div>
-                  <Btn small variant="ghost" onClick={() => setRespondModal(dispute)}>
-                    Respond
-                  </Btn>
+                  <PermissionGate permission="attendance.respond_dispute">
+                    <Btn small variant="ghost" onClick={() => setRespondModal(dispute)}>
+                      Respond
+                    </Btn>
+                  </PermissionGate>
                 </div>
               </div>
             ))}
