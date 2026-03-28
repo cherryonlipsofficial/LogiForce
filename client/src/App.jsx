@@ -26,6 +26,7 @@ import GuaranteeExtensions from './pages/GuaranteeExtensions';
 import GuaranteePassports from './pages/GuaranteePassports';
 import ExpiredDocuments from './pages/ExpiredDocuments';
 import ProfilePage from './pages/Profile';
+import NotificationsPage from './pages/Notifications';
 import NotFound from './pages/NotFound';
 
 const queryClient = new QueryClient();
@@ -66,6 +67,7 @@ const RouterContent = () => (
         <Route path="/guarantee-passports" element={<ProtectedPage permission="guarantee_passports.view"><GuaranteePassports /></ProtectedPage>} />
         <Route path="/expired-documents" element={<ProtectedPage permission="expired_documents.view"><ExpiredDocuments /></ProtectedPage>} />
         <Route path="/profile" element={<ProtectedPage><ProfilePage /></ProtectedPage>} />
+        <Route path="/notifications" element={<ProtectedPage><NotificationsPage /></ProtectedPage>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>

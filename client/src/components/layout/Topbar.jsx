@@ -5,9 +5,11 @@ import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { useSyncTime } from '../../hooks/useSyncTime.jsx';
 import toast from 'react-hot-toast';
 import axiosInstance from '../../api/axiosInstance';
+import { getNotifications, getUnreadCount, markAsRead, markAllAsRead } from '../../api/notificationsApi';
 import Modal from '../ui/Modal';
 import Btn from '../ui/Btn';
 import PermissionGate from '../ui/PermissionGate';
+import NotificationPanel from './NotificationPanel';
 
 const pageTitles = {
   dashboard: 'Finance overview',
@@ -22,6 +24,7 @@ const pageTitles = {
   users: 'Settings',
   roles: 'Settings',
   profile: 'Your profile',
+  notifications: 'Notifications',
 };
 
 /* ── My Permissions Modal ── */
@@ -211,14 +214,44 @@ const ChangePasswordModal = ({ onClose }) => {
 
 /* ── Topbar ── */
 const Topbar = ({ page }) => {
-  const { user, logout, role, hasPermission } = useAuth();
+  const { user, logout, role, hasPermission, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const searchRef = useRef(null);
   const lastSynced = useSyncTime();
   const [menuOpen, setMenuOpen] = useState(false);
   const [showPerms, setShowPerms] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifPage, setNotifPage] = useState(1);
   const menuRef = useRef(null);
+
+  // Poll unread count every 30 seconds
+  const { data: countData } = useQuery({
+    queryKey: ['notif-unread-count'],
+    queryFn: () => getUnreadCount().then(r => r.data),
+    refetchInterval: 30000,
+    enabled: isAuthenticated,
+  });
+  const unreadCount = countData?.count || 0;
+
+  // Fetch notifications when panel opens
+  const { data: notifData, isLoading: notifLoading } = useQuery({
+    queryKey: ['notifications', notifPage],
+    queryFn: () => getNotifications(notifPage).then(r => r.data),
+    enabled: notifOpen,
+  });
+  const notifications = notifData?.notifications || [];
+
+  // Close notification panel on click outside
+  useEffect(() => {
+    if (!notifOpen) return;
+    const handler = (e) => {
+      if (!e.target.closest('.notif-panel-container')) setNotifOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [notifOpen]);
 
   const roleName = user?.roleId?.displayName || role || 'User';
 
@@ -361,6 +394,66 @@ const Topbar = ({ page }) => {
           >
             {alertCount} {alertCount === 1 ? 'alert' : 'alerts'}
           </button>
+
+          {/* Notification bell */}
+          <div className="notif-panel-container" style={{ position: 'relative' }}>
+            <button
+              onClick={() => setNotifOpen(o => !o)}
+              style={{
+                background: 'var(--surface3)',
+                border: '1px solid var(--border2)',
+                borderRadius: 8,
+                padding: '6px 12px',
+                fontSize: 16,
+                cursor: 'pointer',
+                color: 'var(--text2)',
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              ◎
+              {unreadCount > 0 && (
+                <span style={{
+                  position: 'absolute',
+                  top: -6,
+                  right: -6,
+                  background: '#ef4444',
+                  color: '#fff',
+                  borderRadius: 10,
+                  fontSize: 10,
+                  fontWeight: 500,
+                  padding: '1px 5px',
+                  minWidth: 16,
+                  textAlign: 'center',
+                  lineHeight: '14px',
+                }}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {notifOpen && (
+              <NotificationPanel
+                notifications={notifications}
+                isLoading={notifLoading}
+                unreadCount={unreadCount}
+                onClose={() => setNotifOpen(false)}
+                onMarkAllRead={async () => {
+                  await markAllAsRead();
+                  queryClient.invalidateQueries({ queryKey: ['notif-unread-count'] });
+                  queryClient.invalidateQueries({ queryKey: ['notifications'] });
+                }}
+                onMarkRead={async (id) => {
+                  await markAsRead(id);
+                  queryClient.invalidateQueries({ queryKey: ['notif-unread-count'] });
+                  queryClient.invalidateQueries({ queryKey: ['notifications'] });
+                }}
+              />
+            )}
+          </div>
+
           <PermissionGate permission="salary.run">
             <button
               style={{

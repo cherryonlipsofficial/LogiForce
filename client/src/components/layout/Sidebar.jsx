@@ -234,6 +234,10 @@ const Sidebar = () => {
           <span>{arabicNumerals ? 'ON' : 'OFF'}</span>
         </button>
       </div>
+      <div style={{ padding: '4px 10px 0' }}>
+        <NavItem item={{ path: '/notifications', label: 'Notifications', icon: '◎' }} />
+      </div>
+
       <div style={{ padding: '8px 16px 12px', borderTop: '1px solid var(--border)' }}>
         <NavLink
           to="/profile"
