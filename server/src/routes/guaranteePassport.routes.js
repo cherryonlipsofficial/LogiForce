@@ -72,6 +72,42 @@ router.get(
 
 // ── Guarantee passport management routes (/api/guarantee-passports/...) ──
 
+// Get all pending extension requests (admin only)
+router.get(
+  '/guarantee-passports/pending-extensions',
+  requirePermission('roles.manage'),
+  async (req, res) => {
+    const pending = await GuaranteePassport.find({ 'extensionRequest.status': 'pending' })
+      .populate('driverId', 'fullName employeeCode clientId projectId')
+      .populate('extensionRequest.requestedBy', 'name')
+      .sort({ 'extensionRequest.requestedAt': -1 })
+      .lean({ virtuals: true });
+
+    sendSuccess(res, pending);
+  }
+);
+
+// Get guarantees expiring soon (admin + compliance)
+router.get(
+  '/guarantee-passports/expiring',
+  requirePermission('drivers.view'),
+  async (req, res) => {
+    const days = parseInt(req.query.days) || 7;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() + days);
+
+    const expiring = await GuaranteePassport.find({
+      status: { $in: ['active', 'extended'] },
+      expiryDate: { $lte: cutoff, $gte: new Date() },
+    })
+      .populate('driverId', 'fullName employeeCode')
+      .sort({ expiryDate: 1 })
+      .lean({ virtuals: true });
+
+    sendSuccess(res, expiring);
+  }
+);
+
 // Run expiry check (admin only) — must be before :id routes
 router.post(
   '/guarantee-passports/run-expiry-check',

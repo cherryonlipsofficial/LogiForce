@@ -20,6 +20,7 @@ import Projects from './pages/Projects/Projects';
 import Settings from './pages/Settings/Settings';
 import UsersPage from './pages/Users';
 import RolesPage from './pages/Roles';
+import GuaranteeExtensions from './pages/GuaranteeExtensions';
 import NotFound from './pages/NotFound';
 
 const queryClient = new QueryClient();
@@ -49,6 +50,7 @@ const RouterContent = () => (
         <Route path="/settings" element={<ProtectedPage permission="settings.view"><Settings /></ProtectedPage>} />
         <Route path="/users" element={<ProtectedPage permission="users.view"><UsersPage /></ProtectedPage>} />
         <Route path="/roles" element={<ProtectedPage permission="roles.manage"><RolesPage /></ProtectedPage>} />
+        <Route path="/guarantee-extensions" element={<ProtectedPage permission="roles.manage"><GuaranteeExtensions /></ProtectedPage>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>

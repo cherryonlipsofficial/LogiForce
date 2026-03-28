@@ -1,6 +1,8 @@
 import { NavLink } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import { useUserPrefs } from '../../hooks/useUserPrefs.jsx';
+import { getPendingExtensions } from '../../api/guaranteeApi';
 
 const mainNavItems = [
   { path: '/dashboard', label: 'Dashboard', icon: '▦' },
@@ -18,6 +20,7 @@ const mainNavItems = [
 const adminNavItems = [
   { path: '/users', label: 'Users', icon: '◎', permission: 'users.view' },
   { path: '/roles', label: 'Roles & access', icon: '◈', permission: 'roles.manage' },
+  { path: '/guarantee-extensions', label: 'Guarantee approvals', icon: '◎', permission: 'roles.manage', hasBadge: true },
   { path: '/settings', label: 'Settings', icon: '⚙', permission: 'settings.view' },
 ];
 
@@ -39,18 +42,39 @@ const navLinkStyle = ({ isActive }) => ({
   transition: 'all .15s',
 });
 
-const NavItem = ({ item }) => (
+const NavItem = ({ item, badge }) => (
   <NavLink to={item.path} style={navLinkStyle}>
     <span style={{ fontSize: 15, width: 18, textAlign: 'center', flexShrink: 0 }}>
       {item.icon}
     </span>
     {item.label}
+    {badge > 0 && (
+      <span style={{
+        background: '#ef4444', color: '#fff', borderRadius: 10,
+        fontSize: 10, padding: '1px 6px', marginLeft: 'auto',
+        lineHeight: '16px', fontWeight: 600,
+      }}>
+        {badge}
+      </span>
+    )}
   </NavLink>
 );
 
 const Sidebar = () => {
   const { user, role, logout, hasPermission } = useAuth();
   const { arabicNumerals, toggleArabicNumerals } = useUserPrefs();
+  const isAdmin = hasPermission('roles.manage');
+
+  const { data: pendingExtData } = useQuery({
+    queryKey: ['pending-extensions'],
+    queryFn: () => getPendingExtensions().then(r => {
+      const d = r.data?.data || r.data || [];
+      return Array.isArray(d) ? d : [];
+    }),
+    enabled: isAdmin,
+    refetchInterval: 5 * 60 * 1000,
+  });
+  const pendingCount = pendingExtData?.length || 0;
 
   const visibleMain = mainNavItems.filter(
     (item) => !item.permission || hasPermission(item.permission)
@@ -144,7 +168,7 @@ const Sidebar = () => {
               <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
             </div>
             {visibleAdmin.map((item) => (
-              <NavItem key={item.path} item={item} />
+              <NavItem key={item.path} item={item} badge={item.hasBadge ? pendingCount : 0} />
             ))}
           </>
         )}
