@@ -47,8 +47,8 @@ const navLinkStyle = ({ isActive }) => ({
   transition: 'all .15s',
 });
 
-const NavItem = ({ item, badge, badgeColor }) => (
-  <NavLink to={item.path} style={navLinkStyle}>
+const NavItem = ({ item, badge, badgeColor, onClick }) => (
+  <NavLink to={item.path} style={navLinkStyle} onClick={onClick}>
     <span style={{ fontSize: 15, width: 18, textAlign: 'center', flexShrink: 0 }}>
       {item.icon}
     </span>
@@ -68,7 +68,7 @@ const NavItem = ({ item, badge, badgeColor }) => (
   </NavLink>
 );
 
-const Sidebar = () => {
+const Sidebar = ({ isOpen, onClose, overlay }) => {
   const { user, role, logout, hasPermission } = useAuth();
   const { arabicNumerals, toggleArabicNumerals } = useUserPrefs();
   const isAdmin = hasPermission('roles.manage');
@@ -113,190 +113,234 @@ const Sidebar = () => {
 
   const roleName = user?.roleId?.displayName || role || 'User';
 
+  const handleNavClick = () => {
+    if (overlay) onClose();
+  };
+
+  // Overlay mode: hidden when closed
+  if (overlay && !isOpen) return null;
+
   return (
-    <aside
-      style={{
-        width: 'var(--sidebar-w)',
-        background: 'var(--surface)',
-        borderRight: '1px solid var(--border)',
-        height: '100vh',
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        zIndex: 50,
-      }}
-    >
-      <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              background: 'linear-gradient(135deg,var(--accent),var(--accent2))',
-              borderRadius: 8,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 14,
-              fontWeight: 600,
-              color: '#fff',
-              flexShrink: 0,
-            }}
-          >
-            L
-          </div>
-          <div>
-            <div style={{ fontFamily: 'var(--display)', fontSize: 15, fontWeight: 600, letterSpacing: '-0.3px' }}>
-              LogiForce
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--text3)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-              Workforce Platform
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+    <>
+      {/* Backdrop for overlay mode */}
+      {overlay && isOpen && (
         <div
+          onClick={onClose}
           style={{
-            background: 'rgba(79,142,247,0.12)',
-            border: '1px solid rgba(79,142,247,0.25)',
-            borderRadius: 6,
-            padding: '6px 10px',
-            fontSize: 11,
-            color: 'var(--accent)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 199,
           }}
-        >
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)' }} />
-          {roleName.charAt(0).toUpperCase() + roleName.slice(1)} · {user?.name || 'User'}
-        </div>
-      </div>
-
-      <nav style={{ flex: 1, overflowY: 'auto', padding: '8px 10px' }}>
-        {visibleMain.map((item) => (
-          <NavItem
-            key={item.path}
-            item={item}
-            badge={item.path === '/drivers' ? pendingClientIdCount : 0}
-            badgeColor={item.path === '/drivers' ? '#f59e0b' : undefined}
-          />
-        ))}
-
-        {visibleAdmin.length > 0 && (
-          <>
-            <div style={{ margin: '10px 10px 6px', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-              <span style={{
-                fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase',
-                letterSpacing: '0.07em', whiteSpace: 'nowrap',
-              }}>
-                Administration
-              </span>
-              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-            </div>
-            {visibleAdmin.map((item) => (
-              <NavItem
-                key={item.path}
-                item={item}
-                badge={
-                  item.path === '/users' ? pendingActivationCount :
-                  item.hasBadge ? pendingCount : 0
-                }
-                badgeColor={item.path === '/users' ? '#f59e0b' : undefined}
-              />
-            ))}
-          </>
-        )}
-      </nav>
-
-      <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)' }}>
-        <button
-          onClick={toggleArabicNumerals}
-          style={{
-            width: '100%',
-            padding: '6px 10px',
-            borderRadius: 6,
-            border: '1px solid var(--border2)',
-            background: arabicNumerals ? 'rgba(79,142,247,0.12)' : 'transparent',
-            color: arabicNumerals ? 'var(--accent)' : 'var(--text3)',
-            fontSize: 11,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <span>Arabic numerals</span>
-          <span>{arabicNumerals ? 'ON' : 'OFF'}</span>
-        </button>
-      </div>
-      <div style={{ padding: '4px 10px 0' }}>
-        <NavItem item={{ path: '/notifications', label: 'Notifications', icon: '◎' }} />
-      </div>
-
-      <div style={{ padding: '8px 16px 12px', borderTop: '1px solid var(--border)' }}>
-        <NavLink
-          to="/profile"
-          style={{
-            display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8,
-            textDecoration: 'none', cursor: 'pointer',
-          }}
-        >
-          <div
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: '50%',
-              background: 'var(--surface3)',
-              border: '1px solid var(--border2)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 11,
-              fontWeight: 500,
-              color: 'var(--accent)',
-            }}
-          >
-            {user?.name?.split(' ').map((n) => n[0]).join('') || 'FD'}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
+        />
+      )}
+      <aside
+        style={{
+          width: overlay ? 260 : 'var(--sidebar-w)',
+          background: 'var(--surface)',
+          borderRight: '1px solid var(--border)',
+          height: '100vh',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          zIndex: 200,
+          transition: 'transform 0.25s ease',
+        }}
+      >
+        <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div
               style={{
-                fontSize: 12,
-                fontWeight: 500,
-                color: 'var(--text)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
+                width: 32,
+                height: 32,
+                background: 'linear-gradient(135deg,var(--accent),var(--accent2))',
+                borderRadius: 8,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 14,
+                fontWeight: 600,
+                color: '#fff',
+                flexShrink: 0,
               }}
             >
-              {user?.name || 'User'}
+              L
             </div>
-            <div style={{ fontSize: 10, color: 'var(--text3)' }}>{roleName}</div>
+            <div>
+              <div style={{ fontFamily: 'var(--display)', fontSize: 15, fontWeight: 600, letterSpacing: '-0.3px' }}>
+                LogiForce
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text3)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                Workforce Platform
+              </div>
+            </div>
+            {overlay && (
+              <button
+                onClick={onClose}
+                style={{
+                  marginLeft: 'auto',
+                  background: 'var(--surface3)',
+                  border: '1px solid var(--border2)',
+                  color: 'var(--text2)',
+                  borderRadius: 8,
+                  padding: '4px 10px',
+                  fontSize: 16,
+                  minHeight: 'auto',
+                }}
+              >
+                &times;
+              </button>
+            )}
           </div>
-        </NavLink>
-        <button
-          onClick={logout}
-          style={{
-            width: '100%',
-            padding: '6px',
-            borderRadius: 6,
-            border: '1px solid var(--border2)',
-            background: 'transparent',
-            color: 'var(--text3)',
-            fontSize: 11,
-            cursor: 'pointer',
-          }}
-        >
-          Sign out
-        </button>
-      </div>
-    </aside>
+        </div>
+
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+          <div
+            style={{
+              background: 'rgba(79,142,247,0.12)',
+              border: '1px solid rgba(79,142,247,0.25)',
+              borderRadius: 6,
+              padding: '6px 10px',
+              fontSize: 11,
+              color: 'var(--accent)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)' }} />
+            {roleName.charAt(0).toUpperCase() + roleName.slice(1)} · {user?.name || 'User'}
+          </div>
+        </div>
+
+        <nav style={{ flex: 1, overflowY: 'auto', padding: '8px 10px' }}>
+          {visibleMain.map((item) => (
+            <NavItem
+              key={item.path}
+              item={item}
+              badge={item.path === '/drivers' ? pendingClientIdCount : 0}
+              badgeColor={item.path === '/drivers' ? '#f59e0b' : undefined}
+              onClick={handleNavClick}
+            />
+          ))}
+
+          {visibleAdmin.length > 0 && (
+            <>
+              <div style={{ margin: '10px 10px 6px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                <span style={{
+                  fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase',
+                  letterSpacing: '0.07em', whiteSpace: 'nowrap',
+                }}>
+                  Administration
+                </span>
+                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+              </div>
+              {visibleAdmin.map((item) => (
+                <NavItem
+                  key={item.path}
+                  item={item}
+                  badge={
+                    item.path === '/users' ? pendingActivationCount :
+                    item.hasBadge ? pendingCount : 0
+                  }
+                  badgeColor={item.path === '/users' ? '#f59e0b' : undefined}
+                  onClick={handleNavClick}
+                />
+              ))}
+            </>
+          )}
+        </nav>
+
+        <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)' }}>
+          <button
+            onClick={toggleArabicNumerals}
+            style={{
+              width: '100%',
+              padding: '6px 10px',
+              borderRadius: 6,
+              border: '1px solid var(--border2)',
+              background: arabicNumerals ? 'rgba(79,142,247,0.12)' : 'transparent',
+              color: arabicNumerals ? 'var(--accent)' : 'var(--text3)',
+              fontSize: 11,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              minHeight: 'auto',
+            }}
+          >
+            <span>Arabic numerals</span>
+            <span>{arabicNumerals ? 'ON' : 'OFF'}</span>
+          </button>
+        </div>
+        <div style={{ padding: '4px 10px 0' }}>
+          <NavItem item={{ path: '/notifications', label: 'Notifications', icon: '◎' }} onClick={handleNavClick} />
+        </div>
+
+        <div style={{ padding: '8px 16px 12px', borderTop: '1px solid var(--border)' }}>
+          <NavLink
+            to="/profile"
+            onClick={handleNavClick}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8,
+              textDecoration: 'none', cursor: 'pointer',
+            }}
+          >
+            <div
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: '50%',
+                background: 'var(--surface3)',
+                border: '1px solid var(--border2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 11,
+                fontWeight: 500,
+                color: 'var(--accent)',
+              }}
+            >
+              {user?.name?.split(' ').map((n) => n[0]).join('') || 'FD'}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: 'var(--text)',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {user?.name || 'User'}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text3)' }}>{roleName}</div>
+            </div>
+          </NavLink>
+          <button
+            onClick={logout}
+            style={{
+              width: '100%',
+              padding: '6px',
+              borderRadius: 6,
+              border: '1px solid var(--border2)',
+              background: 'transparent',
+              color: 'var(--text3)',
+              fontSize: 11,
+              cursor: 'pointer',
+              minHeight: 'auto',
+            }}
+          >
+            Sign out
+          </button>
+        </div>
+      </aside>
+    </>
   );
 };
 

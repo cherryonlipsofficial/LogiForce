@@ -10,6 +10,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getAdvances } from '../../api/advancesApi';
 import { formatDate } from '../../utils/formatters';
 import AdvanceReviewModal from './AdvanceReviewModal';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const STATUS_FILTERS = [
   { value: 'all', label: 'All' },
@@ -28,6 +29,7 @@ const statusVariant = {
 };
 
 const Advances = () => {
+  const { isMobile, isTablet } = useBreakpoint();
   const { hasPermission } = useAuth();
   const [tab, setTab] = useState('pending');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -59,7 +61,7 @@ const Advances = () => {
 
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : isTablet ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 12 }}>
         <KpiCard label="Pending" value={kpis.pending} color="#fbbf24" />
         <KpiCard label="Approved" value={kpis.approved} color="#4ade80" />
         <KpiCard label="Total outstanding (AED)" value={Number(kpis.totalOutstanding).toLocaleString()} color="#3b82f6" />

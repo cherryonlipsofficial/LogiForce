@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { getRuns, runPayroll, approveRun, getWpsFile } from '../../api/salaryApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
 import Pagination from '../../components/ui/Pagination';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const fallbackRuns = [
   { _id: 'SAL-001', client: 'Amazon UAE', period: 'Mar 2026', status: 'draft', totalGross: 856200, totalDeductions: 124800, totalNet: 731400, driverCount: 342, createdAt: '2026-03-21T08:00:00Z', approvedBy: null },
@@ -32,6 +33,7 @@ const statusMap = {
 };
 
 const Salary = () => {
+  const { isMobile, isTablet } = useBreakpoint();
   const [showRunModal, setShowRunModal] = useState(false);
   const [selectedRun, setSelectedRun] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -53,7 +55,7 @@ const Salary = () => {
 
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : isTablet ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 12 }}>
         <KpiCard label="Total runs" value={runs.length} />
         <KpiCard label="Gross payroll" value={formatCurrencyFull(totalGross)} />
         <KpiCard label="Net payout" value={formatCurrencyFull(totalNet)} color="#4ade80" />
@@ -61,8 +63,8 @@ const Salary = () => {
       </div>
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-          <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} style={{ width: 180, height: 34 }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
+          <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} style={{ width: isMobile ? '100%' : 180, height: 34 }}>
             <option value="all">All statuses</option>
             <option value="draft">Draft</option>
             <option value="approved">Approved</option>
@@ -145,6 +147,7 @@ const Salary = () => {
 };
 
 const RunDetail = ({ run, onClose }) => {
+  const { isMobile } = useBreakpoint();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const st = statusMap[run.status] || statusMap.draft;
@@ -186,7 +189,7 @@ const RunDetail = ({ run, onClose }) => {
         <button onClick={onClose} style={{ background: 'var(--surface3)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 8, padding: '4px 10px', fontSize: 16 }}>&times;</button>
       </div>
       <div style={{ padding: 24, overflowY: 'auto', flex: 1 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 24 }}>
           <InfoRow label="Status" value={<Badge variant={st.variant}>{st.label}</Badge>} />
           <InfoRow label="Drivers" value={run.driverCount} />
           <InfoRow label="Gross payroll" value={formatCurrencyFull(run.totalGross)} />
@@ -256,6 +259,7 @@ const InfoRow = ({ label, value }) => (
 );
 
 const RunPayrollModal = ({ onClose }) => {
+  const { isMobile } = useBreakpoint();
   const [clientId, setClientId] = useState('');
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -290,7 +294,7 @@ const RunPayrollModal = ({ onClose }) => {
           <label style={labelStyle}>Client *</label>
           <ClientSelect value={clientId} onChange={setClientId} />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Year *</label>
             <input type="number" value={year} onChange={(e) => setYear(e.target.value)} />

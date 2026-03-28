@@ -8,6 +8,7 @@ import Btn from '../ui/Btn';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import AddCategoryModal from './AddCategoryModal';
 import AddVehicleModal from './AddVehicleModal';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const typeBadgeVariant = {
   car: 'info',
@@ -30,6 +31,7 @@ const statusBadge = (status) => {
 };
 
 const SupplierCatalogView = () => {
+  const { isMobile, isTablet } = useBreakpoint();
   const [selectedSupplierId, setSelectedSupplierId] = useState(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
@@ -75,7 +77,7 @@ const SupplierCatalogView = () => {
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: '260px 1fr',
+        gridTemplateColumns: isMobile ? '1fr' : isTablet ? '1fr' : '260px 1fr',
         gap: 20,
         minHeight: 600,
       }}

@@ -7,6 +7,7 @@ import Btn from '../components/ui/Btn';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import { getPendingExtensions, reviewExtension, getExpiringGuarantees } from '../api/guaranteeApi';
 import { useNavigate } from 'react-router-dom';
+import { useBreakpoint } from '../hooks/useBreakpoint';
 
 const formatDate = (d) => {
   if (!d) return '--';
@@ -188,6 +189,7 @@ const PendingCard = ({ g, onDone }) => {
 };
 
 const GuaranteeExtensions = () => {
+  const { isMobile } = useBreakpoint();
   const [tab, setTab] = useState('pending');
   const navigate = useNavigate();
 
@@ -228,7 +230,7 @@ const GuaranteeExtensions = () => {
       </div>
 
       {/* Tab switcher */}
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row' }}>
         <button style={pillStyle(tab === 'pending')} onClick={() => setTab('pending')}>
           Pending approval ({pendingList.length})
         </button>

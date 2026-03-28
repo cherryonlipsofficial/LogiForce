@@ -42,11 +42,13 @@ const Login = () => {
     >
       <div
         style={{
-          width: 380,
+          width: '100%',
+          maxWidth: 380,
           background: 'var(--surface)',
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius-lg)',
           padding: '40px 32px',
+          margin: '0 12px',
         }}
       >
         <div style={{ textAlign: 'center', marginBottom: 32 }}>

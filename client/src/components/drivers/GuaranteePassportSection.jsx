@@ -18,6 +18,7 @@ import {
   returnGuaranteePassport,
 } from '../../api/driversApi';
 import { useAuth } from '../../context/AuthContext';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const formatDate = (val) => {
   if (!val) return '—';
@@ -261,6 +262,7 @@ const GuaranteePassportSection = ({ driver }) => {
 /* ────────────────────────────────────────── */
 
 const GuaranteeFormModal = ({ driverId, onClose, onSuccess }) => {
+  const { isMobile } = useBreakpoint();
   const { register, handleSubmit, formState: { errors } } = useForm();
   const [submitting, setSubmitting] = useState(false);
 
@@ -280,7 +282,7 @@ const GuaranteeFormModal = ({ driverId, onClose, onSuccess }) => {
   return (
     <Modal title="Record Guarantee Passport" onClose={onClose} width={500}>
       <form onSubmit={handleSubmit(onSubmit)}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
           <div style={fieldStyle}>
             <label style={labelStyle}>Guarantor name *</label>
             <input {...register('guarantorName', { required: 'Required' })} />

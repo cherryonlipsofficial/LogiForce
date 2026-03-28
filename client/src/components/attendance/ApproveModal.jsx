@@ -4,8 +4,10 @@ import toast from 'react-hot-toast';
 import Modal from '../ui/Modal';
 import Btn from '../ui/Btn';
 import { approveBatch } from '../../api/attendanceApi';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const ApproveModal = ({ batch, onClose, onSuccess }) => {
+  const { isMobile } = useBreakpoint();
   const [notes, setNotes] = useState('');
   const qc = useQueryClient();
 
@@ -35,7 +37,7 @@ const ApproveModal = ({ batch, onClose, onSuccess }) => {
       <div style={{
         background: 'var(--surface2)', borderRadius: 8, padding: 14, marginBottom: 16,
       }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
           <div>
             <div style={{ fontSize: 11, color: 'var(--text3)' }}>Client</div>
             <div style={{ fontSize: 13, marginTop: 2 }}>{batch.clientId?.name || batch.client || 'Unknown'}</div>

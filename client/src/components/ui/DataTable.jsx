@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const DataTable = ({
   columns,
@@ -11,6 +12,7 @@ const DataTable = ({
   footer,
   headerAction,
 }) => {
+  const { isMobile } = useBreakpoint();
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
   const [page, setPage] = useState(0);
@@ -68,9 +70,10 @@ const DataTable = ({
         <div
           style={{
             display: 'flex',
-            alignItems: 'center',
+            flexDirection: isMobile ? 'column' : 'row',
+            alignItems: isMobile ? 'stretch' : 'center',
             gap: 10,
-            padding: '13px 18px',
+            padding: isMobile ? '10px 12px' : '13px 18px',
             borderBottom: '1px solid var(--border)',
           }}
         >
@@ -82,7 +85,7 @@ const DataTable = ({
                 setPage(0);
               }}
               placeholder={searchPlaceholder}
-              style={{ width: 240, height: 34 }}
+              style={{ width: isMobile ? '100%' : 240, height: 34 }}
             />
           )}
           {headerAction && (
@@ -101,8 +104,8 @@ const DataTable = ({
                   key={col.key || col.accessor}
                   onClick={() => handleSort(col)}
                   style={{
-                    padding: '9px 14px',
-                    fontSize: 11,
+                    padding: isMobile ? '7px 8px' : '9px 14px',
+                    fontSize: isMobile ? 10 : 11,
                     color: 'var(--text3)',
                     fontWeight: 500,
                     textTransform: 'uppercase',
@@ -162,8 +165,8 @@ const DataTable = ({
                     <td
                       key={col.key || col.accessor}
                       style={{
-                        padding: '11px 14px',
-                        fontSize: 13,
+                        padding: isMobile ? '8px' : '11px 14px',
+                        fontSize: isMobile ? 12 : 13,
                         color: 'var(--text)',
                         textAlign: col.align || 'left',
                       }}
@@ -206,9 +209,10 @@ const DataTable = ({
                   border: '1px solid var(--border2)',
                   color: 'var(--text2)',
                   borderRadius: 6,
-                  padding: '4px 10px',
+                  padding: isMobile ? '8px 14px' : '4px 10px',
                   fontSize: 11,
                   opacity: page === 0 ? 0.4 : 1,
+                  minHeight: isMobile ? 44 : 'auto',
                 }}
               >
                 Prev
@@ -221,9 +225,10 @@ const DataTable = ({
                   border: '1px solid var(--border2)',
                   color: 'var(--text2)',
                   borderRadius: 6,
-                  padding: '4px 10px',
+                  padding: isMobile ? '8px 14px' : '4px 10px',
                   fontSize: 11,
                   opacity: page >= totalPages - 1 ? 0.4 : 1,
+                  minHeight: isMobile ? 44 : 'auto',
                 }}
               >
                 Next

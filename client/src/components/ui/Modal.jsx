@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const Modal = ({ children, onClose, title, width = 480 }) => {
   const overlayRef = useRef(null);
+  const { isMobile } = useBreakpoint();
 
   useEffect(() => {
     const handleEsc = (e) => {
@@ -25,14 +27,23 @@ const Modal = ({ children, onClose, title, width = 480 }) => {
         inset: 0,
         background: 'rgba(0,0,0,0.6)',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: isMobile ? 'stretch' : 'center',
         justifyContent: 'center',
         zIndex: 200,
         animation: 'fadeIn .15s ease',
       }}
     >
       <div
-        style={{
+        style={isMobile ? {
+          background: 'var(--surface)',
+          width: '100vw',
+          maxWidth: '100vw',
+          height: '100vh',
+          maxHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        } : {
           background: 'var(--surface)',
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius-lg)',
@@ -64,6 +75,11 @@ const Modal = ({ children, onClose, title, width = 480 }) => {
                 borderRadius: 8,
                 padding: '4px 10px',
                 fontSize: 16,
+                minHeight: 44,
+                minWidth: 44,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
               &times;

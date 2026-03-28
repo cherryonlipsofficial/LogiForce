@@ -1,4 +1,7 @@
+import { useBreakpoint } from '../../hooks/useBreakpoint';
+
 const Pagination = ({ page, totalPages, total, pageSize, onPageChange }) => {
+  const { isMobile } = useBreakpoint();
   if (!total || total <= 0) return null;
 
   const start = (page - 1) * pageSize + 1;
@@ -31,22 +34,25 @@ const Pagination = ({ page, totalPages, total, pageSize, onPageChange }) => {
     border: `1px solid ${active ? 'var(--primary, #6366f1)' : 'var(--border2)'}`,
     color: active ? '#fff' : 'var(--text2)',
     borderRadius: 6,
-    padding: '4px 10px',
+    padding: isMobile ? '8px 12px' : '4px 10px',
     fontSize: 11,
     cursor: disabled ? 'default' : 'pointer',
     opacity: disabled ? 0.4 : 1,
-    minWidth: 28,
+    minWidth: isMobile ? 40 : 28,
+    minHeight: isMobile ? 40 : 'auto',
     textAlign: 'center',
   });
 
   return (
     <div
       style={{
-        padding: '10px 18px',
+        padding: isMobile ? '10px 12px' : '10px 18px',
         borderTop: '1px solid var(--border)',
         display: 'flex',
-        alignItems: 'center',
+        flexDirection: isMobile ? 'column' : 'row',
+        alignItems: isMobile ? 'stretch' : 'center',
         justifyContent: 'space-between',
+        gap: isMobile ? 8 : 0,
         fontSize: 11,
         color: 'var(--text3)',
       }}

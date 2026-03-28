@@ -4,11 +4,13 @@ import toast from 'react-hot-toast';
 import Modal from '../ui/Modal';
 import Btn from '../ui/Btn';
 import { generateInvoice } from '../../api/attendanceApi';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const VAT_RATE = 0.05;
 
 const InvoicePreviewModal = ({ batch, onClose, onSuccess }) => {
+  const { isMobile } = useBreakpoint();
   const [apiError, setApiError] = useState('');
   const qc = useQueryClient();
 
@@ -71,7 +73,7 @@ const InvoicePreviewModal = ({ batch, onClose, onSuccess }) => {
 
   return (
     <Modal title="Generate invoice — preview" onClose={onClose} width={600}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 16 }}>
         <div>
           <div style={{ fontSize: 11, color: 'var(--text3)' }}>Client</div>
           <div style={{ fontSize: 13, marginTop: 2 }}>{clientName}</div>

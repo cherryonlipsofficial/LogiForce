@@ -13,6 +13,7 @@ import { useAuth } from '../../context/AuthContext';
 import PermissionGate from '../../components/ui/PermissionGate';
 import { getSuppliers, createSupplier, updateSupplier, deleteSupplier } from '../../api/suppliersApi';
 import Pagination from '../../components/ui/Pagination';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const fallbackSuppliers = [
   { _id: 'SUP-001', name: 'Belhasa', contactName: 'Rashed Al Maktoum', contactEmail: 'rashed@belhasa.ae', contactPhone: '+971 4 567 8901', status: 'active', vehicleCount: 180, driverCount: 165, serviceType: 'Full fleet', monthlyRate: 'AED 1,200/vehicle', contractEnd: '2027-06-30' },
@@ -26,6 +27,7 @@ const isSupplierActive = (s) => s.isActive !== undefined ? s.isActive : s.status
 // Legacy canEdit removed — using PermissionGate / hasPermission instead
 
 const Suppliers = () => {
+  const { isMobile, isTablet } = useBreakpoint();
   const [search, setSearch] = useState('');
   const [selectedSupplierId, setSelectedSupplierId] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -73,7 +75,7 @@ const Suppliers = () => {
 
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : isTablet ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 12 }}>
         <KpiCard label="Total suppliers" value={suppliers.length} />
         <KpiCard label="Active" value={suppliers.filter((s) => isSupplierActive(s)).length} color="#4ade80" />
         <KpiCard label="Total vehicles" value={totalVehicles.toLocaleString()} />
@@ -81,7 +83,7 @@ const Suppliers = () => {
       </div>
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)', flexDirection: isMobile ? 'column' : 'row' }}>
           <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search suppliers..." style={{ width: 260, height: 34 }} />
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
             <PermissionGate permission="suppliers.create">
@@ -157,6 +159,7 @@ const Suppliers = () => {
 };
 
 const SupplierDetail = ({ supplier, onClose, onEdit, onDelete, hasPermission }) => {
+  const { isMobile } = useBreakpoint();
   const active = isSupplierActive(supplier);
   return (
     <SidePanel onClose={onClose}>
@@ -174,7 +177,7 @@ const SupplierDetail = ({ supplier, onClose, onEdit, onDelete, hasPermission }) 
         </div>
       </div>
       <div style={{ padding: 24, overflowY: 'auto', flex: 1 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 24 }}>
           <InfoRow label="Contact person" value={supplier.contactName} />
           <InfoRow label="Email" value={supplier.contactEmail} />
           <InfoRow label="Phone" value={supplier.contactPhone} />
@@ -197,6 +200,7 @@ const InfoRow = ({ label, value }) => (
 );
 
 const SupplierFormModal = ({ supplier, onClose }) => {
+  const { isMobile } = useBreakpoint();
   const isEdit = !!supplier;
   const { register, handleSubmit, formState: { errors } } = useForm({
     defaultValues: isEdit ? {
@@ -241,7 +245,7 @@ const SupplierFormModal = ({ supplier, onClose }) => {
   return (
     <Modal title={isEdit ? 'Edit supplier' : 'Add new supplier'} onClose={onClose} width={520}>
       <form onSubmit={handleSubmit((data) => save(data))}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
           <div style={fieldStyle}>
             <label style={labelStyle}>Company name *</label>
             <input {...register('name', { required: true })} placeholder="Fleet Partner LLC" />

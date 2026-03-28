@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import Modal from '../ui/Modal';
 import Btn from '../ui/Btn';
 import { submitOwnPassport, recordGuaranteePassport } from '../../api/driversApi';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const formatDatePreview = (dateStr) => {
   if (!dateStr) return '--';
@@ -24,6 +25,7 @@ const computeExpiry = (submittedDate) => {
 const today = () => new Date().toISOString().split('T')[0];
 
 const PassportSubmissionModal = ({ driverId, currentData, onClose, onSuccess, forceGuaranteeStep }) => {
+  const { isMobile } = useBreakpoint();
   const [step, setStep] = useState(forceGuaranteeStep ? 2 : 1);
   const [selectedType, setSelectedType] = useState(forceGuaranteeStep ? 'guarantee' : (currentData?.passportSubmissionType || 'own'));
   const [isSubmitted, setIsSubmitted] = useState(currentData?.isPassportSubmitted ?? true);
@@ -196,7 +198,7 @@ const PassportSubmissionModal = ({ driverId, currentData, onClose, onSuccess, fo
             {errors.guarantorRelation && <span style={errorStyle}>{errors.guarantorRelation.message}</span>}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
             <div style={fieldStyle}>
               <label style={labelStyle}>Guarantor phone</label>
               <input {...register('guarantorPhone')} placeholder="+971..." />
@@ -210,7 +212,7 @@ const PassportSubmissionModal = ({ driverId, currentData, onClose, onSuccess, fo
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
             <div style={fieldStyle}>
               <label style={labelStyle}>Guarantor passport number *</label>
               <input

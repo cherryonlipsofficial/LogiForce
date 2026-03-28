@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const SidePanel = ({ children, onClose, width = 480 }) => {
   const overlayRef = useRef(null);
+  const { isMobile } = useBreakpoint();
 
   useEffect(() => {
     const handleEsc = (e) => {
@@ -30,10 +32,10 @@ const SidePanel = ({ children, onClose, width = 480 }) => {
           top: 0,
           right: 0,
           bottom: 0,
-          width,
-          maxWidth: '90vw',
+          width: isMobile ? '100vw' : width,
+          maxWidth: isMobile ? '100vw' : '90vw',
           background: 'var(--surface)',
-          borderLeft: '1px solid var(--border)',
+          borderLeft: isMobile ? 'none' : '1px solid var(--border)',
           zIndex: 100,
           display: 'flex',
           flexDirection: 'column',
@@ -41,6 +43,28 @@ const SidePanel = ({ children, onClose, width = 480 }) => {
           overflow: 'hidden',
         }}
       >
+        {/* Close button for mobile */}
+        {isMobile && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 12px 0' }}>
+            <button
+              onClick={onClose}
+              style={{
+                background: 'var(--surface3)',
+                border: '1px solid var(--border2)',
+                color: 'var(--text2)',
+                borderRadius: 8,
+                width: 44,
+                height: 44,
+                fontSize: 18,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              &times;
+            </button>
+          </div>
+        )}
         {children}
       </div>
     </>,

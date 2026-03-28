@@ -16,6 +16,7 @@ import { getProjects, createProject, updateProject, deleteProject, assignDriverT
 import { getDrivers } from '../../api/driversApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
 import Pagination from '../../components/ui/Pagination';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const statusColors = {
   active: 'success',
@@ -27,6 +28,7 @@ const statusColors = {
 // Legacy canEdit removed — using PermissionGate / hasPermission instead
 
 const Projects = () => {
+  const { isMobile, isTablet } = useBreakpoint();
   const [search, setSearch] = useState('');
   const [filterClient, setFilterClient] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -80,7 +82,7 @@ const Projects = () => {
 
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : isTablet ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 12 }}>
         <KpiCard label="Total projects" value={projects.length} />
         <KpiCard label="Active" value={activeCount} color="#4ade80" />
         <KpiCard label="Total drivers" value={totalDrivers.toLocaleString()} />
@@ -88,7 +90,7 @@ const Projects = () => {
       </div>
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', flexDirection: isMobile ? 'column' : 'row' }}>
           <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search projects..." style={{ width: 220, height: 34 }} />
           <div style={{ width: 180 }}>
             <ClientSelect value={filterClient} onChange={(v) => { setFilterClient(v); setPage(1); }} />
@@ -168,6 +170,7 @@ const Projects = () => {
 };
 
 const ProjectDetail = ({ project, onClose, onEdit, onDelete, hasPermission }) => {
+  const { isMobile } = useBreakpoint();
   const qc = useQueryClient();
   const [showAssign, setShowAssign] = useState(false);
 
@@ -203,7 +206,7 @@ const ProjectDetail = ({ project, onClose, onEdit, onDelete, hasPermission }) =>
         </div>
       </div>
       <div style={{ padding: 24, overflowY: 'auto', flex: 1 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 24 }}>
           <InfoRow label="Client" value={project.clientId?.name} />
           <InfoRow label="Rate per driver" value={formatCurrencyFull(project.ratePerDriver)} />
           <InfoRow label="Rate basis" value={project.rateBasis?.replace('_', ' ')} />
@@ -309,6 +312,7 @@ const InfoRow = ({ label, value }) => (
 );
 
 const ProjectFormModal = ({ project, onClose }) => {
+  const { isMobile } = useBreakpoint();
   const isEdit = !!project;
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm({
     defaultValues: isEdit ? {
@@ -357,7 +361,7 @@ const ProjectFormModal = ({ project, onClose }) => {
   return (
     <Modal title={isEdit ? 'Edit project' : 'Add new project'} onClose={onClose} width={560}>
       <form onSubmit={handleSubmit((data) => save(data))}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
           <div style={fieldStyle}>
             <label style={labelStyle}>Project name *</label>
             <input {...register('name', { required: true })} placeholder="Last-Mile Dubai" />

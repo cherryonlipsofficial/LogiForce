@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import Modal from '../ui/Modal';
 import Btn from '../ui/Btn';
 import { createVehicle } from '../../api/vehiclesApi';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const labelStyle = {
   fontSize: 12,
@@ -37,6 +38,7 @@ const contractTypes = [
 const toISODate = (d) => (d ? new Date(d).toISOString().split('T')[0] : '');
 
 const AddVehicleModal = ({ category, supplierId, onClose, onSuccess }) => {
+  const { isMobile, isTablet } = useBreakpoint();
   const qc = useQueryClient();
 
   const today = toISODate(new Date());
@@ -144,7 +146,7 @@ const AddVehicleModal = ({ category, supplierId, onClose, onSuccess }) => {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
+            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
             gap: 14,
           }}
         >
@@ -173,7 +175,7 @@ const AddVehicleModal = ({ category, supplierId, onClose, onSuccess }) => {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr',
+            gridTemplateColumns: isMobile ? '1fr' : isTablet ? '1fr 1fr' : '1fr 1fr 1fr',
             gap: 14,
           }}
         >
@@ -209,7 +211,7 @@ const AddVehicleModal = ({ category, supplierId, onClose, onSuccess }) => {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr',
+            gridTemplateColumns: isMobile ? '1fr' : isTablet ? '1fr 1fr' : '1fr 1fr 1fr',
             gap: 14,
           }}
         >
@@ -244,7 +246,7 @@ const AddVehicleModal = ({ category, supplierId, onClose, onSuccess }) => {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
+            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
             gap: 14,
           }}
         >
@@ -272,7 +274,7 @@ const AddVehicleModal = ({ category, supplierId, onClose, onSuccess }) => {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
+            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
             gap: 14,
           }}
         >
@@ -308,7 +310,7 @@ const AddVehicleModal = ({ category, supplierId, onClose, onSuccess }) => {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
+            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
             gap: 14,
           }}
         >

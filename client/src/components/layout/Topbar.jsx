@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { useSyncTime } from '../../hooks/useSyncTime.jsx';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 import toast from 'react-hot-toast';
 import axiosInstance from '../../api/axiosInstance';
 import { getNotifications, getUnreadCount, markAsRead, markAllAsRead } from '../../api/notificationsApi';
@@ -75,6 +76,7 @@ const MyPermissionsModal = ({ onClose }) => {
                     border: 'none',
                     cursor: 'pointer',
                     color: 'var(--text)',
+                    minHeight: 'auto',
                   }}
                 >
                   <span
@@ -214,12 +216,13 @@ const ChangePasswordModal = ({ onClose }) => {
 };
 
 /* ── Topbar ── */
-const Topbar = ({ page }) => {
+const Topbar = ({ page, onMenuToggle, showMenuButton }) => {
   const { user, logout, role, hasPermission, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const searchRef = useRef(null);
   const lastSynced = useSyncTime();
+  const { isMobile, isTablet } = useBreakpoint();
   const [menuOpen, setMenuOpen] = useState(false);
   const [showPerms, setShowPerms] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -305,70 +308,102 @@ const Topbar = ({ page }) => {
           borderBottom: '1px solid var(--border)',
           position: 'fixed',
           top: 0,
-          left: 'var(--sidebar-w)',
+          left: showMenuButton ? 0 : 'var(--sidebar-w)',
           right: 0,
           zIndex: 40,
           display: 'flex',
           alignItems: 'center',
-          padding: '0 24px',
-          gap: 16,
+          padding: isMobile ? '0 12px' : '0 24px',
+          gap: isMobile ? 8 : 16,
         }}
       >
-        <div style={{ flex: 1 }}>
+        {/* Hamburger menu button for mobile/tablet */}
+        {showMenuButton && (
+          <button
+            onClick={onMenuToggle}
+            style={{
+              background: 'var(--surface3)',
+              border: '1px solid var(--border2)',
+              color: 'var(--text)',
+              borderRadius: 8,
+              padding: '6px 10px',
+              fontSize: 18,
+              cursor: 'pointer',
+              flexShrink: 0,
+              minHeight: 'auto',
+              lineHeight: 1,
+            }}
+          >
+            ☰
+          </button>
+        )}
+
+        <div style={{ flex: 1, minWidth: 0 }}>
           <h1
             style={{
-              fontSize: 15,
+              fontSize: isMobile ? 14 : 15,
               fontWeight: 500,
               letterSpacing: '-0.2px',
               margin: 0,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
             }}
           >
             {pageTitles[page] || page}
           </h1>
-          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>
-            March 2026 · UAE/GCC Operations
+          {!isMobile && (
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>
+              March 2026 · UAE/GCC Operations
+            </div>
+          )}
+        </div>
+
+        {/* Search bar: hidden on mobile, flexible on tablet, fixed on desktop */}
+        {!isMobile && (
+          <div style={{ position: 'relative', width: isTablet ? undefined : 220, flex: isTablet ? 1 : undefined, maxWidth: isTablet ? 280 : undefined }}>
+            <input
+              ref={searchRef}
+              placeholder="Search drivers, invoices..."
+              style={{ paddingLeft: 32, paddingRight: 40, fontSize: 12, height: 34, width: '100%' }}
+            />
+            <span
+              style={{
+                position: 'absolute',
+                left: 10,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--text3)',
+                fontSize: 13,
+                pointerEvents: 'none',
+              }}
+            >
+              &#x2315;
+            </span>
+            <span
+              style={{
+                position: 'absolute',
+                right: 8,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--text3)',
+                fontSize: 10,
+                pointerEvents: 'none',
+                background: 'var(--surface2)',
+                border: '1px solid var(--border)',
+                borderRadius: 4,
+                padding: '1px 5px',
+                fontFamily: 'var(--mono)',
+              }}
+            >
+              ⌘K
+            </span>
           </div>
-        </div>
-        <div style={{ position: 'relative', width: 220 }}>
-          <input
-            ref={searchRef}
-            placeholder="Search drivers, invoices..."
-            style={{ paddingLeft: 32, paddingRight: 40, fontSize: 12, height: 34, width: '100%' }}
-          />
-          <span
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--text3)',
-              fontSize: 13,
-              pointerEvents: 'none',
-            }}
-          >
-            &#x2315;
-          </span>
-          <span
-            style={{
-              position: 'absolute',
-              right: 8,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--text3)',
-              fontSize: 10,
-              pointerEvents: 'none',
-              background: 'var(--surface2)',
-              border: '1px solid var(--border)',
-              borderRadius: 4,
-              padding: '1px 5px',
-              fontFamily: 'var(--mono)',
-            }}
-          >
-            ⌘K
-          </span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {lastSynced && (
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 8, flexShrink: 0 }}>
+          {/* Synced time - hidden on mobile */}
+          {!isMobile && lastSynced && (
             <span
               style={{
                 fontSize: 10,
@@ -380,23 +415,28 @@ const Topbar = ({ page }) => {
               Synced {formatTimeSince(lastSynced)}
             </span>
           )}
-          <button
-            onClick={() => navigate('/dashboard')}
-            style={{
-              background: alertCount > 0 ? 'rgba(239,68,68,0.12)' : 'rgba(74,222,128,0.12)',
-              color: alertCount > 0 ? '#ef6060' : '#4ade80',
-              border: `1px solid ${alertCount > 0 ? 'rgba(239,68,68,0.2)' : 'rgba(74,222,128,0.2)'}`,
-              borderRadius: 8,
-              padding: '6px 14px',
-              fontSize: 12,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            {alertCount} {alertCount === 1 ? 'alert' : 'alerts'}
-          </button>
 
-          {/* Notification bell */}
+          {/* Alert button - hidden on mobile */}
+          {!isMobile && (
+            <button
+              onClick={() => navigate('/dashboard')}
+              style={{
+                background: alertCount > 0 ? 'rgba(239,68,68,0.12)' : 'rgba(74,222,128,0.12)',
+                color: alertCount > 0 ? '#ef6060' : '#4ade80',
+                border: `1px solid ${alertCount > 0 ? 'rgba(239,68,68,0.2)' : 'rgba(74,222,128,0.2)'}`,
+                borderRadius: 8,
+                padding: '6px 14px',
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: 'pointer',
+                minHeight: 'auto',
+              }}
+            >
+              {alertCount} {alertCount === 1 ? 'alert' : 'alerts'}
+            </button>
+          )}
+
+          {/* Notification bell - always visible */}
           <div className="notif-panel-container" style={{ position: 'relative' }}>
             <button
               onClick={() => setNotifOpen(o => !o)}
@@ -412,6 +452,7 @@ const Topbar = ({ page }) => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 4,
+                minHeight: 'auto',
               }}
             >
               ◎
@@ -441,6 +482,7 @@ const Topbar = ({ page }) => {
                 isLoading={notifLoading}
                 unreadCount={unreadCount}
                 onClose={() => setNotifOpen(false)}
+                isMobile={isMobile}
                 onMarkAllRead={async () => {
                   await markAllAsRead();
                   queryClient.invalidateQueries({ queryKey: ['notif-unread-count'] });
@@ -455,22 +497,26 @@ const Topbar = ({ page }) => {
             )}
           </div>
 
-          <PermissionGate permission="salary.run">
-            <button
-              style={{
-                background:
-                  'linear-gradient(135deg,var(--accent),var(--accent2))',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 8,
-                padding: '7px 16px',
-                fontSize: 12,
-                fontWeight: 500,
-              }}
-            >
-              + Run payroll
-            </button>
-          </PermissionGate>
+          {/* Run payroll - hidden on mobile */}
+          {!isMobile && (
+            <PermissionGate permission="salary.run">
+              <button
+                style={{
+                  background:
+                    'linear-gradient(135deg,var(--accent),var(--accent2))',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '7px 16px',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  minHeight: 'auto',
+                }}
+              >
+                + Run payroll
+              </button>
+            </PermissionGate>
+          )}
 
           {/* User avatar dropdown trigger */}
           <div ref={menuRef} style={{ position: 'relative' }}>
@@ -486,6 +532,7 @@ const Topbar = ({ page }) => {
                 background: menuOpen ? 'var(--surface2)' : 'transparent',
                 cursor: 'pointer',
                 transition: 'all .15s',
+                minHeight: 'auto',
               }}
             >
               <div
@@ -505,7 +552,7 @@ const Topbar = ({ page }) => {
               >
                 {initials}
               </div>
-              <span style={{ fontSize: 10, color: 'var(--text3)' }}>▼</span>
+              {!isMobile && <span style={{ fontSize: 10, color: 'var(--text3)' }}>▼</span>}
             </button>
 
             {/* Dropdown menu */}
@@ -516,7 +563,8 @@ const Topbar = ({ page }) => {
                   top: '100%',
                   right: 0,
                   marginTop: 6,
-                  width: 220,
+                  width: isMobile ? 'calc(100vw - 24px)' : 220,
+                  ...(isMobile ? { right: -12, position: 'fixed', top: 'var(--topbar-h)', left: 12, width: 'calc(100vw - 24px)' } : {}),
                   background: 'var(--surface)',
                   border: '1px solid var(--border)',
                   borderRadius: 'var(--radius)',
@@ -595,6 +643,7 @@ const MenuButton = ({ label, onClick, danger = false }) => (
       fontSize: 12,
       cursor: 'pointer',
       transition: 'background .1s',
+      minHeight: 'auto',
     }}
     onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface2)')}
     onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}

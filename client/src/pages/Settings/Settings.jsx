@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 import PermissionGate from '../../components/ui/PermissionGate';
 import UsersPanel from '../../components/settings/UsersPanel';
 import RolesPanel from '../../components/settings/RolesPanel';
@@ -10,6 +11,7 @@ const tabs = [
 ];
 
 const Settings = () => {
+  const { isMobile } = useBreakpoint();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -32,11 +34,11 @@ const Settings = () => {
   };
 
   return (
-    <div style={{ display: 'flex', gap: 0, minHeight: 'calc(100vh - var(--topbar-h) - 48px)' }}>
+    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 0, minHeight: isMobile ? 'auto' : 'calc(100vh - var(--topbar-h) - 48px)' }}>
       {/* Left mini-nav */}
       <div
         style={{
-          width: 160,
+          width: isMobile ? '100%' : 160,
           flexShrink: 0,
           background: 'var(--surface)',
           borderRadius: 'var(--radius-lg)',
@@ -84,7 +86,7 @@ const Settings = () => {
       </div>
 
       {/* Right content area */}
-      <div style={{ flex: 1, marginLeft: 20 }}>
+      <div style={{ flex: 1, marginLeft: isMobile ? 0 : 20, marginTop: isMobile ? 16 : 0 }}>
         {activeTab === 'users' && <UsersPanel />}
         {activeTab === 'roles' && <RolesPanel />}
       </div>

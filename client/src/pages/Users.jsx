@@ -14,6 +14,7 @@ import EditUserModal from '../components/settings/EditUserModal';
 import UserPermissionsModal from '../components/settings/UserPermissionsModal';
 import ActionsDropdown from '../components/settings/ActionsDropdown';
 import { useAuth } from '../context/AuthContext';
+import { useBreakpoint } from '../hooks/useBreakpoint';
 
 const ROLE_COLORS = {
   admin:      { bg: 'rgba(124,95,240,0.15)', text: '#a78bfa' },
@@ -132,6 +133,7 @@ function getStatusInfo(user) {
 }
 
 export default function UsersPage() {
+  const { isMobile, isTablet } = useBreakpoint();
   const queryClient = useQueryClient();
   const { user: currentUser } = useAuth();
 
@@ -258,7 +260,7 @@ export default function UsersPage() {
       )}
 
       {/* KPI strip — 4 cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : isTablet ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 12 }}>
         <KpiCard label="Total users"   value={users.length} />
         <KpiCard
           label="Active"
@@ -281,6 +283,7 @@ export default function UsersPage() {
         <div style={{
           display: 'flex', alignItems: 'center', gap: 10,
           padding: '12px 18px', borderBottom: '1px solid var(--border)',
+          flexDirection: isMobile ? 'column' : 'row',
         }}>
           {/* Search */}
           <div style={{ position: 'relative', width: 240 }}>
