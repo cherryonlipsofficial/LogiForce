@@ -7,7 +7,7 @@ const {
   sendUploadNotification, approveAttendance, raiseDispute,
   respondToDispute,
 } = require('../services/attendanceApproval.service');
-const { generateInvoiceFromBatch } = require('../services/invoiceGeneration.service');
+const { generateInvoice } = require('../services/invoiceGeneration.service');
 const { AttendanceBatch, AttendanceRecord, AttendanceDispute, Project } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
@@ -301,7 +301,7 @@ router.get('/batches/:id/disputes', requirePermission('attendance.view'), async 
 
 // POST /api/attendance/batches/:id/generate-invoice — generate invoice from approved batch
 router.post('/batches/:id/generate-invoice', requirePermission('invoices.generate'), async (req, res) => {
-  const result = await generateInvoiceFromBatch(req.params.id, req.user._id);
+  const result = await generateInvoice(req.params.id, req.user._id);
   res.status(201).json({
     success: true,
     message: `Invoice ${result.invoice.invoiceNo} generated successfully`,
