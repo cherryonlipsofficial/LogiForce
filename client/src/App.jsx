@@ -8,6 +8,7 @@ import ProtectedRoute from './components/layout/ProtectedRoute';
 import MainLayout from './components/layout/MainLayout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard/Dashboard';
+import ComplianceDashboard from './pages/Dashboard/ComplianceDashboard';
 import SalesDashboard from './pages/Dashboard/SalesDashboard';
 import Drivers from './pages/Drivers/Drivers';
 import Attendance from './pages/Attendance/Attendance';
@@ -34,7 +35,9 @@ const ProtectedPage = ({ children, permission }) => (
 
 const DashboardSwitch = () => {
   const { role } = useAuth();
-  return role === 'sales' ? <SalesDashboard /> : <Dashboard />;
+  if (role === 'compliance') return <ComplianceDashboard />;
+  if (role === 'sales') return <SalesDashboard />;
+  return <Dashboard />;
 };
 
 const RouterContent = () => (

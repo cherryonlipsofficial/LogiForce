@@ -72,6 +72,19 @@ router.get(
 
 // ── Guarantee passport management routes (/api/guarantee-passports/...) ──
 
+// List all guarantee passports (for compliance dashboard)
+router.get(
+  '/guarantee-passports',
+  requirePermission('drivers.view'),
+  async (req, res) => {
+    const records = await GuaranteePassport.find()
+      .populate('driverId', 'fullName employeeCode')
+      .sort({ createdAt: -1 })
+      .lean();
+    sendSuccess(res, records);
+  }
+);
+
 // Get all pending extension requests (admin only)
 router.get(
   '/guarantee-passports/pending-extensions',
