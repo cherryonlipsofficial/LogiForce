@@ -15,10 +15,12 @@ const ApprovalRow = ({ label, approval }) => {
   let valueText = 'Pending review';
   let valueColor = 'var(--text3)';
   if (status === 'approved') {
-    valueText = `Approved by ${approval.approvedBy?.name || 'Unknown'} on ${formatDate(approval.approvedAt)}`;
+    const approverName = approval.approvedBy?.name || approval.approvedByName || 'Unknown';
+    valueText = `Approved by ${approverName} on ${formatDate(approval.approvedAt)}`;
     valueColor = '#4ade80';
   } else if (status === 'disputed') {
-    valueText = `Disputed by ${approval.disputedBy?.name || 'Unknown'}`;
+    const disputerName = approval.disputedBy?.name || approval.disputedByName || 'Unknown';
+    valueText = `Disputed by ${disputerName}`;
     valueColor = '#f87171';
   }
 
@@ -41,16 +43,18 @@ const ApprovalRow = ({ label, approval }) => {
 };
 
 const ApprovalStatusCard = ({ batch, currentUserRole, onApprove, onDispute, onGenerateInvoice }) => {
-  const salesApproval = batch?.approvals?.find(a => a.role === 'sales') || null;
-  const opsApproval = batch?.approvals?.find(a => a.role === 'ops') || null;
+  const salesApproval = batch?.salesApproval || null;
+  const opsApproval = batch?.opsApproval || null;
 
   const status = batch?.status;
   const roleName = currentUserRole?.toLowerCase();
 
   const canAct = ['pending_review', 'sales_approved', 'ops_approved', 'dispute_responded'].includes(status);
-  const isSalesOrOps = roleName === 'sales' || roleName === 'ops';
+  const isSales = roleName === 'sales';
+  const isOps = roleName === 'ops' || roleName === 'operations';
+  const isSalesOrOps = isSales || isOps;
 
-  const ownApproval = roleName === 'sales' ? salesApproval : roleName === 'ops' ? opsApproval : null;
+  const ownApproval = isSales ? salesApproval : isOps ? opsApproval : null;
   const hasApproved = ownApproval?.status === 'approved';
 
   const showApproveActions = isSalesOrOps && canAct && !hasApproved;

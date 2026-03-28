@@ -266,7 +266,7 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
   });
 
   const attendanceRecords = batchDetail?.records || [];
-  const activeBatch = approvalData?.batch || { ...batch, approvals: approvalData?.approvals || batch.approvals };
+  const activeBatch = approvalData?.data || approvalData || batch;
   const currentUserRole = role || user?.roleId?.name || '';
   const st = statusMap[activeBatch.status || batch.status] || statusMap.pending_review;
   const displayId = batch.batchId || batch._id;
