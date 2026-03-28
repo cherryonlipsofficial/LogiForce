@@ -5,6 +5,8 @@ const projectService = require('../services/project.service');
 const { Driver } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
+const validate = require('../middleware/validate');
+const { createProjectValidation, updateProjectValidation } = require('../middleware/validators/project.validators');
 
 // All routes are protected
 router.use(protect);
@@ -23,7 +25,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/projects — create (admin, ops)
-router.post('/', requirePermission('projects.create'), async (req, res) => {
+router.post('/', requirePermission('projects.create'), validate(createProjectValidation), async (req, res) => {
   const project = await projectService.createProject(req.body, req.user._id);
   sendSuccess(res, project, 'Project created', 201);
 });
@@ -41,7 +43,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // PUT /api/projects/:id — update project fields (admin, ops)
-router.put('/:id', requirePermission('projects.edit'), async (req, res) => {
+router.put('/:id', requirePermission('projects.edit'), validate(updateProjectValidation), async (req, res) => {
   const project = await projectService.updateProject(
     req.params.id,
     req.body,
