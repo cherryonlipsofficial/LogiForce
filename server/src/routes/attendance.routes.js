@@ -4,8 +4,8 @@ const { protect, requirePermission } = require('../middleware/auth');
 const { attendanceUpload } = require('../middleware/upload');
 const attendanceService = require('../services/attendance.service');
 const {
-  notifyAfterUpload, approveAttendance, raiseDispute,
-  respondToDispute, getBatchWithApprovals,
+  sendUploadNotification, approveAttendance, raiseDispute,
+  respondToDispute,
 } = require('../services/attendanceApproval.service');
 const { generateInvoiceFromBatch } = require('../services/invoiceGeneration.service');
 const { AttendanceBatch, AttendanceRecord, AttendanceDispute, Project } = require('../models');
@@ -118,7 +118,7 @@ router.post('/upload', requirePermission('attendance.upload'), attendanceUpload.
   }
 
   // Send notifications to Sales and Ops for review
-  await notifyAfterUpload(batch._id, req.user._id);
+  await sendUploadNotification(batch._id, req.user._id);
 
   sendSuccess(res, { batch, stats }, 'Attendance file uploaded and processed', 201);
 });
@@ -272,7 +272,20 @@ router.post('/disputes/:id/respond', requirePermission('attendance.respond_dispu
 
 // GET /api/attendance/batches/:id/approvals — get batch with approval details
 router.get('/batches/:id/approvals', requirePermission('attendance.view'), async (req, res) => {
-  const batch = await getBatchWithApprovals(req.params.id);
+  const batch = await AttendanceBatch.findById(req.params.id)
+    .populate('clientId', 'name')
+    .populate('projectId', 'name projectCode')
+    .populate('uploadedBy', 'name email')
+    .populate('salesApproval.approvedBy', 'name')
+    .populate('opsApproval.approvedBy', 'name')
+    .populate('invoiceId')
+    .populate({
+      path: 'disputes',
+      populate: [
+        { path: 'raisedBy', select: 'name' },
+        { path: 'response.respondedBy', select: 'name' },
+      ],
+    });
   if (!batch) return res.status(404).json({ message: 'Batch not found' });
   res.json({ success: true, data: batch });
 });
