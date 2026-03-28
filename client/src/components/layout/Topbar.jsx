@@ -345,6 +345,7 @@ const Topbar = ({ page }) => {
           )}
           {alertCount > 0 && (
             <button
+              onClick={() => navigate('/dashboard')}
               style={{
                 background: 'rgba(239,68,68,0.12)',
                 color: '#ef6060',
@@ -353,6 +354,7 @@ const Topbar = ({ page }) => {
                 padding: '6px 14px',
                 fontSize: 12,
                 fontWeight: 500,
+                cursor: 'pointer',
               }}
             >
               {alertCount} {alertCount === 1 ? 'alert' : 'alerts'}
