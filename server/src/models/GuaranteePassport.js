@@ -42,8 +42,7 @@ const guaranteePassportSchema = new Schema({
   },
   expiryDate: {
     type: Date,
-    required: true,
-    // Always set to submittedDate + 30 days (enforced in pre-save hook)
+    // Set automatically to submittedDate + 30 days in pre-save hook
   },
 
   // Extension tracking
