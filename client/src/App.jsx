@@ -8,6 +8,7 @@ import ProtectedRoute from './components/layout/ProtectedRoute';
 import MainLayout from './components/layout/MainLayout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard/Dashboard';
+import SalesDashboard from './pages/Dashboard/SalesDashboard';
 import Drivers from './pages/Drivers/Drivers';
 import Attendance from './pages/Attendance/Attendance';
 import Salary from './pages/Salary/Salary';
@@ -31,13 +32,18 @@ const ProtectedPage = ({ children, permission }) => (
   </ProtectedRoute>
 );
 
+const DashboardSwitch = () => {
+  const { role } = useAuth();
+  return role === 'sales' ? <SalesDashboard /> : <Dashboard />;
+};
+
 const RouterContent = () => (
   <>
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<ProtectedPage><Dashboard /></ProtectedPage>} />
+        <Route path="/dashboard" element={<ProtectedPage><DashboardSwitch /></ProtectedPage>} />
         <Route path="/drivers" element={<ProtectedPage permission="drivers.view"><Drivers /></ProtectedPage>} />
         <Route path="/attendance" element={<ProtectedPage permission="attendance.view"><Attendance /></ProtectedPage>} />
         <Route path="/salary" element={<ProtectedPage permission="salary.view"><Salary /></ProtectedPage>} />

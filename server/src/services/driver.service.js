@@ -19,6 +19,9 @@ const findAll = async (filters = {}, pagination = {}) => {
   if (filters.projectId) {
     query.projectId = filters.projectId;
   }
+  if (filters.createdBy) {
+    query.createdBy = filters.createdBy;
+  }
   if (filters.search) {
     query.$or = [
       { fullName: { $regex: filters.search, $options: 'i' } },
