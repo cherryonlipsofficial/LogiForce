@@ -26,3 +26,12 @@ export const addPermissionOverride = (id, data) =>
 
 export const removePermissionOverride = (id, key) =>
   axiosInstance.delete(`/users/${id}/permissions/override/${key}`).then(r => r.data);
+
+export const activateUser = (id) =>
+  axiosInstance.put(`/users/${id}/activate`);
+
+export const deactivateUser = (id) =>
+  axiosInstance.put(`/users/${id}/deactivate`);
+
+export const getInactiveUsers = () =>
+  axiosInstance.get('/users/inactive');

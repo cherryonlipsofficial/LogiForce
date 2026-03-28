@@ -18,6 +18,7 @@ import SectionHeader from '../../components/ui/SectionHeader';
 import Btn from '../../components/ui/Btn';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { getPayrollSummary, getFleetUtilisation, getProjectPipeline } from '../../api/reportsApi';
+import { getInactiveUsers } from '../../api/usersApi';
 import { getInvoices } from '../../api/invoicesApi';
 import { getExpiringContracts, getFleetSummary } from '../../api/vehiclesApi';
 import { getProjectsExpiringContracts } from '../../api/projectsApi';
@@ -175,6 +176,13 @@ const Dashboard = () => {
     refetchInterval: 5 * 60 * 1000,
   });
 
+  const { data: inactiveUsersData } = useQuery({
+    queryKey: ['inactive-users-count'],
+    queryFn:  () => getInactiveUsers().then(r => r.data),
+    enabled:  isAdmin,
+  });
+  const pendingActivationCount = inactiveUsersData?.count || 0;
+
   const { data: alertData } = useQuery({
     queryKey: ['alert-count'],
     queryFn: () => axiosInstance.get('/reports/alert-count').then((r) => r.data?.data || { total: 0, breakdown: {} }),
@@ -232,7 +240,10 @@ const Dashboard = () => {
           {Array.isArray(expiringGuarantees) && expiringGuarantees.length > 0 && (
             <>{' '}{expiringGuarantees.length} guarantee passport{expiringGuarantees.length > 1 ? 's' : ''} expiring within 7 days.</>
           )}
-          {totalAlerts === 0 && !projectsExpiring7Days.length && !(Array.isArray(pendingExtensions) && pendingExtensions.length) && !(Array.isArray(expiringGuarantees) && expiringGuarantees.length) && (
+          {pendingActivationCount > 0 && (
+            <>{' '}{pendingActivationCount} user account{pendingActivationCount > 1 ? 's' : ''} pending activation — <span onClick={() => navigate('/users')} style={{ cursor: 'pointer', textDecoration: 'underline', fontWeight: 600 }}>Activate now</span></>
+          )}
+          {totalAlerts === 0 && !projectsExpiring7Days.length && !(Array.isArray(pendingExtensions) && pendingExtensions.length) && !(Array.isArray(expiringGuarantees) && expiringGuarantees.length) && pendingActivationCount === 0 && (
             <> No alerts at this time.</>
           )}
         </span>

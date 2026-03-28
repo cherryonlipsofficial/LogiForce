@@ -29,7 +29,7 @@ router.get('/', requirePermission('users.view'), async (req, res) => {
 
   const [users, total] = await Promise.all([
     User.find(query)
-      .select('name email roleId isActive lastLogin createdAt')
+      .select('name email roleId isActive lastLogin createdAt activatedAt activatedBy')
       .populate('roleId', 'name displayName')
       .sort({ name: 1 })
       .skip(skip)
@@ -57,10 +57,66 @@ router.post('/', requirePermission('users.create'), async (req, res) => {
   const existing = await User.findOne({ email: email.toLowerCase() });
   if (existing) return sendError(res, 'A user with this email already exists', 409);
 
-  const user = await User.create({ name, email, password, roleId });
+  const user = await User.create({
+    name,
+    email,
+    password,
+    roleId,
+    isActive: false,
+    permissionOverrides: [],
+  });
   await user.populate('roleId', 'name displayName');
 
+  console.log(`New user created (inactive): ${user.email} by ${req.user.email}`);
+
   sendSuccess(res, user.toJSON(), 'User created', 201);
+});
+
+// GET /api/users/inactive — list all inactive users
+router.get('/inactive', requirePermission('users.view'), async (req, res) => {
+  const users = await User.find({ isActive: false })
+    .populate('roleId', 'name displayName')
+    .select('-password')
+    .sort({ createdAt: -1 });
+
+  res.json({ success: true, data: users, count: users.length });
+});
+
+// PUT /api/users/:id/activate — admin activates a user account
+router.put('/:id/activate', requirePermission('users.edit'), async (req, res) => {
+  const user = await User.findById(req.params.id);
+  if (!user) return res.status(404).json({ message: 'User not found' });
+  if (user.isActive) return res.status(400).json({ message: 'User is already active' });
+
+  user.isActive = true;
+  user.activatedBy = req.user._id;
+  user.activatedAt = new Date();
+  await user.save();
+
+  return res.json({
+    success: true,
+    message: `${user.name}'s account has been activated`,
+    data: { _id: user._id, name: user.name, email: user.email, isActive: true },
+  });
+});
+
+// PUT /api/users/:id/deactivate — admin deactivates a user account
+router.put('/:id/deactivate', requirePermission('users.edit'), async (req, res) => {
+  const user = await User.findById(req.params.id);
+  if (!user) return res.status(404).json({ message: 'User not found' });
+
+  if (user._id.toString() === req.user._id.toString()) {
+    return res.status(400).json({ message: 'You cannot deactivate your own account' });
+  }
+
+  user.isActive = false;
+  await user.save();
+
+  return res.json({
+    success: true,
+    message: `${user.name}'s account has been deactivated`,
+    data: { _id: user._id, name: user.name, email: user.email, isActive: false },
+  });
 });
 
 // GET /api/users/:id — get user detail with role and overrides

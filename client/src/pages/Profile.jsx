@@ -123,6 +123,27 @@ const Profile = () => {
     );
   }
 
+  // If user is inactive (edge case safety — shouldn't happen since inactive users can't login)
+  if (profile && !profile.isActive) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        minHeight: '60vh', flexDirection: 'column', gap: 16, textAlign: 'center',
+      }}>
+        <div style={{
+          width: 64, height: 64, borderRadius: '50%',
+          background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 28,
+        }}>&#x26D4;</div>
+        <h2 style={{ fontSize: 18, fontWeight: 500 }}>Your account is not active</h2>
+        <p style={{ fontSize: 13, color: 'var(--text2)', maxWidth: 340 }}>
+          Contact your administrator to activate your account.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="page-enter" style={{ maxWidth: 800, margin: '0 auto', padding: '32px 24px' }}>
       {/* Section 1: Profile header */}
@@ -581,6 +602,14 @@ const AccountActivity = ({ profile }) => {
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
           <span style={{ color: 'var(--text3)' }}>Last login</span>
           <span style={{ color: 'var(--text)' }}>{formatRelativeTime(profile?.lastLogin)}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+          <span style={{ color: 'var(--text3)' }}>Account activated</span>
+          <span style={{ color: 'var(--text)' }}>{formatShortDate(profile?.activatedAt) || 'N/A'}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+          <span style={{ color: 'var(--text3)' }}>Activated by</span>
+          <span style={{ color: 'var(--text)' }}>{profile?.activatedBy?.name || 'System'}</span>
         </div>
       </div>
       {overrideCount > 0 && (

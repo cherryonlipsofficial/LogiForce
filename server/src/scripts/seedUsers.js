@@ -10,6 +10,7 @@ const users = [
     password: 'admin123',
     role: 'admin',
     isActive: true,
+    activatedAt: new Date(),
   },
   {
     name: 'Accountant User',
@@ -17,6 +18,7 @@ const users = [
     password: 'accountant123',
     role: 'accountant',
     isActive: true,
+    activatedAt: new Date(),
   },
   {
     name: 'Ops User',
@@ -24,6 +26,7 @@ const users = [
     password: 'ops123',
     role: 'ops',
     isActive: true,
+    activatedAt: new Date(),
   },
   {
     name: 'Compliance User',
@@ -31,6 +34,7 @@ const users = [
     password: 'compliance123',
     role: 'compliance',
     isActive: true,
+    activatedAt: new Date(),
   },
   {
     name: 'Sales User',
@@ -38,6 +42,7 @@ const users = [
     password: 'sales123',
     role: 'sales',
     isActive: true,
+    activatedAt: new Date(),
   },
 ];
 

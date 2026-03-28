@@ -22,7 +22,7 @@ const dividerStyle = {
 };
 
 export default function ActionsDropdown({
-  user, onEdit, onPermissions, onDeactivate, currentUserId, onClose,
+  user, onEdit, onPermissions, onDeactivate, onActivate, currentUserId, onClose,
 }) {
   const ref = useRef(null);
 
@@ -41,6 +41,10 @@ export default function ActionsDropdown({
     fn();
     onClose();
   };
+
+  const isSelf = user._id === currentUserId;
+  const isPending = !user.isActive && !user.activatedAt;
+  const isDeactivated = !user.isActive && !!user.activatedAt;
 
   return (
     <div
@@ -104,24 +108,40 @@ export default function ActionsDropdown({
         Reset password
       </button>
 
-      {user._id !== currentUserId && (
+      {!isSelf && (
         <>
           <div style={dividerStyle} />
           <PermissionGate permission="users.edit">
-            <button
-              style={{
-                ...itemStyle,
-                color: user.isActive ? '#f87171' : '#4ade80',
-              }}
-              onClick={() => handleItem(onDeactivate)}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = user.isActive
-                  ? 'rgba(239,68,68,0.08)' : 'rgba(34,197,94,0.08)';
-              }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-            >
-              {user.isActive ? 'Deactivate user' : 'Activate user'}
-            </button>
+            {/* Show activate for pending/deactivated users, deactivate for active users */}
+            {!user.isActive ? (
+              <button
+                style={{
+                  ...itemStyle,
+                  color: '#4ade80',
+                }}
+                onClick={() => handleItem(onActivate || (() => {}))}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(34,197,94,0.08)';
+                }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                {isPending ? '\u2713 Activate account' : 'Activate account'}
+              </button>
+            ) : (
+              <button
+                style={{
+                  ...itemStyle,
+                  color: '#f87171',
+                }}
+                onClick={() => handleItem(onDeactivate)}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(239,68,68,0.08)';
+                }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                Deactivate
+              </button>
+            )}
           </PermissionGate>
         </>
       )}

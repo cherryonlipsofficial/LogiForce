@@ -1,9 +1,10 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import { useUserPrefs } from '../../hooks/useUserPrefs.jsx';
 import { getPendingExtensions } from '../../api/guaranteeApi';
 import { getDriverStatusCounts } from '../../api/driversApi';
+import { getInactiveUsers } from '../../api/usersApi';
 
 const mainNavItems = [
   { path: '/dashboard', label: 'Dashboard', icon: '▦' },
@@ -53,9 +54,12 @@ const NavItem = ({ item, badge, badgeColor }) => (
     {item.label}
     {badge > 0 && (
       <span style={{
-        background: badgeColor || '#ef4444', color: '#fff', borderRadius: 10,
+        background: badgeColor || '#ef4444',
+        color: badgeColor === '#f59e0b' ? '#78350f' : '#fff',
+        borderRadius: 10,
         fontSize: 10, padding: '1px 6px', marginLeft: 'auto',
         lineHeight: '16px', fontWeight: 600,
+        minWidth: 18, textAlign: 'center',
       }}>
         {badge}
       </span>
@@ -78,6 +82,15 @@ const Sidebar = () => {
     refetchInterval: 5 * 60 * 1000,
   });
   const pendingCount = pendingExtData?.length || 0;
+
+  const canViewUsers = hasPermission('users.view');
+  const { data: inactiveUsersData } = useQuery({
+    queryKey: ['inactive-users-count'],
+    queryFn: () => getInactiveUsers().then(r => r.data),
+    enabled: canViewUsers,
+    staleTime: 60000,
+  });
+  const pendingActivationCount = inactiveUsersData?.count || 0;
 
   const canViewDrivers = hasPermission('drivers.view');
   const canUpdateClientId = hasPermission('drivers.update_client_id');
@@ -186,7 +199,15 @@ const Sidebar = () => {
               <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
             </div>
             {visibleAdmin.map((item) => (
-              <NavItem key={item.path} item={item} badge={item.hasBadge ? pendingCount : 0} />
+              <NavItem
+                key={item.path}
+                item={item}
+                badge={
+                  item.path === '/users' ? pendingActivationCount :
+                  item.hasBadge ? pendingCount : 0
+                }
+                badgeColor={item.path === '/users' ? '#f59e0b' : undefined}
+              />
             ))}
           </>
         )}
@@ -214,7 +235,13 @@ const Sidebar = () => {
         </button>
       </div>
       <div style={{ padding: '8px 16px 12px', borderTop: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+        <NavLink
+          to="/profile"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8,
+            textDecoration: 'none', cursor: 'pointer',
+          }}
+        >
           <div
             style={{
               width: 30,
@@ -247,7 +274,7 @@ const Sidebar = () => {
             </div>
             <div style={{ fontSize: 10, color: 'var(--text3)' }}>{roleName}</div>
           </div>
-        </div>
+        </NavLink>
         <button
           onClick={logout}
           style={{

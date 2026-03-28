@@ -46,12 +46,12 @@ const seed = async () => {
   // --- Users ---
   console.log('Creating users...');
   const [admin, accountant, ops, compliance, sales, viewer] = await User.create([
-    { name: 'System Admin', email: 'admin@logiforce.com', password: 'Admin@123', roleId: roles.admin._id },
-    { name: 'Sarah Accountant', email: 'accountant@logiforce.com', password: 'Account@123', roleId: roles.accountant._id },
-    { name: 'James Operations', email: 'ops@logiforce.com', password: 'Ops@123', roleId: roles.ops._id },
-    { name: 'Layla Compliance', email: 'compliance@logiforce.com', password: 'Compliance@123', roleId: roles.compliance._id },
-    { name: 'Nadia Sales', email: 'sales@logiforce.com', password: 'Sales@123', roleId: roles.sales._id },
-    { name: 'Test Viewer', email: 'viewer@logiforce.com', password: 'Viewer@123', roleId: roles.viewer._id },
+    { name: 'System Admin', email: 'admin@logiforce.com', password: 'Admin@123', roleId: roles.admin._id, isActive: true, activatedAt: new Date() },
+    { name: 'Sarah Accountant', email: 'accountant@logiforce.com', password: 'Account@123', roleId: roles.accountant._id, isActive: true, activatedAt: new Date() },
+    { name: 'James Operations', email: 'ops@logiforce.com', password: 'Ops@123', roleId: roles.ops._id, isActive: true, activatedAt: new Date() },
+    { name: 'Layla Compliance', email: 'compliance@logiforce.com', password: 'Compliance@123', roleId: roles.compliance._id, isActive: true, activatedAt: new Date() },
+    { name: 'Nadia Sales', email: 'sales@logiforce.com', password: 'Sales@123', roleId: roles.sales._id, isActive: true, activatedAt: new Date() },
+    { name: 'Test Viewer', email: 'viewer@logiforce.com', password: 'Viewer@123', roleId: roles.viewer._id, isActive: true, activatedAt: new Date() },
   ]);
 
   // Add permission override on accountant: grant drivers.create

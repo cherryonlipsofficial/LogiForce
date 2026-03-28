@@ -52,8 +52,14 @@ export default function AddUserModal({ onClose, onSuccess, roles }) {
   const mutation = useMutation({
     mutationFn: (data) => createUser(data),
     onSuccess: (res) => {
-      toast.success(`User ${res.data?.user?.name || ''} created`);
+      const userName = res.data?.name || res.data?.user?.name || '';
+      toast.success(
+        `${userName} created. Go to Users page to activate their account.`,
+        { duration: 5000 }
+      );
       queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['inactive-users'] });
+      queryClient.invalidateQueries({ queryKey: ['inactive-users-count'] });
       onSuccess();
       onClose();
     },
@@ -198,6 +204,21 @@ export default function AddUserModal({ onClose, onSuccess, roles }) {
               </div>
               {errors.confirmPassword && <div style={errorStyle}>{errors.confirmPassword.message}</div>}
             </div>
+            {/* Activation notice */}
+            <div style={{
+              background:   'rgba(245,158,11,0.08)',
+              border:       '1px solid rgba(245,158,11,0.2)',
+              borderRadius: 8,
+              padding:      '10px 14px',
+              fontSize:     12,
+              color:        '#fbbf24',
+              marginTop:    8,
+              lineHeight:   1.6,
+            }}>
+              The new user account will be created in <strong>inactive</strong> state.
+              They will not be able to log in until you activate their account
+              from the Users page.
+            </div>
           </div>
 
           {/* Footer */}
@@ -222,7 +243,7 @@ export default function AddUserModal({ onClose, onSuccess, roles }) {
                 cursor: mutation.isPending ? 'not-allowed' : 'pointer',
                 opacity: mutation.isPending ? 0.7 : 1,
               }}
-            >{mutation.isPending ? 'Creating...' : 'Create user'}</button>
+            >{mutation.isPending ? 'Creating...' : 'Create user (inactive)'}</button>
           </div>
         </form>
       </div>
