@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import { useUserPrefs } from '../../hooks/useUserPrefs.jsx';
 import { getPendingExtensions } from '../../api/guaranteeApi';
+import { getDriverStatusCounts } from '../../api/driversApi';
 
 const mainNavItems = [
   { path: '/dashboard', label: 'Dashboard', icon: '▦' },
@@ -44,7 +45,7 @@ const navLinkStyle = ({ isActive }) => ({
   transition: 'all .15s',
 });
 
-const NavItem = ({ item, badge }) => (
+const NavItem = ({ item, badge, badgeColor }) => (
   <NavLink to={item.path} style={navLinkStyle}>
     <span style={{ fontSize: 15, width: 18, textAlign: 'center', flexShrink: 0 }}>
       {item.icon}
@@ -52,7 +53,7 @@ const NavItem = ({ item, badge }) => (
     {item.label}
     {badge > 0 && (
       <span style={{
-        background: '#ef4444', color: '#fff', borderRadius: 10,
+        background: badgeColor || '#ef4444', color: '#fff', borderRadius: 10,
         fontSize: 10, padding: '1px 6px', marginLeft: 'auto',
         lineHeight: '16px', fontWeight: 600,
       }}>
@@ -77,6 +78,16 @@ const Sidebar = () => {
     refetchInterval: 5 * 60 * 1000,
   });
   const pendingCount = pendingExtData?.length || 0;
+
+  const canViewDrivers = hasPermission('drivers.view');
+  const canUpdateClientId = hasPermission('drivers.update_client_id');
+  const { data: driverCountsData } = useQuery({
+    queryKey: ['driverStatusCounts'],
+    queryFn: () => getDriverStatusCounts(),
+    enabled: canViewDrivers && canUpdateClientId,
+    refetchInterval: 5 * 60 * 1000,
+  });
+  const pendingClientIdCount = driverCountsData?.data?.pendingClientId || 0;
 
   const visibleMain = mainNavItems.filter(
     (item) => !item.permission || hasPermission(item.permission)
@@ -154,7 +165,12 @@ const Sidebar = () => {
 
       <nav style={{ flex: 1, overflowY: 'auto', padding: '8px 10px' }}>
         {visibleMain.map((item) => (
-          <NavItem key={item.path} item={item} />
+          <NavItem
+            key={item.path}
+            item={item}
+            badge={item.path === '/drivers' ? pendingClientIdCount : 0}
+            badgeColor={item.path === '/drivers' ? '#f59e0b' : undefined}
+          />
         ))}
 
         {visibleAdmin.length > 0 && (

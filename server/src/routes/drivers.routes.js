@@ -386,9 +386,9 @@ router.get('/my', requirePermission('drivers.view'), async (req, res) => {
 
 // GET /api/drivers — list with pagination, search, filter
 router.get('/', async (req, res) => {
-  const { status, clientId, projectId, search, page, limit } = req.query;
+  const { status, clientId, projectId, search, page, limit, clientIdStatus } = req.query;
   const result = await driverService.findAll(
-    { status, clientId, projectId, search },
+    { status, clientId, projectId, search, clientIdStatus },
     { page, limit }
   );
   sendPaginated(res, result.drivers, result.total, result.page, result.limit);
