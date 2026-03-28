@@ -220,6 +220,14 @@ const Topbar = ({ page }) => {
 
   const roleName = user?.roleId?.displayName || role || 'User';
 
+  const { data: alertData } = useQuery({
+    queryKey: ['alert-count'],
+    queryFn: () => axiosInstance.get('/reports/alert-count').then((r) => r.data.data),
+    refetchInterval: 5 * 60 * 1000,
+    retry: 1,
+  });
+  const alertCount = alertData?.total || 0;
+
   // Cmd/Ctrl+K shortcut to focus search
   const handleKeyDown = useCallback((e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -335,19 +343,21 @@ const Topbar = ({ page }) => {
               Synced {formatTimeSince(lastSynced)}
             </span>
           )}
-          <button
-            style={{
-              background: 'rgba(239,68,68,0.12)',
-              color: '#ef6060',
-              border: '1px solid rgba(239,68,68,0.2)',
-              borderRadius: 8,
-              padding: '6px 14px',
-              fontSize: 12,
-              fontWeight: 500,
-            }}
-          >
-            9 alerts
-          </button>
+          {alertCount > 0 && (
+            <button
+              style={{
+                background: 'rgba(239,68,68,0.12)',
+                color: '#ef6060',
+                border: '1px solid rgba(239,68,68,0.2)',
+                borderRadius: 8,
+                padding: '6px 14px',
+                fontSize: 12,
+                fontWeight: 500,
+              }}
+            >
+              {alertCount} {alertCount === 1 ? 'alert' : 'alerts'}
+            </button>
+          )}
           <button
             style={{
               background:
