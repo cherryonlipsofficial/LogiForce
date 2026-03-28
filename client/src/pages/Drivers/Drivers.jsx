@@ -482,6 +482,7 @@ const BulkImportModal = ({ onClose }) => {
         </p>
         <p style={{ fontSize: 12, color: 'var(--text3)', margin: '0 0 12px' }}>
           Download the import template. Fill in driver personal and employment details. Vehicle assignment is done separately after the driver is activated.
+          You can also set <strong>passportSubmissionType</strong> to "own" or "guarantee". For guarantee passports, include guarantor details (guarantorName, guarantorRelation, guarantorPassportNumber).
         </p>
         <Btn small variant="ghost" onClick={handleDownloadTemplate}>
           Download Excel template
