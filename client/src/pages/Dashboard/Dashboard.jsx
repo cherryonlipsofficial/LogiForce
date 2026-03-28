@@ -21,6 +21,7 @@ import { getPayrollSummary, getFleetUtilisation, getProjectPipeline } from '../.
 import { getInvoices } from '../../api/invoicesApi';
 import { getExpiringContracts, getFleetSummary } from '../../api/vehiclesApi';
 import { getProjectsExpiringContracts } from '../../api/projectsApi';
+import { getPendingExtensions, getExpiringGuarantees } from '../../api/guaranteeApi';
 import { useAuth } from '../../context/AuthContext';
 import PermissionGate from '../../components/ui/PermissionGate';
 import { useNavigate } from 'react-router-dom';
@@ -106,6 +107,7 @@ const ChartTip = ({ active, payload, label }) => {
 const Dashboard = () => {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
+  const isAdmin = hasPermission('roles.manage');
   const now = new Date();
   const { data: summaryData, isLoading: summaryLoading } = useQuery({
     queryKey: ['payrollSummary', now.getFullYear(), now.getMonth() + 1],
@@ -159,6 +161,19 @@ const Dashboard = () => {
   });
   const pipelineProjects = pipelineData?.data || [];
 
+  const { data: pendingExtensions } = useQuery({
+    queryKey: ['pending-extensions'],
+    queryFn: () => getPendingExtensions().then(r => r.data?.data || r.data || []),
+    enabled: isAdmin,
+    refetchInterval: 5 * 60 * 1000,
+  });
+
+  const { data: expiringGuarantees } = useQuery({
+    queryKey: ['expiring-guarantees'],
+    queryFn: () => getExpiringGuarantees(7).then(r => r.data?.data || r.data || []),
+    refetchInterval: 5 * 60 * 1000,
+  });
+
   const fleetSuppliers = fleetData?.data?.bySupplier || fallbackFleet;
 
   // Contract alerts: suppliers with contractEnd within 30 days — derive from fleet or use fallback
@@ -193,6 +208,12 @@ const Dashboard = () => {
           days.
           {projectsExpiring7Days.length > 0 && (
             <> {projectsExpiring7Days.length} project contract{projectsExpiring7Days.length > 1 ? 's' : ''} expiring within 7 days — <strong onClick={() => navigate('/projects')} style={{ cursor: 'pointer', textDecoration: 'underline' }}>review now</strong></>
+          )}
+          {Array.isArray(pendingExtensions) && pendingExtensions.length > 0 && (
+            <>{' '}{pendingExtensions.length} guarantee passport extension request{pendingExtensions.length > 1 ? 's' : ''} awaiting your approval — <strong onClick={() => navigate('/guarantee-extensions')} style={{ cursor: 'pointer', textDecoration: 'underline' }}>review</strong></>
+          )}
+          {Array.isArray(expiringGuarantees) && expiringGuarantees.length > 0 && (
+            <>{' '}{expiringGuarantees.length} guarantee passport{expiringGuarantees.length > 1 ? 's' : ''} expiring within 7 days.</>
           )}
         </span>
         <Btn small variant="danger" style={{ marginLeft: 'auto', flexShrink: 0 }}>

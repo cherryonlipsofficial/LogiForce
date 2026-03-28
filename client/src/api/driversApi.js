@@ -79,3 +79,24 @@ export const getExpiringDocumentsByType = (days = 30) =>
 
 export const getDriverHistorySummary = (days = 30) =>
   axiosInstance.get('/drivers/history/summary', { params: { days } }).then(r => r.data);
+
+export const getMyDrivers = (params) =>
+  axiosInstance.get('/drivers/my', { params }).then(r => r.data);
+
+export const submitOwnPassport = (driverId) =>
+  axiosInstance.post(`/drivers/${driverId}/passport/own`).then(r => r.data);
+
+export const recordGuaranteePassport = (driverId, data) =>
+  axiosInstance.post(`/drivers/${driverId}/passport/guarantee`, data).then(r => r.data);
+
+export const getActiveGuarantee = (driverId) =>
+  axiosInstance.get(`/drivers/${driverId}/passport/guarantee`).then(r => r.data);
+
+export const getGuaranteeHistory = (driverId) =>
+  axiosInstance.get(`/drivers/${driverId}/passport/guarantee/history`).then(r => r.data);
+
+export const requestExtension = (guaranteeId, data) =>
+  axiosInstance.post(`/drivers/passport/guarantee/${guaranteeId}/extension`, data).then(r => r.data);
+
+export const returnGuaranteePassport = (guaranteeId) =>
+  axiosInstance.post(`/drivers/passport/guarantee/${guaranteeId}/return`).then(r => r.data);

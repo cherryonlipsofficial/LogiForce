@@ -12,6 +12,7 @@ import SidePanel from '../../components/ui/SidePanel';
 import { useAuth } from '../../context/AuthContext';
 import PermissionGate from '../../components/ui/PermissionGate';
 import { getClients, createClient, updateClient, deleteClient, uploadContract, deleteContract } from '../../api/clientsApi';
+import { getProjects } from '../../api/projectsApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
 import Pagination from '../../components/ui/Pagination';
 
@@ -48,6 +49,12 @@ const Clients = () => {
     retry: 1,
   });
 
+  const { data: projectsData } = useQuery({
+    queryKey: ['projects', { limit: 1 }],
+    queryFn: () => getProjects({ limit: 1 }),
+    retry: 1,
+  });
+
   const { mutate: doDelete } = useMutation({
     mutationFn: (id) => deleteClient(id),
     onSuccess: () => {
@@ -62,7 +69,7 @@ const Clients = () => {
   const pagination = data?.pagination;
   const filtered = clients;
 
-  const totalDrivers = clients.reduce((s, c) => s + (c.driverCount || 0), 0);
+  const totalProjects = projectsData?.pagination?.total ?? 0;
   const totalBilling = clients.reduce((s, c) => s + (c.monthlyBilling || 0), 0);
   const activeCount = clients.filter((c) => isClientActive(c)).length;
 
@@ -86,7 +93,7 @@ const Clients = () => {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
         <KpiCard label="Total clients" value={clients.length} />
         <KpiCard label="Active" value={activeCount} color="#4ade80" />
-        <KpiCard label="Total drivers" value={totalDrivers.toLocaleString()} />
+        <KpiCard label="Total projects" value={totalProjects} />
         <KpiCard label="Monthly billing" value={formatCurrencyFull(totalBilling)} color="#7eb3fc" />
       </div>
 
