@@ -6,6 +6,9 @@ const typeColors = {
   attendance_disputed: '#ef4444',
   dispute_responded: '#f59e0b',
   invoice_generated: '#a855f7',
+  advance_requested: '#f59e0b',
+  advance_approved: '#22c55e',
+  advance_rejected: '#ef4444',
 };
 
 function formatRelativeTime(dateStr) {
@@ -27,6 +30,9 @@ function getNavigationPath(notification) {
   }
   if (referenceModel === 'Invoice') {
     return '/invoices';
+  }
+  if (referenceModel === 'Advance') {
+    return '/advances';
   }
   return null;
 }

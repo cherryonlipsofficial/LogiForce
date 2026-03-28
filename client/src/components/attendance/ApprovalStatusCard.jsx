@@ -9,6 +9,17 @@ const approvalIcon = (status) => {
   return { symbol: '◎', color: '#fbbf24' };
 };
 
+const statusSummary = {
+  uploaded:           { color: '#6b7280', bg: 'rgba(107,114,128,0.08)', border: 'rgba(107,114,128,0.2)', text: 'Uploaded — awaiting review' },
+  pending_review:     { color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.2)',  text: 'Under review by Sales and Operations' },
+  sales_approved:     { color: '#3b82f6', bg: 'rgba(59,130,246,0.08)',  border: 'rgba(59,130,246,0.2)',  text: 'Sales approved — Operations pending' },
+  ops_approved:       { color: '#3b82f6', bg: 'rgba(59,130,246,0.08)',  border: 'rgba(59,130,246,0.2)',  text: 'Operations approved — Sales pending' },
+  fully_approved:     { color: '#22c55e', bg: 'rgba(34,197,94,0.08)',   border: 'rgba(34,197,94,0.2)',   text: 'Both teams approved ✓' },
+  disputed:           { color: '#ef4444', bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.2)',   text: 'Dispute raised — Accounts coordinating with client' },
+  dispute_responded:  { color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.2)',  text: 'Revised attendance uploaded — please re-review' },
+  invoiced:           { color: '#a855f7', bg: 'rgba(168,85,247,0.08)',  border: 'rgba(168,85,247,0.2)',  text: 'Invoice generated' },
+};
+
 const ApprovalRow = ({ label, approval }) => {
   const status = approval?.status || 'pending';
   const icon = approvalIcon(status);
@@ -43,7 +54,7 @@ const ApprovalRow = ({ label, approval }) => {
   );
 };
 
-const ApprovalStatusCard = ({ batch, currentUserRole, onApprove, onDispute, onGenerateInvoice }) => {
+const ApprovalStatusCard = ({ batch, currentUserRole, onApprove, onDispute, onGenerateInvoice, onRunSalary }) => {
   const salesApproval = batch?.salesApproval || null;
   const opsApproval = batch?.opsApproval || null;
 
@@ -53,7 +64,6 @@ const ApprovalStatusCard = ({ batch, currentUserRole, onApprove, onDispute, onGe
   const canAct = ['pending_review', 'sales_approved', 'ops_approved', 'dispute_responded'].includes(status);
   const isSales = roleName === 'sales';
   const isOps = roleName === 'ops' || roleName === 'operations';
-  const isSalesOrOps = isSales || isOps;
 
   const ownApproval = isSales ? salesApproval : isOps ? opsApproval : null;
   const hasApproved = ownApproval?.status === 'approved';
@@ -63,12 +73,23 @@ const ApprovalStatusCard = ({ batch, currentUserRole, onApprove, onDispute, onGe
   const isInvoiced = status === 'invoiced';
   const isDisputed = status === 'disputed';
 
+  const summary = statusSummary[status] || statusSummary.pending_review;
+
   return (
     <div style={{
       background: 'var(--surface)', border: '1px solid var(--border)',
       borderRadius: 'var(--radius-lg)', padding: '16px 18px', marginBottom: 16,
     }}>
       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Approval status</div>
+
+      {/* Status summary bar */}
+      <div style={{
+        background: summary.bg, border: `1px solid ${summary.border}`,
+        borderRadius: 8, padding: '8px 12px', marginBottom: 12,
+        fontSize: 12, color: summary.color, fontWeight: 500,
+      }}>
+        {summary.text}
+      </div>
 
       <ApprovalRow label="Sales team" approval={salesApproval} />
       <div style={{ borderTop: '1px solid var(--border)', margin: '2px 0' }} />
@@ -77,7 +98,7 @@ const ApprovalStatusCard = ({ batch, currentUserRole, onApprove, onDispute, onGe
       {showApproveActions && (
         <div style={{ display: 'flex', gap: 8, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
           <PermissionGate permission="attendance.approve">
-            <Btn variant="success" onClick={onApprove}>✓ Approve</Btn>
+            <Btn variant="success" onClick={onApprove}>✓ Approve attendance</Btn>
           </PermissionGate>
           <PermissionGate permission="attendance.dispute">
             <Btn variant="ghost" onClick={onDispute} style={{
@@ -88,26 +109,33 @@ const ApprovalStatusCard = ({ batch, currentUserRole, onApprove, onDispute, onGe
       )}
 
       {showGenerateInvoice && (
-        <PermissionGate permission="invoices.generate">
-          <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+          <PermissionGate permission="invoices.generate">
             <Btn variant="primary" onClick={onGenerateInvoice} style={{ width: '100%', justifyContent: 'center', padding: '10px 16px', fontSize: 14 }}>
               Generate invoice →
             </Btn>
-            <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center', marginTop: 6 }}>
-              Both teams have approved. Invoice will include VAT (5%).
-            </div>
+          </PermissionGate>
+          {onRunSalary && (
+            <PermissionGate permission="salary.run">
+              <Btn variant="ghost" onClick={onRunSalary} style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}>
+                Run salary →
+              </Btn>
+            </PermissionGate>
+          )}
+          <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center', marginTop: 6 }}>
+            Both teams have approved. Invoice will include VAT (5%).
           </div>
-        </PermissionGate>
+        </div>
       )}
 
       {isDisputed && (
         <PermissionGate permission="attendance.respond_dispute">
           <div style={{
             marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)',
-            background: 'rgba(239,68,68,0.04)', borderRadius: 8, padding: 12,
-            fontSize: 12, color: '#f87171',
+            background: 'rgba(245,158,11,0.06)', borderRadius: 8, padding: 12,
+            fontSize: 12, color: '#f59e0b',
           }}>
-            A dispute has been raised. Review the dispute below and respond.
+            Dispute raised. Coordinate with client, then upload revised attendance.
           </div>
         </PermissionGate>
       )}

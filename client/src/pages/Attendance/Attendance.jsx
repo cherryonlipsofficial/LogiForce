@@ -10,7 +10,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
 import ProjectSelect from '../../components/ui/ProjectSelect';
-import { getBatches, uploadFile, getBatch, approveBatch, rejectBatch, deleteBatch, getBatchApprovals, getBatchDisputes } from '../../api/attendanceApi';
+import { getBatches, uploadFile, getBatch, approveBatch, rejectBatch, deleteBatch, getBatchApprovals, getBatchDisputes, runSalary } from '../../api/attendanceApi';
 import { useAuth } from '../../context/AuthContext';
 import PermissionGate from '../../components/ui/PermissionGate';
 import { formatDate, formatRelativeTime } from '../../utils/formatters';
@@ -289,6 +289,15 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
           onApprove={() => setApproveModal(batch)}
           onDispute={() => setDisputeModal(batch)}
           onGenerateInvoice={() => setInvoiceModal(batch)}
+          onRunSalary={async () => {
+            try {
+              await runSalary(batch._id);
+              toast.success('Salary run started');
+              qc.invalidateQueries(['batch-detail', batch._id]);
+            } catch (err) {
+              toast.error(err.response?.data?.message || 'Failed to start salary run');
+            }
+          }}
         />
 
         {openDisputes.length > 0 && (
