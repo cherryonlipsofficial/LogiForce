@@ -179,7 +179,7 @@ const ExpiredDocuments = () => {
                     </td>
                     <td style={{ padding: '10px' }}>
                       <button
-                        onClick={() => navigate('/drivers')}
+                        onClick={() => navigate(`/drivers?search=${encodeURIComponent(r.employeeCode || r.driverName || '')}`)}
                         style={{
                           padding: '4px 10px', borderRadius: 6, fontSize: 11,
                           border: '1px solid var(--border2)', background: 'transparent',

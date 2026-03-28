@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import PermissionGate from '../../components/ui/PermissionGate';
 import KpiCard from '../../components/ui/KpiCard';
@@ -28,13 +29,21 @@ const fallbackDrivers = [
 ];
 
 const Drivers = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selected, setSelected] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showBulkImportModal, setShowBulkImportModal] = useState(false);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => searchParams.get('search') || '');
+  const [driverFilter, setDriverFilter] = useState(() => searchParams.get('search') || '');
   const [statusFilter, setStatusFilter] = useState('all');
   const [projectFilter, setProjectFilter] = useState('all');
   const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    if (searchParams.has('search')) {
+      setSearchParams({}, { replace: true });
+    }
+  }, []);
 
   const { data, isLoading } = useQuery({
     queryKey: ['drivers', { search, status: statusFilter, projectId: projectFilter, page }],
@@ -117,10 +126,23 @@ const Drivers = () => {
         >
           <input
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            onChange={(e) => { setSearch(e.target.value); setDriverFilter(''); setPage(1); }}
             placeholder="Search by name or ID..."
             style={{ width: 240, height: 34 }}
           />
+          {driverFilter && (
+            <button
+              onClick={() => { setDriverFilter(''); setSearch(''); setPage(1); }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: '4px 10px', borderRadius: 20, fontSize: 11,
+                border: '1px solid var(--accent)', background: 'rgba(99,102,241,0.1)',
+                color: 'var(--accent)', cursor: 'pointer', whiteSpace: 'nowrap',
+              }}
+            >
+              Filtered driver ✕
+            </button>
+          )}
           <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} style={{ width: 160, height: 34 }}>
             <option value="all">All statuses</option>
             <option value="active">Active</option>
