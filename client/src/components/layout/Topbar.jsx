@@ -223,10 +223,11 @@ const Topbar = ({ page }) => {
   const { data: alertData } = useQuery({
     queryKey: ['alert-count'],
     queryFn: () => axiosInstance.get('/reports/alert-count').then((r) => r.data.data),
+    enabled: !!user,
     refetchInterval: 5 * 60 * 1000,
     retry: 1,
   });
-  const alertCount = alertData?.total || 0;
+  const alertCount = alertData?.total ?? 0;
 
   // Cmd/Ctrl+K shortcut to focus search
   const handleKeyDown = useCallback((e) => {
@@ -343,23 +344,21 @@ const Topbar = ({ page }) => {
               Synced {formatTimeSince(lastSynced)}
             </span>
           )}
-          {alertCount > 0 && (
-            <button
-              onClick={() => navigate('/dashboard')}
-              style={{
-                background: 'rgba(239,68,68,0.12)',
-                color: '#ef6060',
-                border: '1px solid rgba(239,68,68,0.2)',
-                borderRadius: 8,
-                padding: '6px 14px',
-                fontSize: 12,
-                fontWeight: 500,
-                cursor: 'pointer',
-              }}
-            >
-              {alertCount} {alertCount === 1 ? 'alert' : 'alerts'}
-            </button>
-          )}
+          <button
+            onClick={() => navigate('/dashboard')}
+            style={{
+              background: alertCount > 0 ? 'rgba(239,68,68,0.12)' : 'rgba(74,222,128,0.12)',
+              color: alertCount > 0 ? '#ef6060' : '#4ade80',
+              border: `1px solid ${alertCount > 0 ? 'rgba(239,68,68,0.2)' : 'rgba(74,222,128,0.2)'}`,
+              borderRadius: 8,
+              padding: '6px 14px',
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            {alertCount} {alertCount === 1 ? 'alert' : 'alerts'}
+          </button>
           <button
             style={{
               background:
