@@ -51,7 +51,9 @@ module.exports = {
     // ── ATTENDANCE ──
     'attendance.view':         { label: 'View attendance',         module: 'Attendance', description: 'See attendance batches and records' },
     'attendance.upload':       { label: 'Upload attendance',       module: 'Attendance', description: 'Upload CSV/Excel attendance files' },
-    'attendance.approve':      { label: 'Approve attendance',      module: 'Attendance', description: 'Approve attendance batches for payroll' },
+    'attendance.approve':      { label: 'Approve attendance',      module: 'Attendance', description: 'Approve attendance batches (Sales and Ops teams)' },
+    'attendance.dispute':      { label: 'Raise attendance dispute', module: 'Attendance', description: 'Raise a dispute on an uploaded attendance batch' },
+    'attendance.respond_dispute': { label: 'Respond to dispute',   module: 'Attendance', description: 'Respond to disputes raised on attendance (Accounts)' },
     'attendance.override':     { label: 'Override attendance',     module: 'Attendance', description: 'Override flagged attendance records' },
 
     // ── SALARY ──

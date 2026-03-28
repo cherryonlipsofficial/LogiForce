@@ -11,6 +11,12 @@ const invoiceSchema = new mongoose.Schema(
       ref: 'Client',
       required: true,
     },
+    // Link back to the attendance batch that generated this invoice
+    attendanceBatchId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'AttendanceBatch',
+      default: null,
+    },
     period: {
       year: { type: Number },
       month: { type: Number },
@@ -33,12 +39,14 @@ const invoiceSchema = new mongoose.Schema(
         projectName: { type: String },
         projectCode: { type: String },
         ratePerDriver: { type: Number },
+        dailyRate: { type: Number },
         drivers: [
           {
             driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'Driver' },
-            employeeCode: { type: String },
             driverName: { type: String },
+            employeeCode: { type: String },
             workingDays: { type: Number },
+            overtimeHours: { type: Number, default: 0 },
             ratePerDay: { type: Number },
             amount: { type: Number },
           },
