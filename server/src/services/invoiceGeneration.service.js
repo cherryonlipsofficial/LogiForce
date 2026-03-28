@@ -1,207 +1,187 @@
 const {
-  AttendanceBatch,
-  AttendanceRecord,
-  DriverProjectAssignment,
-  Invoice,
+  AttendanceBatch, AttendanceRecord, Invoice,
+  Driver, Project, ProjectContract, DriverProjectAssignment,
   User,
-} = require('../models');
-const { notifyByRole } = require('./notification.service');
-
-const MONTH_NAMES = [
-  '', 'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
-
-const STANDARD_DAYS = 26;
-const VAT_RATE = 0.05;
+} = require('../models')
+const { notifyByRole } = require('./notification.service')
 
 /**
- * Generate an invoice from a fully approved attendance batch.
+ * Generate an invoice from a fully-approved attendance batch.
+ * Rate is taken from the project. VAT is 5%.
+ * Only accounts users can generate invoices.
  */
-async function generateInvoiceFromBatch(batchId, accountsUserId) {
+async function generateInvoice(batchId, accountsUserId) {
   // STEP 1 — Validate batch
   const batch = await AttendanceBatch.findById(batchId)
-    .populate('clientId', 'name vatNo paymentTerms');
+    .populate('projectId', 'name projectCode ratePerDriver clientId')
+    .populate('clientId', 'name vatNo paymentTerms')
 
-  if (!batch) {
-    const err = new Error('Batch not found');
-    err.statusCode = 404;
-    throw err;
-  }
+  if (!batch) throw Object.assign(new Error('Batch not found'), { statusCode: 404 })
 
   if (batch.status !== 'fully_approved') {
-    const err = new Error(
-      `Cannot generate invoice — batch status is "${batch.status}". Both Sales and Operations must approve first.`
-    );
-    err.statusCode = 400;
-    throw err;
+    throw Object.assign(
+      new Error(
+        `Cannot generate invoice. Batch status is "${batch.status}".
+         Both Sales and Operations must approve the attendance first.`
+      ),
+      { statusCode: 400 }
+    )
   }
 
   if (batch.invoiceId) {
-    const err = new Error('An invoice has already been generated for this batch.');
-    err.statusCode = 400;
-    throw err;
+    throw Object.assign(
+      new Error('An invoice has already been generated for this batch.'),
+      { statusCode: 400 }
+    )
   }
 
-  // STEP 2 — Fetch attendance records
-  const records = await AttendanceRecord.find({ batchId })
-    .populate({
-      path: 'driverId',
-      select: 'fullName employeeCode projectId currentVehicleId',
-      populate: {
-        path: 'projectId',
-        select: 'name projectCode ratePerDriver clientId',
-      },
-    })
-    .lean();
+  // STEP 2 — Fetch attendance records for this batch
+  const records = await AttendanceRecord.find({
+    batchId,
+    status: { $ne: 'error' },  // skip errored rows
+  })
+  .populate('driverId', 'fullName employeeCode projectId')
+  .lean()
 
   if (!records.length) {
-    const err = new Error('No attendance records found for this batch.');
-    err.statusCode = 400;
-    throw err;
+    throw Object.assign(
+      new Error('No valid attendance records found for this batch.'),
+      { statusCode: 400 }
+    )
   }
 
-  // STEP 3 — Group records by project
-  const projectMap = {};
+  // STEP 3 — Get billing rate from project
+  // Priority: active ProjectContract rate → project.ratePerDriver fallback
+  let ratePerDriver = batch.projectId.ratePerDriver
+
+  const activeContract = await ProjectContract.findOne({
+    projectId: batch.projectId._id,
+    status:    'active',
+  }).select('ratePerDriver')
+
+  if (activeContract?.ratePerDriver) {
+    ratePerDriver = activeContract.ratePerDriver
+  }
+
+  if (!ratePerDriver || ratePerDriver <= 0) {
+    throw Object.assign(
+      new Error(
+        `Project "${batch.projectId.name}" has no rate configured.
+         Set a rate per driver on the project before generating an invoice.`
+      ),
+      { statusCode: 400 }
+    )
+  }
+
+  const STANDARD_DAYS = 26
+  const dailyRate = parseFloat((ratePerDriver / STANDARD_DAYS).toFixed(4))
+
+  // STEP 4 — Build line items (one per driver)
+  const lineItems = []
+  let subtotal = 0
 
   for (const record of records) {
-    const driver = record.driverId;
-    const project = driver?.projectId;
+    const driver = record.driverId
+    if (!driver) continue
 
-    if (!project) {
-      console.warn(`Driver ${driver?.employeeCode} has no project assigned`);
-      continue;
-    }
+    const workingDays = record.workingDays || 0
+    const amount      = parseFloat((dailyRate * workingDays).toFixed(2))
 
-    const projectId = project._id.toString();
-    if (!projectMap[projectId]) {
-      projectMap[projectId] = {
-        projectId: project._id,
-        projectName: project.name,
-        projectCode: project.projectCode,
-        ratePerDriver: 0,
-        dailyRate: 0,
-        drivers: [],
-        driverCount: 0,
-        subtotal: 0,
-      };
-    }
-
-    // Get billing rate
-    let ratePerDriver = project.ratePerDriver;
-
-    const activeAssignment = await DriverProjectAssignment.findOne({
-      driverId: driver._id,
-      projectId: project._id,
-      status: 'active',
-    }).select('ratePerDriver');
-
-    if (activeAssignment?.ratePerDriver) {
-      ratePerDriver = activeAssignment.ratePerDriver;
-    }
-
-    const dailyRate = ratePerDriver / STANDARD_DAYS;
-    const amount = parseFloat((dailyRate * record.workingDays).toFixed(2));
-
-    projectMap[projectId].ratePerDriver = ratePerDriver;
-    projectMap[projectId].dailyRate = parseFloat(dailyRate.toFixed(4));
-    projectMap[projectId].drivers.push({
-      driverId: driver._id,
-      driverName: driver.fullName,
+    lineItems.push({
+      driverId:     driver._id,
+      driverName:   driver.fullName,
       employeeCode: driver.employeeCode,
-      workingDays: record.workingDays,
-      overtimeHours: record.overtimeHours || 0,
+      workingDays,
+      ratePerDriver,
+      dailyRate,
       amount,
-    });
-    projectMap[projectId].subtotal += amount;
+    })
+
+    subtotal += amount
   }
 
-  // STEP 4 — Build project groups array
-  const projectGroups = Object.values(projectMap).map((pg) => ({
-    ...pg,
-    driverCount: pg.drivers.length,
-    subtotal: parseFloat(pg.subtotal.toFixed(2)),
-  }));
-
-  if (!projectGroups.length) {
-    const err = new Error('No valid project data found. Ensure drivers are assigned to projects.');
-    err.statusCode = 400;
-    throw err;
+  if (!lineItems.length) {
+    throw Object.assign(
+      new Error('No valid driver records to invoice.'),
+      { statusCode: 400 }
+    )
   }
 
-  // STEP 5 — Calculate totals
-  const subtotal = parseFloat(
-    projectGroups.reduce((sum, pg) => sum + pg.subtotal, 0).toFixed(2)
-  );
-  const vatAmount = parseFloat((subtotal * VAT_RATE).toFixed(2));
-  const total = parseFloat((subtotal + vatAmount).toFixed(2));
+  subtotal  = parseFloat(subtotal.toFixed(2))
+  const vatAmount = parseFloat((subtotal * 0.05).toFixed(2))
+  const total     = parseFloat((subtotal + vatAmount).toFixed(2))
 
-  // STEP 6 — Generate invoice number
-  const monthStr = String(batch.period.month).padStart(2, '0');
-  const yearStr = String(batch.period.year);
-  const count = await Invoice.countDocuments() + 1;
-  const invoiceNo = `INV-${yearStr}-${monthStr}-${String(count).padStart(4, '0')}`;
+  // STEP 5 — Generate invoice number
+  const monthStr  = String(batch.period.month).padStart(2, '0')
+  const yearStr   = String(batch.period.year)
+  const count     = await Invoice.countDocuments() + 1
+  const invoiceNo = `INV-${yearStr}-${monthStr}-${String(count).padStart(4, '0')}`
 
-  // STEP 7 — Calculate due date
-  const paymentTerms = batch.clientId.paymentTerms || 'Net 30';
-  const termDays = parseInt(paymentTerms.replace(/\D/g, '')) || 30;
-  const dueDate = new Date();
-  dueDate.setDate(dueDate.getDate() + termDays);
+  // STEP 6 — Due date from payment terms
+  const paymentTerms = batch.clientId.paymentTerms || 'Net 30'
+  const termDays     = parseInt(paymentTerms.replace(/\D/g, '')) || 30
+  const dueDate      = new Date()
+  dueDate.setDate(dueDate.getDate() + termDays)
 
-  // STEP 8 — Create Invoice document
+  // STEP 7 — Create invoice
   const invoice = await Invoice.create({
     invoiceNo,
-    clientId: batch.clientId._id,
+    projectId:         batch.projectId._id,
+    clientId:          batch.clientId._id,
     attendanceBatchId: batchId,
-    period: batch.period,
-    projectGroups,
+    period:            batch.period,
+    lineItems,
     subtotal,
-    vatRate: VAT_RATE,
+    vatRate:    0.05,
     vatAmount,
     total,
-    status: 'draft',
+    status:    'draft',
     issuedDate: new Date(),
     dueDate,
-    createdBy: accountsUserId,
-  });
+    createdBy:  accountsUserId,
+  })
 
-  // STEP 9 — Update batch to invoiced status
-  batch.status = 'invoiced';
-  batch.invoiceId = invoice._id;
-  batch.invoicedAt = new Date();
-  batch.invoicedBy = accountsUserId;
-  await batch.save();
+  // STEP 8 — Mark batch as invoiced
+  batch.status    = 'invoiced'
+  batch.invoiceId = invoice._id
+  batch.invoicedAt = new Date()
+  batch.invoicedBy = accountsUserId
+  await batch.save()
 
-  // STEP 10 — Notify Sales and Ops
-  const accountsUser = await User.findById(accountsUserId).select('name');
-  const monthName = MONTH_NAMES[batch.period.month] || '';
+  // STEP 9 — Notify Sales and Ops
+  const accountsUser = await User.findById(accountsUserId).select('name')
+  const monthName    = new Date(batch.period.year, batch.period.month - 1)
+    .toLocaleString('en', { month: 'long' })
 
-  await notifyByRole(['sales', 'operations', 'ops'], {
-    type: 'invoice_generated',
-    title: 'Invoice generated',
-    message: `Invoice ${invoiceNo} has been generated for ${batch.clientId.name} — ${monthName} ${batch.period.year}. Total: AED ${total.toLocaleString()}`,
+  await notifyByRole(['sales', 'ops'], {
+    type:    'invoice_generated',
+    title:   'Invoice generated',
+    message: `Invoice ${invoiceNo} generated for ${batch.projectId.name}
+              — ${monthName} ${batch.period.year}.
+              Total: AED ${total.toLocaleString()} (incl. 5% VAT)`,
     referenceModel: 'Invoice',
-    referenceId: invoice._id,
-    triggeredBy: accountsUserId,
-    triggeredByName: accountsUser?.name || 'System',
-  });
+    referenceId:    invoice._id,
+    triggeredBy:    accountsUserId,
+    triggeredByName: accountsUser.name,
+  })
 
-  // STEP 11 — Return
+  // STEP 10 — Return
   return {
     invoice: await Invoice.findById(invoice._id)
-      .populate('clientId', 'name vatNo')
-      .populate('createdBy', 'name'),
+      .populate('projectId', 'name projectCode')
+      .populate('clientId', 'name'),
     summary: {
       invoiceNo,
-      clientName: batch.clientId.name,
-      period: batch.period,
-      projectCount: projectGroups.length,
-      driverCount: projectGroups.reduce((s, pg) => s + pg.driverCount, 0),
+      projectName: batch.projectId.name,
+      clientName:  batch.clientId.name,
+      period:      batch.period,
+      driverCount: lineItems.length,
+      ratePerDriver,
       subtotal,
       vatAmount,
       total,
     },
-  };
+  }
 }
 
-module.exports = { generateInvoiceFromBatch };
+module.exports = { generateInvoice }
