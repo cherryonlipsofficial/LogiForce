@@ -8,13 +8,20 @@ const generateToken = (userId) => {
 };
 
 const login = async (email, password) => {
-  const user = await User.findOne({ email, isActive: true })
+  const user = await User.findOne({ email })
     .select('+password')
     .populate('roleId');
   if (!user || !(await user.comparePassword(password))) {
     const err = new Error('Invalid email or password');
     err.statusCode = 401;
     throw err;
+  }
+
+  if (!user.isActive) {
+    throw Object.assign(
+      new Error('Your account is pending activation by an administrator. Please contact your admin.'),
+      { statusCode: 403, code: 'ACCOUNT_INACTIVE' }
+    );
   }
 
   user.lastLogin = new Date();
@@ -49,6 +56,7 @@ const buildAuthResponse = async (user) => {
       user: {
         _id: user._id, name: user.name, email: user.email,
         isActive: user.isActive, lastLogin: user.lastLogin,
+        activatedBy: user.activatedBy, activatedAt: user.activatedAt,
         roleId: user.roleId,
       },
       permissions: getAllKeys(),
@@ -65,6 +73,7 @@ const buildAuthResponse = async (user) => {
     user: {
       _id: user._id, name: user.name, email: user.email,
       isActive: user.isActive, lastLogin: user.lastLogin,
+      activatedBy: user.activatedBy, activatedAt: user.activatedAt,
       roleId: user.roleId,
     },
     permissions: [...rolePerms],

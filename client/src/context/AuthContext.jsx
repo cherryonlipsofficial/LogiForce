@@ -39,12 +39,22 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (credentials) => {
-    const res = await axiosInstance.post('/auth/login', credentials);
-    const { token, user, permissions, isAdmin } = res.data.data;
-    localStorage.setItem('token', token);
-    setState({ user, token, permissions: permissions || [],
-               isAdmin: !!isAdmin, isAuthenticated: true, isLoading: false });
-    return res.data;
+    try {
+      const res = await axiosInstance.post('/auth/login', credentials);
+      const { token, user, permissions, isAdmin } = res.data.data;
+      localStorage.setItem('token', token);
+      setState({ user, token, permissions: permissions || [],
+                 isAdmin: !!isAdmin, isAuthenticated: true, isLoading: false });
+      return res.data;
+    } catch (err) {
+      const code = err.response?.data?.code;
+      const msg  = err.response?.data?.message || 'Login failed';
+
+      if (code === 'ACCOUNT_INACTIVE') {
+        throw Object.assign(new Error(msg), { code: 'ACCOUNT_INACTIVE' });
+      }
+      throw new Error(msg);
+    }
   };
 
   const logout = () => {

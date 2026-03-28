@@ -37,7 +37,17 @@ const userSchema = new mongoose.Schema(
     }],
     isActive: {
       type: Boolean,
-      default: true,
+      default: false,
+      index: true,
+    },
+    activatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    activatedAt: {
+      type: Date,
+      default: null,
     },
     lastLogin: {
       type: Date,

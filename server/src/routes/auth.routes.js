@@ -41,10 +41,18 @@ router.post('/register', validate(registerValidation), async (req, res) => {
 
 // POST /api/auth/login
 router.post('/login', loginLimiter, validate(loginValidation), async (req, res) => {
-  const { email, password } = req.body;
-  const { token, user } = await authService.login(email, password);
-  const authData = await authService.buildAuthResponse(user);
-  sendSuccess(res, { token, ...authData });
+  try {
+    const { email, password } = req.body;
+    const { token, user } = await authService.login(email, password);
+    const authData = await authService.buildAuthResponse(user);
+    sendSuccess(res, { token, ...authData });
+  } catch (err) {
+    res.status(err.statusCode || 400).json({
+      success: false,
+      message: err.message,
+      code:    err.code || 'LOGIN_FAILED',
+    });
+  }
 });
 
 // GET /api/auth/me
@@ -104,6 +112,7 @@ router.get('/permissions', protect, async (req, res) => {
 router.get('/profile', protect, async (req, res) => {
   const user = await User.findById(req.user._id)
     .populate('roleId', 'name displayName description permissions')
+    .populate('activatedBy', 'name')
     .select('-password');
   if (!user) return sendError(res, 'User not found', 404);
 
@@ -116,6 +125,8 @@ router.get('/profile', protect, async (req, res) => {
       email: user.email,
       isActive: user.isActive,
       lastLogin: user.lastLogin,
+      activatedAt: user.activatedAt,
+      activatedBy: user.activatedBy,
       createdAt: user.createdAt,
       preferences: user.preferences,
       roleId: user.roleId ? {

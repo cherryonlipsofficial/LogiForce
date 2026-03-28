@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { getUsers, updateUser } from '../api/usersApi';
+import { getUsers, updateUser, activateUser, deactivateUser, getInactiveUsers } from '../api/usersApi';
 import { getRoles } from '../api/rolesApi';
 import { getAvatarColor, getInitials } from '../utils/avatarColor';
 import { formatRelativeTime, formatShortDate } from '../utils/formatters';
@@ -29,6 +29,108 @@ function getRoleColor(roleName = '') {
   return ROLE_COLORS[roleName] || { bg: 'rgba(216,90,48,0.15)', text: '#fb8c6b' };
 }
 
+function InactiveUserCard({ user, onActivate }) {
+  const color    = getAvatarColor(user.name);
+  const initials = getInitials(user.name);
+  const roleColor = getRoleColor(user.roleId?.name);
+  const queryClient = useQueryClient();
+
+  const activateMutation = useMutation({
+    mutationFn: () => activateUser(user._id),
+    onSuccess:  () => {
+      toast.success(`${user.name}'s account has been activated`);
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['inactive-users'] });
+      queryClient.invalidateQueries({ queryKey: ['inactive-users-count'] });
+    },
+    onError: err => toast.error(err?.response?.data?.message || 'Activation failed'),
+  });
+
+  return (
+    <div style={{
+      background:   'var(--surface)',
+      border:       '1px solid rgba(245,158,11,0.2)',
+      borderRadius: 10,
+      padding:      '12px 14px',
+      display:      'flex',
+      alignItems:   'center',
+      gap:          12,
+      minWidth:     240,
+      flex:         '0 0 auto',
+    }}>
+      {/* Avatar */}
+      <div style={{
+        width:          36,
+        height:         36,
+        borderRadius:   '50%',
+        background:     color.bg,
+        color:          color.text,
+        display:        'flex',
+        alignItems:     'center',
+        justifyContent: 'center',
+        fontSize:       13,
+        fontWeight:     500,
+        flexShrink:     0,
+        opacity:        0.6,
+      }}>
+        {initials}
+      </div>
+
+      {/* Info */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>
+          {user.name}
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>
+          {user.email}
+        </div>
+        <span style={{
+          fontSize:   10,
+          fontWeight: 500,
+          padding:    '1px 7px',
+          borderRadius: 4,
+          background: roleColor.bg,
+          color:      roleColor.text,
+          marginTop:  4,
+          display:    'inline-block',
+        }}>
+          {user.roleId?.displayName || 'No role'}
+        </span>
+      </div>
+
+      {/* Activate button */}
+      <button
+        onClick={() => activateMutation.mutate()}
+        disabled={activateMutation.isPending}
+        style={{
+          background:   'rgba(34,197,94,0.12)',
+          border:       '1px solid rgba(34,197,94,0.3)',
+          color:        '#4ade80',
+          borderRadius: 8,
+          padding:      '6px 12px',
+          fontSize:     12,
+          fontWeight:   500,
+          cursor:       activateMutation.isPending ? 'wait' : 'pointer',
+          flexShrink:   0,
+          whiteSpace:   'nowrap',
+        }}
+      >
+        {activateMutation.isPending ? 'Activating...' : 'Activate'}
+      </button>
+    </div>
+  );
+}
+
+function getStatusInfo(user) {
+  if (user.isActive) {
+    return { label: 'Active', bg: 'rgba(34,197,94,0.12)', color: '#4ade80' };
+  }
+  if (!user.isActive && !user.activatedAt) {
+    return { label: 'Pending activation', bg: 'rgba(245,158,11,0.12)', color: '#fbbf24' };
+  }
+  return { label: 'Deactivated', bg: 'var(--surface3)', color: 'var(--text3)' };
+}
+
 export default function UsersPage() {
   const queryClient = useQueryClient();
   const { user: currentUser } = useAuth();
@@ -38,7 +140,6 @@ export default function UsersPage() {
   const [statusFilter, setStatusFilter]           = useState('all');
   const [deactivatingId, setDeactivatingId]       = useState(null);
 
-  // Modal states — placeholders for now, wired in 3b and 3c
   const [addUserOpen, setAddUserOpen]             = useState(false);
   const [editUser, setEditUser]                   = useState(null);
   const [permissionsUser, setPermissionsUser]     = useState(null);
@@ -51,8 +152,15 @@ export default function UsersPage() {
   const { data: rolesData } =
     useQuery({ queryKey: ['roles'], queryFn: getRoles });
 
+  const { data: inactiveData } = useQuery({
+    queryKey: ['inactive-users'],
+    queryFn:  () => getInactiveUsers().then(r => r.data),
+    refetchInterval: 30000,
+  });
+
   const users = usersData?.data || [];
   const roles = rolesData?.data || [];
+  const inactiveUsers = inactiveData?.data || [];
 
   // Filter users client-side
   const filtered = users.filter(u => {
@@ -60,9 +168,10 @@ export default function UsersPage() {
       u.name.toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase());
     const matchRole   = roleFilter === 'all' || u.roleId?._id === roleFilter;
-    const matchStatus = statusFilter === 'all' ||
-      (statusFilter === 'active'   &&  u.isActive) ||
-      (statusFilter === 'inactive' && !u.isActive);
+    let matchStatus = true;
+    if (statusFilter === 'active') matchStatus = u.isActive;
+    else if (statusFilter === 'pending') matchStatus = !u.isActive && !u.activatedAt;
+    else if (statusFilter === 'deactivated') matchStatus = !u.isActive && !!u.activatedAt;
     return matchSearch && matchRole && matchStatus;
   });
 
@@ -76,14 +185,19 @@ export default function UsersPage() {
 
   // Deactivate mutation
   const deactivateMutation = useMutation({
-    mutationFn: ({ id, isActive }) => updateUser(id, { isActive }),
+    mutationFn: ({ id, action }) => action === 'activate' ? activateUser(id) : deactivateUser(id),
     onSuccess: (_, vars) => {
-      toast.success(vars.isActive ? 'User activated' : 'User deactivated');
+      toast.success(vars.action === 'activate' ? 'User activated' : 'User deactivated');
       queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['inactive-users'] });
+      queryClient.invalidateQueries({ queryKey: ['inactive-users-count'] });
       setDeactivatingId(null);
     },
     onError: err => toast.error(err?.response?.data?.message || 'Action failed'),
   });
+
+  const statusFilters = ['all', 'active', 'pending', 'deactivated'];
+  const statusLabels = { all: 'All', active: 'Active', pending: 'Pending activation', deactivated: 'Deactivated' };
 
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -103,11 +217,60 @@ export default function UsersPage() {
         </PermissionGate>
       </div>
 
+      {/* Pending activation banner */}
+      {inactiveUsers.length > 0 && (
+        <div style={{
+          background:   'rgba(245,158,11,0.06)',
+          border:       '1px solid rgba(245,158,11,0.25)',
+          borderRadius: 'var(--radius-lg)',
+          padding:      '14px 18px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <div style={{
+              width:        8,
+              height:       8,
+              borderRadius: '50%',
+              background:   '#fbbf24',
+              animation:    'pulse 2s infinite',
+            }}/>
+            <span style={{ fontSize: 13, fontWeight: 500, color: '#fbbf24' }}>
+              {inactiveUsers.length} account{inactiveUsers.length > 1 ? 's' : ''} pending activation
+            </span>
+            <span style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 4 }}>
+              These users cannot log in until activated
+            </span>
+          </div>
+
+          <div style={{
+            display:   'flex',
+            gap:       10,
+            flexWrap:  'wrap',
+          }}>
+            {inactiveUsers.map(user => (
+              <InactiveUserCard
+                key={user._id}
+                user={user}
+              />
+            ))}
+          </div>
+          <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}`}</style>
+        </div>
+      )}
+
       {/* KPI strip — 4 cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
         <KpiCard label="Total users"   value={users.length} />
-        <KpiCard label="Active"        value={users.filter(u => u.isActive).length}  color="#4ade80" />
-        <KpiCard label="Inactive"      value={users.filter(u => !u.isActive).length} color="#f87171" />
+        <KpiCard
+          label="Active"
+          value={users.filter(u => u.isActive).length}
+          color="#4ade80"
+        />
+        <KpiCard
+          label="Pending activation"
+          value={inactiveUsers.length}
+          color={inactiveUsers.length > 0 ? '#fbbf24' : 'var(--text)'}
+          sub={inactiveUsers.length > 0 ? 'Requires action' : 'None pending'}
+        />
         <KpiCard label="Roles defined" value={roles.length} />
       </div>
 
@@ -130,7 +293,7 @@ export default function UsersPage() {
             <span style={{
               position: 'absolute', left: 10, top: '50%',
               transform: 'translateY(-50%)', color: 'var(--text3)', fontSize: 13,
-            }}>⌕</span>
+            }}>&#x2315;</span>
           </div>
 
           {/* Role filter */}
@@ -147,7 +310,7 @@ export default function UsersPage() {
 
           {/* Status filter — pill buttons */}
           <div style={{ display: 'flex', gap: 4 }}>
-            {['all', 'active', 'inactive'].map(s => (
+            {statusFilters.map(s => (
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
@@ -158,10 +321,10 @@ export default function UsersPage() {
                   color: statusFilter === s ? 'var(--accent)' : 'var(--text2)',
                   border: statusFilter === s
                     ? '1px solid rgba(79,142,247,0.35)' : '1px solid var(--border2)',
-                  cursor: 'pointer', transition: 'all .15s', textTransform: 'capitalize',
+                  cursor: 'pointer', transition: 'all .15s',
                 }}
               >
-                {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+                {statusLabels[s]}
               </button>
             ))}
           </div>
@@ -182,7 +345,6 @@ export default function UsersPage() {
                 animation: 'pulse 1.5s ease-in-out infinite',
               }}/>
             ))}
-            <style>{`@keyframes pulse{0%,100%{opacity:.6}50%{opacity:.3}}`}</style>
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -211,6 +373,7 @@ export default function UsersPage() {
                   const initials  = getInitials(user.name);
                   const roleColor = getRoleColor(user.roleId?.name);
                   const isDeactivating = deactivatingId === user._id;
+                  const status = getStatusInfo(user);
 
                   return (
                     <tr
@@ -251,16 +414,12 @@ export default function UsersPage() {
 
                       {/* Status column */}
                       <td style={{ padding: '10px 16px' }}>
-                        {user.isActive
-                          ? <span style={{ fontSize: 11, fontWeight: 500, padding: '3px 9px',
-                              borderRadius: 20, background: 'rgba(34,197,94,0.12)', color: '#4ade80' }}>
-                              Active
-                            </span>
-                          : <span style={{ fontSize: 11, fontWeight: 500, padding: '3px 9px',
-                              borderRadius: 20, background: 'var(--surface3)', color: 'var(--text3)' }}>
-                              Inactive
-                            </span>
-                        }
+                        <span style={{
+                          fontSize: 11, fontWeight: 500, padding: '3px 9px',
+                          borderRadius: 20, background: status.bg, color: status.color,
+                        }}>
+                          {status.label}
+                        </span>
                       </td>
 
                       {/* Last login column */}
@@ -277,15 +436,20 @@ export default function UsersPage() {
                       <td style={{ padding: '10px 16px' }}>
                         {isDeactivating ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 11, color: '#f87171' }}>
+                            <span style={{ fontSize: 11, color: user.isActive ? '#f87171' : '#4ade80' }}>
                               {user.isActive ? 'Deactivate' : 'Activate'} {user.name.split(' ')[0]}?
                             </span>
                             <button
-                              onClick={() => deactivateMutation.mutate({ id: user._id, isActive: !user.isActive })}
+                              onClick={() => deactivateMutation.mutate({
+                                id: user._id,
+                                action: user.isActive ? 'deactivate' : 'activate',
+                              })}
                               style={{
                                 padding: '3px 8px', borderRadius: 6, fontSize: 11,
-                                background: 'rgba(239,68,68,0.15)', color: '#f87171',
-                                border: '1px solid rgba(239,68,68,0.3)', cursor: 'pointer',
+                                background: user.isActive ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.15)',
+                                color: user.isActive ? '#f87171' : '#4ade80',
+                                border: `1px solid ${user.isActive ? 'rgba(239,68,68,0.3)' : 'rgba(34,197,94,0.3)'}`,
+                                cursor: 'pointer',
                               }}
                             >
                               {deactivateMutation.isPending ? '...' : 'Confirm'}
@@ -329,6 +493,15 @@ export default function UsersPage() {
                                   onEdit={() => { setEditUser(user); setActionsDropdownId(null); }}
                                   onPermissions={() => { setPermissionsUser(user); setActionsDropdownId(null); }}
                                   onDeactivate={() => { setDeactivatingId(user._id); setActionsDropdownId(null); }}
+                                  onActivate={() => {
+                                    activateUser(user._id).then(() => {
+                                      toast.success(`${user.name}'s account has been activated`);
+                                      queryClient.invalidateQueries({ queryKey: ['users'] });
+                                      queryClient.invalidateQueries({ queryKey: ['inactive-users'] });
+                                      queryClient.invalidateQueries({ queryKey: ['inactive-users-count'] });
+                                    }).catch(err => toast.error(err?.response?.data?.message || 'Activation failed'));
+                                    setActionsDropdownId(null);
+                                  }}
                                 />
                               )}
                             </div>
