@@ -1,4 +1,4 @@
-const { Driver, DriverLedger, DriverDocument, DriverHistory, VehicleAssignment, DriverProjectAssignment, Advance, AttendanceRecord, SalaryRun } = require('../models');
+const { Driver, DriverLedger, DriverDocument, DriverHistory, VehicleAssignment, DriverProjectAssignment, Advance, AttendanceRecord, SalaryRun, Client, Supplier, Project } = require('../models');
 const { PAGINATION } = require('../config/constants');
 const { evaluateAndTransition } = require('./driverStatusEngine.service');
 const { logEvent } = require('./driverHistory.service');
@@ -152,16 +152,42 @@ const update = async (id, data, userId, { isAdmin = false, canEditActive = false
     }
   }
 
+  // Reference fields that need ObjectId comparison and name resolution
+  const REFERENCE_FIELDS = {
+    clientId: Client,
+    supplierId: Supplier,
+    projectId: Project,
+  };
+
   // Detect changed fields before updating
   const changedFields = [];
   for (const field of TRACKED_FIELDS) {
     if (data[field] === undefined) continue;
     const oldVal = existing[field];
     const newVal = data[field];
-    const oldStr = formatFieldValue(oldVal);
-    const newStr = formatFieldValue(newVal);
-    if (oldStr !== newStr) {
+
+    if (REFERENCE_FIELDS[field]) {
+      // Compare by ObjectId for reference fields to avoid false changes
+      const oldId = oldVal ? String(oldVal._id || oldVal) : null;
+      const newId = newVal ? String(newVal) : null;
+      if (oldId === newId) continue;
+
+      // Resolve the new name from the database
+      const oldStr = formatFieldValue(oldVal);
+      let newStr;
+      if (newVal) {
+        const refDoc = await REFERENCE_FIELDS[field].findById(newVal).select('name').lean();
+        newStr = refDoc ? refDoc.name : String(newVal);
+      } else {
+        newStr = '(empty)';
+      }
       changedFields.push({ field, oldValue: oldStr, newValue: newStr });
+    } else {
+      const oldStr = formatFieldValue(oldVal);
+      const newStr = formatFieldValue(newVal);
+      if (oldStr !== newStr) {
+        changedFields.push({ field, oldValue: oldStr, newValue: newStr });
+      }
     }
   }
 
