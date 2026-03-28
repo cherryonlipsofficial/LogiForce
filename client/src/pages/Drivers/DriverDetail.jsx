@@ -18,6 +18,7 @@ import { getVehicle, getCurrentDriverVehicle, getDriverVehicleHistory } from '..
 import DriverStatusBanner from '../../components/drivers/DriverStatusBanner';
 import ChangeStatusModalNew from '../../components/drivers/ChangeStatusModal';
 import DriverHistoryTab from '../../components/drivers/DriverHistoryTab';
+import GuaranteePassportSection from '../../components/drivers/GuaranteePassportSection';
 import { useAuth } from '../../context/AuthContext';
 import { usePermission } from '../../hooks/usePermission';
 
@@ -345,6 +346,11 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
                 <span>{v}</span>
               </div>
             ))}
+
+            {/* Guarantee Passport Section */}
+            <div style={{ marginTop: 20 }}>
+              <GuaranteePassportSection driver={d} />
+            </div>
           </div>
         )}
 

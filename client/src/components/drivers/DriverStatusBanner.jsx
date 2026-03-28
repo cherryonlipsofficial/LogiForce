@@ -120,8 +120,28 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
             </div>
           ))}
         </div>
+        {/* Passport submission check */}
+        {!driver.isPassportSubmitted && (
+          <div style={{ display: 'flex', alignItems: 'center', fontSize: 12, marginBottom: 4 }}>
+            <CrossIcon />
+            <span>Passport — not submitted (scroll down to Passport Submission section)</span>
+          </div>
+        )}
+        {driver.isPassportSubmitted && (
+          <div style={{ display: 'flex', alignItems: 'center', fontSize: 12, color: '#4ade80', marginBottom: 4 }}>
+            <CheckIcon />
+            <span>Passport — {driver.passportSubmissionType === 'guarantee' ? 'guarantee passport on file' : 'own passport submitted'}</span>
+          </div>
+        )}
+        {driver.passportSubmissionType === 'guarantee' && driver.guaranteePassportValid === false && (
+          <div style={{ display: 'flex', alignItems: 'center', fontSize: 12, color: '#f87171', marginBottom: 4 }}>
+            <CrossIcon />
+            <span>Guarantee passport has expired or is not valid</span>
+          </div>
+        )}
+
         <div style={{ fontSize: 11, color: 'var(--text3)' }}>
-          Fill all Profile &amp; Employment fields and save to progress to Pending KYC.
+          Fill all Profile &amp; Employment fields, submit passport, and save to progress to Pending KYC.
         </div>
       </div>
     );
