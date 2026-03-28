@@ -22,13 +22,28 @@ const findAll = async (filters = {}, pagination = {}) => {
   if (filters.createdBy) {
     query.createdBy = filters.createdBy;
   }
+  if (filters.clientIdStatus === 'missing') {
+    if (!query.status) query.status = 'active';
+    if (!query.$and) query.$and = [];
+    query.$and.push({ $or: [{ clientUserId: { $exists: false } }, { clientUserId: null }, { clientUserId: '' }] });
+  } else if (filters.clientIdStatus === 'assigned') {
+    if (!query.$and) query.$and = [];
+    query.$and.push({ clientUserId: { $exists: true } });
+    query.$and.push({ clientUserId: { $ne: null } });
+    query.$and.push({ clientUserId: { $ne: '' } });
+  }
   if (filters.search) {
-    query.$or = [
+    const searchOr = [
       { fullName: { $regex: filters.search, $options: 'i' } },
       { employeeCode: { $regex: filters.search, $options: 'i' } },
       { emiratesId: { $regex: filters.search, $options: 'i' } },
       { passportNumber: { $regex: filters.search, $options: 'i' } },
     ];
+    if (query.$and) {
+      query.$and.push({ $or: searchOr });
+    } else {
+      query.$or = searchOr;
+    }
   }
 
   const [drivers, total] = await Promise.all([
@@ -284,14 +299,18 @@ const getExpiringDocuments = async (days = 30) => {
 };
 
 const getStatusCounts = async () => {
-  const [total, active, onLeave, suspended, resigned] = await Promise.all([
+  const [total, active, onLeave, suspended, resigned, pendingClientId] = await Promise.all([
     Driver.countDocuments({}),
     Driver.countDocuments({ status: 'active' }),
     Driver.countDocuments({ status: 'on_leave' }),
     Driver.countDocuments({ status: 'suspended' }),
     Driver.countDocuments({ status: 'resigned' }),
+    Driver.countDocuments({
+      status: 'active',
+      $or: [{ clientUserId: { $exists: false } }, { clientUserId: null }, { clientUserId: '' }],
+    }),
   ]);
-  return { total, active, onLeave, suspended, resigned };
+  return { total, active, onLeave, suspended, resigned, pendingClientId };
 };
 
 const bulkCreate = async (rows, userId) => {

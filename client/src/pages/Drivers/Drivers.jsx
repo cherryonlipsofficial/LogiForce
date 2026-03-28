@@ -37,7 +37,9 @@ const Drivers = () => {
   const [driverFilter, setDriverFilter] = useState(() => searchParams.get('search') || '');
   const [statusFilter, setStatusFilter] = useState('all');
   const [projectFilter, setProjectFilter] = useState('all');
+  const [clientIdFilter, setClientIdFilter] = useState('all');
   const [page, setPage] = useState(1);
+  const [dismissedClientIdAlert, setDismissedClientIdAlert] = useState(false);
 
   useEffect(() => {
     if (searchParams.has('search')) {
@@ -46,8 +48,8 @@ const Drivers = () => {
   }, []);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['drivers', { search, status: statusFilter, projectId: projectFilter, page }],
-    queryFn: () => getDrivers({ search, status: statusFilter !== 'all' ? statusFilter : undefined, projectId: projectFilter !== 'all' ? projectFilter : undefined, page, limit: 20 }),
+    queryKey: ['drivers', { search, status: statusFilter, projectId: projectFilter, clientIdStatus: clientIdFilter, page }],
+    queryFn: () => getDrivers({ search, status: statusFilter !== 'all' ? statusFilter : undefined, projectId: projectFilter !== 'all' ? projectFilter : undefined, clientIdStatus: clientIdFilter !== 'all' ? clientIdFilter : undefined, page, limit: 20 }),
     retry: 1,
     onError: () => toast.error('Failed to load drivers'),
   });
@@ -98,13 +100,57 @@ const Drivers = () => {
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* KPI row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 12 }}>
         <KpiCard label="Total drivers" value={(counts.total ?? 0).toLocaleString()} />
         <KpiCard label="Active" value={(counts.active ?? 0).toLocaleString()} color="#4ade80" />
         <KpiCard label="On leave" value={(counts.onLeave ?? 0).toLocaleString()} color="#7eb3fc" />
         <KpiCard label="Suspended" value={(counts.suspended ?? 0).toLocaleString()} color="#f87171" />
         <KpiCard label="Resigned" value={(counts.resigned ?? 0).toLocaleString()} color="#a1a1aa" />
+        <div
+          onClick={() => { setClientIdFilter('missing'); setStatusFilter('all'); setPage(1); setDismissedClientIdAlert(true); }}
+          style={{ cursor: 'pointer' }}
+          title="Click to filter drivers with missing Client User ID"
+        >
+          <KpiCard label="Pending client ID" value={(counts.pendingClientId ?? 0).toLocaleString()} color="#f59e0b" sub="Active drivers without ID" />
+        </div>
       </div>
+
+      {/* Pending Client ID alert banner */}
+      {(counts.pendingClientId > 0) && !dismissedClientIdAlert && clientIdFilter !== 'missing' && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 16px', borderRadius: 'var(--radius-lg)',
+          background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)',
+          fontSize: 13, color: '#f59e0b',
+        }}>
+          <span style={{ fontSize: 16 }}>&#9888;</span>
+          <span style={{ flex: 1 }}>
+            <strong>{counts.pendingClientId} active driver{counts.pendingClientId > 1 ? 's' : ''}</strong>{' '}
+            {counts.pendingClientId > 1 ? 'are' : 'is'} missing a Client User ID.
+            These drivers need their external client ID assigned.
+          </span>
+          <button
+            onClick={() => { setClientIdFilter('missing'); setStatusFilter('all'); setPage(1); setDismissedClientIdAlert(true); }}
+            style={{
+              padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+              background: '#f59e0b', color: '#fff', border: 'none', cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Review now
+          </button>
+          <button
+            onClick={() => setDismissedClientIdAlert(true)}
+            style={{
+              padding: '2px 6px', borderRadius: 4, fontSize: 14,
+              background: 'transparent', color: '#f59e0b', border: 'none',
+              cursor: 'pointer', lineHeight: 1,
+            }}
+          >
+            &#10005;
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       <div
@@ -156,6 +202,24 @@ const Drivers = () => {
               <option key={c._id} value={c._id}>{c.name}</option>
             ))}
           </select>
+          <select value={clientIdFilter} onChange={(e) => { setClientIdFilter(e.target.value); setPage(1); }} style={{ width: 170, height: 34 }}>
+            <option value="all">All client IDs</option>
+            <option value="missing">Missing client ID</option>
+            <option value="assigned">Client ID assigned</option>
+          </select>
+          {clientIdFilter !== 'all' && (
+            <button
+              onClick={() => { setClientIdFilter('all'); setPage(1); }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: '4px 10px', borderRadius: 20, fontSize: 11,
+                border: '1px solid #f59e0b', background: 'rgba(245,158,11,0.1)',
+                color: '#f59e0b', cursor: 'pointer', whiteSpace: 'nowrap',
+              }}
+            >
+              Client ID filter &#10005;
+            </button>
+          )}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
             <Btn small variant="ghost" onClick={handleExport}>Export</Btn>
             <PermissionGate permission="drivers.create">
