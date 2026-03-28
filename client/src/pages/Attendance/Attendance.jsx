@@ -141,7 +141,7 @@ const Attendance = () => {
             <table style={{ width: '100%' }}>
               <thead>
                 <tr>
-                  {['Batch', 'Project', 'Client', 'Period', 'File', 'Records', 'Errors', 'Status', 'Uploaded'].map((h) => (
+                  {['Batch', 'Project', 'Client', 'Period', 'Records', 'Errors', 'Status', 'Uploaded'].map((h) => (
                     <th key={h} style={{ padding: '9px 14px', fontSize: 11, color: 'var(--text3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'left', background: 'var(--surface2)' }}>
                       {h}
                     </th>
@@ -162,10 +162,9 @@ const Attendance = () => {
                       <td style={{ padding: '11px 14px' }}>
                         <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>{b.batchId || b._id}</span>
                       </td>
-                      <td style={{ padding: '11px 14px', fontSize: 12 }}>{b.projectCode || b.project}</td>
+                      <td style={{ padding: '11px 14px', fontSize: 12 }}>{b.project || b.projectCode}</td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{b.client}</td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{b.period}</td>
-                      <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--text3)' }}>{b.fileName}</td>
                       <td style={{ padding: '11px 14px' }}>
                         <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{b.totalRecords}</span>
                         <span style={{ fontSize: 10, color: 'var(--text3)', marginLeft: 4 }}>({b.validRecords} valid)</span>
@@ -228,6 +227,12 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
   const [respondModal, setRespondModal] = useState(null);
   const [invoiceModal, setInvoiceModal] = useState(null);
 
+  const { data: batchDetail } = useQuery({
+    queryKey: ['batch-detail', batch?._id],
+    queryFn: () => getBatch(batch._id).then(r => r.data),
+    enabled: !!batch?._id,
+  });
+
   const { data: approvalData } = useQuery({
     queryKey: ['batch-approvals', batch?._id],
     queryFn: () => getBatchApprovals(batch._id).then(r => r.data),
@@ -260,6 +265,7 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to delete batch'),
   });
 
+  const attendanceRecords = batchDetail?.records || [];
   const activeBatch = approvalData?.batch || { ...batch, approvals: approvalData?.approvals || batch.approvals };
   const currentUserRole = role || user?.roleId?.name || '';
   const st = statusMap[activeBatch.status || batch.status] || statusMap.pending_review;
@@ -272,7 +278,7 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
       <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontSize: 16, fontWeight: 500 }}>Batch {displayId}</div>
-          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{batch.projectCode || batch.project} &middot; {batch.client} &middot; {batch.period}</div>
+          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{batch.project || batch.projectCode} &middot; {batch.client} &middot; {batch.period}</div>
         </div>
         <button onClick={onClose} style={{ background: 'var(--surface3)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 8, padding: '4px 10px', fontSize: 16 }}>&times;</button>
       </div>
@@ -324,6 +330,48 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
           <InfoRow label="Uploaded by" value={batch.uploadedBy} />
           <InfoRow label="Upload date" value={formatDate(batch.uploadedAt)} />
         </div>
+
+        {attendanceRecords.length > 0 && (
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>Attendance records ({attendanceRecords.length})</div>
+            <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', maxHeight: 300, overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'left', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>Employee</th>
+                    <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'left', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>Name</th>
+                    <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'right', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>Days</th>
+                    <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'right', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>OT hrs</th>
+                    <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'left', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {attendanceRecords.map((rec) => (
+                    <tr key={rec._id}>
+                      <td style={{ padding: '7px 12px', fontSize: 12, fontFamily: 'var(--mono)', borderBottom: '1px solid var(--border)' }}>
+                        {rec.driverId?.employeeCode || rec.rawEmployeeCode || '—'}
+                      </td>
+                      <td style={{ padding: '7px 12px', fontSize: 12, borderBottom: '1px solid var(--border)' }}>
+                        {rec.driverId?.fullName || '—'}
+                      </td>
+                      <td style={{ padding: '7px 12px', fontSize: 12, fontFamily: 'var(--mono)', textAlign: 'right', borderBottom: '1px solid var(--border)' }}>
+                        {rec.workingDays}
+                      </td>
+                      <td style={{ padding: '7px 12px', fontSize: 12, fontFamily: 'var(--mono)', textAlign: 'right', borderBottom: '1px solid var(--border)' }}>
+                        {rec.overtimeHours || 0}
+                      </td>
+                      <td style={{ padding: '7px 12px', fontSize: 12, borderBottom: '1px solid var(--border)' }}>
+                        <Badge variant={rec.status === 'valid' ? 'success' : rec.status === 'warning' ? 'warning' : rec.status === 'overridden' ? 'info' : 'danger'}>
+                          {rec.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {batch.errors > 0 && (
           <div style={{ marginBottom: 24 }}>
