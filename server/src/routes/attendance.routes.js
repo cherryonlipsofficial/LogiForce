@@ -1,14 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
-const upload = require('../middleware/upload');
+const { attendanceUpload } = require('../middleware/upload');
 const attendanceService = require('../services/attendance.service');
 const {
   notifyAfterUpload, approveAttendance, raiseDispute,
   respondToDispute, getBatchWithApprovals,
 } = require('../services/attendanceApproval.service');
 const { generateInvoiceFromBatch } = require('../services/invoiceGeneration.service');
-const { AttendanceBatch, AttendanceRecord, AttendanceDispute } = require('../models');
+const { AttendanceBatch, AttendanceRecord, AttendanceDispute, Project } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
 const validate = require('../middleware/validate');
@@ -25,6 +25,7 @@ router.get('/batches', async (req, res) => {
 
   const query = {};
   if (req.query.clientId) query.clientId = req.query.clientId;
+  if (req.query.projectId) query.projectId = req.query.projectId;
   if (req.query.status) query.status = req.query.status;
   if (req.query.year) query['period.year'] = parseInt(req.query.year);
   if (req.query.month) query['period.month'] = parseInt(req.query.month);
@@ -32,6 +33,7 @@ router.get('/batches', async (req, res) => {
   const [batches, total] = await Promise.all([
     AttendanceBatch.find(query)
       .populate('clientId', 'name')
+      .populate('projectId', 'name projectCode')
       .populate('uploadedBy', 'name')
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -43,10 +45,15 @@ router.get('/batches', async (req, res) => {
 });
 
 // POST /api/attendance/upload — upload attendance file
-router.post('/upload', requirePermission('attendance.upload'), upload.single('file'), validate(uploadAttendanceValidation), async (req, res) => {
+router.post('/upload', requirePermission('attendance.upload'), attendanceUpload.single('file'), validate(uploadAttendanceValidation), async (req, res) => {
   if (!req.file) return sendError(res, 'No file uploaded', 400);
 
-  const { clientId, year, month, columnMapping } = req.body;
+  const { projectId, year, month, columnMapping } = req.body;
+
+  // Look up project to derive clientId
+  const project = await Project.findById(projectId).select('clientId');
+  if (!project) return sendError(res, 'Project not found', 404);
+  const clientId = project.clientId;
 
   let mapping;
   try {
@@ -68,6 +75,7 @@ router.post('/upload', requirePermission('attendance.upload'), upload.single('fi
   // Create batch record
   const batch = await AttendanceBatch.create({
     clientId,
+    projectId,
     period,
     status: 'uploaded',
     totalRows: stats.total,
@@ -96,6 +104,7 @@ router.post('/upload', requirePermission('attendance.upload'), upload.single('fi
       batchId: batch._id,
       driverId: r.driverId,
       clientId,
+      projectId,
       period,
       workingDays: r.workingDays,
       overtimeHours: r.overtimeHours,
@@ -118,6 +127,7 @@ router.post('/upload', requirePermission('attendance.upload'), upload.single('fi
 router.get('/batches/:id', async (req, res) => {
   const batch = await AttendanceBatch.findById(req.params.id)
     .populate('clientId', 'name')
+    .populate('projectId', 'name projectCode')
     .populate('uploadedBy', 'name')
     .populate('approvedBy', 'name');
 

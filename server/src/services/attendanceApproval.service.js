@@ -311,6 +311,7 @@ async function respondToDispute(disputeId, userId, message) {
 async function getBatchWithApprovals(batchId) {
   return AttendanceBatch.findById(batchId)
     .populate('clientId', 'name')
+    .populate('projectId', 'name projectCode')
     .populate('uploadedBy', 'name email')
     .populate('salesApproval.approvedBy', 'name')
     .populate('opsApproval.approvedBy', 'name')

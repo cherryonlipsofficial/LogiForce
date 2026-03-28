@@ -11,6 +11,11 @@ const attendanceBatchSchema = new mongoose.Schema(
       ref: 'Client',
       required: true,
     },
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Project',
+      required: true,
+    },
     period: {
       year: { type: Number, required: true },
       month: { type: Number, required: true },
@@ -136,19 +141,19 @@ const attendanceBatchSchema = new mongoose.Schema(
   }
 );
 
-// Auto-generate batchId: ATT-YYYY-MM-CLIENT
+// Auto-generate batchId: ATT-YYYY-MM-PROJECTCODE
 attendanceBatchSchema.pre('save', async function (next) {
   if (this.batchId) return next();
 
-  const Client = mongoose.model('Client');
-  const client = await Client.findById(this.clientId).select('name');
-  const clientTag = client
-    ? client.name.replace(/\s+/g, '_').toUpperCase().substring(0, 10)
+  const Project = mongoose.model('Project');
+  const project = await Project.findById(this.projectId).select('projectCode');
+  const projectTag = project
+    ? project.projectCode
     : 'UNKNOWN';
   const yyyy = String(this.period.year);
   const mm = String(this.period.month).padStart(2, '0');
 
-  this.batchId = `ATT-${yyyy}-${mm}-${clientTag}`;
+  this.batchId = `ATT-${yyyy}-${mm}-${projectTag}`;
   next();
 });
 

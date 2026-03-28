@@ -17,6 +17,11 @@ const attendanceRecordSchema = new mongoose.Schema(
       ref: 'Client',
       required: true,
     },
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Project',
+      required: true,
+    },
     period: {
       year: { type: Number },
       month: { type: Number },
