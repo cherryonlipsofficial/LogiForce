@@ -96,6 +96,12 @@ module.exports = {
 
 };
 
+// Legacy permission keys that were renamed — map old → new
+module.exports.LEGACY_KEY_MAP = {
+  'advances.issue':   'advances.approve',
+  'advances.recover': 'advances.manage_recovery',
+};
+
 // Standalone helpers — safe to destructure (no `this` dependency)
 module.exports.getByModule = () => {
   const grouped = {};
@@ -108,4 +114,11 @@ module.exports.getByModule = () => {
 
 module.exports.getAllKeys = () => {
   return Object.keys(module.exports.PERMISSIONS);
+};
+
+// Replace legacy permission keys with their current equivalents
+module.exports.migrateLegacyKeys = (keys) => {
+  const map = module.exports.LEGACY_KEY_MAP;
+  const migrated = keys.map(k => map[k] || k);
+  return [...new Set(migrated)];
 };
