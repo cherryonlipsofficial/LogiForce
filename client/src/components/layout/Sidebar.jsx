@@ -12,6 +12,7 @@ const mainNavItems = [
   { path: '/attendance', label: 'Attendance', icon: '◉', permission: 'attendance.view' },
   { path: '/salary', label: 'Salary runs', icon: '◎', permission: 'salary.view' },
   { path: '/invoices', label: 'Invoices', icon: '◳', permission: 'invoices.view' },
+  { path: '/advances', label: 'Advances', icon: '◎', permission: 'advances.view' },
   { path: '/clients', label: 'Clients', icon: '◐', permission: 'clients.view' },
   { path: '/projects', label: 'Projects', icon: '◪', permission: 'projects.view' },
   { path: '/suppliers', label: 'Suppliers', icon: '◑', permission: 'suppliers.view' },
