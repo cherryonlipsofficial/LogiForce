@@ -20,6 +20,7 @@ const VehicleAssignment = require('./VehicleAssignment');
 const GuaranteePassport = require('./GuaranteePassport');
 const AttendanceDispute = require('./AttendanceDispute');
 const AppNotification = require('./AppNotification');
+const DriverAdvance = require('./DriverAdvance');
 
 module.exports = {
   User,
@@ -44,4 +45,5 @@ module.exports = {
   GuaranteePassport,
   AttendanceDispute,
   AppNotification,
+  DriverAdvance,
 };

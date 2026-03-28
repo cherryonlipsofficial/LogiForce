@@ -1,48 +1,56 @@
 const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
 
-const invoiceSchema = new mongoose.Schema(
+const invoiceSchema = new Schema(
   {
     invoiceNo: {
       type: String,
       unique: true,
     },
+    projectId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Project',
+      required: true,
+      index: true,
+    },
     clientId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: 'Client',
       required: true,
+      index: true,
     },
-    // Link back to the attendance batch that generated this invoice
     attendanceBatchId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: 'AttendanceBatch',
-      default: null,
+      required: true,
     },
     period: {
-      year: { type: Number },
-      month: { type: Number },
+      year: { type: Number, required: true },
+      month: { type: Number, required: true },
     },
-    // Legacy flat lineItems — kept for backward compatibility with existing invoices
+    // Line items — one row per driver
     lineItems: [
       {
-        driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'Driver' },
-        employeeCode: { type: String },
+        driverId: { type: Schema.Types.ObjectId, ref: 'Driver' },
         driverName: { type: String },
+        employeeCode: { type: String },
         workingDays: { type: Number },
-        ratePerDay: { type: Number },
-        amount: { type: Number },
+        ratePerDriver: { type: Number }, // from project contract
+        dailyRate: { type: Number }, // ratePerDriver / 26
+        amount: { type: Number }, // dailyRate * workingDays
       },
     ],
-    // New: project-grouped line items
+    // Legacy: project-grouped line items (kept for backward compat with existing invoices)
     projectGroups: [
       {
-        projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project' },
+        projectId: { type: Schema.Types.ObjectId, ref: 'Project' },
         projectName: { type: String },
         projectCode: { type: String },
         ratePerDriver: { type: Number },
         dailyRate: { type: Number },
         drivers: [
           {
-            driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'Driver' },
+            driverId: { type: Schema.Types.ObjectId, ref: 'Driver' },
             driverName: { type: String },
             employeeCode: { type: String },
             workingDays: { type: Number },
@@ -60,6 +68,7 @@ const invoiceSchema = new mongoose.Schema(
     },
     subtotal: {
       type: Number,
+      required: true,
     },
     vatRate: {
       type: Number,
@@ -67,9 +76,11 @@ const invoiceSchema = new mongoose.Schema(
     },
     vatAmount: {
       type: Number,
+      required: true,
     },
     total: {
       type: Number,
+      required: true,
     },
     status: {
       type: String,
@@ -78,6 +89,7 @@ const invoiceSchema = new mongoose.Schema(
     },
     issuedDate: {
       type: Date,
+      default: Date.now,
     },
     dueDate: {
       type: Date,
@@ -89,12 +101,12 @@ const invoiceSchema = new mongoose.Schema(
       {
         amount: { type: Number },
         reason: { type: String },
-        driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'Driver' },
+        driverId: { type: Schema.Types.ObjectId, ref: 'Driver' },
         createdAt: { type: Date, default: Date.now },
       },
     ],
     createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: 'User',
     },
   },

@@ -9,7 +9,11 @@ const attendanceDisputeSchema = new Schema(
       required: true,
       index: true,
     },
-
+    projectId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Project',
+      required: true,
+    },
     clientId: {
       type: Schema.Types.ObjectId,
       ref: 'Client',
