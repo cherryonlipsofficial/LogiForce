@@ -27,6 +27,7 @@ import GuaranteePassports from './pages/GuaranteePassports';
 import ExpiredDocuments from './pages/ExpiredDocuments';
 import ProfilePage from './pages/Profile';
 import NotificationsPage from './pages/Notifications';
+import Advances from './pages/Advances/Advances';
 import NotFound from './pages/NotFound';
 
 const queryClient = new QueryClient();
@@ -55,6 +56,7 @@ const RouterContent = () => (
         <Route path="/attendance" element={<ProtectedPage permission="attendance.view"><Attendance /></ProtectedPage>} />
         <Route path="/salary" element={<ProtectedPage permission="salary.view"><Salary /></ProtectedPage>} />
         <Route path="/invoices" element={<ProtectedPage permission="invoices.view"><Invoices /></ProtectedPage>} />
+        <Route path="/advances" element={<ProtectedPage permission="advances.view"><Advances /></ProtectedPage>} />
         <Route path="/clients" element={<ProtectedPage permission="clients.view"><Clients /></ProtectedPage>} />
         <Route path="/projects" element={<ProtectedPage permission="projects.view"><Projects /></ProtectedPage>} />
         <Route path="/suppliers" element={<ProtectedPage permission="suppliers.view"><Suppliers /></ProtectedPage>} />

@@ -17,6 +17,7 @@ const pageTitles = {
   attendance: 'Attendance processing',
   salary: 'Salary runs',
   invoices: 'Invoice management',
+  advances: 'Advance management',
   clients: 'Client management',
   suppliers: 'Supplier management',
   reports: 'Reports & analytics',

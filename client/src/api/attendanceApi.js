@@ -34,3 +34,9 @@ export const respondToDispute = (disputeId, message) =>
 
 export const generateInvoice = (batchId) =>
   axiosInstance.post(`/attendance/batches/${batchId}/generate-invoice`).then(r => r.data);
+
+export const runSalary = (batchId) =>
+  axiosInstance.post(`/attendance/batches/${batchId}/run-salary`).then(r => r.data);
+
+export const getSalaryRuns = (batchId) =>
+  axiosInstance.get(`/attendance/batches/${batchId}/salary-runs`).then(r => r.data);
