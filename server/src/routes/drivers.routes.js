@@ -25,6 +25,109 @@ router.get('/expiring-documents', async (req, res) => {
   sendSuccess(res, docs);
 });
 
+// GET /api/drivers/expired-documents — drivers with expired documents, filterable by docType
+router.get('/expired-documents', requirePermission('drivers.view'), async (req, res) => {
+  try {
+    const docType = req.query.docType || 'all'; // all, emirates_id, passport, visa, labour_card, driving_licence, mulkiya, guarantee_passport
+    const now = new Date();
+    const results = [];
+
+    // 1) Check Driver model expiry fields
+    const expiryFields = {
+      emirates_id: 'emiratesIdExpiry',
+      passport: 'passportExpiry',
+      visa: 'visaExpiry',
+      labour_card: 'labourCardExpiry',
+      driving_licence: 'drivingLicenceExpiry',
+      mulkiya: 'mulkiyaExpiry',
+    };
+
+    const fieldsToCheck = docType === 'all' || docType === 'guarantee_passport'
+      ? Object.entries(expiryFields)
+      : Object.entries(expiryFields).filter(([key]) => key === docType);
+
+    if (docType !== 'guarantee_passport' && fieldsToCheck.length > 0) {
+      for (const [docKey, fieldName] of fieldsToCheck) {
+        const query = { [fieldName]: { $lt: now, $ne: null }, status: { $nin: ['offboarded', 'resigned'] } };
+        const drivers = await Driver.find(query)
+          .select(`fullName employeeCode ${fieldName} status clientId projectId`)
+          .populate('clientId', 'name')
+          .populate('projectId', 'name')
+          .lean();
+
+        for (const d of drivers) {
+          const expiryDate = d[fieldName];
+          const daysOverdue = Math.ceil((now - new Date(expiryDate)) / (1000 * 60 * 60 * 24));
+          results.push({
+            driverId: d._id,
+            driverName: d.fullName,
+            employeeCode: d.employeeCode,
+            driverStatus: d.status,
+            clientName: d.clientId?.name || null,
+            projectName: d.projectId?.name || null,
+            docType: docKey,
+            expiryDate,
+            daysOverdue,
+          });
+        }
+      }
+    }
+
+    // 2) Check GuaranteePassport model
+    if (docType === 'all' || docType === 'guarantee_passport') {
+      const { GuaranteePassport } = require('../models');
+      const expiredGuarantees = await GuaranteePassport.find({
+        $or: [
+          { status: 'expired' },
+          { status: { $in: ['active', 'extended'] }, expiryDate: { $lt: now } },
+        ],
+      })
+        .populate('driverId', 'fullName employeeCode status clientId projectId')
+        .lean({ virtuals: true });
+
+      // Populate nested refs
+      await Driver.populate(expiredGuarantees, {
+        path: 'driverId.clientId',
+        select: 'name',
+        model: 'Client',
+      });
+      await Driver.populate(expiredGuarantees, {
+        path: 'driverId.projectId',
+        select: 'name',
+        model: 'Project',
+      });
+
+      for (const g of expiredGuarantees) {
+        const driver = g.driverId || {};
+        const expiryDate = g.expiryDate;
+        const daysOverdue = Math.ceil((now - new Date(expiryDate)) / (1000 * 60 * 60 * 24));
+        results.push({
+          driverId: driver._id,
+          driverName: driver.fullName,
+          employeeCode: driver.employeeCode,
+          driverStatus: driver.status,
+          clientName: driver.clientId?.name || null,
+          projectName: driver.projectId?.name || null,
+          docType: 'guarantee_passport',
+          expiryDate,
+          daysOverdue,
+          guaranteeId: g._id,
+          guarantorName: g.guarantorName,
+          guarantorRelation: g.guarantorRelation,
+          guaranteeStatus: g.status,
+        });
+      }
+    }
+
+    // Sort by most overdue first
+    results.sort((a, b) => b.daysOverdue - a.daysOverdue);
+
+    sendSuccess(res, results);
+  } catch (err) {
+    sendError(res, err.message || 'Failed to fetch expired documents', 500);
+  }
+});
+
 // GET /api/drivers/uploads/:fileKey — serve file from MongoDB
 router.get('/uploads/:fileKey', async (req, res) => {
   try {

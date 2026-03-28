@@ -199,7 +199,7 @@ const GuaranteeExtensions = () => {
 
   const { data: expiring, isLoading: expiringLoading } = useQuery({
     queryKey: ['expiring-guarantees-30'],
-    queryFn: () => getExpiringGuarantees(30).then(r => r.data?.data || r.data || []),
+    queryFn: () => getExpiringGuarantees(30, true).then(r => r.data?.data || r.data || []),
     refetchInterval: 5 * 60 * 1000,
   });
 

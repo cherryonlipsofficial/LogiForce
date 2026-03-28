@@ -114,10 +114,20 @@ router.get(
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() + days);
 
-    const expiring = await GuaranteePassport.find({
-      status: { $in: ['active', 'extended'] },
-      expiryDate: { $lte: cutoff, $gte: new Date() },
-    })
+    const includeExpired = req.query.includeExpired === 'true';
+    const filter = includeExpired
+      ? {
+          $or: [
+            { status: { $in: ['active', 'extended'] }, expiryDate: { $lte: cutoff } },
+            { status: 'expired' },
+          ],
+        }
+      : {
+          status: { $in: ['active', 'extended'] },
+          expiryDate: { $lte: cutoff, $gte: new Date() },
+        };
+
+    const expiring = await GuaranteePassport.find(filter)
       .populate('driverId', 'fullName employeeCode')
       .sort({ expiryDate: 1 })
       .lean({ virtuals: true });
