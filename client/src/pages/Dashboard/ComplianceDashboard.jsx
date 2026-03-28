@@ -165,7 +165,7 @@ const ComplianceDashboard = () => {
       header: 'Driver',
       accessor: 'fullName',
       sortable: true,
-      render: (row) => (
+      render: (_val, row) => (
         <div>
           <div style={{ fontWeight: 500, fontSize: 13 }}>{row.fullName}</div>
           <div style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>
@@ -178,7 +178,7 @@ const ComplianceDashboard = () => {
       header: 'Docs uploaded',
       accessor: '_docCount',
       sortable: true,
-      render: (row) => (
+      render: (_val, row) => (
         <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>
           {row._docCount ?? '—'}
         </span>
@@ -187,7 +187,7 @@ const ComplianceDashboard = () => {
     {
       header: 'Missing docs',
       accessor: '_missingDocs',
-      render: (row) => {
+      render: (_val, row) => {
         const missing = row._missingDocs || [];
         if (missing.length === 0) return <span style={{ fontSize: 12, color: 'var(--text3)' }}>None</span>;
         return (
@@ -204,7 +204,7 @@ const ComplianceDashboard = () => {
     {
       header: 'Status',
       accessor: '_readyStatus',
-      render: (row) => {
+      render: (_val, row) => {
         const ready = !row._missingDocs || row._missingDocs.length === 0;
         return ready ? (
           <Badge variant="success">Ready to activate</Badge>
