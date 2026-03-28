@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import axiosInstance from '../../api/axiosInstance';
 import Modal from '../ui/Modal';
 import Btn from '../ui/Btn';
+import PermissionGate from '../ui/PermissionGate';
 
 const pageTitles = {
   dashboard: 'Finance overview',
@@ -358,20 +359,22 @@ const Topbar = ({ page }) => {
               {alertCount} {alertCount === 1 ? 'alert' : 'alerts'}
             </button>
           )}
-          <button
-            style={{
-              background:
-                'linear-gradient(135deg,var(--accent),var(--accent2))',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 8,
-              padding: '7px 16px',
-              fontSize: 12,
-              fontWeight: 500,
-            }}
-          >
-            + Run payroll
-          </button>
+          <PermissionGate permission="salary.run">
+            <button
+              style={{
+                background:
+                  'linear-gradient(135deg,var(--accent),var(--accent2))',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 8,
+                padding: '7px 16px',
+                fontSize: 12,
+                fontWeight: 500,
+              }}
+            >
+              + Run payroll
+            </button>
+          </PermissionGate>
 
           {/* User avatar dropdown trigger */}
           <div ref={menuRef} style={{ position: 'relative' }}>
