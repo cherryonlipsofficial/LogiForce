@@ -108,7 +108,7 @@ const GuaranteePassportSection = ({ driver }) => {
             <span style={{ color: '#f87171', fontWeight: 700, fontSize: 14 }}>&#10007;</span>
             <span>Passport not yet submitted. Required to advance beyond Draft status.</span>
           </div>
-          <PermissionGate permission="drivers.edit">
+          <PermissionGate permission="drivers.manage_passport">
             <div style={{ display: 'flex', gap: 8 }}>
               <Btn
                 variant="primary"
@@ -180,7 +180,7 @@ const GuaranteePassportSection = ({ driver }) => {
           )}
 
           {/* Actions */}
-          <PermissionGate permission="drivers.edit">
+          <PermissionGate permission="drivers.manage_passport">
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
               {!activeGuarantee.extensionRequest?.status || activeGuarantee.extensionRequest?.status !== 'pending' ? (
                 <Btn variant="ghost" small onClick={() => setShowExtensionForm(true)}>Request extension</Btn>
@@ -194,7 +194,7 @@ const GuaranteePassportSection = ({ driver }) => {
 
       {/* Record guarantee even if passport already submitted as own — allow switching */}
       {passportSubmitted && passportType === 'own' && (
-        <PermissionGate permission="drivers.edit">
+        <PermissionGate permission="drivers.manage_passport">
           <div style={{ marginBottom: 14 }}>
             <Btn variant="ghost" small onClick={() => setShowGuaranteeForm(true)}>
               Switch to guarantee passport
