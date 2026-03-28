@@ -42,6 +42,13 @@ const userSchema = new mongoose.Schema(
     lastLogin: {
       type: Date,
     },
+    preferences: {
+      initialsColor: {
+        type: String,
+        enum: ['blue', 'teal', 'purple', 'amber', 'coral', 'pink'],
+        default: 'blue',
+      },
+    },
   },
   {
     timestamps: true,

@@ -21,6 +21,7 @@ const pageTitles = {
   settings: 'Settings',
   users: 'Settings',
   roles: 'Settings',
+  profile: 'Your profile',
 };
 
 /* ── My Permissions Modal ── */
@@ -440,7 +441,7 @@ const Topbar = ({ page }) => {
                 <div style={{ padding: '4px' }}>
                   <MenuButton
                     label="Your profile"
-                    onClick={() => { setMenuOpen(false); }}
+                    onClick={() => { setMenuOpen(false); navigate('/profile'); }}
                   />
                   <MenuButton
                     label="My permissions"
