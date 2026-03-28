@@ -67,7 +67,7 @@ const PassportSubmissionModal = ({ driverId, currentData, onClose, onSuccess, fo
   const handleGuaranteeSubmit = (formData) => {
     guaranteeMutation.mutate({
       guarantorName: formData.guarantorName,
-      relation: formData.relation,
+      guarantorRelation: formData.relation,
       guarantorPhone: formData.guarantorPhone || undefined,
       employeeCode: formData.employeeCode || undefined,
       guarantorPassportNumber: formData.guarantorPassportNumber,

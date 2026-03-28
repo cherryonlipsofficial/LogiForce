@@ -97,7 +97,7 @@ const PassportSubmissionField = ({ driverId, value, onChange, readOnly, onAction
             </button>
           </div>
         ) : (
-          <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -111,6 +111,19 @@ const PassportSubmissionField = ({ driverId, value, onChange, readOnly, onAction
             }}>
               Guarantee passport
             </span>
+            <button
+              onClick={() => setShowModal(true)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--text3)',
+                cursor: 'pointer',
+                fontSize: 11,
+                textDecoration: 'underline',
+              }}
+            >
+              Change
+            </button>
           </div>
         )}
 
