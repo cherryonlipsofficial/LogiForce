@@ -40,6 +40,8 @@ const GuaranteePassportCard = ({ driverId, guarantee, onActionComplete }) => {
       toast.success('Guarantee passport marked as returned');
       queryClient.invalidateQueries({ queryKey: ['driver-guarantee', driverId] });
       queryClient.invalidateQueries({ queryKey: ['driver', driverId] });
+      queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      queryClient.invalidateQueries({ queryKey: ['driver-status-summary', driverId] });
       onActionComplete?.();
     },
     onError: (err) => toast.error(err?.response?.data?.message || 'Failed to return passport'),
