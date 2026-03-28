@@ -4,6 +4,7 @@ const { protect, requirePermission } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const attendanceService = require('../services/attendance.service');
 const { AttendanceBatch, AttendanceRecord } = require('../models');
+const { notifyAfterUpload } = require('../services/attendanceApproval.service');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
 const validate = require('../middleware/validate');
@@ -64,13 +65,14 @@ router.post('/upload', requirePermission('attendance.upload'), upload.single('fi
   const batch = await AttendanceBatch.create({
     clientId,
     period,
-    status: 'pending_approval',
+    status: 'uploaded',
     totalRows: stats.total,
     matchedRows: stats.matched,
     warningRows: stats.warnings,
     errorRows: stats.errors,
     unmatchedRows: stats.unmatched,
     uploadedBy: req.user._id,
+    uploadedByName: req.user.name,
     columnMapping: mapping,
     s3Key: req.file.filename,
     validationErrors: rows
@@ -101,6 +103,9 @@ router.post('/upload', requirePermission('attendance.upload'), upload.single('fi
   if (records.length > 0) {
     await AttendanceRecord.insertMany(records);
   }
+
+  // Send notifications to Sales and Ops for review
+  await notifyAfterUpload(batch._id, req.user._id);
 
   sendSuccess(res, { batch, stats }, 'Attendance file uploaded and processed', 201);
 });
