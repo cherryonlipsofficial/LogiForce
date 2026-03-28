@@ -1,32 +1,9 @@
-const { Invoice, SalaryRun, Client, Driver, DriverLedger, Project } = require('../models');
+const { Invoice, SalaryRun, Client, Driver, DriverLedger, Project, AttendanceBatch, AttendanceRecord, DriverProjectAssignment } = require('../models');
 
-const generateInvoice = async (clientId, year, month, createdBy) => {
-  // 1. Check no invoice already exists for this client/period
-  const existing = await Invoice.findOne({
-    clientId,
-    'period.year': year,
-    'period.month': month,
-  });
-  if (existing) {
-    const err = new Error(`Invoice already exists for this client/period: ${existing.invoiceNo}`);
-    err.statusCode = 409;
-    throw err;
-  }
+const STANDARD_DAYS = 26;
+const VAT_RATE = 0.05;
 
-  // 2. Fetch all approved salary runs for this client/period
-  const salaryRuns = await SalaryRun.find({
-    clientId,
-    'period.year': year,
-    'period.month': month,
-    status: 'approved',
-  }).populate('driverId', 'employeeCode fullName');
-
-  if (salaryRuns.length === 0) {
-    const err = new Error('No approved salary runs found for this client/period');
-    err.statusCode = 400;
-    throw err;
-  }
-
+const generateInvoice = async (clientId, year, month, createdBy, { projectId, attendanceBatchIds } = {}) => {
   // Fetch client for fallback rate and payment terms
   const client = await Client.findById(clientId);
   if (!client) {
@@ -37,9 +14,50 @@ const generateInvoice = async (clientId, year, month, createdBy) => {
 
   const fallbackRate = client.ratePerDriver || 0;
 
+  // If attendanceBatchIds are provided, generate from attendance batches
+  if (attendanceBatchIds && attendanceBatchIds.length > 0) {
+    return generateFromAttendanceBatches(client, year, month, createdBy, projectId, attendanceBatchIds);
+  }
+
+  // Legacy flow: generate from salary runs
+  // 1. Check no invoice already exists for this client/period/project
+  const existingQuery = {
+    clientId,
+    'period.year': year,
+    'period.month': month,
+  };
+  if (projectId) {
+    existingQuery['projectGroups.projectId'] = projectId;
+  }
+  const existing = await Invoice.findOne(existingQuery);
+  if (existing) {
+    const err = new Error(`Invoice already exists for this client/period: ${existing.invoiceNo}`);
+    err.statusCode = 409;
+    throw err;
+  }
+
+  // 2. Fetch all approved salary runs for this client/period
+  const salaryQuery = {
+    clientId,
+    'period.year': year,
+    'period.month': month,
+    status: 'approved',
+  };
+  if (projectId) {
+    salaryQuery.projectId = projectId;
+  }
+
+  const salaryRuns = await SalaryRun.find(salaryQuery).populate('driverId', 'employeeCode fullName');
+
+  if (salaryRuns.length === 0) {
+    const err = new Error('No approved salary runs found for this client/period');
+    err.statusCode = 400;
+    throw err;
+  }
+
   // 3. Group salary runs by projectId
-  const grouped = {};          // projectId.toString() -> { runs, projectDoc }
-  const unassignedRuns = [];   // runs without a project
+  const grouped = {};
+  const unassignedRuns = [];
 
   for (const run of salaryRuns) {
     if (run.projectId) {
@@ -71,9 +89,8 @@ const generateInvoice = async (clientId, year, month, createdBy) => {
     const runs = group.runs;
 
     const drivers = runs.map((run) => {
-      // Use the rate snapshot stored on the salary run, else project rate, else client fallback
       const monthlyRate = run.projectRatePerDriver || proj.ratePerDriver || fallbackRate;
-      const ratePerDay = monthlyRate / 26;
+      const ratePerDay = monthlyRate / STANDARD_DAYS;
       return {
         driverId: run.driverId._id,
         employeeCode: run.driverId.employeeCode,
@@ -97,10 +114,9 @@ const generateInvoice = async (clientId, year, month, createdBy) => {
     });
   }
 
-  // Handle unassigned drivers (no project) — group under a "No project" section
   if (unassignedRuns.length > 0) {
     const drivers = unassignedRuns.map((run) => {
-      const ratePerDay = fallbackRate / 26;
+      const ratePerDay = fallbackRate / STANDARD_DAYS;
       return {
         driverId: run.driverId._id,
         employeeCode: run.driverId.employeeCode,
@@ -124,22 +140,17 @@ const generateInvoice = async (clientId, year, month, createdBy) => {
     });
   }
 
-  // 5. Build flat lineItems for backward compatibility
   const lineItems = projectGroups.flatMap((g) => g.drivers);
 
-  // 6. Calculate totals
   const subtotal = projectGroups.reduce((sum, g) => sum + g.subtotal, 0);
-  const vatRate = 0.05;
-  const vatAmount = Math.round(subtotal * vatRate * 100) / 100;
+  const vatAmount = Math.round(subtotal * VAT_RATE * 100) / 100;
   const total = Math.round((subtotal + vatAmount) * 100) / 100;
 
-  // 7. Dates
   const issuedDate = new Date();
   const paymentDays = parseInt(client.paymentTerms?.replace(/\D/g, '')) || 30;
   const dueDate = new Date(issuedDate);
   dueDate.setDate(dueDate.getDate() + paymentDays);
 
-  // 8. Create Invoice
   const invoice = await Invoice.create({
     clientId,
     period: { year, month },
@@ -147,7 +158,7 @@ const generateInvoice = async (clientId, year, month, createdBy) => {
     projectGroups,
     driverCount: lineItems.length,
     subtotal,
-    vatRate,
+    vatRate: VAT_RATE,
     vatAmount,
     total,
     status: 'draft',
@@ -155,6 +166,153 @@ const generateInvoice = async (clientId, year, month, createdBy) => {
     dueDate,
     createdBy,
   });
+
+  return invoice;
+};
+
+/**
+ * Generate invoice from selected attendance batches.
+ */
+const generateFromAttendanceBatches = async (client, year, month, createdBy, projectId, attendanceBatchIds) => {
+  // Validate all batches exist and are fully_approved
+  const batches = await AttendanceBatch.find({
+    _id: { $in: attendanceBatchIds },
+    clientId: client._id,
+    status: 'fully_approved',
+    invoiceId: null,
+  });
+
+  if (batches.length !== attendanceBatchIds.length) {
+    const err = new Error('Some attendance batches are invalid, already invoiced, or not fully approved');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Fetch attendance records from selected batches
+  const recordQuery = { batchId: { $in: attendanceBatchIds } };
+  if (projectId) {
+    recordQuery.projectId = projectId;
+  }
+
+  const records = await AttendanceRecord.find(recordQuery)
+    .populate({
+      path: 'driverId',
+      select: 'fullName employeeCode',
+    })
+    .populate({
+      path: 'projectId',
+      select: 'name projectCode ratePerDriver',
+    })
+    .lean();
+
+  if (!records.length) {
+    const err = new Error('No attendance records found for the selected batches');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Group records by project
+  const projectMap = {};
+
+  for (const record of records) {
+    const driver = record.driverId;
+    const project = record.projectId;
+
+    if (!project) continue;
+
+    const projKey = project._id.toString();
+    if (!projectMap[projKey]) {
+      projectMap[projKey] = {
+        projectId: project._id,
+        projectName: project.name,
+        projectCode: project.projectCode,
+        ratePerDriver: project.ratePerDriver || 0,
+        dailyRate: 0,
+        drivers: [],
+        driverCount: 0,
+        subtotal: 0,
+      };
+    }
+
+    let ratePerDriver = project.ratePerDriver || client.ratePerDriver || 0;
+
+    const activeAssignment = await DriverProjectAssignment.findOne({
+      driverId: driver._id,
+      projectId: project._id,
+      status: 'active',
+    }).select('ratePerDriver');
+
+    if (activeAssignment?.ratePerDriver) {
+      ratePerDriver = activeAssignment.ratePerDriver;
+    }
+
+    const dailyRate = ratePerDriver / STANDARD_DAYS;
+    const amount = parseFloat((dailyRate * record.workingDays).toFixed(2));
+
+    projectMap[projKey].ratePerDriver = ratePerDriver;
+    projectMap[projKey].dailyRate = parseFloat(dailyRate.toFixed(4));
+    projectMap[projKey].drivers.push({
+      driverId: driver._id,
+      driverName: driver.fullName,
+      employeeCode: driver.employeeCode,
+      workingDays: record.workingDays,
+      overtimeHours: record.overtimeHours || 0,
+      ratePerDay: parseFloat(dailyRate.toFixed(2)),
+      amount,
+    });
+    projectMap[projKey].subtotal += amount;
+  }
+
+  const projectGroups = Object.values(projectMap).map((pg) => ({
+    ...pg,
+    driverCount: pg.drivers.length,
+    subtotal: parseFloat(pg.subtotal.toFixed(2)),
+  }));
+
+  if (!projectGroups.length) {
+    const err = new Error('No valid project data found. Ensure drivers are assigned to projects.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const lineItems = projectGroups.flatMap((g) => g.drivers);
+  const subtotal = parseFloat(projectGroups.reduce((sum, pg) => sum + pg.subtotal, 0).toFixed(2));
+  const vatAmount = parseFloat((subtotal * VAT_RATE).toFixed(2));
+  const total = parseFloat((subtotal + vatAmount).toFixed(2));
+
+  const issuedDate = new Date();
+  const paymentDays = parseInt(client.paymentTerms?.replace(/\D/g, '')) || 30;
+  const dueDate = new Date(issuedDate);
+  dueDate.setDate(dueDate.getDate() + paymentDays);
+
+  const invoice = await Invoice.create({
+    clientId: client._id,
+    period: { year, month },
+    lineItems,
+    projectGroups,
+    driverCount: lineItems.length,
+    subtotal,
+    vatRate: VAT_RATE,
+    vatAmount,
+    total,
+    status: 'draft',
+    issuedDate,
+    dueDate,
+    createdBy,
+  });
+
+  // Mark all selected batches as invoiced
+  await AttendanceBatch.updateMany(
+    { _id: { $in: attendanceBatchIds } },
+    {
+      $set: {
+        status: 'invoiced',
+        invoiceId: invoice._id,
+        invoicedAt: new Date(),
+        invoicedBy: createdBy,
+      },
+    }
+  );
 
   return invoice;
 };

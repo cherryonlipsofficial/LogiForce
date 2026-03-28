@@ -17,3 +17,6 @@ export const addCreditNote = (id, data) =>
 
 export const downloadPdf = (id) =>
   axiosInstance.get(`/invoices/${id}/pdf`, { responseType: 'blob' }).then(r => r.data);
+
+export const getApprovedBatches = (params) =>
+  axiosInstance.get('/invoices/approved-batches', { params }).then(r => r.data);
