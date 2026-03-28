@@ -75,6 +75,7 @@ const Drivers = () => {
         status: statusFilter !== 'all' ? statusFilter : undefined,
         projectId: projectFilter !== 'all' ? projectFilter : undefined,
         search: search || undefined,
+        clientIdStatus: clientIdFilter !== 'all' ? clientIdFilter : undefined,
       };
       const response = await exportDriversCsv(params);
       const blob = new Blob([response.data], { type: 'text/csv' });

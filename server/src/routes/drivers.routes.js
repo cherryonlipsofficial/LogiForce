@@ -190,9 +190,9 @@ router.get('/history/summary', requirePermission('drivers.view'), async (req, re
 
 // GET /api/drivers/export — export drivers as CSV
 router.get('/export', async (req, res) => {
-  const { status, clientId, projectId, search } = req.query;
+  const { status, clientId, projectId, search, clientIdStatus } = req.query;
   const result = await driverService.findAll(
-    { status, clientId, projectId, search },
+    { status, clientId, projectId, search, clientIdStatus },
     { page: 1, limit: 10000 }
   );
   const drivers = result.drivers;
