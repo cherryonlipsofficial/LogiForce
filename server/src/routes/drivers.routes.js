@@ -224,6 +224,16 @@ router.get('/bulk-import/template', async (req, res) => {
   res.send(buf);
 });
 
+// GET /api/drivers/my — list drivers created by the current user
+router.get('/my', requirePermission('drivers.view'), async (req, res) => {
+  const { status, page, limit } = req.query;
+  const result = await driverService.findAll(
+    { status, createdBy: req.user._id },
+    { page, limit }
+  );
+  sendPaginated(res, result.drivers, result.total, result.page, result.limit);
+});
+
 // GET /api/drivers — list with pagination, search, filter
 router.get('/', async (req, res) => {
   const { status, clientId, projectId, search, page, limit } = req.query;

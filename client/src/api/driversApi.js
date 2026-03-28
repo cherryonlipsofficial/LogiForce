@@ -73,3 +73,6 @@ export const getStatusSummary = (driverId) =>
 
 export const getDriverHistory = (driverId, page = 1) =>
   axiosInstance.get(`/drivers/${driverId}/history`, { params: { page, limit: 30 } }).then(r => r.data);
+
+export const getMyDrivers = (params) =>
+  axiosInstance.get('/drivers/my', { params }).then(r => r.data);
