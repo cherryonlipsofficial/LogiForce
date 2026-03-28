@@ -19,13 +19,17 @@ const attendanceBatchSchema = new mongoose.Schema(
       type: String,
       enum: [
         'uploaded',
-        'validating',
-        'pending_approval',
-        'approved',
-        'processed',
+        'pending_review',
+        'sales_approved',
+        'ops_approved',
+        'fully_approved',
+        'disputed',
+        'dispute_responded',
+        'invoiced',
         'rejected',
       ],
       default: 'uploaded',
+      index: true,
     },
     totalRows: {
       type: Number,
@@ -46,6 +50,58 @@ const attendanceBatchSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
     },
+    uploadedByName: { type: String },
+
+    // Sales team approval record
+    salesApproval: {
+      status: {
+        type: String,
+        enum: ['pending', 'approved', 'disputed'],
+        default: 'pending',
+      },
+      approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      approvedByName: { type: String },
+      approvedAt: { type: Date },
+      notes: { type: String },
+    },
+
+    // Operations team approval record
+    opsApproval: {
+      status: {
+        type: String,
+        enum: ['pending', 'approved', 'disputed'],
+        default: 'pending',
+      },
+      approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      approvedByName: { type: String },
+      approvedAt: { type: Date },
+      notes: { type: String },
+    },
+
+    // Notification tracking
+    notificationSentAt: { type: Date },
+    notifiedUsers: [
+      {
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        name: { type: String },
+        role: { type: String },
+        sentAt: { type: Date },
+      },
+    ],
+
+    // Invoice reference once generated
+    invoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice', default: null },
+    invoicedAt: { type: Date },
+    invoicedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+
+    // Disputes array — full history of all disputes on this batch
+    disputes: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'AttendanceDispute',
+      },
+    ],
+
     approvedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
