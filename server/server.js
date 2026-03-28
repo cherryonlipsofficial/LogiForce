@@ -12,8 +12,9 @@ const errorHandler = require('./src/middleware/errorHandler');
 
 const app = express();
 
-// Connect to MongoDB
-connectDB();
+// Connect to MongoDB (awaited via IIFE so routes don't run before DB is ready)
+let dbReady = false;
+const dbPromise = connectDB().then(() => { dbReady = true; });
 
 // Middleware
 app.use(cors({
@@ -36,6 +37,12 @@ if (process.env.NODE_ENV === 'production') {
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Wait for DB before handling requests
+app.use(async (req, res, next) => {
+  if (!dbReady) await dbPromise;
+  next();
+});
 
 // Routes
 app.use('/api/auth', require('./src/routes/auth.routes'));
