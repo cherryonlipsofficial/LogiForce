@@ -306,6 +306,14 @@ router.post('/bulk-import', requirePermission('drivers.create'), (req, res, next
       emergencycontactphone: 'emergencyContactPhone', emergency_contact_phone: 'emergencyContactPhone', 'emergency contact phone': 'emergencyContactPhone',
       emergencycontactrelation: 'emergencyContactRelation', emergency_contact_relation: 'emergencyContactRelation', 'emergency contact relation': 'emergencyContactRelation',
       clientname: 'clientName', client_name: 'clientName', 'client name': 'clientName',
+      visanumber: 'visaNumber', visa_number: 'visaNumber', 'visa number': 'visaNumber',
+      passportsubmissiontype: 'passportSubmissionType', passport_submission_type: 'passportSubmissionType', 'passport submission type': 'passportSubmissionType', passportsubmission: 'passportSubmissionType', passport_submission: 'passportSubmissionType', 'passport submission': 'passportSubmissionType',
+      guarantorname: 'guarantorName', guarantor_name: 'guarantorName', 'guarantor name': 'guarantorName',
+      guarantorrelation: 'guarantorRelation', guarantor_relation: 'guarantorRelation', 'guarantor relation': 'guarantorRelation',
+      guarantorphone: 'guarantorPhone', guarantor_phone: 'guarantorPhone', 'guarantor phone': 'guarantorPhone',
+      guarantoremployeecode: 'guarantorEmployeeCode', guarantor_employee_code: 'guarantorEmployeeCode', 'guarantor employee code': 'guarantorEmployeeCode',
+      guarantorpassportnumber: 'guarantorPassportNumber', guarantor_passport_number: 'guarantorPassportNumber', 'guarantor passport number': 'guarantorPassportNumber',
+      guarantorpassportexpiry: 'guarantorPassportExpiry', guarantor_passport_expiry: 'guarantorPassportExpiry', 'guarantor passport expiry': 'guarantorPassportExpiry',
     };
     rows = rows.map(row => {
       const normalized = {};
@@ -335,7 +343,7 @@ router.post('/bulk-import', requirePermission('drivers.create'), (req, res, next
 // GET /api/drivers/bulk-import/template — download XLSX template
 router.get('/bulk-import/template', async (req, res) => {
   const XLSX = require('xlsx');
-  const headers = ['employeeCode', 'fullName', 'nationality', 'phoneUae', 'emiratesId', 'passportNumber', 'passportExpiry', 'dateOfBirth', 'email', 'bankName', 'iban', 'homeCountryPhone', 'emergencyContactName', 'emergencyContactPhone', 'emergencyContactRelation', 'joinDate', 'baseSalary', 'payStructure', 'clientName', 'project'];
+  const headers = ['employeeCode', 'fullName', 'nationality', 'phoneUae', 'emiratesId', 'passportNumber', 'passportExpiry', 'dateOfBirth', 'email', 'bankName', 'iban', 'homeCountryPhone', 'emergencyContactName', 'emergencyContactPhone', 'emergencyContactRelation', 'joinDate', 'baseSalary', 'payStructure', 'clientName', 'project', 'passportSubmissionType', 'guarantorName', 'guarantorRelation', 'guarantorPhone', 'guarantorEmployeeCode', 'guarantorPassportNumber', 'guarantorPassportExpiry'];
 
   const ws = XLSX.utils.aoa_to_sheet([headers]);
 
