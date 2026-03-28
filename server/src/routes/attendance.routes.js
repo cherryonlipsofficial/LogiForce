@@ -3,8 +3,12 @@ const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const attendanceService = require('../services/attendance.service');
-const { AttendanceBatch, AttendanceRecord } = require('../models');
-const { notifyAfterUpload } = require('../services/attendanceApproval.service');
+const {
+  notifyAfterUpload, approveAttendance, raiseDispute,
+  respondToDispute, getBatchWithApprovals,
+} = require('../services/attendanceApproval.service');
+const { generateInvoiceFromBatch } = require('../services/invoiceGeneration.service');
+const { AttendanceBatch, AttendanceRecord, AttendanceDispute } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
 const validate = require('../middleware/validate');
@@ -125,32 +129,6 @@ router.get('/batches/:id', async (req, res) => {
   sendSuccess(res, { batch, records });
 });
 
-// PUT /api/attendance/batches/:id/approve — approve batch
-router.put('/batches/:id/approve', requirePermission('attendance.approve'), async (req, res) => {
-  const batch = await AttendanceBatch.findById(req.params.id);
-  if (!batch) return sendError(res, 'Batch not found', 404);
-
-  if (batch.status !== 'pending_approval') {
-    return sendError(res, `Cannot approve batch in ${batch.status} status`, 400);
-  }
-
-  // Prevent approval if batch has unresolved validation errors
-  if (batch.errorRows > 0 || (batch.validationErrors && batch.validationErrors.length > 0)) {
-    return sendError(
-      res,
-      `Cannot approve batch with ${batch.errorRows || batch.validationErrors.length} validation error(s). Please resolve all errors before approving.`,
-      400
-    );
-  }
-
-  batch.status = 'approved';
-  batch.approvedBy = req.user._id;
-  batch.approvedAt = new Date();
-  await batch.save();
-
-  sendSuccess(res, batch, 'Batch approved');
-});
-
 // PUT /api/attendance/batches/:id/reject — reject batch
 router.put('/batches/:id/reject', requirePermission('attendance.approve'), async (req, res) => {
   const batch = await AttendanceBatch.findById(req.params.id);
@@ -214,6 +192,98 @@ router.put('/records/:id/override', requirePermission('attendance.override'), va
   await record.save();
 
   sendSuccess(res, record, 'Record overridden');
+});
+
+// POST /api/attendance/batches/:id/approve — Sales or Ops approves a batch
+router.post('/batches/:id/approve', requirePermission('attendance.approve'), async (req, res) => {
+  const result = await approveAttendance(
+    req.params.id,
+    req.user._id,
+    req.body.notes
+  );
+  res.json({
+    success: true,
+    message: result.status === 'fully_approved'
+      ? 'Attendance fully approved by both teams. Invoice can now be generated.'
+      : `Attendance approved. Waiting for ${
+          result.salesApproval.status !== 'approved' ? 'Sales' : 'Operations'
+        } team approval.`,
+    data: result,
+  });
+});
+
+// POST /api/attendance/batches/:id/dispute — Sales or Ops raises a dispute
+router.post('/batches/:id/dispute', requirePermission('attendance.dispute'), async (req, res) => {
+  if (!req.body.reason || req.body.reason.length < 10) {
+    return res.status(400).json({
+      success: false,
+      message: 'Dispute reason must be at least 10 characters',
+    });
+  }
+  if (!req.body.disputeType) {
+    return res.status(400).json({
+      success: false,
+      message: 'Dispute type is required',
+    });
+  }
+
+  const result = await raiseDispute(
+    req.params.id,
+    req.user._id,
+    req.body
+  );
+  res.json({
+    success: true,
+    message: 'Dispute raised. Accounts team has been notified.',
+    data: result,
+  });
+});
+
+// POST /api/attendance/disputes/:id/respond — Accounts responds to an open dispute
+router.post('/disputes/:id/respond', requirePermission('attendance.respond_dispute'), async (req, res) => {
+  if (!req.body.message || req.body.message.length < 10) {
+    return res.status(400).json({
+      success: false,
+      message: 'Response message must be at least 10 characters',
+    });
+  }
+
+  const result = await respondToDispute(
+    req.params.id,
+    req.user._id,
+    req.body.message
+  );
+  res.json({
+    success: true,
+    message: 'Response submitted. Reviewer has been notified to re-check.',
+    data: result,
+  });
+});
+
+// GET /api/attendance/batches/:id/approvals — get batch with approval details
+router.get('/batches/:id/approvals', requirePermission('attendance.view'), async (req, res) => {
+  const batch = await getBatchWithApprovals(req.params.id);
+  if (!batch) return res.status(404).json({ message: 'Batch not found' });
+  res.json({ success: true, data: batch });
+});
+
+// GET /api/attendance/batches/:id/disputes — list disputes for a batch
+router.get('/batches/:id/disputes', requirePermission('attendance.view'), async (req, res) => {
+  const disputes = await AttendanceDispute.find({ batchId: req.params.id })
+    .populate('raisedBy', 'name')
+    .populate('response.respondedBy', 'name')
+    .sort({ createdAt: -1 });
+  res.json({ success: true, data: disputes });
+});
+
+// POST /api/attendance/batches/:id/generate-invoice — generate invoice from approved batch
+router.post('/batches/:id/generate-invoice', requirePermission('invoices.generate'), async (req, res) => {
+  const result = await generateInvoiceFromBatch(req.params.id, req.user._id);
+  res.status(201).json({
+    success: true,
+    message: `Invoice ${result.invoice.invoiceNo} generated successfully`,
+    data: result,
+  });
 });
 
 module.exports = router;
