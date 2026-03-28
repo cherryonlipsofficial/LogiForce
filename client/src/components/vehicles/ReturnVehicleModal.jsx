@@ -5,6 +5,7 @@ import Modal from '../ui/Modal';
 import Btn from '../ui/Btn';
 import Avatar from '../ui/Avatar';
 import { returnVehicle } from '../../api/vehiclesApi';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const getInitials = (name) =>
   (name || '')
@@ -22,6 +23,7 @@ const conditionOptions = [
 ];
 
 const ReturnVehicleModal = ({ assignment, vehicle, onClose, onSuccess }) => {
+  const { isMobile } = useBreakpoint();
   const queryClient = useQueryClient();
 
   const {
@@ -125,7 +127,7 @@ const ReturnVehicleModal = ({ assignment, vehicle, onClose, onSuccess }) => {
             control={control}
             rules={{ required: 'Please select a condition' }}
             render={({ field }) => (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8 }}>
                 {conditionOptions.map((opt) => {
                   const selected = field.value === opt.value;
                   return (

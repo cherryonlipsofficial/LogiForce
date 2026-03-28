@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { getProfile, updateProfile, changePassword, updatePreferences } from '../api/authApi';
 import PasswordStrengthBar from '../components/settings/PasswordStrengthBar';
+import { useBreakpoint } from '../hooks/useBreakpoint';
 
 const AVATAR_COLORS = [
   { name: 'blue', bg: 'rgba(79,142,247,0.15)', border: 'rgba(79,142,247,0.35)', text: '#4f8ef7' },
@@ -70,6 +71,7 @@ function formatRelativeTime(dateStr) {
 }
 
 const Profile = () => {
+  const { isMobile } = useBreakpoint();
   const { updateUser } = useAuth();
   const queryClient = useQueryClient();
 
@@ -158,7 +160,7 @@ const Profile = () => {
       />
 
       {/* Two column layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Section 2: Personal information */}
           <PersonalInfoForm profile={profile} updateUser={updateUser} queryClient={queryClient} />

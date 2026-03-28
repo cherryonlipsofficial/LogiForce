@@ -20,6 +20,7 @@ import ApproveModal from '../../components/attendance/ApproveModal';
 import DisputeModal from '../../components/attendance/DisputeModal';
 import DisputeResponseModal from '../../components/attendance/DisputeResponseModal';
 import InvoicePreviewModal from '../../components/attendance/InvoicePreviewModal';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const fallbackBatches = [
   { _id: 'ATT-001', client: 'Amazon UAE', project: 'Last Mile Delivery', projectCode: 'PRJ-00001', period: 'Mar 2026', uploadedBy: 'Sara Ali', uploadedAt: '2026-03-20T10:30:00Z', status: 'pending_review', totalRecords: 342, validRecords: 338, errors: 4, fileName: 'amazon_mar2026.csv' },
@@ -87,6 +88,7 @@ const ApprovalDots = ({ batch }) => {
 };
 
 const Attendance = () => {
+  const { isMobile, isTablet } = useBreakpoint();
   const { hasPermission } = useAuth();
   const [showUpload, setShowUpload] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState(null);
@@ -110,7 +112,7 @@ const Attendance = () => {
 
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : isTablet ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 12 }}>
         <KpiCard label="Total batches" value={batches.length} />
         <KpiCard label="Total records" value={totalRecords.toLocaleString()} />
         <KpiCard label="Pending review" value={pendingCount} color="#fbbf24" />
@@ -118,8 +120,8 @@ const Attendance = () => {
       </div>
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-          <select value={clientFilter} onChange={(e) => { setClientFilter(e.target.value); setPage(1); }} style={{ width: 180, height: 34 }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
+          <select value={clientFilter} onChange={(e) => { setClientFilter(e.target.value); setPage(1); }} style={{ width: isMobile ? '100%' : 180, height: 34 }}>
             <option value="all">All clients</option>
             <option value="Amazon UAE">Amazon UAE</option>
             <option value="Noon">Noon</option>
@@ -219,6 +221,7 @@ const ISSUE_LABELS = {
 };
 
 const BatchDetail = ({ batch, onClose, hasPermission }) => {
+  const { isMobile } = useBreakpoint();
   const { user, role } = useAuth();
   const qc = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -332,7 +335,7 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 24 }}>
           <InfoRow label="File" value={batch.fileName} />
           <InfoRow label="Status" value={<Badge variant={st.variant}>{st.label}</Badge>} />
           <InfoRow label="Total records" value={batch.totalRecords} />
@@ -492,6 +495,7 @@ const downloadTemplate = () => {
 };
 
 const UploadModal = ({ onClose }) => {
+  const { isMobile } = useBreakpoint();
   const fileRef = useRef(null);
   const [projectId, setProjectId] = useState('');
   const now = new Date();
@@ -589,7 +593,7 @@ const UploadModal = ({ onClose }) => {
           <label style={labelStyle}>Project *</label>
           <ProjectSelect value={projectId} onChange={setProjectId} />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Year *</label>
             <input type="number" value={year} onChange={(e) => setYear(e.target.value)} />

@@ -7,6 +7,7 @@ import Btn from '../components/ui/Btn';
 import Badge from '../components/ui/Badge';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import EmptyState from '../components/ui/EmptyState';
+import { useBreakpoint } from '../hooks/useBreakpoint';
 
 /* ── helpers ── */
 const slugify = (str) =>
@@ -502,6 +503,7 @@ const inputStyle = {
    MAIN ROLES PAGE
    ══════════════════════════════════════════ */
 export default function RolesPage() {
+  const { isMobile, isTablet } = useBreakpoint();
   const qc = useQueryClient();
 
   // Data fetching
@@ -659,10 +661,10 @@ export default function RolesPage() {
   const canDelete = selectedRole && !selectedRole.isSystemRole && userCount === 0;
 
   return (
-    <div className="page-enter" style={{ display: 'flex', gap: 0, height: 'calc(100vh - var(--topbar-h) - 32px)' }}>
+    <div className="page-enter" style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 0, height: isMobile ? 'auto' : 'calc(100vh - var(--topbar-h) - 32px)' }}>
       {/* ──── LEFT COLUMN: Role list ──── */}
       <div style={{
-        width: 260, flexShrink: 0, background: 'var(--surface)',
+        width: isMobile ? '100%' : 260, flexShrink: 0, background: 'var(--surface)',
         border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)',
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
       }}>
@@ -728,7 +730,7 @@ export default function RolesPage() {
 
       {/* ──── RIGHT COLUMN: Permission matrix ──── */}
       <div style={{
-        flex: 1, marginLeft: 16, display: 'flex', flexDirection: 'column',
+        flex: 1, marginLeft: isMobile ? 0 : 16, marginTop: isMobile ? 16 : 0, display: 'flex', flexDirection: 'column',
         background: 'var(--surface)', border: '1px solid var(--border)',
         borderRadius: 'var(--radius-lg)', overflow: 'hidden', position: 'relative',
       }}>

@@ -15,6 +15,7 @@ import ProjectSelect from '../../components/ui/ProjectSelect';
 import { getInvoices, generateInvoice, updateStatus, addCreditNote, downloadPdf, getApprovedBatches } from '../../api/invoicesApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
 import Pagination from '../../components/ui/Pagination';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const fallbackInvoices = [
   { _id: 'INV-2026-001', client: 'Amazon UAE', period: 'Mar 2026', amount: 892400, status: 'draft', issueDate: '2026-03-21T00:00:00Z', dueDate: '2026-04-20T00:00:00Z', driverCount: 342, creditNotes: [] },
@@ -34,6 +35,7 @@ const statusMap = {
 };
 
 const Invoices = () => {
+  const { isMobile, isTablet } = useBreakpoint();
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showGenerate, setShowGenerate] = useState(false);
@@ -55,7 +57,7 @@ const Invoices = () => {
 
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : isTablet ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 12 }}>
         <KpiCard label="Total invoices" value={invoices.length} />
         <KpiCard label="Outstanding" value={formatCurrencyFull(totalOutstanding)} color="#fbbf24" />
         <KpiCard label="Collected" value={formatCurrencyFull(totalPaid)} color="#4ade80" />
@@ -63,7 +65,7 @@ const Invoices = () => {
       </div>
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)', flexDirection: isMobile ? 'column' : 'row' }}>
           <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} style={{ width: 180, height: 34 }}>
             <option value="all">All statuses</option>
             <option value="draft">Draft</option>
@@ -147,6 +149,7 @@ const Invoices = () => {
 };
 
 const InvoiceDetail = ({ invoice, onClose }) => {
+  const { isMobile } = useBreakpoint();
   const qc = useQueryClient();
   const [showCreditNote, setShowCreditNote] = useState(false);
   const st = statusMap[invoice.status] || statusMap.draft;
@@ -185,7 +188,7 @@ const InvoiceDetail = ({ invoice, onClose }) => {
         <button onClick={onClose} style={{ background: 'var(--surface3)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 8, padding: '4px 10px', fontSize: 16 }}>&times;</button>
       </div>
       <div style={{ padding: 24, overflowY: 'auto', flex: 1 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 24 }}>
           <InfoRow label="Amount" value={<span style={{ fontSize: 18, fontWeight: 600 }}>{formatCurrencyFull(invoice.amount)}</span>} />
           <InfoRow label="Status" value={<Badge variant={st.variant}>{st.label}</Badge>} />
           <InfoRow label="Issue date" value={formatDate(invoice.issueDate)} />
@@ -285,6 +288,7 @@ const CreditNoteModal = ({ invoiceId, onClose }) => {
 };
 
 const GenerateInvoiceModal = ({ onClose }) => {
+  const { isMobile } = useBreakpoint();
   const [clientId, setClientId] = useState('');
   const [projectId, setProjectId] = useState('');
   const now = new Date();
@@ -372,7 +376,7 @@ const GenerateInvoiceModal = ({ onClose }) => {
           <label style={labelStyle}>Project</label>
           <ProjectSelect value={projectId} onChange={handleProjectChange} clientId={clientId} />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Year *</label>
             <input type="number" value={year} onChange={(e) => handlePeriodChange('year', e.target.value)} />

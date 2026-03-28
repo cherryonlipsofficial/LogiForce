@@ -6,6 +6,7 @@ import Badge from '../components/ui/Badge';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import { getExpiredDocuments } from '../api/driversApi';
 import { useNavigate } from 'react-router-dom';
+import { useBreakpoint } from '../hooks/useBreakpoint';
 
 const DOC_TYPE_OPTIONS = [
   { value: 'all', label: 'All documents' },
@@ -34,6 +35,7 @@ const formatDate = (d) => {
 };
 
 const ExpiredDocuments = () => {
+  const { isMobile } = useBreakpoint();
   const [docType, setDocType] = useState('all');
   const navigate = useNavigate();
 
@@ -63,7 +65,7 @@ const ExpiredDocuments = () => {
       </div>
 
       {/* Filter row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', flexDirection: isMobile ? 'column' : 'row' }}>
         <label style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 500 }}>Filter by document:</label>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {DOC_TYPE_OPTIONS.map((opt) => (

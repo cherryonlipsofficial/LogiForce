@@ -1,10 +1,16 @@
-const PageHeader = ({ title, subtitle, action }) => (
+import { useBreakpoint } from '../../hooks/useBreakpoint';
+
+const PageHeader = ({ title, subtitle, action }) => {
+  const { isMobile } = useBreakpoint();
+  return (
   <div
     style={{
       display: 'flex',
-      alignItems: 'center',
+      flexDirection: isMobile ? 'column' : 'row',
+      alignItems: isMobile ? 'flex-start' : 'center',
       justifyContent: 'space-between',
       marginBottom: 20,
+      gap: isMobile ? 10 : 0,
     }}
   >
     <div>
@@ -15,8 +21,9 @@ const PageHeader = ({ title, subtitle, action }) => (
         <div style={{ fontSize: 12, color: 'var(--text3)' }}>{subtitle}</div>
       )}
     </div>
-    {action && <div>{action}</div>}
+    {action && <div style={isMobile ? { width: '100%' } : undefined}>{action}</div>}
   </div>
-);
+  );
+};
 
 export default PageHeader;

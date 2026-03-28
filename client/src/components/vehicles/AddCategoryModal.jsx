@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import Modal from '../ui/Modal';
 import Btn from '../ui/Btn';
 import { createCategory } from '../../api/vehiclesApi';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const labelStyle = {
   fontSize: 12,
@@ -30,6 +31,7 @@ const fuelOptions = ['Petrol', 'Diesel', 'Electric', 'Hybrid'];
 const transmissionOptions = ['Manual', 'Automatic', 'CVT'];
 
 const AddCategoryModal = ({ supplierId, supplierName, onClose, onSuccess }) => {
+  const { isMobile } = useBreakpoint();
   const [showSpecs, setShowSpecs] = useState(false);
   const qc = useQueryClient();
 
@@ -109,7 +111,7 @@ const AddCategoryModal = ({ supplierId, supplierName, onClose, onSuccess }) => {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
+            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
             gap: 14,
           }}
         >
@@ -139,7 +141,7 @@ const AddCategoryModal = ({ supplierId, supplierName, onClose, onSuccess }) => {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
+            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
             gap: 14,
           }}
         >
@@ -195,7 +197,7 @@ const AddCategoryModal = ({ supplierId, supplierName, onClose, onSuccess }) => {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
+                  gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
                   gap: 14,
                 }}
               >

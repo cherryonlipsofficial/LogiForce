@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import Modal from '../ui/Modal';
 import Btn from '../ui/Btn';
 import { raiseBatchDispute } from '../../api/attendanceApi';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const DISPUTE_TYPES = [
   { value: 'incorrect_days', label: 'Incorrect working days' },
@@ -14,6 +15,7 @@ const DISPUTE_TYPES = [
 ];
 
 const DisputeModal = ({ batch, onClose, onSuccess }) => {
+  const { isMobile } = useBreakpoint();
   const [disputeType, setDisputeType] = useState('');
   const [reason, setReason] = useState('');
   const [driverCodes, setDriverCodes] = useState('');
@@ -58,7 +60,7 @@ const DisputeModal = ({ batch, onClose, onSuccess }) => {
 
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8 }}>Dispute type *</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8 }}>
           {DISPUTE_TYPES.map(dt => (
             <div
               key={dt.value}

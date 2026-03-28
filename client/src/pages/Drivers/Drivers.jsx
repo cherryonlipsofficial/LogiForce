@@ -16,6 +16,7 @@ import DriverDetail from './DriverDetail';
 import { getDrivers, createDriver, getDriverStatusCounts, exportDriversCsv, bulkImportDrivers, downloadImportTemplate } from '../../api/driversApi';
 import PassportSubmissionField from '../../components/drivers/PassportSubmissionField';
 import { getProjects } from '../../api/projectsApi';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const fallbackDrivers = [
   { id: 'DRV-00814', name: 'Mohamed Al Farsi', nationality: 'Emirati', client: 'Amazon UAE', supplier: 'Own vehicle', status: 'active', baseSalary: 2800, netSalary: 2313, advanceBalance: 500, workingDays: 22, overtimeHrs: 4.5, grossSalary: 2800, deductions: 487, joinDate: '03 Mar 2023', visaExpiry: '15 Apr 2026', emiratesId: '784-1985-1234567-1', phone: '+971 55 123 4567', vehicle: 'AB-12345', payStructure: 'Monthly fixed' },
@@ -29,6 +30,7 @@ const fallbackDrivers = [
 ];
 
 const Drivers = () => {
+  const { isMobile, isTablet } = useBreakpoint();
   const [searchParams, setSearchParams] = useSearchParams();
   const [selected, setSelected] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -101,7 +103,7 @@ const Drivers = () => {
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* KPI row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : isTablet ? 'repeat(3,1fr)' : 'repeat(6,1fr)', gap: 12 }}>
         <KpiCard label="Total drivers" value={(counts.total ?? 0).toLocaleString()} />
         <KpiCard label="Active" value={(counts.active ?? 0).toLocaleString()} color="#4ade80" />
         <KpiCard label="On leave" value={(counts.onLeave ?? 0).toLocaleString()} color="#7eb3fc" />
@@ -165,7 +167,8 @@ const Drivers = () => {
         <div
           style={{
             display: 'flex',
-            alignItems: 'center',
+            flexDirection: isMobile ? 'column' : 'row',
+            alignItems: isMobile ? 'stretch' : 'center',
             gap: 10,
             padding: '14px 18px',
             borderBottom: '1px solid var(--border)',
@@ -175,7 +178,7 @@ const Drivers = () => {
             value={search}
             onChange={(e) => { setSearch(e.target.value); setDriverFilter(''); setPage(1); }}
             placeholder="Search by name or ID..."
-            style={{ width: 240, height: 34 }}
+            style={{ width: isMobile ? '100%' : 240, height: 34 }}
           />
           {driverFilter && (
             <button
@@ -190,20 +193,20 @@ const Drivers = () => {
               Filtered driver ✕
             </button>
           )}
-          <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} style={{ width: 160, height: 34 }}>
+          <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} style={{ width: isMobile ? '100%' : 160, height: 34 }}>
             <option value="all">All statuses</option>
             <option value="active">Active</option>
             <option value="on_leave">On leave</option>
             <option value="suspended">Suspended</option>
             <option value="resigned">Resigned</option>
           </select>
-          <select value={projectFilter} onChange={(e) => { setProjectFilter(e.target.value); setPage(1); }} style={{ width: 160, height: 34 }}>
+          <select value={projectFilter} onChange={(e) => { setProjectFilter(e.target.value); setPage(1); }} style={{ width: isMobile ? '100%' : 160, height: 34 }}>
             <option value="all">All projects</option>
             {projectsList.map((c) => (
               <option key={c._id} value={c._id}>{c.name}</option>
             ))}
           </select>
-          <select value={clientIdFilter} onChange={(e) => { setClientIdFilter(e.target.value); setPage(1); }} style={{ width: 170, height: 34 }}>
+          <select value={clientIdFilter} onChange={(e) => { setClientIdFilter(e.target.value); setPage(1); }} style={{ width: isMobile ? '100%' : 170, height: 34 }}>
             <option value="all">All client IDs</option>
             <option value="missing">Missing client ID</option>
             <option value="assigned">Client ID assigned</option>
@@ -374,7 +377,7 @@ const AddDriverModal = ({ onClose }) => {
         <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 10, padding: '6px 10px', background: 'rgba(79,142,247,0.06)', borderRadius: 6 }}>
           Fill all fields to auto-progress to Pending KYC. Partial saves will be saved as Draft.
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
           <div style={fieldStyle}>
             <label style={labelStyle}>Full name</label>
             <input

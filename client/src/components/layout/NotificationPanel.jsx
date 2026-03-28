@@ -48,13 +48,26 @@ const SkeletonRow = () => (
   </div>
 );
 
-const NotificationPanel = ({ notifications, isLoading, unreadCount, onClose, onMarkAllRead, onMarkRead }) => {
+const NotificationPanel = ({ notifications, isLoading, unreadCount, onClose, onMarkAllRead, onMarkRead, isMobile }) => {
   const navigate = useNavigate();
 
-  return (
-    <div
-      className="notif-panel-container"
-      style={{
+  const panelStyle = isMobile
+    ? {
+        position: 'fixed',
+        inset: 0,
+        top: 'var(--topbar-h)',
+        width: '100%',
+        maxHeight: 'none',
+        background: 'var(--surface)',
+        border: 'none',
+        borderTop: '1px solid var(--border2)',
+        borderRadius: 0,
+        overflow: 'hidden',
+        zIndex: 200,
+        boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+        animation: 'fadeIn .12s ease',
+      }
+    : {
         position: 'absolute',
         top: 'calc(100% + 8px)',
         right: 0,
@@ -67,7 +80,12 @@ const NotificationPanel = ({ notifications, isLoading, unreadCount, onClose, onM
         zIndex: 200,
         boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
         animation: 'fadeIn .12s ease',
-      }}
+      };
+
+  return (
+    <div
+      className="notif-panel-container"
+      style={panelStyle}
     >
       {/* Header */}
       <div style={{
@@ -78,25 +96,44 @@ const NotificationPanel = ({ notifications, isLoading, unreadCount, onClose, onM
         justifyContent: 'space-between',
       }}>
         <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>Notifications</span>
-        {unreadCount > 0 && (
-          <button
-            onClick={onMarkAllRead}
-            style={{
-              background: 'none',
-              border: 'none',
-              fontSize: 11,
-              color: 'var(--accent)',
-              cursor: 'pointer',
-              padding: '2px 4px',
-            }}
-          >
-            Mark all read
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {unreadCount > 0 && (
+            <button
+              onClick={onMarkAllRead}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: 11,
+                color: 'var(--accent)',
+                cursor: 'pointer',
+                padding: '2px 4px',
+                minHeight: 'auto',
+              }}
+            >
+              Mark all read
+            </button>
+          )}
+          {isMobile && (
+            <button
+              onClick={onClose}
+              style={{
+                background: 'var(--surface3)',
+                border: '1px solid var(--border2)',
+                color: 'var(--text2)',
+                borderRadius: 8,
+                padding: '4px 10px',
+                fontSize: 16,
+                minHeight: 'auto',
+              }}
+            >
+              &times;
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Body */}
-      <div style={{ overflowY: 'auto', maxHeight: 380 }}>
+      <div style={{ overflowY: 'auto', maxHeight: isMobile ? 'calc(100vh - var(--topbar-h) - 100px)' : 380 }}>
         {isLoading ? (
           <>
             <SkeletonRow />
@@ -211,6 +248,7 @@ const NotificationPanel = ({ notifications, isLoading, unreadCount, onClose, onM
             fontSize: 12,
             color: 'var(--accent)',
             cursor: 'pointer',
+            minHeight: 'auto',
           }}
         >
           View all notifications →

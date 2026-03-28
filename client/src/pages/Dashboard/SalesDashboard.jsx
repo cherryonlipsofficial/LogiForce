@@ -20,6 +20,7 @@ import { getMyDrivers } from '../../api/driversApi';
 import { getProjects } from '../../api/projectsApi';
 import { getClients } from '../../api/clientsApi';
 import { useAuth } from '../../context/AuthContext';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const tooltipStyle = {
   contentStyle: {
@@ -32,6 +33,7 @@ const tooltipStyle = {
 };
 
 const SalesDashboard = () => {
+  const { isMobile, isTablet } = useBreakpoint();
   const { user } = useAuth();
 
   // Fetch all drivers created by the current user (up to 500 for client-side aggregation)
@@ -152,7 +154,7 @@ const SalesDashboard = () => {
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* KPI row */}
       <PermissionGate anyOf={['drivers.view', 'clients.view', 'projects.view']}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : isTablet ? 'repeat(3,1fr)' : 'repeat(5,1fr)', gap: 12 }}>
           <KpiCard
             label="Drivers added this month"
             value={String(driversThisMonth.length)}
@@ -189,20 +191,24 @@ const SalesDashboard = () => {
       <PermissionGate permission="drivers.view">
         <Card>
           <SectionHeader title="Driver additions — last 6 months" />
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={chartData} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="month" tick={{ fill: 'var(--text3)', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: 'var(--text3)', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <Tooltip {...tooltipStyle} />
-              <Bar dataKey="count" name="Drivers added" fill="#4f8ef7" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <div style={{ overflowX: 'auto' }}>
+            <div style={{ minWidth: 500 }}>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={chartData} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="month" tick={{ fill: 'var(--text3)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: 'var(--text3)', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip {...tooltipStyle} />
+                  <Bar dataKey="count" name="Drivers added" fill="#4f8ef7" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </Card>
       </PermissionGate>
 
       {/* Bottom row — submissions table + open slots */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : isTablet ? '1fr' : '1.6fr 1fr', gap: 16 }}>
         {/* My recent submissions */}
         <PermissionGate permission="drivers.view">
           <Card>

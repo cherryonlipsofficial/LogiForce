@@ -27,6 +27,7 @@ import axiosInstance from '../../api/axiosInstance';
 import { useAuth } from '../../context/AuthContext';
 import PermissionGate from '../../components/ui/PermissionGate';
 import { useNavigate } from 'react-router-dom';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const fallbackTrend = [
   { month: 'Oct', gross: 2950000, net: 2540000, deductions: 410000 },
@@ -107,6 +108,7 @@ const ChartTip = ({ active, payload, label }) => {
 };
 
 const Dashboard = () => {
+  const { isMobile, isTablet } = useBreakpoint();
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const isAdmin = hasPermission('roles.manage');
@@ -253,7 +255,7 @@ const Dashboard = () => {
       </div>
 
       {/* KPI row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : isTablet ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 12 }}>
         <KpiCard label="Gross payroll" value="AED 3.2M" sub="+4.1% vs Feb" />
         <KpiCard label="Total deductions" value="AED 410K" sub="-2.3% vs Feb" color="#fbbf24" />
         <KpiCard label="Net payout" value="AED 2.79M" sub="1,240 active drivers" color="#4ade80" />
@@ -261,31 +263,35 @@ const Dashboard = () => {
       </div>
 
       {/* Charts row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : isTablet ? '1fr' : '1.6fr 1fr', gap: 16 }}>
         <Card>
           <SectionHeader title="6-month payroll trend" />
           {summaryLoading ? (
             <LoadingSpinner />
           ) : (
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={trend} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
-                <defs>
-                  <linearGradient id="gG" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4f8ef7" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#4f8ef7" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="nG" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#1DB388" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#1DB388" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="month" tick={{ fill: '#555c70', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tickFormatter={(v) => (v / 1000000).toFixed(1) + 'M'} tick={{ fill: '#555c70', fontSize: 10 }} axisLine={false} tickLine={false} />
-                <Tooltip content={<ChartTip />} />
-                <Area type="monotone" dataKey="gross" name="Gross" stroke="#4f8ef7" strokeWidth={2} fill="url(#gG)" />
-                <Area type="monotone" dataKey="net" name="Net" stroke="#1DB388" strokeWidth={2} fill="url(#nG)" />
-              </AreaChart>
-            </ResponsiveContainer>
+            <div style={{ overflowX: 'auto' }}>
+              <div style={{ minWidth: 500 }}>
+                <ResponsiveContainer width="100%" height={200}>
+                  <AreaChart data={trend} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+                    <defs>
+                      <linearGradient id="gG" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#4f8ef7" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#4f8ef7" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="nG" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#1DB388" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#1DB388" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="month" tick={{ fill: '#555c70', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis tickFormatter={(v) => (v / 1000000).toFixed(1) + 'M'} tick={{ fill: '#555c70', fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <Tooltip content={<ChartTip />} />
+                    <Area type="monotone" dataKey="gross" name="Gross" stroke="#4f8ef7" strokeWidth={2} fill="url(#gG)" />
+                    <Area type="monotone" dataKey="net" name="Net" stroke="#1DB388" strokeWidth={2} fill="url(#nG)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           )}
         </Card>
         <Card>
@@ -312,7 +318,7 @@ const Dashboard = () => {
       </div>
 
       {/* Bottom row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : isTablet ? '1fr 1fr' : '1fr 1fr 1fr', gap: 16 }}>
         <Card>
           <SectionHeader title="Payroll by client" />
           {[
@@ -372,7 +378,7 @@ const Dashboard = () => {
       </div>
 
       {/* Fleet at a glance row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : isTablet ? '1fr' : '2fr 1fr', gap: 16 }}>
         <Card>
           <SectionHeader title="Fleet at a glance" />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 4 }}>
@@ -491,7 +497,7 @@ const Dashboard = () => {
         <div>
           <Card>
             <SectionHeader title="Contracts expiring soon" />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20, marginTop: 8 }}>
               {/* Within 7 days */}
               <div>
                 <div style={{ fontSize: 11, fontWeight: 600, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
@@ -556,7 +562,7 @@ const Dashboard = () => {
         <div>
           <Card>
             <SectionHeader title="Fleet at a glance" />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginTop: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 24, marginTop: 8 }}>
               {/* Left — By supplier stacked bars */}
               <div>
                 <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>

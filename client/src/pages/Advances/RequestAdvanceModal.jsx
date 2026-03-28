@@ -4,8 +4,10 @@ import toast from 'react-hot-toast';
 import Modal from '../../components/ui/Modal';
 import Btn from '../../components/ui/Btn';
 import { requestAdvance } from '../../api/advancesApi';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const RequestAdvanceModal = ({ driver, onClose, onSuccess }) => {
+  const { isMobile } = useBreakpoint();
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
@@ -56,7 +58,7 @@ const RequestAdvanceModal = ({ driver, onClose, onSuccess }) => {
       <div style={{
         background: 'var(--surface2)', borderRadius: 8, padding: 14, marginBottom: 16,
       }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8 }}>
           <div>
             <div style={{ fontSize: 11, color: 'var(--text3)' }}>Name</div>
             <div style={{ fontSize: 13, marginTop: 2 }}>{driverName}</div>

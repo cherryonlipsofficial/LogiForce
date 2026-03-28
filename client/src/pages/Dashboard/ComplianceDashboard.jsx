@@ -25,6 +25,7 @@ import {
   getDriverDocuments,
 } from '../../api/driversApi';
 import { getGuaranteePassports } from '../../api/guaranteePassportApi';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const DOC_TYPE_LABELS = {
   emirates_id: 'Emirates ID',
@@ -79,6 +80,7 @@ const ChartTip = ({ active, payload, label }) => {
 };
 
 const ComplianceDashboard = () => {
+  const { isMobile, isTablet } = useBreakpoint();
   const { hasPermission } = useAuth();
 
   // --- Data fetching ---
@@ -268,7 +270,7 @@ const ComplianceDashboard = () => {
     <PermissionGate permission="drivers.view" fallback={<div style={{ padding: 40, color: 'var(--text3)' }}>No access</div>}>
       <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* Section 1: KPI row */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : isTablet ? 'repeat(3,1fr)' : 'repeat(5, 1fr)', gap: 12 }}>
           <KpiCard
             label="Expiring in 7 days"
             value={String(totalExpiring7)}
@@ -318,25 +320,29 @@ const ComplianceDashboard = () => {
               No documents expiring in the next 30 days.
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={Math.max(180, chartData.length * 50)}>
-              <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 30, bottom: 0, left: 10 }}>
-                <XAxis type="number" tick={{ fill: '#555c70', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  width={120}
-                  tick={{ fill: 'var(--text2)', fontSize: 12 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <Tooltip content={<ChartTip />} />
-                <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={24}>
-                  {chartData.map((entry) => (
-                    <Cell key={entry.docType} fill={DOC_TYPE_COLORS[entry.docType] || '#555c70'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <div style={{ overflowX: 'auto' }}>
+              <div style={{ minWidth: 500 }}>
+                <ResponsiveContainer width="100%" height={Math.max(180, chartData.length * 50)}>
+                  <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 30, bottom: 0, left: 10 }}>
+                    <XAxis type="number" tick={{ fill: '#555c70', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={120}
+                      tick={{ fill: 'var(--text2)', fontSize: 12 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip content={<ChartTip />} />
+                    <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={24}>
+                      {chartData.map((entry) => (
+                        <Cell key={entry.docType} fill={DOC_TYPE_COLORS[entry.docType] || '#555c70'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           )}
         </Card>
 
@@ -363,7 +369,7 @@ const ComplianceDashboard = () => {
         </PermissionGate>
 
         {/* Section 4: Two side-by-side cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
           {/* Passport submission tracker */}
           <PermissionGate permission="drivers.manage_passport">
             <Card>

@@ -15,6 +15,7 @@ import { getClients, createClient, updateClient, deleteClient, uploadContract, d
 import { getProjects } from '../../api/projectsApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
 import Pagination from '../../components/ui/Pagination';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const fallbackClients = [
   { _id: 'CLI-001', name: 'Amazon UAE', contactName: 'Ahmad Hassan', contactEmail: 'ahmad@amazon.ae', contactPhone: '+971 4 123 4567', isActive: true, driverCount: 342, monthlyBilling: 892400, contractStart: '2024-01-01', contractEnd: '2026-12-31', paymentTerms: 'Net 30', vatNo: 'TRN-100234567890003', ratePerDriver: 2600, billingCurrency: 'AED' },
@@ -35,6 +36,7 @@ const toDateInput = (val) => {
 // Legacy canEdit removed — using PermissionGate / hasPermission instead
 
 const Clients = () => {
+  const { isMobile, isTablet } = useBreakpoint();
   const [search, setSearch] = useState('');
   const [selectedClientId, setSelectedClientId] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -90,7 +92,7 @@ const Clients = () => {
 
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : isTablet ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 12 }}>
         <KpiCard label="Total clients" value={clients.length} />
         <KpiCard label="Active" value={activeCount} color="#4ade80" />
         <KpiCard label="Total projects" value={totalProjects} />
@@ -98,8 +100,8 @@ const Clients = () => {
       </div>
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-          <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search clients..." style={{ width: 260, height: 34 }} />
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
+          <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search clients..." style={{ width: isMobile ? '100%' : 260, height: 34 }} />
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
             <PermissionGate permission="clients.create">
               <Btn small variant="primary" onClick={() => setShowAddModal(true)}>+ Add client</Btn>
@@ -177,6 +179,7 @@ const Clients = () => {
 };
 
 const ClientDetail = ({ client, onClose, onEdit, onDelete, hasPermission }) => {
+  const { isMobile } = useBreakpoint();
   const active = isClientActive(client);
   const qc = useQueryClient();
 
@@ -280,7 +283,7 @@ const ClientDetail = ({ client, onClose, onEdit, onDelete, hasPermission }) => {
         </div>
       </div>
       <div style={{ padding: 24, overflowY: 'auto', flex: 1 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 24 }}>
           <InfoRow label="Contact person" value={client.contactName} />
           <InfoRow label="Email" value={client.contactEmail} />
           <InfoRow label="Phone" value={client.contactPhone} />
@@ -342,6 +345,7 @@ const InfoRow = ({ label, value }) => (
 );
 
 const ClientFormModal = ({ client, onClose }) => {
+  const { isMobile } = useBreakpoint();
   const isEdit = !!client;
   const { register, handleSubmit, formState: { errors } } = useForm({
     defaultValues: isEdit ? {
@@ -390,7 +394,7 @@ const ClientFormModal = ({ client, onClose }) => {
   return (
     <Modal title={isEdit ? 'Edit client' : 'Add new client'} onClose={onClose} width={520}>
       <form onSubmit={handleSubmit((data) => save(data))}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
           <div style={fieldStyle}>
             <label style={labelStyle}>Company name *</label>
             <input {...register('name', { required: true })} placeholder="Acme Logistics" />

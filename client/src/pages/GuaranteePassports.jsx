@@ -6,6 +6,7 @@ import Badge from '../components/ui/Badge';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import { getGuaranteePassports } from '../api/guaranteePassportApi';
 import { useNavigate } from 'react-router-dom';
+import { useBreakpoint } from '../hooks/useBreakpoint';
 
 const STATUS_VARIANTS = {
   active: 'success',
@@ -29,6 +30,7 @@ const FILTER_OPTIONS = [
 ];
 
 const GuaranteePassports = () => {
+  const { isMobile } = useBreakpoint();
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
   const navigate = useNavigate();
@@ -95,7 +97,7 @@ const GuaranteePassports = () => {
       </div>
 
       {/* Filter row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', flexDirection: isMobile ? 'column' : 'row' }}>
         <div style={{ display: 'flex', gap: 6 }}>
           {FILTER_OPTIONS.map((opt) => (
             <button

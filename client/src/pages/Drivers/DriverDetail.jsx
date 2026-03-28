@@ -22,6 +22,7 @@ import ChangeStatusModalNew from '../../components/drivers/ChangeStatusModal';
 import DriverHistoryTab from '../../components/drivers/DriverHistoryTab';
 import { useAuth } from '../../context/AuthContext';
 import { usePermission } from '../../hooks/usePermission';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const DOC_TYPES = [
   { value: 'emirates_id', label: 'Emirates ID' },
@@ -60,6 +61,7 @@ const EyeIcon = () => (
 );
 
 const DriverDetail = ({ driver, onClose }) => {
+  const { isMobile, isTablet } = useBreakpoint();
   const { isAdmin } = useAuth();
   const canEditActive = usePermission('drivers.edit_active');
   const [tab, setTab] = useState('profile');
@@ -428,7 +430,7 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
               </div>
             ) : null}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 16 }}>
               <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '12px 14px' }}>
                 <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Gross salary</div>
                 <div style={{ fontSize: 18, fontWeight: 600, color: '#4ade80' }}>AED {grossSalary.toLocaleString()}</div>
@@ -738,6 +740,7 @@ const toDateInput = (val) => {
 const editTabs = ['profile', 'employment', 'documents'];
 
 const EditDriverModal = ({ driver, onClose, onSaved }) => {
+  const { isMobile } = useBreakpoint();
   const [editTab, setEditTab] = useState('profile');
   const { register, handleSubmit, getValues, setValue, watch, formState: { errors } } = useForm({
     defaultValues: {
@@ -877,7 +880,7 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
       <form onSubmit={handleSubmit(onSubmit)}>
         {/* Profile tab */}
         {editTab === 'profile' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
             <div style={fieldStyle}>
               <label style={labelStyle}>Full name *</label>
               <input
@@ -925,7 +928,7 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
 
         {/* Employment tab */}
         {editTab === 'employment' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
             <div style={fieldStyle}>
               <label style={labelStyle}>Project *</label>
               <select {...register('projectId', { required: 'Project is required' })}>
@@ -983,7 +986,7 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
                   }}
                 >
                   <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10 }}>{doc.label}</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
                     {doc.numField && (
                       <div>
                         <label style={labelStyle}>{doc.label === 'Emirates ID' ? 'ID Number' : 'Number'}</label>

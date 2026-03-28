@@ -10,6 +10,7 @@ import { getClients } from '../../api/clientsApi';
 import { getProjects } from '../../api/projectsApi';
 import { formatCurrencyFull, formatCurrency } from '../../utils/formatters';
 import { useNavigate } from 'react-router-dom';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const fallbackPayroll = {
   totalGross: 1764600,
@@ -67,6 +68,7 @@ const periodOptions = [
 ];
 
 const Reports = () => {
+  const { isMobile, isTablet } = useBreakpoint();
   const navigate = useNavigate();
   const [periodIdx, setPeriodIdx] = useState(0);
   const [selectedClientId, setSelectedClientId] = useState('');
@@ -163,7 +165,7 @@ const Reports = () => {
 
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : isTablet ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 12 }}>
         <KpiCard label="Gross payroll" value={formatCurrency(payroll.totalGross)} />
         <KpiCard label="Net payout" value={formatCurrency(payroll.totalNet)} color="#4ade80" />
         <KpiCard label="Total deductions" value={formatCurrency(payroll.totalDeductions)} color="#f87171" />
@@ -220,7 +222,7 @@ const Reports = () => {
             </ResponsiveContainer>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
             {/* Invoice aging */}
             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
               <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 16 }}>Invoice aging</div>
@@ -273,7 +275,7 @@ const Reports = () => {
           {/* Vehicle & fleet reports section */}
           <div style={{ marginTop: 8 }}>
             <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Vehicle &amp; fleet reports</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : isTablet ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
               {fleetReportCards.map((card) => (
                 <div
                   key={card.title}
