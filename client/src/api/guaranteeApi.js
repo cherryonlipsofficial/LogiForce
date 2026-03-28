@@ -6,8 +6,8 @@ export const getPendingExtensions = () =>
 export const reviewExtension = (guaranteeId, data) =>
   axiosInstance.put(`/guarantee-passports/${guaranteeId}/review-extension`, data)
 
-export const getExpiringGuarantees = (days = 7) =>
-  axiosInstance.get(`/guarantee-passports/expiring?days=${days}`)
+export const getExpiringGuarantees = (days = 7, includeExpired = false) =>
+  axiosInstance.get(`/guarantee-passports/expiring?days=${days}${includeExpired ? '&includeExpired=true' : ''}`)
 
 export const returnGuarantee = (guaranteeId, notes) =>
   axiosInstance.post(`/guarantee-passports/${guaranteeId}/return`, { notes })

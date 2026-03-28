@@ -80,6 +80,9 @@ export const getExpiringDocumentsByType = (days = 30) =>
 export const getDriverHistorySummary = (days = 30) =>
   axiosInstance.get('/drivers/history/summary', { params: { days } }).then(r => r.data);
 
+export const getExpiredDocuments = (docType = 'all') =>
+  axiosInstance.get('/drivers/expired-documents', { params: { docType } }).then(r => r.data);
+
 export const getMyDrivers = (params) =>
   axiosInstance.get('/drivers/my', { params }).then(r => r.data);
 
