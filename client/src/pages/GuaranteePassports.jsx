@@ -40,7 +40,21 @@ const GuaranteePassports = () => {
     onError: () => toast.error('Failed to load guarantee passports'),
   });
 
-  const records = data?.data || [];
+  const rawRecords = data?.data || [];
+
+  // Compute effective status: override active/extended to expired if past expiry date
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const records = rawRecords.map((g) => {
+    if (
+      ['active', 'extended'].includes(g.status) &&
+      g.expiryDate &&
+      new Date(g.expiryDate) < today
+    ) {
+      return { ...g, status: 'expired' };
+    }
+    return g;
+  });
 
   const filtered = records.filter((g) => {
     if (statusFilter !== 'all' && g.status !== statusFilter) return false;
