@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
 const invoiceService = require('../services/invoice.service');
-const { Invoice, Client } = require('../models');
+const { Invoice, Client, AttendanceBatch } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { generateInvoicePDF } = require('../utils/pdfGenerator');
 const { PAGINATION } = require('../config/constants');
@@ -12,15 +12,34 @@ const { generateInvoiceValidation, updateInvoiceStatusValidation, creditNoteVali
 // All routes are protected
 router.use(protect);
 
+// GET /api/invoices/approved-batches — get fully approved attendance batches for invoice generation
+router.get('/approved-batches', async (req, res) => {
+  const query = { status: 'fully_approved', invoiceId: null };
+  if (req.query.clientId) query.clientId = req.query.clientId;
+  if (req.query.projectId) query.projectId = req.query.projectId;
+  if (req.query.year) query['period.year'] = parseInt(req.query.year);
+  if (req.query.month) query['period.month'] = parseInt(req.query.month);
+
+  const batches = await AttendanceBatch.find(query)
+    .populate('clientId', 'name')
+    .populate('projectId', 'name projectCode')
+    .select('batchId clientId projectId period totalRows matchedRows status createdAt')
+    .sort({ createdAt: -1 })
+    .limit(100);
+
+  sendSuccess(res, batches);
+});
+
 // POST /api/invoices/generate — generate invoice for client/period
 router.post('/generate', requirePermission('invoices.generate'), validate(generateInvoiceValidation), async (req, res) => {
-  const { clientId, year, month } = req.body;
+  const { clientId, year, month, projectId, attendanceBatchIds } = req.body;
 
   const invoice = await invoiceService.generateInvoice(
     clientId,
     parseInt(year),
     parseInt(month),
-    req.user._id
+    req.user._id,
+    { projectId, attendanceBatchIds }
   );
 
   sendSuccess(res, invoice, 'Invoice generated successfully', 201);

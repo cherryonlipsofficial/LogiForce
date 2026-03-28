@@ -11,7 +11,8 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
-import { getInvoices, generateInvoice, updateStatus, addCreditNote, downloadPdf } from '../../api/invoicesApi';
+import ProjectSelect from '../../components/ui/ProjectSelect';
+import { getInvoices, generateInvoice, updateStatus, addCreditNote, downloadPdf, getApprovedBatches } from '../../api/invoicesApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
 import Pagination from '../../components/ui/Pagination';
 
@@ -285,10 +286,59 @@ const CreditNoteModal = ({ invoiceId, onClose }) => {
 
 const GenerateInvoiceModal = ({ onClose }) => {
   const [clientId, setClientId] = useState('');
+  const [projectId, setProjectId] = useState('');
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  const [selectedBatchIds, setSelectedBatchIds] = useState([]);
   const qc = useQueryClient();
+
+  const canFetchBatches = !!(clientId && year && month);
+
+  const { data: batchesData, isLoading: batchesLoading } = useQuery({
+    queryKey: ['approved-batches', clientId, projectId, year, month],
+    queryFn: () => getApprovedBatches({
+      clientId,
+      ...(projectId && { projectId }),
+      year: Number(year),
+      month: Number(month),
+    }),
+    enabled: canFetchBatches,
+    staleTime: 30 * 1000,
+  });
+
+  const approvedBatches = batchesData?.data || [];
+
+  const handleClientChange = (val) => {
+    setClientId(val);
+    setProjectId('');
+    setSelectedBatchIds([]);
+  };
+
+  const handleProjectChange = (val) => {
+    setProjectId(val);
+    setSelectedBatchIds([]);
+  };
+
+  const handlePeriodChange = (field, val) => {
+    if (field === 'year') setYear(val);
+    else setMonth(val);
+    setSelectedBatchIds([]);
+  };
+
+  const toggleBatch = (batchId) => {
+    setSelectedBatchIds((prev) =>
+      prev.includes(batchId) ? prev.filter((id) => id !== batchId) : [...prev, batchId]
+    );
+  };
+
+  const toggleAllBatches = () => {
+    if (selectedBatchIds.length === approvedBatches.length) {
+      setSelectedBatchIds([]);
+    } else {
+      setSelectedBatchIds(approvedBatches.map((b) => b._id));
+    }
+  };
 
   const { mutate: generate, isLoading } = useMutation({
     mutationFn: (data) => generateInvoice(data),
@@ -303,32 +353,92 @@ const GenerateInvoiceModal = ({ onClose }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!clientId) { toast.error('Please select a client'); return; }
-    generate({ clientId, year: Number(year), month: Number(month) });
+    const payload = { clientId, year: Number(year), month: Number(month) };
+    if (projectId) payload.projectId = projectId;
+    if (selectedBatchIds.length > 0) payload.attendanceBatchIds = selectedBatchIds;
+    generate(payload);
   };
 
   const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 4 };
 
   return (
-    <Modal title="Generate invoice" onClose={onClose} width={420}>
+    <Modal title="Generate invoice" onClose={onClose} width={520}>
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>Client *</label>
-          <ClientSelect value={clientId} onChange={setClientId} />
+          <ClientSelect value={clientId} onChange={handleClientChange} />
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>Project</label>
+          <ProjectSelect value={projectId} onChange={handleProjectChange} clientId={clientId} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Year *</label>
-            <input type="number" value={year} onChange={(e) => setYear(e.target.value)} />
+            <input type="number" value={year} onChange={(e) => handlePeriodChange('year', e.target.value)} />
           </div>
           <div>
             <label style={labelStyle}>Month *</label>
-            <select value={month} onChange={(e) => setMonth(e.target.value)} style={{ width: '100%' }}>
+            <select value={month} onChange={(e) => handlePeriodChange('month', e.target.value)} style={{ width: '100%' }}>
               {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
                 <option key={m} value={i + 1}>{m}</option>
               ))}
             </select>
           </div>
         </div>
+
+        {canFetchBatches && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <label style={{ ...labelStyle, marginBottom: 0 }}>Attendance batches</label>
+              {approvedBatches.length > 0 && (
+                <button type="button" onClick={toggleAllBatches} style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: 11, cursor: 'pointer', padding: 0 }}>
+                  {selectedBatchIds.length === approvedBatches.length ? 'Deselect all' : 'Select all'}
+                </button>
+              )}
+            </div>
+            {batchesLoading ? (
+              <div style={{ fontSize: 12, color: 'var(--text3)', padding: '8px 0' }}>Loading batches...</div>
+            ) : approvedBatches.length === 0 ? (
+              <div style={{ fontSize: 12, color: 'var(--text3)', padding: '10px 12px', background: 'var(--surface2)', borderRadius: 8 }}>
+                No approved attendance batches found for this selection.
+              </div>
+            ) : (
+              <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+                {approvedBatches.map((batch) => (
+                  <label
+                    key={batch._id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                      borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 12,
+                      background: selectedBatchIds.includes(batch._id) ? 'rgba(99,102,241,0.08)' : 'transparent',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedBatchIds.includes(batch._id)}
+                      onChange={() => toggleBatch(batch._id)}
+                      style={{ margin: 0 }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text2)' }}>{batch.batchId}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>
+                        {batch.projectId?.name || 'Unknown project'} &middot; {batch.matchedRows ?? batch.totalRows ?? '—'} records
+                      </div>
+                    </div>
+                    <Badge variant="success" style={{ fontSize: 10 }}>Approved</Badge>
+                  </label>
+                ))}
+              </div>
+            )}
+            {selectedBatchIds.length > 0 && (
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                {selectedBatchIds.length} batch{selectedBatchIds.length > 1 ? 'es' : ''} selected
+              </div>
+            )}
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
           <Btn variant="primary" type="submit" disabled={isLoading}>{isLoading ? 'Generating...' : 'Generate'}</Btn>
