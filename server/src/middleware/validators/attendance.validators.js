@@ -1,9 +1,9 @@
 const { body } = require('express-validator');
 
 const uploadAttendanceValidation = [
-  body('clientId')
-    .notEmpty().withMessage('clientId is required')
-    .isMongoId().withMessage('clientId must be a valid ID'),
+  body('projectId')
+    .notEmpty().withMessage('projectId is required')
+    .isMongoId().withMessage('projectId must be a valid ID'),
   body('year')
     .notEmpty().withMessage('Year is required')
     .isInt({ min: 2020, max: 2100 }).withMessage('Year must be between 2020 and 2100'),

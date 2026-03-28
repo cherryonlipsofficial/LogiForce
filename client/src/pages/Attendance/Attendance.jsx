@@ -9,6 +9,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
+import ProjectSelect from '../../components/ui/ProjectSelect';
 import { getBatches, uploadFile, getBatch, approveBatch, rejectBatch, deleteBatch, getBatchApprovals, getBatchDisputes } from '../../api/attendanceApi';
 import { useAuth } from '../../context/AuthContext';
 import PermissionGate from '../../components/ui/PermissionGate';
@@ -21,11 +22,11 @@ import DisputeResponseModal from '../../components/attendance/DisputeResponseMod
 import InvoicePreviewModal from '../../components/attendance/InvoicePreviewModal';
 
 const fallbackBatches = [
-  { _id: 'ATT-001', client: 'Amazon UAE', period: 'Mar 2026', uploadedBy: 'Sara Ali', uploadedAt: '2026-03-20T10:30:00Z', status: 'pending_review', totalRecords: 342, validRecords: 338, errors: 4, fileName: 'amazon_mar2026.csv' },
-  { _id: 'ATT-002', client: 'Noon', period: 'Mar 2026', uploadedBy: 'Sara Ali', uploadedAt: '2026-03-19T14:15:00Z', status: 'approved', totalRecords: 218, validRecords: 218, errors: 0, fileName: 'noon_mar2026.xlsx' },
-  { _id: 'ATT-003', client: 'Talabat', period: 'Mar 2026', uploadedBy: 'Omar K.', uploadedAt: '2026-03-18T09:00:00Z', status: 'approved', totalRecords: 156, validRecords: 154, errors: 2, fileName: 'talabat_mar2026.csv' },
-  { _id: 'ATT-004', client: 'Amazon UAE', period: 'Feb 2026', uploadedBy: 'Sara Ali', uploadedAt: '2026-02-20T11:00:00Z', status: 'approved', totalRecords: 340, validRecords: 340, errors: 0, fileName: 'amazon_feb2026.csv' },
-  { _id: 'ATT-005', client: 'Noon', period: 'Feb 2026', uploadedBy: 'Omar K.', uploadedAt: '2026-02-19T08:45:00Z', status: 'approved', totalRecords: 215, validRecords: 212, errors: 3, fileName: 'noon_feb2026.xlsx' },
+  { _id: 'ATT-001', client: 'Amazon UAE', project: 'Last Mile Delivery', projectCode: 'PRJ-00001', period: 'Mar 2026', uploadedBy: 'Sara Ali', uploadedAt: '2026-03-20T10:30:00Z', status: 'pending_review', totalRecords: 342, validRecords: 338, errors: 4, fileName: 'amazon_mar2026.csv' },
+  { _id: 'ATT-002', client: 'Noon', project: 'Express Delivery', projectCode: 'PRJ-00002', period: 'Mar 2026', uploadedBy: 'Sara Ali', uploadedAt: '2026-03-19T14:15:00Z', status: 'approved', totalRecords: 218, validRecords: 218, errors: 0, fileName: 'noon_mar2026.xlsx' },
+  { _id: 'ATT-003', client: 'Talabat', project: 'Food Delivery', projectCode: 'PRJ-00003', period: 'Mar 2026', uploadedBy: 'Omar K.', uploadedAt: '2026-03-18T09:00:00Z', status: 'approved', totalRecords: 156, validRecords: 154, errors: 2, fileName: 'talabat_mar2026.csv' },
+  { _id: 'ATT-004', client: 'Amazon UAE', project: 'Last Mile Delivery', projectCode: 'PRJ-00001', period: 'Feb 2026', uploadedBy: 'Sara Ali', uploadedAt: '2026-02-20T11:00:00Z', status: 'approved', totalRecords: 340, validRecords: 340, errors: 0, fileName: 'amazon_feb2026.csv' },
+  { _id: 'ATT-005', client: 'Noon', project: 'Express Delivery', projectCode: 'PRJ-00002', period: 'Feb 2026', uploadedBy: 'Omar K.', uploadedAt: '2026-02-19T08:45:00Z', status: 'approved', totalRecords: 215, validRecords: 212, errors: 3, fileName: 'noon_feb2026.xlsx' },
 ];
 
 const statusMap = {
@@ -53,6 +54,8 @@ const normalizeBatch = (b) => {
     _id: b._id,
     batchId: b.batchId || b._id,
     client: b.clientId?.name || b.client || 'Unknown',
+    project: b.projectId?.name || b.project || '',
+    projectCode: b.projectId?.projectCode || b.projectCode || '',
     period: b.period?.year ? `${MONTHS[(b.period.month || 1) - 1]} ${b.period.year}` : b.period,
     uploadedBy: b.uploadedBy?.name || b.uploadedBy || '',
     uploadedAt: b.createdAt || b.uploadedAt,
@@ -138,7 +141,7 @@ const Attendance = () => {
             <table style={{ width: '100%' }}>
               <thead>
                 <tr>
-                  {['Batch', 'Client', 'Period', 'File', 'Records', 'Errors', 'Status', 'Uploaded'].map((h) => (
+                  {['Batch', 'Project', 'Client', 'Period', 'File', 'Records', 'Errors', 'Status', 'Uploaded'].map((h) => (
                     <th key={h} style={{ padding: '9px 14px', fontSize: 11, color: 'var(--text3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'left', background: 'var(--surface2)' }}>
                       {h}
                     </th>
@@ -159,6 +162,7 @@ const Attendance = () => {
                       <td style={{ padding: '11px 14px' }}>
                         <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>{b.batchId || b._id}</span>
                       </td>
+                      <td style={{ padding: '11px 14px', fontSize: 12 }}>{b.projectCode || b.project}</td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{b.client}</td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{b.period}</td>
                       <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--text3)' }}>{b.fileName}</td>
@@ -268,7 +272,7 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
       <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontSize: 16, fontWeight: 500 }}>Batch {displayId}</div>
-          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{batch.client} &middot; {batch.period}</div>
+          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{batch.projectCode || batch.project} &middot; {batch.client} &middot; {batch.period}</div>
         </div>
         <button onClick={onClose} style={{ background: 'var(--surface3)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 8, padding: '4px 10px', fontSize: 16 }}>&times;</button>
       </div>
@@ -430,7 +434,7 @@ const downloadTemplate = () => {
 
 const UploadModal = ({ onClose }) => {
   const fileRef = useRef(null);
-  const [clientId, setClientId] = useState('');
+  const [projectId, setProjectId] = useState('');
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -449,13 +453,13 @@ const UploadModal = ({ onClose }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!file || !clientId) {
-      toast.error('Please select a client and file');
+    if (!file || !projectId) {
+      toast.error('Please select a project and file');
       return;
     }
     const fd = new FormData();
     fd.append('file', file);
-    fd.append('clientId', clientId);
+    fd.append('projectId', projectId);
     fd.append('year', year);
     fd.append('month', month);
     fd.append('columnMapping', JSON.stringify({ employeeCode: 'employee_code', workingDays: 'working_days', overtimeHours: 'overtime_hours' }));
@@ -519,8 +523,8 @@ const UploadModal = ({ onClose }) => {
         </div>
 
         <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>Client *</label>
-          <ClientSelect value={clientId} onChange={setClientId} />
+          <label style={labelStyle}>Project *</label>
+          <ProjectSelect value={projectId} onChange={setProjectId} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
           <div>

@@ -1,6 +1,6 @@
-const fs = require('fs');
 const path = require('path');
 const XLSX = require('xlsx');
+const { Readable } = require('stream');
 const csv = require('csv-parser');
 const { Driver } = require('../models');
 
@@ -9,9 +9,9 @@ const parseAttendanceFile = async (file, columnMapping, clientId, period) => {
   let rawRows;
 
   if (ext === '.xlsx' || ext === '.xls') {
-    rawRows = parseXlsx(file.path);
+    rawRows = parseXlsx(file.buffer);
   } else if (ext === '.csv') {
-    rawRows = await parseCsv(file.path);
+    rawRows = await parseCsv(file.buffer);
   } else {
     const err = new Error('Unsupported file type. Use .xlsx, .xls, or .csv');
     err.statusCode = 400;
@@ -70,17 +70,17 @@ const parseAttendanceFile = async (file, columnMapping, clientId, period) => {
   return { rows, stats };
 };
 
-const parseXlsx = (filePath) => {
-  const workbook = XLSX.readFile(filePath);
+const parseXlsx = (buffer) => {
+  const workbook = XLSX.read(buffer, { type: 'buffer' });
   const sheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
   return XLSX.utils.sheet_to_json(sheet);
 };
 
-const parseCsv = (filePath) => {
+const parseCsv = (buffer) => {
   return new Promise((resolve, reject) => {
     const results = [];
-    fs.createReadStream(filePath)
+    Readable.from(buffer)
       .pipe(csv())
       .on('data', (data) => results.push(data))
       .on('end', () => resolve(results))
