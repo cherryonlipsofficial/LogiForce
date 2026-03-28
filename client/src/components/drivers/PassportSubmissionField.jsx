@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import PermissionGate from '../ui/PermissionGate';
 
 const PassportSubmissionField = ({ driverId, value, onChange, readOnly, onActionComplete, showSaveButton }) => {
   const [showModal, setShowModal] = useState(false);
@@ -52,20 +53,22 @@ const PassportSubmissionField = ({ driverId, value, onChange, readOnly, onAction
             }}>
               Passport not submitted
             </span>
-            <button
-              onClick={() => setShowModal(true)}
-              style={{
-                background: 'none',
-                border: '1px solid var(--border2)',
-                color: 'var(--accent)',
-                borderRadius: 6,
-                padding: '3px 10px',
-                cursor: 'pointer',
-                fontSize: 11,
-              }}
-            >
-              Mark as submitted
-            </button>
+            <PermissionGate permission="drivers.manage_passport">
+              <button
+                onClick={() => setShowModal(true)}
+                style={{
+                  background: 'none',
+                  border: '1px solid var(--border2)',
+                  color: 'var(--accent)',
+                  borderRadius: 6,
+                  padding: '3px 10px',
+                  cursor: 'pointer',
+                  fontSize: 11,
+                }}
+              >
+                Mark as submitted
+              </button>
+            </PermissionGate>
           </div>
         ) : passportType === 'own' ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -82,19 +85,21 @@ const PassportSubmissionField = ({ driverId, value, onChange, readOnly, onAction
             }}>
               &#10003; Own passport submitted
             </span>
-            <button
-              onClick={() => setShowModal(true)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--text3)',
-                cursor: 'pointer',
-                fontSize: 11,
-                textDecoration: 'underline',
-              }}
-            >
-              Change
-            </button>
+            <PermissionGate permission="drivers.manage_passport">
+              <button
+                onClick={() => setShowModal(true)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text3)',
+                  cursor: 'pointer',
+                  fontSize: 11,
+                  textDecoration: 'underline',
+                }}
+              >
+                Change
+              </button>
+            </PermissionGate>
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -111,19 +116,21 @@ const PassportSubmissionField = ({ driverId, value, onChange, readOnly, onAction
             }}>
               Guarantee passport
             </span>
-            <button
-              onClick={() => setShowModal(true)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--text3)',
-                cursor: 'pointer',
-                fontSize: 11,
-                textDecoration: 'underline',
-              }}
-            >
-              Change
-            </button>
+            <PermissionGate permission="drivers.manage_passport">
+              <button
+                onClick={() => setShowModal(true)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text3)',
+                  cursor: 'pointer',
+                  fontSize: 11,
+                  textDecoration: 'underline',
+                }}
+              >
+                Change
+              </button>
+            </PermissionGate>
           </div>
         )}
 
