@@ -15,7 +15,8 @@ const mainNavItems = [
   { path: '/suppliers', label: 'Suppliers', icon: '◑', permission: 'suppliers.view' },
   { path: '/vehicles', label: 'Vehicles', icon: '◫', permission: 'vehicles.view' },
   { path: '/reports', label: 'Reports', icon: '▨', permission: 'reports.view' },
-  { path: '/expired-documents', label: 'Expired documents', icon: '⚠', permission: 'drivers.view' },
+  { path: '/guarantee-passports', label: 'Guarantee passports', icon: '◎', permission: 'guarantee_passports.view' },
+  { path: '/expired-documents', label: 'Expired documents', icon: '⚠', permission: 'expired_documents.view' },
 ];
 
 const adminNavItems = [
