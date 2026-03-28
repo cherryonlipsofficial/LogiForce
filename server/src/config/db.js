@@ -27,6 +27,8 @@ const connectDB = async () => {
     const conn = await mongoose.connect(process.env.MONGODB_URI, {
       tls: true,
       tlsAllowInvalidCertificates: false,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
     });
     console.log(`MongoDB connected: ${conn.connection.host}`);
     await ensureAdminRole();
