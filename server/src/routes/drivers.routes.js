@@ -7,7 +7,7 @@ const driverService = require('../services/driver.service');
 const { verifyContacts, setClientUserId, activateDriver, changeStatusManual, getDriverStatusSummary } = require('../services/driverWorkflow.service');
 const { getHistory } = require('../services/driverHistory.service');
 const { getDriverVehicleHistory } = require('../services/vehicleAssignment.service');
-const { Driver, DriverDocument, SalaryRun } = require('../models');
+const { Driver, DriverDocument, DriverHistory, SalaryRun } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const validate = require('../middleware/validate');
 const { createDriverValidation, updateDriverValidation, changeStatusValidation } = require('../middleware/validators/driver.validators');
@@ -44,6 +44,45 @@ router.get('/uploads/:fileKey', async (req, res) => {
 router.get('/status-counts', async (req, res) => {
   const counts = await driverService.getStatusCounts();
   sendSuccess(res, counts);
+});
+
+// GET /api/drivers/documents/expiring?days=30 — document expiry breakdown by type
+router.get('/documents/expiring', requirePermission('drivers.view'), async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 30;
+    const now = new Date();
+    const threshold = new Date();
+    threshold.setDate(threshold.getDate() + days);
+
+    const counts = await DriverDocument.aggregate([
+      { $match: { expiryDate: { $gte: now, $lte: threshold }, status: { $ne: 'expired' } } },
+      { $group: { _id: '$docType', count: { $sum: 1 } } },
+    ]);
+
+    const result = counts.map((c) => ({ docType: c._id, count: c.count }));
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message || 'Failed to fetch expiring documents', 500);
+  }
+});
+
+// GET /api/drivers/history/summary?days=30 — status change summary for last N days
+router.get('/history/summary', requirePermission('drivers.view'), async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 30;
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const counts = await DriverHistory.aggregate([
+      { $match: { createdAt: { $gte: since }, eventType: 'status_change' } },
+      { $group: { _id: '$statusTo', count: { $sum: 1 } } },
+    ]);
+
+    const result = counts.map((c) => ({ status: c._id, count: c.count }));
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message || 'Failed to fetch history summary', 500);
+  }
 });
 
 // GET /api/drivers/export — export drivers as CSV
@@ -222,6 +261,16 @@ router.get('/bulk-import/template', async (req, res) => {
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', 'attachment; filename=drivers-import-template.xlsx');
   res.send(buf);
+});
+
+// GET /api/drivers/my — list drivers created by the current user
+router.get('/my', requirePermission('drivers.view'), async (req, res) => {
+  const { status, page, limit } = req.query;
+  const result = await driverService.findAll(
+    { status, createdBy: req.user._id },
+    { page, limit }
+  );
+  sendPaginated(res, result.drivers, result.total, result.page, result.limit);
 });
 
 // GET /api/drivers — list with pagination, search, filter

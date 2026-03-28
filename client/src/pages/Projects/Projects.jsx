@@ -419,7 +419,8 @@ const ProjectFormModal = ({ project, onClose }) => {
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Ops contact phone</label>
-            <input {...register('operationsContactPhone')} placeholder="+971 50 123 4567" />
+            <input {...register('operationsContactPhone', { validate: (v) => !v || /^\+?\d{7,15}$/.test(v) || 'Enter a valid phone number (no spaces, 7-15 digits, optional + prefix)' })} placeholder="+971501234567" onKeyDown={(e) => { if (e.key === ' ') e.preventDefault(); }} onPaste={(e) => { const pasted = e.clipboardData.getData('text'); if (/\s/.test(pasted)) { e.preventDefault(); const cleaned = pasted.replace(/\s/g, ''); document.execCommand('insertText', false, cleaned); } }} />
+            {errors.operationsContactPhone && <span style={{ color: '#f87171', fontSize: 11 }}>{errors.operationsContactPhone.message}</span>}
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Ops contact email</label>

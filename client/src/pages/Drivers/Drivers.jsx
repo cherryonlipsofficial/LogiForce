@@ -13,6 +13,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import Pagination from '../../components/ui/Pagination';
 import DriverDetail from './DriverDetail';
 import { getDrivers, createDriver, getDriverStatusCounts, exportDriversCsv, bulkImportDrivers, downloadImportTemplate } from '../../api/driversApi';
+import PassportSubmissionField from '../../components/drivers/PassportSubmissionField';
 import { getProjects } from '../../api/projectsApi';
 
 const fallbackDrivers = [
@@ -234,8 +235,9 @@ const Drivers = () => {
 
 const AddDriverModal = ({ onClose }) => {
   const queryClient = useQueryClient();
-  const { register, handleSubmit, formState: { errors }, setError } = useForm();
+  const { register, handleSubmit, formState: { errors }, setError, setValue, watch } = useForm();
   const [submitting, setSubmitting] = useState(false);
+  const passportData = watch('passportData');
 
   const { data: projectsData } = useQuery({
     queryKey: ['projects-list'],
@@ -255,6 +257,8 @@ const AddDriverModal = ({ onClose }) => {
       if (formData.projectId) payload.projectId = formData.projectId;
       if (formData.emiratesId) payload.emiratesId = formData.emiratesId;
       if (formData.joinDate) payload.joinDate = formData.joinDate;
+      payload.isPassportSubmitted = formData.passportData?.isPassportSubmitted || false;
+      payload.passportSubmissionType = formData.passportData?.passportSubmissionType || null;
       await createDriver(payload);
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
       toast.success('Driver created successfully');
@@ -366,6 +370,13 @@ const AddDriverModal = ({ onClose }) => {
             <label style={labelStyle}>Joining date</label>
             <input type="date" {...register('joinDate')} />
           </div>
+          <PassportSubmissionField
+            driverId={null}
+            value={passportData || { isPassportSubmitted: false, passportSubmissionType: null }}
+            onChange={(val) => setValue('passportData', val)}
+            readOnly={false}
+            showSaveButton={false}
+          />
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>

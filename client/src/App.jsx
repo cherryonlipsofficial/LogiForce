@@ -8,6 +8,8 @@ import ProtectedRoute from './components/layout/ProtectedRoute';
 import MainLayout from './components/layout/MainLayout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard/Dashboard';
+import ComplianceDashboard from './pages/Dashboard/ComplianceDashboard';
+import SalesDashboard from './pages/Dashboard/SalesDashboard';
 import Drivers from './pages/Drivers/Drivers';
 import Attendance from './pages/Attendance/Attendance';
 import Salary from './pages/Salary/Salary';
@@ -20,6 +22,7 @@ import Projects from './pages/Projects/Projects';
 import Settings from './pages/Settings/Settings';
 import UsersPage from './pages/Users';
 import RolesPage from './pages/Roles';
+import GuaranteeExtensions from './pages/GuaranteeExtensions';
 import NotFound from './pages/NotFound';
 
 const queryClient = new QueryClient();
@@ -30,13 +33,20 @@ const ProtectedPage = ({ children, permission }) => (
   </ProtectedRoute>
 );
 
+const DashboardSwitch = () => {
+  const { role } = useAuth();
+  if (role === 'compliance') return <ComplianceDashboard />;
+  if (role === 'sales') return <SalesDashboard />;
+  return <Dashboard />;
+};
+
 const RouterContent = () => (
   <>
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<ProtectedPage><Dashboard /></ProtectedPage>} />
+        <Route path="/dashboard" element={<ProtectedPage><DashboardSwitch /></ProtectedPage>} />
         <Route path="/drivers" element={<ProtectedPage permission="drivers.view"><Drivers /></ProtectedPage>} />
         <Route path="/attendance" element={<ProtectedPage permission="attendance.view"><Attendance /></ProtectedPage>} />
         <Route path="/salary" element={<ProtectedPage permission="salary.view"><Salary /></ProtectedPage>} />
@@ -49,6 +59,7 @@ const RouterContent = () => (
         <Route path="/settings" element={<ProtectedPage permission="settings.view"><Settings /></ProtectedPage>} />
         <Route path="/users" element={<ProtectedPage permission="users.view"><UsersPage /></ProtectedPage>} />
         <Route path="/roles" element={<ProtectedPage permission="roles.manage"><RolesPage /></ProtectedPage>} />
+        <Route path="/guarantee-extensions" element={<ProtectedPage permission="roles.manage"><GuaranteeExtensions /></ProtectedPage>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>

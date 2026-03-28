@@ -12,13 +12,14 @@ import Btn from '../../components/ui/Btn';
 import Modal from '../../components/ui/Modal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useNavigate } from 'react-router-dom';
-import { getDriver, getDriverLedger, updateDriver, getDriverDocuments, uploadDriverDocument, fetchDocumentFile, getDocumentDirectUrl, getStatusSummary, getDriverHistory, activateDriver, deleteDriver } from '../../api/driversApi';
+import { getDriver, getDriverLedger, updateDriver, getDriverDocuments, uploadDriverDocument, fetchDocumentFile, getDocumentDirectUrl, getStatusSummary, getDriverHistory, activateDriver, deleteDriver, getActiveGuarantee } from '../../api/driversApi';
+import PassportSubmissionField from '../../components/drivers/PassportSubmissionField';
+import GuaranteePassportCard from '../../components/drivers/GuaranteePassportCard';
 import { getProjects } from '../../api/projectsApi';
 import { getVehicle, getCurrentDriverVehicle, getDriverVehicleHistory } from '../../api/vehiclesApi';
 import DriverStatusBanner from '../../components/drivers/DriverStatusBanner';
 import ChangeStatusModalNew from '../../components/drivers/ChangeStatusModal';
 import DriverHistoryTab from '../../components/drivers/DriverHistoryTab';
-import GuaranteePassportSection from '../../components/drivers/GuaranteePassportSection';
 import { useAuth } from '../../context/AuthContext';
 import { usePermission } from '../../hooks/usePermission';
 
@@ -141,6 +142,12 @@ const { data: statusSummaryData } = useQuery({
     queryFn: () => getStatusSummary(driverId),
   });
   const statusSummary = statusSummaryData?.data || null;
+
+  const { data: guaranteeData } = useQuery({
+    queryKey: ['driver-guarantee', driverId],
+    queryFn: () => getActiveGuarantee(driverId).then(r => r.data),
+    enabled: d.passportSubmissionType === 'guarantee',
+  });
 
   const { data: historyCountData } = useQuery({
     queryKey: ['driver-history', driverId, 1],
@@ -347,10 +354,31 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
               </div>
             ))}
 
-            {/* Guarantee Passport Section */}
-            <div style={{ marginTop: 20 }}>
-              <GuaranteePassportSection driver={d} />
-            </div>
+            <PassportSubmissionField
+              driverId={driverId}
+              value={{
+                isPassportSubmitted: d.isPassportSubmitted,
+                passportSubmissionType: d.passportSubmissionType,
+              }}
+              readOnly={false}
+              showSaveButton={true}
+              onActionComplete={() => {
+                queryClient.invalidateQueries({ queryKey: ['driver', driverId] });
+                queryClient.invalidateQueries({ queryKey: ['driver-status-summary', driverId] });
+                queryClient.invalidateQueries({ queryKey: ['driver-guarantee', driverId] });
+              }}
+            />
+
+            {d.passportSubmissionType === 'guarantee' && (
+              <GuaranteePassportCard
+                driverId={driverId}
+                guarantee={guaranteeData}
+                onActionComplete={() => {
+                  queryClient.invalidateQueries({ queryKey: ['driver', driverId] });
+                  queryClient.invalidateQueries({ queryKey: ['driver-guarantee', driverId] });
+                }}
+              />
+            )}
           </div>
         )}
 
@@ -711,7 +739,7 @@ const editTabs = ['profile', 'employment', 'documents'];
 
 const EditDriverModal = ({ driver, onClose, onSaved }) => {
   const [editTab, setEditTab] = useState('profile');
-  const { register, handleSubmit, getValues, formState: { errors } } = useForm({
+  const { register, handleSubmit, getValues, setValue, watch, formState: { errors } } = useForm({
     defaultValues: {
       fullName: driver.fullName || driver.name || '',
       nationality: driver.nationality || '',
@@ -731,8 +759,13 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
       emiratesIdExpiry: toDateInput(driver.emiratesIdExpiry),
       drivingLicenceExpiry: toDateInput(driver.drivingLicenceExpiry),
       mulkiyaExpiry: toDateInput(driver.mulkiyaExpiry),
+      passportData: {
+        isPassportSubmitted: driver.isPassportSubmitted || false,
+        passportSubmissionType: driver.passportSubmissionType || null,
+      },
     },
   });
+  const passportData = watch('passportData');
   const [submitting, setSubmitting] = useState(false);
   const [docUploads, setDocUploads] = useState({});
   const [uploadingDoc, setUploadingDoc] = useState(null);
@@ -775,6 +808,8 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
         emiratesIdExpiry: formData.emiratesIdExpiry || undefined,
         drivingLicenceExpiry: formData.drivingLicenceExpiry || undefined,
         mulkiyaExpiry: formData.mulkiyaExpiry || undefined,
+        isPassportSubmitted: formData.passportData?.isPassportSubmitted || false,
+        passportSubmissionType: formData.passportData?.passportSubmissionType || null,
       });
       toast.success('Driver updated successfully');
       onSaved();
@@ -878,6 +913,13 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
               />
               {errors.emiratesId && <span style={errorStyle}>{errors.emiratesId.message}</span>}
             </div>
+            <PassportSubmissionField
+              driverId={driver._id || driver.id}
+              value={passportData || { isPassportSubmitted: false, passportSubmissionType: null }}
+              onChange={(val) => setValue('passportData', val)}
+              readOnly={false}
+              showSaveButton={false}
+            />
           </div>
         )}
 
