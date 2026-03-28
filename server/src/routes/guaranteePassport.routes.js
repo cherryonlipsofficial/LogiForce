@@ -86,6 +86,20 @@ router.get(
       .populate('driverId', 'fullName employeeCode')
       .sort({ createdAt: -1 })
       .lean();
+
+    // Compute real-time status: if DB says active/extended but expiry has passed, mark as expired
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    for (const record of records) {
+      if (
+        ['active', 'extended'].includes(record.status) &&
+        record.expiryDate &&
+        new Date(record.expiryDate) < today
+      ) {
+        record.status = 'expired';
+      }
+    }
+
     sendSuccess(res, records);
   }
 );
