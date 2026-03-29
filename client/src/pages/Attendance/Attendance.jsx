@@ -269,12 +269,15 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
   });
 
   const attendanceRecords = batchDetail?.records || [];
-  const activeBatch = approvalData?.data || approvalData || batch;
+  const detailBatch = batchDetail?.batch || null;
+  const activeBatch = approvalData || detailBatch || batch;
   const currentUserRole = role || user?.roleId?.name || '';
   const st = statusMap[activeBatch.status || batch.status] || statusMap.pending_review;
   const displayId = batch.batchId || batch._id;
   const validationErrors = batch.validationErrors || [];
-  const openDisputes = (disputesData?.disputes || disputesData || []).filter(d => d.status === 'open');
+  const fileName = detailBatch?.s3Key || batch.fileName || '';
+  const disputes = disputesData || [];
+  const openDisputes = (Array.isArray(disputes) ? disputes : []).filter(d => d.status === 'open');
 
   return (
     <SidePanel onClose={onClose}>
@@ -336,7 +339,7 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
         )}
 
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 24 }}>
-          <InfoRow label="File" value={batch.fileName} />
+          <InfoRow label="File" value={fileName || '—'} />
           <InfoRow label="Status" value={<Badge variant={st.variant}>{st.label}</Badge>} />
           <InfoRow label="Total records" value={batch.totalRecords} />
           <InfoRow label="Valid records" value={batch.validRecords} />

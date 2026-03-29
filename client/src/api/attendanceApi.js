@@ -24,10 +24,10 @@ export const raiseBatchDispute = (batchId, data) =>
   axiosInstance.post(`/attendance/batches/${batchId}/dispute`, data).then(r => r.data);
 
 export const getBatchApprovals = (batchId) =>
-  axiosInstance.get(`/attendance/batches/${batchId}/approvals`);
+  axiosInstance.get(`/attendance/batches/${batchId}/approvals`).then(r => r.data);
 
 export const getBatchDisputes = (batchId) =>
-  axiosInstance.get(`/attendance/batches/${batchId}/disputes`);
+  axiosInstance.get(`/attendance/batches/${batchId}/disputes`).then(r => r.data);
 
 export const respondToDispute = (disputeId, message) =>
   axiosInstance.post(`/attendance/disputes/${disputeId}/respond`, { message }).then(r => r.data);

@@ -87,7 +87,7 @@ router.post('/upload', requirePermission('attendance.upload'), attendanceUpload.
     uploadedBy: req.user._id,
     uploadedByName: req.user.name,
     columnMapping: mapping,
-    s3Key: req.file.filename,
+    s3Key: req.file.originalname,
     validationErrors: rows
       .filter((r) => r.issues.length > 0)
       .map((r) => ({
@@ -278,7 +278,9 @@ router.get('/batches/:id/approvals', requirePermission('attendance.view'), async
     .populate('projectId', 'name projectCode')
     .populate('uploadedBy', 'name email')
     .populate('salesApproval.approvedBy', 'name')
+    .populate('salesApproval.disputedBy', 'name')
     .populate('opsApproval.approvedBy', 'name')
+    .populate('opsApproval.disputedBy', 'name')
     .populate('invoiceId')
     .populate({
       path: 'disputes',
