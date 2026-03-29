@@ -12,7 +12,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
 import ProjectSelect from '../../components/ui/ProjectSelect';
-import { getInvoices, generateInvoice, updateStatus, addCreditNote, downloadPdf, getApprovedBatches } from '../../api/invoicesApi';
+import { getInvoices, generateInvoice, updateStatus, addCreditNote, downloadPdf, deleteInvoice, getApprovedBatches } from '../../api/invoicesApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
 import Pagination from '../../components/ui/Pagination';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
@@ -167,6 +167,7 @@ const InvoiceDetail = ({ invoice, onClose }) => {
   const { isMobile } = useBreakpoint();
   const qc = useQueryClient();
   const [showCreditNote, setShowCreditNote] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const st = statusMap[invoice.status] || statusMap.draft;
 
   const { mutate: changeStatus, isLoading: changing } = useMutation({
@@ -177,6 +178,16 @@ const InvoiceDetail = ({ invoice, onClose }) => {
       onClose();
     },
     onError: () => toast.error('Failed to update status'),
+  });
+
+  const { mutate: removeInvoice, isLoading: deleting } = useMutation({
+    mutationFn: () => deleteInvoice(invoice._id),
+    onSuccess: () => {
+      toast.success('Invoice deleted');
+      qc.invalidateQueries(['invoices']);
+      onClose();
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Failed to delete invoice'),
   });
 
   const handleDownloadPdf = async () => {
@@ -240,6 +251,17 @@ const InvoiceDetail = ({ invoice, onClose }) => {
           </PermissionGate>
           <PermissionGate permission="invoices.credit_note">
             <Btn variant="ghost" onClick={() => setShowCreditNote(true)}>Add credit note</Btn>
+          </PermissionGate>
+          <PermissionGate permission="invoices.delete">
+            {!confirmDelete ? (
+              <Btn variant="danger" onClick={() => setConfirmDelete(true)}>Delete invoice</Btn>
+            ) : (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: '#f87171' }}>Are you sure?</span>
+                <Btn variant="danger" onClick={() => removeInvoice()} disabled={deleting}>{deleting ? 'Deleting...' : 'Yes, delete'}</Btn>
+                <Btn variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Btn>
+              </div>
+            )}
           </PermissionGate>
         </div>
       </div>
