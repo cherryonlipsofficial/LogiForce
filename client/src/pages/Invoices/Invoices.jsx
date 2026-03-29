@@ -190,6 +190,16 @@ const InvoiceDetail = ({ invoice, onClose }) => {
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to delete invoice'),
   });
 
+  const handleViewPdf = async () => {
+    try {
+      const blob = await downloadPdf(invoice._id);
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+    } catch {
+      toast.error('Failed to load PDF');
+    }
+  };
+
   const handleDownloadPdf = async () => {
     try {
       const blob = await downloadPdf(invoice._id);
@@ -247,6 +257,7 @@ const InvoiceDetail = ({ invoice, onClose }) => {
             )}
           </PermissionGate>
           <PermissionGate permission="invoices.download">
+            <Btn variant="ghost" onClick={handleViewPdf}>View PDF</Btn>
             <Btn variant="ghost" onClick={handleDownloadPdf}>Download PDF</Btn>
           </PermissionGate>
           <PermissionGate permission="invoices.credit_note">
