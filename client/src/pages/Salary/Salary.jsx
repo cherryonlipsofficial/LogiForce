@@ -13,7 +13,7 @@ import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
 import ProjectSelect from '../../components/ui/ProjectSelect';
 import { useNavigate } from 'react-router-dom';
-import { getRuns, runPayroll, approveRun, getWpsFile, addDeduction } from '../../api/salaryApi';
+import { getRuns, runPayroll, approveRun, getWpsFile, getPayslipPdf, getRun, addDeduction } from '../../api/salaryApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
 import Pagination from '../../components/ui/Pagination';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
@@ -157,6 +157,24 @@ const Salary = () => {
   );
 };
 
+const SectionHeader = ({ children, color }) => (
+  <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: color || 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6 }}>
+    {children}
+  </div>
+);
+
+const BreakdownRow = ({ label, value, bold, color, sub }) => (
+  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+    <div>
+      <div style={{ color: 'var(--text)', fontWeight: bold ? 600 : 400 }}>{label}</div>
+      {sub && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 1 }}>{sub}</div>}
+    </div>
+    <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: bold ? 600 : 400, color: color || 'var(--text)' }}>
+      {value}
+    </span>
+  </div>
+);
+
 const DEDUCTION_TYPE_LABELS = {
   telecom_sim: 'Telecom SIM',
   vehicle_rental: 'Vehicle Rental',
@@ -171,16 +189,26 @@ const RunDetail = ({ run, onClose }) => {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const st = statusMap[run.status] || statusMap.draft;
+  const [loadingPdf, setLoadingPdf] = useState(false);
   const [showDeductionForm, setShowDeductionForm] = useState(false);
   const [dedType, setDedType] = useState('telecom_sim');
   const [dedAmount, setDedAmount] = useState('');
   const [dedDesc, setDedDesc] = useState('');
+
+  // Fetch full run details (with all populated fields)
+  const { data: fullRunData } = useQuery({
+    queryKey: ['salary-run-detail', run._id],
+    queryFn: () => getRun(run._id),
+    retry: 1,
+  });
+  const detail = fullRunData?.data || run;
 
   const { mutate: submitDeduction, isLoading: submittingDed } = useMutation({
     mutationFn: (data) => addDeduction(run._id, data),
     onSuccess: () => {
       toast.success('Deduction added');
       qc.invalidateQueries(['salary-runs']);
+      qc.invalidateQueries(['salary-run-detail', run._id]);
       setShowDeductionForm(false);
       setDedAmount('');
       setDedDesc('');
@@ -215,59 +243,141 @@ const RunDetail = ({ run, onClose }) => {
     }
   };
 
+  const handleViewPayslip = async () => {
+    setLoadingPdf(true);
+    try {
+      const blob = await getPayslipPdf(run._id);
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+    } catch {
+      toast.error('Failed to load payslip');
+    } finally {
+      setLoadingPdf(false);
+    }
+  };
+
+  const handleDownloadPayslip = async () => {
+    setLoadingPdf(true);
+    try {
+      const blob = await getPayslipPdf(run._id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const driverName = (detail.driverId?.fullName || 'driver').replace(/\s+/g, '_');
+      const period = detail.period ? `${detail.period.year}_${String(detail.period.month).padStart(2, '0')}` : '';
+      a.download = `Payslip_${driverName}_${period}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Payslip downloaded');
+    } catch {
+      toast.error('Failed to download payslip');
+    } finally {
+      setLoadingPdf(false);
+    }
+  };
+
+  // Calculate totals from detail data
+  const totalAllowances = (detail.allowances || []).reduce((s, a) => s + (a.amount || 0), 0);
+
   return (
     <SidePanel onClose={onClose}>
       <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 500 }}>Payroll {run._id}</div>
-          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{run.projectId?.name || '—'} &middot; {formatPeriod(run.period)}</div>
+          <div style={{ fontSize: 16, fontWeight: 500 }}>Payroll {detail.runId || run._id}</div>
+          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{detail.projectId?.name || '—'} &middot; {formatPeriod(detail.period)}</div>
         </div>
-        <button onClick={onClose} style={{ background: 'var(--surface3)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 8, padding: '4px 10px', fontSize: 16 }}>&times;</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Badge variant={st.variant}>{st.label}</Badge>
+          <button onClick={onClose} style={{ background: 'var(--surface3)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 8, padding: '4px 10px', fontSize: 16 }}>&times;</button>
+        </div>
       </div>
       <div style={{ padding: 24, overflowY: 'auto', flex: 1 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 24 }}>
-          <InfoRow label="Status" value={<Badge variant={st.variant}>{st.label}</Badge>} />
-          <InfoRow label="Driver" value={run.driverId?.fullName || '—'} />
-          <InfoRow label="Gross salary" value={formatCurrencyFull(run.grossSalary)} />
-          <InfoRow label="Total deductions" value={formatCurrencyFull(run.totalDeductions)} />
-          <InfoRow label="Net salary" value={<span style={{ color: '#4ade80' }}>{formatCurrencyFull(run.netSalary)}</span>} />
-          <InfoRow label="Created" value={formatDate(run.createdAt)} />
-          {run.approvedBy && <InfoRow label="Approved by" value={run.approvedBy} />}
+        {/* Employee Info */}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14, marginBottom: 20 }}>
+          <InfoRow label="Driver" value={detail.driverId?.fullName || '—'} />
+          <InfoRow label="Employee Code" value={detail.driverId?.employeeCode || '—'} />
+          <InfoRow label="Pay Structure" value={(detail.driverId?.payStructure || '—').replace(/_/g, ' ')} />
+          <InfoRow label="Working Days" value={detail.workingDays ?? '—'} />
+          <InfoRow label="Overtime Hours" value={detail.overtimeHours ?? 0} />
+          <InfoRow label="Created" value={formatDate(detail.createdAt)} />
+          {detail.approvedBy && <InfoRow label="Approved by" value={typeof detail.approvedBy === 'object' ? detail.approvedBy.name : detail.approvedBy} />}
+          {detail.approvedAt && <InfoRow label="Approved on" value={formatDate(detail.approvedAt)} />}
         </div>
 
-        {run.deductions && run.deductions.length > 0 && (
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8, color: 'var(--text2)' }}>Deductions breakdown</div>
-            {run.deductions.map((ded, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '7px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
-                <div>
-                  <div style={{ color: 'var(--text)' }}>{ded.description || ded.type}</div>
-                  {ded.type === 'vehicle_rental' && run.vehiclePlate && (
-                    <div
-                      onClick={() => navigate(`/vehicles?plate=${encodeURIComponent(run.vehiclePlate)}`)}
-                      style={{
-                        fontSize: 10,
-                        fontFamily: 'var(--mono)',
-                        color: 'var(--text3)',
-                        marginTop: 2,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 3,
-                      }}
-                    >
-                      {run.vehiclePlate} <span style={{ fontSize: 9 }}>↗</span>
-                    </div>
-                  )}
+        {/* Earnings Breakdown */}
+        <div style={{ marginBottom: 20 }}>
+          <SectionHeader color="#4ade80">Earnings</SectionHeader>
+          <BreakdownRow label="Base Salary" value={formatCurrencyFull(detail.baseSalary)} />
+          <BreakdownRow label="Prorated Salary" value={formatCurrencyFull(detail.proratedSalary)} sub={`Based on ${detail.workingDays ?? 0} working days`} />
+          {(detail.overtimePay > 0) && (
+            <BreakdownRow label="Overtime Pay" value={formatCurrencyFull(detail.overtimePay)} sub={`${detail.overtimeHours ?? 0} hours @ 1.25x rate`} />
+          )}
+          {(detail.allowances || []).map((a, i) => (
+            <BreakdownRow
+              key={i}
+              label={`${(a.type || 'Allowance').replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())} Allowance`}
+              value={formatCurrencyFull(a.amount)}
+            />
+          ))}
+          <BreakdownRow label="Gross Salary" value={formatCurrencyFull(detail.grossSalary)} bold color="#4ade80" />
+        </div>
+
+        {/* Deductions Breakdown */}
+        <div style={{ marginBottom: 20 }}>
+          <SectionHeader color="#f87171">Deductions</SectionHeader>
+          {(detail.deductions && detail.deductions.length > 0) ? (
+            <>
+              {detail.deductions.filter(d => d.amount > 0).map((ded, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+                  <div>
+                    <div style={{ color: 'var(--text)' }}>{ded.description || ded.type?.replace(/_/g, ' ')}</div>
+                    {ded.type === 'vehicle_rental' && run.vehiclePlate && (
+                      <div
+                        onClick={() => navigate(`/vehicles?plate=${encodeURIComponent(run.vehiclePlate)}`)}
+                        style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text3)', marginTop: 2, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                      >
+                        {run.vehiclePlate} <span style={{ fontSize: 9 }}>&#8599;</span>
+                      </div>
+                    )}
+                  </div>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#f87171' }}>
+                    {formatCurrencyFull(ded.amount)}
+                  </span>
                 </div>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#f87171' }}>
-                  {formatCurrencyFull(ded.amount)}
-                </span>
-              </div>
-            ))}
+              ))}
+              <BreakdownRow label="Total Deductions" value={formatCurrencyFull(detail.totalDeductions)} bold color="#f87171" />
+            </>
+          ) : (
+            <div style={{ fontSize: 12, color: 'var(--text3)', padding: '8px 0' }}>No deductions</div>
+          )}
+        </div>
+
+        {/* Net Salary Highlight */}
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(74,222,128,0.1), rgba(74,222,128,0.05))',
+          border: '1px solid rgba(74,222,128,0.3)',
+          borderRadius: 10,
+          padding: '14px 18px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 20,
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Net Salary</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80', fontFamily: 'var(--mono)' }}>
+            {formatCurrencyFull(detail.netSalary)}
+          </div>
+        </div>
+
+        {/* Notes */}
+        {detail.notes && (
+          <div style={{ marginBottom: 20, padding: '10px 14px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 500, color: '#fbbf24', marginBottom: 4 }}>Notes</div>
+            <div style={{ fontSize: 12, color: 'var(--text2)', whiteSpace: 'pre-wrap' }}>{detail.notes}</div>
           </div>
         )}
 
+        {/* Add Deduction Form (draft only) */}
         {run.status === 'draft' && (
           <PermissionGate permission="salary.manage_deductions">
             <div style={{ marginBottom: 20 }}>
@@ -304,6 +414,7 @@ const RunDetail = ({ run, onClose }) => {
           </PermissionGate>
         )}
 
+        {/* Actions */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <PermissionGate permission="salary.approve">
             {run.status === 'draft' && (
@@ -316,6 +427,14 @@ const RunDetail = ({ run, onClose }) => {
             {(run.status === 'approved' || run.status === 'paid') && (
               <Btn variant="ghost" onClick={handleWpsDownload}>Download WPS</Btn>
             )}
+          </PermissionGate>
+          <PermissionGate permission="salary.view">
+            <Btn variant="ghost" onClick={handleViewPayslip} disabled={loadingPdf}>
+              {loadingPdf ? 'Loading...' : 'View Payslip'}
+            </Btn>
+            <Btn variant="primary" onClick={handleDownloadPayslip} disabled={loadingPdf}>
+              {loadingPdf ? 'Loading...' : 'Download Payslip PDF'}
+            </Btn>
           </PermissionGate>
         </div>
       </div>
