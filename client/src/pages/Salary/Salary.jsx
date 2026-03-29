@@ -19,11 +19,11 @@ import Pagination from '../../components/ui/Pagination';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const fallbackRuns = [
-  { _id: 'SAL-001', client: 'Amazon UAE', period: 'Mar 2026', status: 'draft', totalGross: 856200, totalDeductions: 124800, totalNet: 731400, driverCount: 342, createdAt: '2026-03-21T08:00:00Z', approvedBy: null },
-  { _id: 'SAL-002', client: 'Noon', period: 'Mar 2026', status: 'approved', totalGross: 534000, totalDeductions: 78500, totalNet: 455500, driverCount: 218, createdAt: '2026-03-20T14:00:00Z', approvedBy: 'Finance Manager' },
-  { _id: 'SAL-003', client: 'Talabat', period: 'Mar 2026', status: 'approved', totalGross: 374400, totalDeductions: 52100, totalNet: 322300, driverCount: 156, createdAt: '2026-03-19T10:30:00Z', approvedBy: 'Finance Manager' },
-  { _id: 'SAL-004', client: 'Amazon UAE', period: 'Feb 2026', status: 'paid', totalGross: 849000, totalDeductions: 121500, totalNet: 727500, driverCount: 340, createdAt: '2026-02-20T08:00:00Z', approvedBy: 'Finance Manager' },
-  { _id: 'SAL-005', client: 'Noon', period: 'Feb 2026', status: 'paid', totalGross: 527000, totalDeductions: 76200, totalNet: 450800, driverCount: 215, createdAt: '2026-02-19T09:00:00Z', approvedBy: 'Finance Manager' },
+  { _id: 'SAL-001', projectId: { name: 'Amazon Prime Now' }, driverId: { fullName: 'Ahmed Khan' }, period: 'Mar 2026', status: 'draft', grossSalary: 2500, totalDeductions: 350, netSalary: 2150, createdAt: '2026-03-21T08:00:00Z', approvedBy: null },
+  { _id: 'SAL-002', projectId: { name: 'Noon Express' }, driverId: { fullName: 'Omar Ali' }, period: 'Mar 2026', status: 'approved', grossSalary: 2800, totalDeductions: 420, netSalary: 2380, createdAt: '2026-03-20T14:00:00Z', approvedBy: 'Finance Manager' },
+  { _id: 'SAL-003', projectId: { name: 'Talabat Delivery' }, driverId: { fullName: 'Rashed Mohammed' }, period: 'Mar 2026', status: 'approved', grossSalary: 2400, totalDeductions: 310, netSalary: 2090, createdAt: '2026-03-19T10:30:00Z', approvedBy: 'Finance Manager' },
+  { _id: 'SAL-004', projectId: { name: 'Amazon Prime Now' }, driverId: { fullName: 'Faisal Hassan' }, period: 'Feb 2026', status: 'paid', grossSalary: 2600, totalDeductions: 380, netSalary: 2220, createdAt: '2026-02-20T08:00:00Z', approvedBy: 'Finance Manager' },
+  { _id: 'SAL-005', projectId: { name: 'Noon Express' }, driverId: { fullName: 'Saeed Ibrahim' }, period: 'Feb 2026', status: 'paid', grossSalary: 2700, totalDeductions: 400, netSalary: 2300, createdAt: '2026-02-19T09:00:00Z', approvedBy: 'Finance Manager' },
 ];
 
 const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -61,8 +61,8 @@ const Salary = () => {
   const pagination = data?.pagination;
   const filtered = runs;
 
-  const totalGross = runs.reduce((s, r) => s + (r.totalGross || 0), 0);
-  const totalNet = runs.reduce((s, r) => s + (r.totalNet || 0), 0);
+  const totalGross = runs.reduce((s, r) => s + (r.grossSalary || 0), 0);
+  const totalNet = runs.reduce((s, r) => s + (r.netSalary || 0), 0);
   const draftCount = runs.filter((r) => r.status === 'draft').length;
 
   return (
@@ -98,7 +98,7 @@ const Salary = () => {
             <table style={{ width: '100%' }}>
               <thead>
                 <tr>
-                  {['Run ID', 'Client', 'Period', 'Drivers', 'Gross', 'Deductions', 'Net', 'Status', 'Created'].map((h) => (
+                  {['Run ID', 'Project', 'Period', 'Driver', 'Gross', 'Deductions', 'Net', 'Status', 'Created'].map((h) => (
                     <th key={h} style={{ padding: '9px 14px', fontSize: 11, color: 'var(--text3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'left', background: 'var(--surface2)' }}>
                       {h}
                     </th>
@@ -119,19 +119,17 @@ const Salary = () => {
                       <td style={{ padding: '11px 14px' }}>
                         <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>{r._id}</span>
                       </td>
-                      <td style={{ padding: '11px 14px', fontSize: 12 }}>{r.client}</td>
+                      <td style={{ padding: '11px 14px', fontSize: 12 }}>{r.projectId?.name || '—'}</td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{formatPeriod(r.period)}</td>
+                      <td style={{ padding: '11px 14px', fontSize: 12 }}>{r.driverId?.fullName || '—'}</td>
                       <td style={{ padding: '11px 14px' }}>
-                        <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{r.driverCount}</span>
-                      </td>
-                      <td style={{ padding: '11px 14px' }}>
-                        <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{formatCurrencyFull(r.totalGross)}</span>
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{formatCurrencyFull(r.grossSalary)}</span>
                       </td>
                       <td style={{ padding: '11px 14px' }}>
                         <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#f87171' }}>{formatCurrencyFull(r.totalDeductions)}</span>
                       </td>
                       <td style={{ padding: '11px 14px' }}>
-                        <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#4ade80' }}>{formatCurrencyFull(r.totalNet)}</span>
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#4ade80' }}>{formatCurrencyFull(r.netSalary)}</span>
                       </td>
                       <td style={{ padding: '11px 14px' }}><Badge variant={st.variant}>{st.label}</Badge></td>
                       <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--text3)' }}>{formatDate(r.createdAt)}</td>
@@ -182,7 +180,7 @@ const RunDetail = ({ run, onClose }) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `WPS_${run.client || run.clientName}_${year}_${month}.sif`;
+      a.download = `WPS_${run.projectId?.name || 'export'}_${year}_${month}.sif`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success('WPS file downloaded');
@@ -196,17 +194,17 @@ const RunDetail = ({ run, onClose }) => {
       <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontSize: 16, fontWeight: 500 }}>Payroll {run._id}</div>
-          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{run.client} &middot; {formatPeriod(run.period)}</div>
+          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{run.projectId?.name || '—'} &middot; {formatPeriod(run.period)}</div>
         </div>
         <button onClick={onClose} style={{ background: 'var(--surface3)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 8, padding: '4px 10px', fontSize: 16 }}>&times;</button>
       </div>
       <div style={{ padding: 24, overflowY: 'auto', flex: 1 }}>
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 24 }}>
           <InfoRow label="Status" value={<Badge variant={st.variant}>{st.label}</Badge>} />
-          <InfoRow label="Drivers" value={run.driverCount} />
-          <InfoRow label="Gross payroll" value={formatCurrencyFull(run.totalGross)} />
+          <InfoRow label="Driver" value={run.driverId?.fullName || '—'} />
+          <InfoRow label="Gross salary" value={formatCurrencyFull(run.grossSalary)} />
           <InfoRow label="Total deductions" value={formatCurrencyFull(run.totalDeductions)} />
-          <InfoRow label="Net payout" value={<span style={{ color: '#4ade80' }}>{formatCurrencyFull(run.totalNet)}</span>} />
+          <InfoRow label="Net salary" value={<span style={{ color: '#4ade80' }}>{formatCurrencyFull(run.netSalary)}</span>} />
           <InfoRow label="Created" value={formatDate(run.createdAt)} />
           {run.approvedBy && <InfoRow label="Approved by" value={run.approvedBy} />}
         </div>
