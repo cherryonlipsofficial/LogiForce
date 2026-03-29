@@ -8,7 +8,7 @@ const ClientSelect = ({ value, onChange, showAll, style = {} }) => {
     staleTime: 5 * 60 * 1000,
   });
 
-  const clients = data?.data || [];
+  const clients = (data?.data || []).filter((c) => c.isActive !== false);
 
   return (
     <select value={value} onChange={(e) => onChange(e.target.value)} style={{ width: '100%', ...style }}>

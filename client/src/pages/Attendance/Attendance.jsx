@@ -507,6 +507,7 @@ const downloadTemplate = () => {
 const UploadModal = ({ onClose }) => {
   const { isMobile } = useBreakpoint();
   const fileRef = useRef(null);
+  const [uploadClientId, setUploadClientId] = useState('');
   const [projectId, setProjectId] = useState('');
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -530,8 +531,8 @@ const UploadModal = ({ onClose }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!file || !projectId) {
-      toast.error('Please select a project and file');
+    if (!uploadClientId || !projectId || !file) {
+      toast.error('Please select a client, project and file');
       return;
     }
     const fd = new FormData();
@@ -599,9 +600,15 @@ const UploadModal = ({ onClose }) => {
           </div>
         </div>
 
-        <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>Project *</label>
-          <ProjectSelect value={projectId} onChange={setProjectId} />
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 14 }}>
+          <div>
+            <label style={labelStyle}>Client *</label>
+            <ClientSelect value={uploadClientId} onChange={(v) => { setUploadClientId(v); setProjectId(''); }} />
+          </div>
+          <div>
+            <label style={labelStyle}>Project *</label>
+            <ProjectSelect value={projectId} onChange={setProjectId} clientId={uploadClientId} disabled={!uploadClientId} />
+          </div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 14 }}>
           <div>
