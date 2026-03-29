@@ -27,13 +27,13 @@ const ApprovalRow = ({ label, approval }) => {
   let valueText = 'Pending review';
   let valueColor = 'var(--text3)';
   if (status === 'approved') {
-    const approverName = approval.approvedBy?.name || approval.approvedByName || '';
+    const approverName = approval.approvedByName || approval.approvedBy?.name || '';
     valueText = approverName
       ? `Approved by ${approverName}${approval.approvedAt ? ` on ${formatDate(approval.approvedAt)}` : ''}`
       : 'Approved';
     valueColor = '#4ade80';
   } else if (status === 'disputed') {
-    const disputerName = approval.disputedBy?.name || approval.disputedByName || '';
+    const disputerName = approval.disputedByName || approval.disputedBy?.name || '';
     valueText = disputerName ? `Disputed by ${disputerName}` : 'Disputed';
     valueColor = '#f87171';
   }
@@ -56,9 +56,7 @@ const ApprovalRow = ({ label, approval }) => {
   );
 };
 
-// Derive individual approval status from batch.status when subdocument data is missing.
-// batch.status is the authoritative source: 'sales_approved' means sales approved,
-// 'ops_approved' means ops approved, 'fully_approved' means both approved, etc.
+// Derive individual approval status from batch.status when subdocument data is missing
 const deriveApproval = (subdoc, isApprovedByStatus) => {
   if (subdoc?.status === 'approved' || subdoc?.status === 'disputed') return subdoc;
   if (isApprovedByStatus) return { ...subdoc, status: 'approved' };

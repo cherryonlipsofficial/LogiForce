@@ -278,7 +278,9 @@ router.get('/batches/:id/approvals', requirePermission('attendance.view'), async
     .populate('projectId', 'name projectCode')
     .populate('uploadedBy', 'name email')
     .populate('salesApproval.approvedBy', 'name')
+    .populate('salesApproval.disputedBy', 'name')
     .populate('opsApproval.approvedBy', 'name')
+    .populate('opsApproval.disputedBy', 'name')
     .populate('invoiceId')
     .populate({
       path: 'disputes',
