@@ -2,12 +2,13 @@ const express = require('express');
 const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
 const salaryService = require('../services/salary.service');
-const { SalaryRun } = require('../models');
+const { SalaryRun, CompanySettings, Client } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
 const validate = require('../middleware/validate');
 const { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation } = require('../middleware/validators/salary.validators');
 const auditLogger = require('../utils/auditLogger');
+const { generatePayslipPDF } = require('../utils/pdfGenerator');
 
 // All routes are protected
 router.use(protect);
@@ -159,6 +160,36 @@ router.post('/runs/:id/dispute', validate(disputeSalaryValidation), async (req, 
 
   await run.save();
   sendSuccess(res, run, 'Salary run disputed');
+});
+
+// GET /api/salary/runs/:id/payslip — generate payslip PDF for a salary run
+router.get('/runs/:id/payslip', requirePermission('salary.view'), async (req, res) => {
+  const run = await SalaryRun.findById(req.params.id)
+    .populate('driverId', 'fullName fullNameArabic employeeCode bankName iban payStructure baseSalary')
+    .populate('clientId', 'name')
+    .populate('projectId', 'name projectCode');
+
+  if (!run) return sendError(res, 'Salary run not found', 404);
+
+  const companySettings = await CompanySettings.getSettings();
+
+  const pdfBuffer = await generatePayslipPDF(
+    run.toObject(),
+    run.driverId,
+    run.projectId,
+    run.clientId,
+    companySettings
+  );
+
+  const periodStr = run.period
+    ? `${run.period.year}_${String(run.period.month).padStart(2, '0')}`
+    : 'unknown';
+  const driverName = (run.driverId?.fullName || 'driver').replace(/\s+/g, '_');
+  const filename = `Payslip_${driverName}_${periodStr}.pdf`;
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(pdfBuffer);
 });
 
 // GET /api/salary/wps-file — generate WPS-format CSV for period

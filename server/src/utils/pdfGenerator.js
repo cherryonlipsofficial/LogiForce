@@ -552,4 +552,306 @@ const generateInvoicePDF = (invoice, client, project, companySettings) => {
   });
 };
 
-module.exports = { generateInvoicePDF };
+// ── Payslip PDF Generator ───────────────────────────────────────────────────
+
+const PAYSLIP_ACCENT = '#1a56db';
+const PAYSLIP_LIGHT = '#e8edf5';
+const PAYSLIP_BORDER = '#c4cdd5';
+
+const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function drawPayslipCell(doc, x, y, w, h, options = {}) {
+  const { fill, text, font, fontSize, align, padding, textColor, borderColor } = {
+    fill: null, text: '', font: 'Helvetica', fontSize: 8,
+    align: 'left', padding: 4, textColor: '#000000', borderColor: PAYSLIP_BORDER,
+    ...options,
+  };
+  if (fill) { doc.save(); doc.rect(x, y, w, h).fill(fill); doc.restore(); }
+  doc.save(); doc.lineWidth(0.5).rect(x, y, w, h).stroke(borderColor); doc.restore();
+  if (text !== undefined && text !== null && text !== '') {
+    doc.save(); doc.font(font).fontSize(fontSize).fillColor(textColor);
+    doc.text(String(text), x + padding, y + padding, { width: w - 2 * padding, align, lineBreak: false });
+    doc.restore();
+  }
+}
+
+const generatePayslipPDF = (salaryRun, driver, project, client, companySettings) => {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: PAGE_MARGIN, bufferPages: true });
+    const buffers = [];
+    doc.on('data', (chunk) => buffers.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(buffers)));
+    doc.on('error', reject);
+
+    const settings = companySettings || {};
+    let y = PAGE_MARGIN;
+    const CW = CONTENT_WIDTH;
+    const halfW = CW / 2;
+
+    // ═══════════════════════════════════════════════════════════════════
+    // HEADER — Company Logo + Name
+    // ═══════════════════════════════════════════════════════════════════
+    if (settings.logoBase64) {
+      try {
+        const logoBuffer = Buffer.from(settings.logoBase64, 'base64');
+        doc.image(logoBuffer, PAGE_MARGIN, y, { width: 100, height: 50 });
+      } catch (_) {}
+    }
+
+    doc.save();
+    doc.font('Helvetica-Bold').fontSize(12).fillColor(PAYSLIP_ACCENT);
+    doc.text(settings.companyName || 'Company Name', PAGE_MARGIN + 110, y + 5, { width: CW - 110 });
+    doc.font('Helvetica').fontSize(7).fillColor('#555555');
+    const addr = [settings.addressLine1, settings.addressLine2, settings.country].filter(Boolean).join(', ');
+    doc.text(addr, PAGE_MARGIN + 110, y + 22, { width: CW - 110 });
+    if (settings.email) doc.text(`Email: ${settings.email}`, PAGE_MARGIN + 110, y + 33, { width: CW - 110 });
+    if (settings.trn) doc.text(`TRN: ${settings.trn}`, PAGE_MARGIN + 110, y + 44, { width: CW - 110 });
+    doc.restore();
+
+    y += 60;
+
+    // ═══════════════════════════════════════════════════════════════════
+    // TITLE BAR
+    // ═══════════════════════════════════════════════════════════════════
+    doc.save();
+    doc.rect(PAGE_MARGIN, y, CW, 24).fill(PAYSLIP_ACCENT);
+    doc.font('Helvetica-Bold').fontSize(13).fillColor('#ffffff');
+    const periodLabel = salaryRun.period
+      ? `${monthNames[(salaryRun.period.month || 1) - 1] || ''} ${salaryRun.period.year || ''}`
+      : '';
+    doc.text(`PAYSLIP — ${periodLabel}`, PAGE_MARGIN, y + 5, { width: CW, align: 'center' });
+    doc.restore();
+    y += 32;
+
+    // ═══════════════════════════════════════════════════════════════════
+    // EMPLOYEE DETAILS — 2-column grid
+    // ═══════════════════════════════════════════════════════════════════
+    const detailRowH = 18;
+    const labelW = 120;
+    const valueW = halfW - labelW;
+
+    const employeeDetails = [
+      ['Employee Name', driver?.fullName || '—', 'Employee Code', driver?.employeeCode || '—'],
+      ['Project', project?.name || '—', 'Client', client?.name || '—'],
+      ['Pay Structure', (driver?.payStructure || '—').replace(/_/g, ' '), 'Payslip No', salaryRun.runId || '—'],
+      ['Bank Name', driver?.bankName || '—', 'IBAN', driver?.iban || '—'],
+      ['Working Days', String(salaryRun.workingDays ?? '—'), 'Overtime Hours', String(salaryRun.overtimeHours ?? 0)],
+    ];
+
+    // Section header
+    drawPayslipCell(doc, PAGE_MARGIN, y, CW, 18, {
+      fill: PAYSLIP_LIGHT, text: 'Employee Details', font: 'Helvetica-Bold', fontSize: 9,
+      textColor: PAYSLIP_ACCENT, padding: 6,
+    });
+    y += 18;
+
+    employeeDetails.forEach((row) => {
+      // Left pair
+      drawPayslipCell(doc, PAGE_MARGIN, y, labelW, detailRowH, {
+        fill: '#f7f8fa', text: row[0], font: 'Helvetica-Bold', fontSize: 7.5, textColor: '#444',
+      });
+      drawPayslipCell(doc, PAGE_MARGIN + labelW, y, valueW, detailRowH, {
+        text: row[1], fontSize: 7.5,
+      });
+      // Right pair
+      drawPayslipCell(doc, PAGE_MARGIN + halfW, y, labelW, detailRowH, {
+        fill: '#f7f8fa', text: row[2], font: 'Helvetica-Bold', fontSize: 7.5, textColor: '#444',
+      });
+      drawPayslipCell(doc, PAGE_MARGIN + halfW + labelW, y, valueW, detailRowH, {
+        text: row[3], fontSize: 7.5,
+      });
+      y += detailRowH;
+    });
+
+    y += 10;
+
+    // ═══════════════════════════════════════════════════════════════════
+    // EARNINGS & DEDUCTIONS — Side by side
+    // ═══════════════════════════════════════════════════════════════════
+    const colW = halfW - 4;
+    const rowH = 16;
+
+    // ── Earnings (left) ──
+    const earningsX = PAGE_MARGIN;
+    let ey = y;
+
+    drawPayslipCell(doc, earningsX, ey, colW, 20, {
+      fill: PAYSLIP_ACCENT, text: 'EARNINGS', font: 'Helvetica-Bold', fontSize: 9,
+      textColor: '#ffffff', align: 'center',
+    });
+    ey += 20;
+
+    // Column headers
+    drawPayslipCell(doc, earningsX, ey, colW * 0.6, rowH, {
+      fill: PAYSLIP_LIGHT, text: 'Description', font: 'Helvetica-Bold', fontSize: 7.5,
+    });
+    drawPayslipCell(doc, earningsX + colW * 0.6, ey, colW * 0.4, rowH, {
+      fill: PAYSLIP_LIGHT, text: 'Amount (AED)', font: 'Helvetica-Bold', fontSize: 7.5, align: 'right',
+    });
+    ey += rowH;
+
+    // Earnings rows
+    const earningsItems = [
+      { desc: 'Base Salary', amt: salaryRun.baseSalary || 0 },
+      { desc: 'Prorated Salary', amt: salaryRun.proratedSalary || 0 },
+      { desc: 'Overtime Pay', amt: salaryRun.overtimePay || 0 },
+    ];
+
+    // Add allowances
+    if (salaryRun.allowances && salaryRun.allowances.length > 0) {
+      salaryRun.allowances.forEach((a) => {
+        const label = (a.type || 'Allowance').replace(/_/g, ' ');
+        earningsItems.push({ desc: label.charAt(0).toUpperCase() + label.slice(1) + ' Allowance', amt: a.amount || 0 });
+      });
+    }
+
+    earningsItems.forEach((item) => {
+      drawPayslipCell(doc, earningsX, ey, colW * 0.6, rowH, {
+        text: item.desc, fontSize: 7.5,
+      });
+      drawPayslipCell(doc, earningsX + colW * 0.6, ey, colW * 0.4, rowH, {
+        text: formatCurrency(item.amt), fontSize: 7.5, align: 'right',
+      });
+      ey += rowH;
+    });
+
+    // Gross total
+    drawPayslipCell(doc, earningsX, ey, colW * 0.6, rowH, {
+      fill: PAYSLIP_LIGHT, text: 'GROSS SALARY', font: 'Helvetica-Bold', fontSize: 8,
+    });
+    drawPayslipCell(doc, earningsX + colW * 0.6, ey, colW * 0.4, rowH, {
+      fill: PAYSLIP_LIGHT, text: formatCurrency(salaryRun.grossSalary || 0),
+      font: 'Helvetica-Bold', fontSize: 8, align: 'right',
+    });
+    ey += rowH;
+
+    // ── Deductions (right) ──
+    const deductionsX = PAGE_MARGIN + halfW + 4;
+    let dy = y;
+
+    drawPayslipCell(doc, deductionsX, dy, colW, 20, {
+      fill: '#dc2626', text: 'DEDUCTIONS', font: 'Helvetica-Bold', fontSize: 9,
+      textColor: '#ffffff', align: 'center',
+    });
+    dy += 20;
+
+    drawPayslipCell(doc, deductionsX, dy, colW * 0.6, rowH, {
+      fill: PAYSLIP_LIGHT, text: 'Description', font: 'Helvetica-Bold', fontSize: 7.5,
+    });
+    drawPayslipCell(doc, deductionsX + colW * 0.6, dy, colW * 0.4, rowH, {
+      fill: PAYSLIP_LIGHT, text: 'Amount (AED)', font: 'Helvetica-Bold', fontSize: 7.5, align: 'right',
+    });
+    dy += rowH;
+
+    const deductionItems = (salaryRun.deductions || []).filter((d) => d.amount > 0);
+
+    if (deductionItems.length === 0) {
+      drawPayslipCell(doc, deductionsX, dy, colW, rowH, {
+        text: 'No deductions', fontSize: 7.5, textColor: '#888',
+      });
+      dy += rowH;
+    } else {
+      deductionItems.forEach((d) => {
+        const label = d.description || (d.type || 'Deduction').replace(/_/g, ' ');
+        drawPayslipCell(doc, deductionsX, dy, colW * 0.6, rowH, {
+          text: label, fontSize: 7.5,
+        });
+        drawPayslipCell(doc, deductionsX + colW * 0.6, dy, colW * 0.4, rowH, {
+          text: formatCurrency(d.amount), fontSize: 7.5, align: 'right', textColor: '#dc2626',
+        });
+        dy += rowH;
+      });
+    }
+
+    // Total deductions
+    drawPayslipCell(doc, deductionsX, dy, colW * 0.6, rowH, {
+      fill: PAYSLIP_LIGHT, text: 'TOTAL DEDUCTIONS', font: 'Helvetica-Bold', fontSize: 8,
+    });
+    drawPayslipCell(doc, deductionsX + colW * 0.6, dy, colW * 0.4, rowH, {
+      fill: PAYSLIP_LIGHT, text: formatCurrency(salaryRun.totalDeductions || 0),
+      font: 'Helvetica-Bold', fontSize: 8, align: 'right', textColor: '#dc2626',
+    });
+    dy += rowH;
+
+    // Advance y to the bottom of whichever column is taller
+    y = Math.max(ey, dy) + 14;
+
+    // ═══════════════════════════════════════════════════════════════════
+    // NET SALARY BAR
+    // ═══════════════════════════════════════════════════════════════════
+    doc.save();
+    doc.rect(PAGE_MARGIN, y, CW, 28).fill(PAYSLIP_ACCENT);
+    doc.font('Helvetica-Bold').fontSize(11).fillColor('#ffffff');
+    doc.text('NET SALARY', PAGE_MARGIN + 10, y + 7);
+    doc.text(`AED ${formatCurrency(salaryRun.netSalary || 0)}`, PAGE_MARGIN, y + 7, {
+      width: CW - 10, align: 'right',
+    });
+    doc.restore();
+    y += 36;
+
+    // Amount in words
+    const wordsText = amountToWords(salaryRun.netSalary || 0);
+    doc.save();
+    doc.font('Helvetica-Oblique').fontSize(8).fillColor('#333');
+    doc.text(`Amount in words: ${wordsText}`, PAGE_MARGIN, y, { width: CW });
+    doc.restore();
+    y += 20;
+
+    // ═══════════════════════════════════════════════════════════════════
+    // NOTES (if any)
+    // ═══════════════════════════════════════════════════════════════════
+    if (salaryRun.notes) {
+      drawPayslipCell(doc, PAGE_MARGIN, y, CW, 16, {
+        fill: '#fffbeb', text: 'Notes', font: 'Helvetica-Bold', fontSize: 8, textColor: '#92400e',
+      });
+      y += 16;
+      drawPayslipCell(doc, PAGE_MARGIN, y, CW, 24, {
+        text: salaryRun.notes, fontSize: 7.5, textColor: '#555',
+      });
+      y += 32;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // FOOTER — Bank Details & Signature
+    // ═══════════════════════════════════════════════════════════════════
+    y = Math.max(y, 680); // push footer to bottom area
+
+    doc.save();
+    doc.lineWidth(0.5).moveTo(PAGE_MARGIN, y).lineTo(PAGE_MARGIN + CW, y).stroke(PAYSLIP_BORDER);
+    doc.restore();
+    y += 8;
+
+    // Bank details
+    doc.save();
+    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#333');
+    doc.text('Payment Bank Details:', PAGE_MARGIN, y);
+    doc.font('Helvetica').fontSize(7).fillColor('#555');
+    doc.text(`${settings.bankName || ''} | A/C: ${settings.bankAccountNo || ''} | IBAN: ${settings.bankIban || ''}`, PAGE_MARGIN, y + 12, { width: CW * 0.6 });
+    doc.restore();
+
+    // Signature
+    const sigX = PAGE_MARGIN + CW * 0.65;
+    if (settings.signatureBase64) {
+      try {
+        const sigBuffer = Buffer.from(settings.signatureBase64, 'base64');
+        doc.image(sigBuffer, sigX + 20, y - 5, { width: 70, height: 25 });
+      } catch (_) {}
+    }
+    doc.save();
+    doc.lineWidth(0.5).moveTo(sigX, y + 25).lineTo(sigX + 120, y + 25).stroke('#000');
+    doc.font('Helvetica').fontSize(7).fillColor('#333');
+    doc.text('Authorised Signatory', sigX, y + 28, { width: 120, align: 'center' });
+    doc.restore();
+
+    // Disclaimer
+    y += 48;
+    doc.save();
+    doc.font('Helvetica').fontSize(6).fillColor('#999');
+    doc.text('This is a computer-generated payslip and does not require a physical signature.', PAGE_MARGIN, y, { width: CW, align: 'center' });
+    doc.restore();
+
+    doc.end();
+  });
+};
+
+module.exports = { generateInvoicePDF, generatePayslipPDF };
