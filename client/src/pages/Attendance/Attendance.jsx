@@ -20,6 +20,7 @@ import ApproveModal from '../../components/attendance/ApproveModal';
 import DisputeModal from '../../components/attendance/DisputeModal';
 import DisputeResponseModal from '../../components/attendance/DisputeResponseModal';
 import InvoicePreviewModal from '../../components/attendance/InvoicePreviewModal';
+import OverrideModal from '../../components/attendance/OverrideModal';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const fallbackBatches = [
@@ -237,6 +238,7 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
   const [disputeModal, setDisputeModal] = useState(null);
   const [respondModal, setRespondModal] = useState(null);
   const [invoiceModal, setInvoiceModal] = useState(null);
+  const [overrideModal, setOverrideModal] = useState(null);
 
   const { data: batchDetail } = useQuery({
     queryKey: ['batch-detail', batch?._id],
@@ -368,6 +370,9 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
                     <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'right', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>Days</th>
                     <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'right', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>OT hrs</th>
                     <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'left', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>Status</th>
+                    {hasPermission('attendance.override') && (
+                      <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'center', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>Action</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -389,7 +394,21 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
                         <Badge variant={rec.status === 'valid' ? 'success' : rec.status === 'warning' ? 'warning' : rec.status === 'overridden' ? 'info' : 'danger'}>
                           {rec.status}
                         </Badge>
+                        {rec.status === 'overridden' && rec.overrideReason && (
+                          <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }} title={rec.overrideReason}>
+                            {rec.overrideReason.length > 30 ? rec.overrideReason.slice(0, 30) + '...' : rec.overrideReason}
+                          </div>
+                        )}
                       </td>
+                      {hasPermission('attendance.override') && (
+                        <td style={{ padding: '7px 12px', fontSize: 12, borderBottom: '1px solid var(--border)', textAlign: 'center' }}>
+                          {rec.status !== 'overridden' && rec.status !== 'valid' && (
+                            <Btn small variant="ghost" onClick={() => setOverrideModal(rec)} style={{ fontSize: 11, padding: '2px 8px' }}>
+                              Override
+                            </Btn>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -474,6 +493,7 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
       {disputeModal && <DisputeModal batch={disputeModal} onClose={() => setDisputeModal(null)} onSuccess={() => setDisputeModal(null)} />}
       {respondModal && <DisputeResponseModal dispute={respondModal} onClose={() => setRespondModal(null)} onSuccess={() => setRespondModal(null)} />}
       {invoiceModal && <InvoicePreviewModal batch={invoiceModal} onClose={() => setInvoiceModal(null)} onSuccess={() => setInvoiceModal(null)} />}
+      {overrideModal && <OverrideModal record={overrideModal} batchId={batch._id} onClose={() => setOverrideModal(null)} onSuccess={() => setOverrideModal(null)} />}
     </SidePanel>
   );
 };

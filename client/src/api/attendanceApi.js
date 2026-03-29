@@ -40,3 +40,6 @@ export const runSalary = (batchId) =>
 
 export const getSalaryRuns = (batchId) =>
   axiosInstance.get(`/attendance/batches/${batchId}/salary-runs`).then(r => r.data);
+
+export const overrideRecord = (recordId, data) =>
+  axiosInstance.put(`/attendance/records/${recordId}/override`, data).then(r => r.data);
