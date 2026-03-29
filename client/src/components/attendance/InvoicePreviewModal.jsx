@@ -80,7 +80,18 @@ const InvoicePreviewModal = ({ batch, onClose, onSuccess }) => {
           <div style={{ fontSize: 11, color: 'var(--text3)' }}>Period</div>
           <div style={{ fontSize: 13, marginTop: 2 }}>{monthName} {year}</div>
         </div>
-        <div style={{ gridColumn: '1 / -1' }}>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--text3)' }}>Project</div>
+          <div style={{ fontSize: 13, marginTop: 2 }}>
+            {batch.projectId?.name || batch.project || 'N/A'}
+            {(batch.projectId?.projectCode || batch.projectCode) && (
+              <span style={{ fontSize: 10, color: 'var(--text3)', marginLeft: 6 }}>
+                {batch.projectId?.projectCode || batch.projectCode}
+              </span>
+            )}
+          </div>
+        </div>
+        <div>
           <div style={{ fontSize: 11, color: 'var(--text3)' }}>Invoice no</div>
           <div style={{ fontSize: 12, marginTop: 2, color: 'var(--text3)', fontStyle: 'italic' }}>
             Will be assigned on creation
