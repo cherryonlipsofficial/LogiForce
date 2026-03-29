@@ -118,7 +118,7 @@ router.post('/:id/credit-note', requirePermission('invoices.credit_note'), valid
 router.get('/:id/pdf', requirePermission('invoices.download'), async (req, res) => {
   const invoice = await Invoice.findById(req.params.id)
     .populate('clientId')
-    .populate('projectId', 'name projectCode')
+    .populate('projectId', 'name projectCode ratePerDriver')
     .populate('lineItems.driverId', 'fullName employeeCode')
     .populate('creditNotes.driverId', 'fullName employeeCode');
 

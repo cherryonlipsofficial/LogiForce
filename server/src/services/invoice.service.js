@@ -102,6 +102,7 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
         employeeCode: run.driverId.employeeCode,
         driverName: run.driverId.fullName,
         workingDays: run.workingDays,
+        ratePerDriver: rate,
         ratePerDay: Math.round(ratePerDay * 100) / 100,
         amount: Math.round(run.workingDays * ratePerDay * 100) / 100,
       };
@@ -128,6 +129,7 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
         employeeCode: run.driverId.employeeCode,
         driverName: run.driverId.fullName,
         workingDays: run.workingDays,
+        ratePerDriver: fallbackRate,
         ratePerDay: Math.round(ratePerDay * 100) / 100,
         amount: Math.round(run.workingDays * ratePerDay * 100) / 100,
       };
@@ -283,6 +285,7 @@ const generateFromAttendanceBatches = async (client, year, month, createdBy, pro
       employeeCode: driver.employeeCode,
       workingDays: record.workingDays,
       overtimeHours: record.overtimeHours || 0,
+      ratePerDriver: ratePerDriver,
       ratePerDay: parseFloat(dailyRate.toFixed(2)),
       amount,
     });
