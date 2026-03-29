@@ -36,6 +36,9 @@ const clientSchema = new mongoose.Schema(
     contactPhone: {
       type: String,
     },
+    address: {
+      type: String,
+    },
     kycRules: {
       requireEmiratesId: { type: Boolean, default: true },
       requirePassport: { type: Boolean, default: true },

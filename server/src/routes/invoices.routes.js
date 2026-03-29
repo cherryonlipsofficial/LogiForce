@@ -117,15 +117,22 @@ router.post('/:id/credit-note', requirePermission('invoices.credit_note'), valid
 // GET /api/invoices/:id/pdf — generate PDF
 router.get('/:id/pdf', requirePermission('invoices.download'), async (req, res) => {
   const invoice = await Invoice.findById(req.params.id)
+    .populate('clientId')
+    .populate('projectId', 'name projectCode')
     .populate('lineItems.driverId', 'fullName employeeCode')
     .populate('creditNotes.driverId', 'fullName employeeCode');
 
   if (!invoice) return sendError(res, 'Invoice not found', 404);
 
-  const client = await Client.findById(invoice.clientId);
+  const client = invoice.clientId;
   if (!client) return sendError(res, 'Client not found', 404);
 
-  const pdfBuffer = await generateInvoicePDF(invoice, client);
+  const project = invoice.projectId;
+
+  const CompanySettings = require('../models/CompanySettings');
+  const companySettings = await CompanySettings.getSettings();
+
+  const pdfBuffer = await generateInvoicePDF(invoice, client, project, companySettings);
 
   res.set({
     'Content-Type': 'application/pdf',

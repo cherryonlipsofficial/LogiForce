@@ -26,6 +26,12 @@ const invoiceSchema = new Schema(
       year: { type: Number, required: true },
       month: { type: Number, required: true },
     },
+    servicePeriodFrom: {
+      type: Date,
+    },
+    servicePeriodTo: {
+      type: Date,
+    },
     // Line items — one row per driver
     lineItems: [
       {
@@ -36,6 +42,9 @@ const invoiceSchema = new Schema(
         ratePerDriver: { type: Number }, // from project contract
         dailyRate: { type: Number }, // ratePerDriver / 26
         amount: { type: Number }, // dailyRate * workingDays
+        vatRate: { type: Number, default: 0.05 },
+        vatAmount: { type: Number },
+        totalWithVat: { type: Number },
       },
     ],
     // Legacy: project-grouped line items (kept for backward compat with existing invoices)
@@ -112,6 +121,20 @@ const invoiceSchema = new Schema(
     timestamps: true,
   }
 );
+
+// Auto-compute servicePeriodFrom/To from period year+month if not set
+invoiceSchema.pre('save', function (next) {
+  if (this.period && this.period.year && this.period.month) {
+    if (!this.servicePeriodFrom) {
+      this.servicePeriodFrom = new Date(this.period.year, this.period.month - 1, 1);
+    }
+    if (!this.servicePeriodTo) {
+      // Last day of the month
+      this.servicePeriodTo = new Date(this.period.year, this.period.month, 0);
+    }
+  }
+  next();
+});
 
 // Auto-generate invoiceNo: INV-YYYY-MM-XXXXX
 invoiceSchema.pre('save', async function (next) {
