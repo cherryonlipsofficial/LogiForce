@@ -20,3 +20,6 @@ export const getPayslipPdf = (id) =>
 
 export const addDeduction = (runId, data) =>
   axiosInstance.post(`/salary/runs/${runId}/deduction`, data).then(r => r.data);
+
+export const deleteRun = (id) =>
+  axiosInstance.delete(`/salary/runs/${id}`).then(r => r.data);
