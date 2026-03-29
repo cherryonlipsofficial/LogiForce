@@ -66,6 +66,8 @@ const normalizeBatch = (b) => {
     errors: b.errorRows ?? b.errors ?? 0,
     fileName: b.s3Key || b.fileName || '',
     validationErrors: b.validationErrors || [],
+    salesApproval: b.salesApproval || null,
+    opsApproval: b.opsApproval || null,
   };
 };
 
