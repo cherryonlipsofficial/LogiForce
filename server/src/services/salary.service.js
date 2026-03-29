@@ -13,7 +13,7 @@ const { SALARY } = require('../config/constants');
 /**
  * Calculate salary for a single driver for a given period.
  */
-const calculateDriverSalary = async (driverId, year, month, processedBy) => {
+const calculateDriverSalary = async (driverId, year, month, processedBy, { clientId: requestClientId, attendanceBatchId } = {}) => {
   // 1. Fetch driver (with project info)
   const driver = await Driver.findById(driverId)
     .populate('supplierId')
@@ -123,9 +123,12 @@ const calculateDriverSalary = async (driverId, year, month, processedBy) => {
   }
 
   // 9. Create SalaryRun document
+  const resolvedClientId = driver.clientId || requestClientId;
+  const resolvedBatchId = attendanceBatchId || (attendance.batchId?._id || attendance.batchId);
   const salaryRun = await SalaryRun.create({
     driverId,
-    clientId: driver.clientId,
+    clientId: resolvedClientId,
+    attendanceBatchId: resolvedBatchId,
     projectId: projectId || undefined,
     projectRatePerDriver: projectRatePerDriver || undefined,
     period: { year, month },
@@ -366,7 +369,8 @@ const runPayroll = async (clientId, projectId, year, month, processedBy) => {
         record.driverId,
         year,
         month,
-        processedBy
+        processedBy,
+        { clientId, attendanceBatchId: record.batchId?._id || record.batchId }
       );
       runs.push(salaryRun);
       totalGross += salaryRun.grossSalary;
