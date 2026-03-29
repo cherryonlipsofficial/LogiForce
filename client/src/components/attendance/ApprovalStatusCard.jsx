@@ -27,8 +27,10 @@ const ApprovalRow = ({ label, approval }) => {
   let valueText = 'Pending review';
   let valueColor = 'var(--text3)';
   if (status === 'approved') {
-    const approverName = approval.approvedBy?.name || approval.approvedByName || 'Unknown';
-    valueText = `Approved by ${approverName} on ${formatDate(approval.approvedAt)}`;
+    const approverName = approval.approvedBy?.name || approval.approvedByName || '';
+    valueText = approverName
+      ? `Approved by ${approverName}${approval.approvedAt ? ` on ${formatDate(approval.approvedAt)}` : ''}`
+      : 'Approved';
     valueColor = '#4ade80';
   } else if (status === 'disputed') {
     const disputerName = approval.disputedBy?.name || approval.disputedByName || 'Unknown';
@@ -54,11 +56,23 @@ const ApprovalRow = ({ label, approval }) => {
   );
 };
 
-const ApprovalStatusCard = ({ batch, currentUserRole, onApprove, onDispute, onGenerateInvoice, onRunSalary }) => {
-  const salesApproval = batch?.salesApproval || null;
-  const opsApproval = batch?.opsApproval || null;
+// Derive individual approval status from batch.status when subdocument data is missing.
+// batch.status is the authoritative source: 'sales_approved' means sales approved,
+// 'ops_approved' means ops approved, 'fully_approved' means both approved, etc.
+const deriveApproval = (subdoc, isApprovedByStatus) => {
+  if (subdoc?.status === 'approved' || subdoc?.status === 'disputed') return subdoc;
+  if (isApprovedByStatus) return { ...subdoc, status: 'approved' };
+  return subdoc || null;
+};
 
+const ApprovalStatusCard = ({ batch, currentUserRole, onApprove, onDispute, onGenerateInvoice, onRunSalary }) => {
   const status = batch?.status;
+
+  const salesApprovedByStatus = ['sales_approved', 'fully_approved', 'invoiced'].includes(status);
+  const opsApprovedByStatus = ['ops_approved', 'fully_approved', 'invoiced'].includes(status);
+
+  const salesApproval = deriveApproval(batch?.salesApproval, salesApprovedByStatus);
+  const opsApproval = deriveApproval(batch?.opsApproval, opsApprovedByStatus);
   const roleName = currentUserRole?.toLowerCase();
 
   const canAct = ['pending_review', 'sales_approved', 'ops_approved', 'dispute_responded'].includes(status);
