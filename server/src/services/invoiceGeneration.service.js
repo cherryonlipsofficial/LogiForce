@@ -95,6 +95,9 @@ async function generateInvoice(batchId, accountsUserId) {
     const workingDays = record.workingDays || 0
     const amount      = parseFloat((dailyRate * workingDays).toFixed(2))
 
+    const vatAmount_item = parseFloat((amount * 0.05).toFixed(2))
+    const totalWithVat   = parseFloat((amount + vatAmount_item).toFixed(2))
+
     lineItems.push({
       driverId:     driver._id,
       driverName:   driver.fullName,
@@ -103,6 +106,9 @@ async function generateInvoice(batchId, accountsUserId) {
       ratePerDriver,
       dailyRate,
       amount,
+      vatRate:      0.05,
+      vatAmount:    vatAmount_item,
+      totalWithVat,
     })
 
     subtotal += amount
@@ -131,6 +137,10 @@ async function generateInvoice(batchId, accountsUserId) {
   const dueDate      = new Date()
   dueDate.setDate(dueDate.getDate() + termDays)
 
+  // STEP 6b — Compute service period from/to
+  const servicePeriodFrom = new Date(batch.period.year, batch.period.month - 1, 1)
+  const servicePeriodTo   = new Date(batch.period.year, batch.period.month, 0) // last day
+
   // STEP 7 — Create invoice
   const invoice = await Invoice.create({
     invoiceNo,
@@ -138,6 +148,8 @@ async function generateInvoice(batchId, accountsUserId) {
     clientId:          batch.clientId._id,
     attendanceBatchId: batchId,
     period:            batch.period,
+    servicePeriodFrom,
+    servicePeriodTo,
     lineItems,
     subtotal,
     vatRate:    0.05,

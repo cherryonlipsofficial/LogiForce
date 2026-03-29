@@ -21,6 +21,7 @@ const GuaranteePassport = require('./GuaranteePassport');
 const AttendanceDispute = require('./AttendanceDispute');
 const AppNotification = require('./AppNotification');
 const DriverAdvance = require('./DriverAdvance');
+const CompanySettings = require('./CompanySettings');
 
 module.exports = {
   User,
@@ -46,4 +47,5 @@ module.exports = {
   AttendanceDispute,
   AppNotification,
   DriverAdvance,
+  CompanySettings,
 };

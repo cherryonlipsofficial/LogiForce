@@ -53,6 +53,7 @@ app.use('/api/roles', require('./src/routes/roles.routes'));
 app.use('/api/users', require('./src/routes/users.routes'));
 app.use('/api', require('./src/routes/guaranteePassport.routes'));
 app.use('/api/notifications', require('./src/routes/notifications.routes'));
+app.use('/api/settings', require('./src/routes/settings.routes'));
 
 // Health check
 app.get('/api/health', (req, res) => {

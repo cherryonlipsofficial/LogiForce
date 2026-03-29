@@ -146,11 +146,17 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
     });
   }
 
-  const lineItems = projectGroups.flatMap((g) => g.drivers);
+  const lineItems = projectGroups.flatMap((g) => g.drivers).map((d) => {
+    const vatAmt = parseFloat((d.amount * VAT_RATE).toFixed(2));
+    return { ...d, vatRate: VAT_RATE, vatAmount: vatAmt, totalWithVat: parseFloat((d.amount + vatAmt).toFixed(2)) };
+  });
 
   const subtotal = projectGroups.reduce((sum, g) => sum + g.subtotal, 0);
   const vatAmount = Math.round(subtotal * VAT_RATE * 100) / 100;
   const total = Math.round((subtotal + vatAmount) * 100) / 100;
+
+  const servicePeriodFrom = new Date(year, month - 1, 1);
+  const servicePeriodTo = new Date(year, month, 0);
 
   const issuedDate = new Date();
   const paymentDays = parseInt(client.paymentTerms?.replace(/\D/g, '')) || 30;
@@ -160,6 +166,8 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
   const invoice = await Invoice.create({
     clientId,
     period: { year, month },
+    servicePeriodFrom,
+    servicePeriodTo,
     lineItems,
     projectGroups,
     driverCount: lineItems.length,
@@ -293,10 +301,16 @@ const generateFromAttendanceBatches = async (client, year, month, createdBy, pro
     throw err;
   }
 
-  const lineItems = projectGroups.flatMap((g) => g.drivers);
+  const lineItems = projectGroups.flatMap((g) => g.drivers).map((d) => {
+    const vatAmt = parseFloat((d.amount * VAT_RATE).toFixed(2));
+    return { ...d, vatRate: VAT_RATE, vatAmount: vatAmt, totalWithVat: parseFloat((d.amount + vatAmt).toFixed(2)) };
+  });
   const subtotal = parseFloat(projectGroups.reduce((sum, pg) => sum + pg.subtotal, 0).toFixed(2));
   const vatAmount = parseFloat((subtotal * VAT_RATE).toFixed(2));
   const total = parseFloat((subtotal + vatAmount).toFixed(2));
+
+  const servicePeriodFrom = new Date(year, month - 1, 1);
+  const servicePeriodTo = new Date(year, month, 0);
 
   const issuedDate = new Date();
   const paymentDays = parseInt(client.paymentTerms?.replace(/\D/g, '')) || 30;
@@ -308,6 +322,8 @@ const generateFromAttendanceBatches = async (client, year, month, createdBy, pro
     projectId,
     attendanceBatchId: attendanceBatchIds[0],
     period: { year, month },
+    servicePeriodFrom,
+    servicePeriodTo,
     lineItems,
     projectGroups,
     driverCount: lineItems.length,
