@@ -189,7 +189,8 @@ const RunDetail = ({ run, onClose }) => {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const st = statusMap[run.status] || statusMap.draft;
-  const [loadingPdf, setLoadingPdf] = useState(false);
+  const [viewingPdf, setViewingPdf] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [showDeductionForm, setShowDeductionForm] = useState(false);
   const [dedType, setDedType] = useState('telecom_sim');
   const [dedAmount, setDedAmount] = useState('');
@@ -244,7 +245,7 @@ const RunDetail = ({ run, onClose }) => {
   };
 
   const handleViewPayslip = async () => {
-    setLoadingPdf(true);
+    setViewingPdf(true);
     try {
       const blob = await getPayslipPdf(run._id);
       const blobUrl = URL.createObjectURL(blob);
@@ -252,12 +253,12 @@ const RunDetail = ({ run, onClose }) => {
     } catch {
       toast.error('Failed to load payslip');
     } finally {
-      setLoadingPdf(false);
+      setViewingPdf(false);
     }
   };
 
   const handleDownloadPayslip = async () => {
-    setLoadingPdf(true);
+    setDownloadingPdf(true);
     try {
       const blob = await getPayslipPdf(run._id);
       const url = URL.createObjectURL(blob);
@@ -272,7 +273,7 @@ const RunDetail = ({ run, onClose }) => {
     } catch {
       toast.error('Failed to download payslip');
     } finally {
-      setLoadingPdf(false);
+      setDownloadingPdf(false);
     }
   };
 
@@ -429,11 +430,11 @@ const RunDetail = ({ run, onClose }) => {
             )}
           </PermissionGate>
           <PermissionGate permission="salary.view">
-            <Btn variant="ghost" onClick={handleViewPayslip} disabled={loadingPdf}>
-              {loadingPdf ? 'Loading...' : 'View Payslip'}
+            <Btn variant="ghost" onClick={handleViewPayslip} disabled={viewingPdf}>
+              {viewingPdf ? 'Loading...' : 'View Payslip'}
             </Btn>
-            <Btn variant="primary" onClick={handleDownloadPayslip} disabled={loadingPdf}>
-              {loadingPdf ? 'Loading...' : 'Download Payslip PDF'}
+            <Btn variant="primary" onClick={handleDownloadPayslip} disabled={downloadingPdf}>
+              {downloadingPdf ? 'Downloading...' : 'Download Payslip PDF'}
             </Btn>
           </PermissionGate>
         </div>
