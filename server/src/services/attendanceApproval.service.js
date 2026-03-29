@@ -165,8 +165,12 @@ async function raiseDispute(batchId, userId, data) {
 
   if (roleName === 'sales') {
     batch.salesApproval.status = 'disputed';
+    batch.salesApproval.disputedBy = userId;
+    batch.salesApproval.disputedByName = user.name;
   } else {
     batch.opsApproval.status = 'disputed';
+    batch.opsApproval.disputedBy = userId;
+    batch.opsApproval.disputedByName = user.name;
   }
   batch.status = 'disputed';
   batch.disputes.push(dispute._id);

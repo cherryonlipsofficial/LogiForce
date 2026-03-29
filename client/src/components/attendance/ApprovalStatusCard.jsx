@@ -31,8 +31,8 @@ const ApprovalRow = ({ label, approval }) => {
     valueText = `Approved by ${approverName} on ${formatDate(approval.approvedAt)}`;
     valueColor = '#4ade80';
   } else if (status === 'disputed') {
-    const disputerName = approval.disputedBy?.name || approval.disputedByName || 'Unknown';
-    valueText = `Disputed by ${disputerName}`;
+    const disputerName = approval.disputedBy?.name || approval.disputedByName || '';
+    valueText = disputerName ? `Disputed by ${disputerName}` : 'Disputed';
     valueColor = '#f87171';
   }
 
