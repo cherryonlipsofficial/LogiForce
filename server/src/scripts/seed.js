@@ -271,12 +271,12 @@ const seed = async () => {
       joinDate: new Date('2024-01-15'),
       createdBy: admin._id,
     })),
-    // Noon drivers (7)
-    ...Array.from({ length: 7 }, (_, i) => ({
-      fullName: ['Hassan Mirza', 'Pradeep Nair', 'Samir Patel', 'Arjun Das', 'Bilal Ahmed', 'Ravi Shankar', 'Wasim Akram'][i],
-      nationality: ['Pakistan', 'India', 'India', 'India', 'Pakistan', 'India', 'Pakistan'][i],
+    // Noon drivers (8)
+    ...Array.from({ length: 8 }, (_, i) => ({
+      fullName: ['Hassan Mirza', 'Pradeep Nair', 'Samir Patel', 'Arjun Das', 'Bilal Ahmed', 'Ravi Shankar', 'Wasim Akram', 'Fayyaz Memon'][i],
+      nationality: ['Pakistan', 'India', 'India', 'India', 'Pakistan', 'India', 'Pakistan', 'Pakistan'][i],
       phoneUae: `+97155${String(1000000 + i)}`,
-      baseSalary: 2800 + (i * 100),
+      baseSalary: [2800, 2900, 3000, 3100, 3200, 3300, 3400, 2400][i],
       payStructure: 'DAILY_RATE',
       status: 'active',
       clientId: noon._id,
@@ -335,7 +335,7 @@ const seed = async () => {
     await assignDriver(d, noonProj1);
   }
 
-  // Noon: Remaining 2 → Noon Project 2
+  // Noon: Remaining 3 → Noon Project 2
   for (const d of noonDrivers.slice(5)) {
     await assignDriver(d, noonProj2);
   }
@@ -396,13 +396,31 @@ const seed = async () => {
           status: 'valid',
         });
 
-        // Salary run (now includes project info)
+        // Salary run — mirrors salary.service.js calculation
         const baseSalary = driver.baseSalary;
-        const proratedSalary = Math.round((baseSalary / 26) * workingDays * 100) / 100;
-        const overtimePay = Math.round(overtimeHours * (baseSalary / 26 / 8) * 1.5 * 100) / 100;
-        const grossSalary = proratedSalary + overtimePay;
-        const totalDeductions = 0;
-        const netSalary = grossSalary - totalDeductions;
+        const STANDARD_WORKING_DAYS = 26;
+        const STANDARD_HOURS_PER_DAY = 8;
+        const OT_MULTIPLIER = 1.25;
+        const TRANSPORT_ALLOWANCE = 200;
+        const FOOD_ALLOWANCE_RATE = 0.056;
+        const TELECOM_SIM_MONTHLY_CHARGE = 100;
+
+        const proratedSalary = Math.round((baseSalary / STANDARD_WORKING_DAYS) * workingDays * 100) / 100;
+        const overtimePay = Math.round(overtimeHours * (baseSalary / STANDARD_WORKING_DAYS / STANDARD_HOURS_PER_DAY) * OT_MULTIPLIER * 100) / 100;
+        const foodAllowance = Math.round(baseSalary * FOOD_ALLOWANCE_RATE * 100) / 100;
+        const allowances = [
+          { type: 'transport', amount: TRANSPORT_ALLOWANCE },
+          { type: 'food', amount: foodAllowance },
+        ];
+        const totalAllowances = TRANSPORT_ALLOWANCE + foodAllowance;
+        const grossSalary = Math.round((proratedSalary + overtimePay + totalAllowances) * 100) / 100;
+
+        // Deductions: telecom SIM for all drivers
+        const deductions = [
+          { type: 'telecom_sim', amount: TELECOM_SIM_MONTHLY_CHARGE, description: 'Monthly telecom SIM charge', status: 'applied' },
+        ];
+        const totalDeductions = TELECOM_SIM_MONTHLY_CHARGE;
+        const netSalary = Math.round((grossSalary - totalDeductions) * 100) / 100;
 
         // Find the driver's project assignment rate
         const projectId = driver.projectId || null;
@@ -425,7 +443,9 @@ const seed = async () => {
           baseSalary,
           proratedSalary,
           overtimePay,
+          allowances,
           grossSalary,
+          deductions,
           totalDeductions,
           netSalary,
           status: 'approved',
@@ -453,7 +473,7 @@ const seed = async () => {
   console.log('Users seeded: 6 (with roles assigned)');
   console.log('Permission overrides: 1 example override on accountant user (drivers.create)');
   console.log('Projects created: 6 (3 Amazon UAE, 2 Noon, 1 Talabat)');
-  console.log('Driver assignments: 20 drivers assigned to projects');
+  console.log('Driver assignments: 21 drivers assigned to projects');
   console.log('Contracts active: 6');
 
   process.exit(0);
