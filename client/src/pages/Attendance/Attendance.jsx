@@ -269,12 +269,13 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
   });
 
   const attendanceRecords = batchDetail?.records || [];
-  const activeBatch = approvalData?.data || approvalData || batch;
+  const activeBatch = approvalData || batch;
   const currentUserRole = role || user?.roleId?.name || '';
   const st = statusMap[activeBatch.status || batch.status] || statusMap.pending_review;
   const displayId = batch.batchId || batch._id;
   const validationErrors = batch.validationErrors || [];
-  const openDisputes = (disputesData?.disputes || disputesData || []).filter(d => d.status === 'open');
+  const disputes = disputesData || [];
+  const openDisputes = (Array.isArray(disputes) ? disputes : []).filter(d => d.status === 'open');
 
   return (
     <SidePanel onClose={onClose}>
