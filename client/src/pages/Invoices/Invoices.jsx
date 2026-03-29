@@ -422,7 +422,7 @@ const GenerateInvoiceModal = ({ onClose }) => {
                       type="checkbox"
                       checked={selectedBatchIds.includes(batch._id)}
                       onChange={() => toggleBatch(batch._id)}
-                      style={{ margin: 0 }}
+                      style={{ margin: 0, width: 'auto', minHeight: 'auto', flexShrink: 0 }}
                     />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text2)' }}>{batch.batchId}</div>
