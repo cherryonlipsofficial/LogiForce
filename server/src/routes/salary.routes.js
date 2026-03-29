@@ -63,6 +63,7 @@ router.get('/runs', requirePermission('salary.view'), async (req, res) => {
     SalaryRun.find(query)
       .populate('driverId', 'fullName employeeCode bankName iban')
       .populate('clientId', 'name')
+      .populate('projectId', 'name')
       .populate('processedBy', 'name')
       .populate('approvedBy', 'name')
       .sort({ createdAt: -1 })
@@ -79,6 +80,7 @@ router.get('/runs/:id', requirePermission('salary.view'), async (req, res) => {
   const run = await SalaryRun.findById(req.params.id)
     .populate('driverId', 'fullName employeeCode bankName iban payStructure')
     .populate('clientId', 'name')
+    .populate('projectId', 'name')
     .populate('attendanceRecordId')
     .populate('processedBy', 'name')
     .populate('approvedBy', 'name');
