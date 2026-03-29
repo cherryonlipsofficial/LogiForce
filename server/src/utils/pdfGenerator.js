@@ -349,7 +349,7 @@ const generateInvoicePDF = (invoice, client, project, companySettings) => {
       if (i < lineItems.length) {
         const item = lineItems[i];
         const days = item.workingDays || 0;
-        const rate = item.dailyRate || item.ratePerDay || 0;
+        const rate = item.ratePerDriver || item.ratePerDay || item.dailyRate || 0;
         const amt = item.amount || 0;
         const vatPct = (item.vatRate || 0.05) * 100;
         const vatAmt = item.vatAmount != null ? item.vatAmount : parseFloat((amt * 0.05).toFixed(2));
