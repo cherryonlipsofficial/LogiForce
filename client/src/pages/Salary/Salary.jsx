@@ -270,10 +270,21 @@ const RunPayrollModal = ({ onClose }) => {
 
   const { mutate: run, isLoading } = useMutation({
     mutationFn: (data) => runPayroll(data),
-    onSuccess: () => {
-      toast.success('Payroll run started');
+    onSuccess: (res) => {
+      const result = res?.data || {};
+      const errors = result.errors || [];
+      const runs = result.runs || [];
       qc.invalidateQueries(['salary-runs']);
-      onClose();
+      if (errors.length > 0 && runs.length === 0) {
+        toast.error(`Payroll run failed with ${errors.length} error(s): ${errors[0]?.error || 'Unknown error'}`);
+      } else if (errors.length > 0) {
+        toast.success(`Payroll completed: ${runs.length} driver(s) processed`);
+        toast.error(`${errors.length} driver(s) had errors`);
+        onClose();
+      } else {
+        toast.success(`Payroll completed: ${result.totalDrivers || 0} driver(s) processed`);
+        onClose();
+      }
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to run payroll'),
   });
@@ -299,7 +310,7 @@ const RunPayrollModal = ({ onClose }) => {
   const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 4 };
 
   return (
-    <Modal title="Run payroll" onClose={onClose} width={420}>
+    <Modal title="Run payroll" onClose={isLoading ? undefined : onClose} width={420}>
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>Client *</label>
@@ -324,7 +335,7 @@ const RunPayrollModal = ({ onClose }) => {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
-          <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+          <Btn variant="ghost" onClick={onClose} disabled={isLoading}>Cancel</Btn>
           <Btn variant="primary" type="submit" disabled={isLoading}>
             {isLoading ? 'Running...' : 'Run payroll'}
           </Btn>

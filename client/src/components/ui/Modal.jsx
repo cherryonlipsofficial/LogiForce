@@ -8,14 +8,14 @@ const Modal = ({ children, onClose, title, width = 480 }) => {
 
   useEffect(() => {
     const handleEsc = (e) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && onClose) onClose();
     };
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
   }, [onClose]);
 
   const handleOverlayClick = (e) => {
-    if (e.target === overlayRef.current) onClose();
+    if (e.target === overlayRef.current && onClose) onClose();
   };
 
   return createPortal(
@@ -68,6 +68,7 @@ const Modal = ({ children, onClose, title, width = 480 }) => {
             <div style={{ fontSize: 15, fontWeight: 500 }}>{title}</div>
             <button
               onClick={onClose}
+              disabled={!onClose}
               style={{
                 background: 'var(--surface3)',
                 border: '1px solid var(--border2)',
