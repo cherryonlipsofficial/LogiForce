@@ -287,6 +287,8 @@ const generateFromAttendanceBatches = async (client, year, month, createdBy, pro
 
   const invoice = await Invoice.create({
     clientId: client._id,
+    projectId,
+    attendanceBatchId: attendanceBatchIds[0],
     period: { year, month },
     lineItems,
     projectGroups,

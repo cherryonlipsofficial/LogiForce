@@ -10,7 +10,6 @@ const invoiceSchema = new Schema(
     projectId: {
       type: Schema.Types.ObjectId,
       ref: 'Project',
-      required: true,
       index: true,
     },
     clientId: {
@@ -22,7 +21,6 @@ const invoiceSchema = new Schema(
     attendanceBatchId: {
       type: Schema.Types.ObjectId,
       ref: 'AttendanceBatch',
-      required: true,
     },
     period: {
       year: { type: Number, required: true },
