@@ -59,11 +59,11 @@ const generateInvoicePDF = (invoice, client) => {
         doc.addPage();
         y = 50;
       }
-      doc.text(item.driverName, colX.driver, y, { width: 145 });
-      doc.text(item.employeeCode, colX.code, y);
-      doc.text(String(item.workingDays), colX.days, y);
-      doc.text(item.ratePerDay.toFixed(2), colX.rate, y);
-      doc.text(item.amount.toFixed(2), colX.amount, y);
+      doc.text(item.driverName || '', colX.driver, y, { width: 145 });
+      doc.text(item.employeeCode || '', colX.code, y);
+      doc.text(String(item.workingDays || 0), colX.days, y);
+      doc.text((item.dailyRate || item.ratePerDay || 0).toFixed(2), colX.rate, y);
+      doc.text((item.amount || 0).toFixed(2), colX.amount, y);
       y += 18;
     }
 
@@ -74,11 +74,11 @@ const generateInvoicePDF = (invoice, client) => {
     // --- Totals ---
     doc.font('Helvetica').fontSize(10);
     doc.text('Subtotal:', colX.rate, y);
-    doc.text(`AED ${invoice.subtotal.toFixed(2)}`, colX.amount, y);
+    doc.text(`AED ${(invoice.subtotal || 0).toFixed(2)}`, colX.amount, y);
     y += 18;
 
-    doc.text(`VAT (${(invoice.vatRate * 100).toFixed(0)}%):`, colX.rate, y);
-    doc.text(`AED ${invoice.vatAmount.toFixed(2)}`, colX.amount, y);
+    doc.text(`VAT (${((invoice.vatRate || 0) * 100).toFixed(0)}%):`, colX.rate, y);
+    doc.text(`AED ${(invoice.vatAmount || 0).toFixed(2)}`, colX.amount, y);
     y += 18;
 
     // Credit notes
@@ -91,7 +91,7 @@ const generateInvoicePDF = (invoice, client) => {
 
     doc.font('Helvetica-Bold').fontSize(12);
     doc.text('TOTAL:', colX.rate, y);
-    doc.text(`AED ${invoice.total.toFixed(2)}`, colX.amount, y);
+    doc.text(`AED ${(invoice.total || 0).toFixed(2)}`, colX.amount, y);
     y += 35;
 
     // --- Payment Instructions ---
