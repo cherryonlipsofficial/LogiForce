@@ -11,6 +11,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
+import ProjectSelect from '../../components/ui/ProjectSelect';
 import { useNavigate } from 'react-router-dom';
 import { getRuns, runPayroll, approveRun, getWpsFile } from '../../api/salaryApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
@@ -261,6 +262,7 @@ const InfoRow = ({ label, value }) => (
 const RunPayrollModal = ({ onClose }) => {
   const { isMobile } = useBreakpoint();
   const [clientId, setClientId] = useState('');
+  const [projectId, setProjectId] = useState('');
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -276,13 +278,22 @@ const RunPayrollModal = ({ onClose }) => {
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to run payroll'),
   });
 
+  const handleClientChange = (val) => {
+    setClientId(val);
+    setProjectId('');
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!clientId) {
       toast.error('Please select a client');
       return;
     }
-    run({ clientId, year: Number(year), month: Number(month) });
+    if (!projectId) {
+      toast.error('Please select a project');
+      return;
+    }
+    run({ clientId, projectId, year: Number(year), month: Number(month) });
   };
 
   const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 4 };
@@ -292,7 +303,11 @@ const RunPayrollModal = ({ onClose }) => {
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>Client *</label>
-          <ClientSelect value={clientId} onChange={setClientId} />
+          <ClientSelect value={clientId} onChange={handleClientChange} />
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>Project *</label>
+          <ProjectSelect value={projectId} onChange={setProjectId} clientId={clientId} disabled={!clientId} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 14 }}>
           <div>
