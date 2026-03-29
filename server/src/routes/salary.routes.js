@@ -158,6 +158,22 @@ router.post('/runs/:id/deduction', requirePermission('salary.manage_deductions')
   sendSuccess(res, run, 'Deduction added');
 });
 
+// DELETE /api/salary/runs/:id — delete a salary run (draft/approved only)
+router.delete('/runs/:id', requirePermission('salary.delete'), async (req, res) => {
+  const run = await SalaryRun.findById(req.params.id);
+  if (!run) return sendError(res, 'Salary run not found', 404);
+
+  if (run.status === 'paid') {
+    return sendError(res, 'Cannot delete a paid salary run', 400);
+  }
+
+  await SalaryRun.findByIdAndDelete(req.params.id);
+
+  await auditLogger.logChange('SalaryRun', req.params.id, 'delete', run.status, null, req.user._id, 'salary_run_deletion');
+
+  sendSuccess(res, null, 'Salary run deleted');
+});
+
 // POST /api/salary/runs/:id/dispute — raise dispute on a salary run
 router.post('/runs/:id/dispute', validate(disputeSalaryValidation), async (req, res) => {
   const { reason } = req.body;

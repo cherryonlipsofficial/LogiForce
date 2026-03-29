@@ -13,7 +13,7 @@ import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
 import ProjectSelect from '../../components/ui/ProjectSelect';
 import { useNavigate } from 'react-router-dom';
-import { getRuns, runPayroll, approveRun, getWpsFile, getPayslipPdf, getRun, addDeduction } from '../../api/salaryApi';
+import { getRuns, runPayroll, approveRun, getWpsFile, getPayslipPdf, getRun, addDeduction, deleteRun } from '../../api/salaryApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
 import Pagination from '../../components/ui/Pagination';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
@@ -194,6 +194,7 @@ const RunDetail = ({ run, onClose }) => {
   const [dedType, setDedType] = useState('telecom_sim');
   const [dedAmount, setDedAmount] = useState('');
   const [dedDesc, setDedDesc] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Fetch full run details (with all populated fields)
   const { data: fullRunData } = useQuery({
@@ -214,6 +215,16 @@ const RunDetail = ({ run, onClose }) => {
       setDedDesc('');
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to add deduction'),
+  });
+
+  const { mutate: removeRun, isLoading: deleting } = useMutation({
+    mutationFn: () => deleteRun(run._id),
+    onSuccess: () => {
+      toast.success('Salary run deleted');
+      qc.invalidateQueries(['salary-runs']);
+      onClose();
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Failed to delete salary run'),
   });
 
   const { mutate: approve, isLoading: approving } = useMutation({
@@ -436,6 +447,21 @@ const RunDetail = ({ run, onClose }) => {
               {loadingPdf ? 'Loading...' : 'Download Payslip PDF'}
             </Btn>
           </PermissionGate>
+          {run.status !== 'paid' && (
+            <PermissionGate permission="salary.delete">
+              {!confirmDelete ? (
+                <Btn variant="danger" small onClick={() => setConfirmDelete(true)}>Delete</Btn>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: '#f87171' }}>Are you sure?</span>
+                  <Btn variant="danger" small onClick={() => removeRun()} disabled={deleting}>
+                    {deleting ? 'Deleting...' : 'Yes, delete'}
+                  </Btn>
+                  <Btn variant="ghost" small onClick={() => setConfirmDelete(false)} disabled={deleting}>Cancel</Btn>
+                </div>
+              )}
+            </PermissionGate>
+          )}
         </div>
       </div>
     </SidePanel>
