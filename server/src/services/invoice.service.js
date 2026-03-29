@@ -97,6 +97,7 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
         employeeCode: run.driverId.employeeCode,
         driverName: run.driverId.fullName,
         workingDays: run.workingDays,
+        ratePerDriver: rate,
         ratePerDay: Math.round(dailyRate * 100) / 100,
         rateBasis,
         amount,
@@ -119,14 +120,15 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
 
   if (unassignedRuns.length > 0) {
     const drivers = unassignedRuns.map((run) => {
-      const ratePerDay = fallbackRate / STANDARD_DAYS;
+      const { dailyRate, amount } = computeLineAmount(fallbackRate, 'monthly_fixed', run.workingDays);
       return {
         driverId: run.driverId._id,
         employeeCode: run.driverId.employeeCode,
         driverName: run.driverId.fullName,
         workingDays: run.workingDays,
-        ratePerDay: Math.round(ratePerDay * 100) / 100,
-        amount: Math.round(run.workingDays * ratePerDay * 100) / 100,
+        ratePerDriver: fallbackRate,
+        ratePerDay: Math.round(dailyRate * 100) / 100,
+        amount,
       };
     });
 
@@ -269,6 +271,7 @@ const generateFromAttendanceBatches = async (client, year, month, createdBy, pro
       employeeCode: driver.employeeCode,
       workingDays: record.workingDays,
       overtimeHours: record.overtimeHours || 0,
+      ratePerDriver: ratePerDriver,
       ratePerDay: parseFloat(dailyRate.toFixed(2)),
       rateBasis,
       amount,
