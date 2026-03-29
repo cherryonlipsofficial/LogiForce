@@ -26,6 +26,17 @@ const fallbackRuns = [
   { _id: 'SAL-005', client: 'Noon', period: 'Feb 2026', status: 'paid', totalGross: 527000, totalDeductions: 76200, totalNet: 450800, driverCount: 215, createdAt: '2026-02-19T09:00:00Z', approvedBy: 'Finance Manager' },
 ];
 
+const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+const formatPeriod = (period) => {
+  if (!period) return '—';
+  if (typeof period === 'string') return period;
+  if (period.year != null && period.month != null) {
+    return `${monthNames[period.month - 1] || ''} ${period.year}`;
+  }
+  return '—';
+};
+
 const statusMap = {
   draft: { label: 'Draft', variant: 'warning' },
   approved: { label: 'Approved', variant: 'success' },
@@ -109,7 +120,7 @@ const Salary = () => {
                         <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>{r._id}</span>
                       </td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{r.client}</td>
-                      <td style={{ padding: '11px 14px', fontSize: 12 }}>{r.period}</td>
+                      <td style={{ padding: '11px 14px', fontSize: 12 }}>{formatPeriod(r.period)}</td>
                       <td style={{ padding: '11px 14px' }}>
                         <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{r.driverCount}</span>
                       </td>
@@ -185,7 +196,7 @@ const RunDetail = ({ run, onClose }) => {
       <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontSize: 16, fontWeight: 500 }}>Payroll {run._id}</div>
-          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{run.client} &middot; {run.period}</div>
+          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{run.client} &middot; {formatPeriod(run.period)}</div>
         </div>
         <button onClick={onClose} style={{ background: 'var(--surface3)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 8, padding: '4px 10px', fontSize: 16 }}>&times;</button>
       </div>
