@@ -87,7 +87,7 @@ router.post('/upload', requirePermission('attendance.upload'), attendanceUpload.
     uploadedBy: req.user._id,
     uploadedByName: req.user.name,
     columnMapping: mapping,
-    s3Key: req.file.filename,
+    s3Key: req.file.originalname,
     validationErrors: rows
       .filter((r) => r.issues.length > 0)
       .map((r) => ({

@@ -72,6 +72,8 @@ const attendanceBatchSchema = new Schema(
       approvedByName: { type: String },
       approvedAt: { type: Date },
       notes: { type: String },
+      disputedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+      disputedByName: { type: String },
     },
 
     // Operations team approval record
@@ -85,6 +87,8 @@ const attendanceBatchSchema = new Schema(
       approvedByName: { type: String },
       approvedAt: { type: Date },
       notes: { type: String },
+      disputedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+      disputedByName: { type: String },
     },
 
     // Notification tracking
