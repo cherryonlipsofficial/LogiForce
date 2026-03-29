@@ -7,6 +7,7 @@ const {
   Supplier,
   DriverLedger,
   DriverProjectAssignment,
+  Project,
 } = require('../models');
 const { SALARY } = require('../config/constants');
 
@@ -330,7 +331,15 @@ const getDeductionCarryover = async (driverId, year, month) => {
  * Run payroll for all active drivers of a client for a given period.
  */
 const runPayroll = async (clientId, projectId, year, month, processedBy) => {
-  // 1. Find all active drivers for this client/project with approved attendance
+  // 1. Resolve clientId from project to ensure consistency with stored records
+  if (projectId) {
+    const project = await Project.findById(projectId).select('clientId');
+    if (project) {
+      clientId = project.clientId;
+    }
+  }
+
+  // 2. Find all active drivers for this client/project with approved attendance
   const query = {
     clientId,
     'period.year': year,
@@ -345,18 +354,19 @@ const runPayroll = async (clientId, projectId, year, month, processedBy) => {
 
   // Filter to only those with approved batches
   const approvedRecords = attendanceRecords.filter(
-    (r) => r.batchId && ['fully_approved', 'invoiced'].includes(r.batchId.status)
+    (r) => r.batchId && ['fully_approved', 'invoiced', 'processed'].includes(r.batchId.status)
   );
 
   if (approvedRecords.length === 0) {
-    const err = new Error(
-      'No approved attendance records found for this client/project/period'
-    );
+    const detail = attendanceRecords.length > 0
+      ? `Found ${attendanceRecords.length} attendance record(s) but none with an approved batch (batch statuses: ${[...new Set(attendanceRecords.map((r) => r.batchId?.status || 'unknown'))].join(', ')})`
+      : 'No attendance records found for this client/project/period';
+    const err = new Error(detail);
     err.statusCode = 404;
     throw err;
   }
 
-  // 2. Calculate salary for each driver
+  // 3. Calculate salary for each driver
   const runs = [];
   const errors = [];
   let totalGross = 0;
@@ -384,17 +394,17 @@ const runPayroll = async (clientId, projectId, year, month, processedBy) => {
     }
   }
 
-  // 3. Post ledger entries for each run
+  // 4. Post ledger entries for each run
   for (const run of runs) {
     await postLedgerEntries(run, processedBy);
   }
 
-  // 4. Update advance records
+  // 5. Update advance records
   for (const run of runs) {
     await updateAdvanceRecoveries(run);
   }
 
-  // 5. Mark attendance batch as processed
+  // 6. Mark attendance batch as processed
   const batchIds = [...new Set(approvedRecords.map((r) => String(r.batchId._id)))];
   await AttendanceBatch.updateMany(
     { _id: { $in: batchIds } },
