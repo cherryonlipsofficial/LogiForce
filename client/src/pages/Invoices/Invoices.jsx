@@ -26,6 +26,19 @@ const fallbackInvoices = [
   { _id: 'INV-2026-006', client: 'Talabat', period: 'Feb 2026', amount: 378900, status: 'overdue', issueDate: '2026-02-18T00:00:00Z', dueDate: '2026-03-20T00:00:00Z', driverCount: 154, creditNotes: [] },
 ];
 
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+const normalizeInvoice = (inv) => {
+  if (inv.client && typeof inv.period === 'string') return inv;
+  return {
+    ...inv,
+    client: inv.clientId?.name || inv.client || 'Unknown',
+    period: inv.period?.year ? `${MONTHS[(inv.period.month || 1) - 1]} ${inv.period.year}` : inv.period,
+    amount: inv.total ?? inv.amount,
+    issueDate: inv.issuedDate || inv.issueDate,
+  };
+};
+
 const statusMap = {
   draft: { label: 'Draft', variant: 'default' },
   sent: { label: 'Sent', variant: 'info' },
@@ -47,7 +60,7 @@ const Invoices = () => {
     retry: 1,
   });
 
-  const invoices = data?.data || fallbackInvoices;
+  const invoices = (data?.data || fallbackInvoices).map(normalizeInvoice);
   const pagination = data?.pagination;
   const filtered = invoices;
 
