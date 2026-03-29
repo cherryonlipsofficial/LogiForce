@@ -4,10 +4,12 @@ import { useBreakpoint } from '../../hooks/useBreakpoint';
 import PermissionGate from '../../components/ui/PermissionGate';
 import UsersPanel from '../../components/settings/UsersPanel';
 import RolesPanel from '../../components/settings/RolesPanel';
+import CompanyPanel from '../../components/settings/CompanyPanel';
 
 const tabs = [
   { id: 'users', label: 'Users', permission: 'users.view' },
   { id: 'roles', label: 'Roles & Permissions', permission: 'roles.manage' },
+  { id: 'company', label: 'Company', permission: 'settings.edit' },
 ];
 
 const Settings = () => {
@@ -89,6 +91,7 @@ const Settings = () => {
       <div style={{ flex: 1, marginLeft: isMobile ? 0 : 20, marginTop: isMobile ? 16 : 0 }}>
         {activeTab === 'users' && <UsersPanel />}
         {activeTab === 'roles' && <RolesPanel />}
+        {activeTab === 'company' && <CompanyPanel />}
       </div>
     </div>
   );
