@@ -40,7 +40,8 @@ const invoiceSchema = new Schema(
         employeeCode: { type: String },
         workingDays: { type: Number },
         ratePerDriver: { type: Number }, // from project contract
-        dailyRate: { type: Number }, // ratePerDriver / 26
+        rateBasis: { type: String, enum: ['monthly_fixed', 'daily_rate', 'per_trip'] },
+        dailyRate: { type: Number }, // computed from ratePerDriver based on rateBasis
         amount: { type: Number }, // dailyRate * workingDays
         vatRate: { type: Number, default: 0.05 },
         vatAmount: { type: Number },
@@ -54,6 +55,7 @@ const invoiceSchema = new Schema(
         projectName: { type: String },
         projectCode: { type: String },
         ratePerDriver: { type: Number },
+        rateBasis: { type: String, enum: ['monthly_fixed', 'daily_rate', 'per_trip'] },
         dailyRate: { type: Number },
         drivers: [
           {
@@ -63,6 +65,7 @@ const invoiceSchema = new Schema(
             workingDays: { type: Number },
             overtimeHours: { type: Number, default: 0 },
             ratePerDay: { type: Number },
+            rateBasis: { type: String, enum: ['monthly_fixed', 'daily_rate', 'per_trip'] },
             amount: { type: Number },
           },
         ],

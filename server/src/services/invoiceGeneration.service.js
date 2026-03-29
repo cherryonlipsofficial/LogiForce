@@ -4,6 +4,7 @@ const {
   User,
 } = require('../models')
 const { notifyByRole } = require('./notification.service')
+const { computeLineAmount } = require('../utils/rateCalculator')
 
 /**
  * Generate an invoice from a fully-approved attendance batch.
@@ -50,17 +51,21 @@ async function generateInvoice(batchId, accountsUserId) {
     )
   }
 
-  // STEP 3 — Get billing rate from project
+  // STEP 3 — Get billing rate and basis from project
   // Priority: active ProjectContract rate → project.ratePerDriver fallback
   let ratePerDriver = batch.projectId.ratePerDriver
+  let rateBasis = batch.projectId.rateBasis || 'monthly_fixed'
 
   const activeContract = await ProjectContract.findOne({
     projectId: batch.projectId._id,
     status:    'active',
-  }).select('ratePerDriver')
+  }).select('ratePerDriver rateBasis')
 
   if (activeContract?.ratePerDriver) {
     ratePerDriver = activeContract.ratePerDriver
+  }
+  if (activeContract?.rateBasis) {
+    rateBasis = activeContract.rateBasis
   }
 
   if (!ratePerDriver || ratePerDriver <= 0) {
@@ -73,17 +78,6 @@ async function generateInvoice(batchId, accountsUserId) {
     )
   }
 
-  const STANDARD_DAYS = 26
-  const rateBasis = batch.projectId.rateBasis || 'monthly_fixed'
-  let dailyRate
-  if (rateBasis === 'daily_rate') {
-    // Daily rate: ratePerDriver IS the daily rate
-    dailyRate = ratePerDriver
-  } else {
-    // Monthly fixed (default): divide by standard days
-    dailyRate = parseFloat((ratePerDriver / STANDARD_DAYS).toFixed(4))
-  }
-
   // STEP 4 — Build line items (one per driver)
   const lineItems = []
   let subtotal = 0
@@ -93,7 +87,7 @@ async function generateInvoice(batchId, accountsUserId) {
     if (!driver) continue
 
     const workingDays = record.workingDays || 0
-    const amount      = parseFloat((dailyRate * workingDays).toFixed(2))
+    const { dailyRate, amount } = computeLineAmount(ratePerDriver, rateBasis, workingDays)
 
     const vatAmount_item = parseFloat((amount * 0.05).toFixed(2))
     const totalWithVat   = parseFloat((amount + vatAmount_item).toFixed(2))
@@ -104,6 +98,7 @@ async function generateInvoice(batchId, accountsUserId) {
       employeeCode: driver.employeeCode,
       workingDays,
       ratePerDriver,
+      rateBasis,
       dailyRate,
       amount,
       vatRate:      0.05,
