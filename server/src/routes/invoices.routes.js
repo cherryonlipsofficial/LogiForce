@@ -60,6 +60,7 @@ router.get('/', requirePermission('invoices.view'), async (req, res) => {
   const [invoices, total] = await Promise.all([
     Invoice.find(query)
       .populate('clientId', 'name')
+      .populate('projectId', 'name projectCode')
       .populate('createdBy', 'name')
       .sort({ createdAt: -1 })
       .skip(skip)

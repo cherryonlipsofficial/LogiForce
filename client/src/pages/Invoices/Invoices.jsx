@@ -32,7 +32,9 @@ const normalizeInvoice = (inv) => {
   if (inv.client && typeof inv.period === 'string') return inv;
   return {
     ...inv,
+    invoiceNo: inv.invoiceNo || inv._id,
     client: inv.clientId?.name || inv.client || 'Unknown',
+    projectName: inv.projectId?.name || inv.projectName || null,
     period: inv.period?.year ? `${MONTHS[(inv.period.month || 1) - 1]} ${inv.period.year}` : inv.period,
     amount: inv.total ?? inv.amount,
     issueDate: inv.issuedDate || inv.issueDate,
@@ -121,7 +123,7 @@ const Invoices = () => {
                       onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                     >
                       <td style={{ padding: '11px 14px' }}>
-                        <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>{inv._id}</span>
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>{inv.invoiceNo || inv._id}</span>
                       </td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{inv.client}</td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{inv.period}</td>
@@ -183,7 +185,7 @@ const InvoiceDetail = ({ invoice, onClose }) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${invoice._id}.pdf`;
+      a.download = `${invoice.invoiceNo || invoice._id}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
@@ -195,8 +197,10 @@ const InvoiceDetail = ({ invoice, onClose }) => {
     <SidePanel onClose={onClose}>
       <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 500 }}>{invoice._id}</div>
-          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{invoice.client} &middot; {invoice.period}</div>
+          <div style={{ fontSize: 16, fontWeight: 500 }}>{invoice.invoiceNo || invoice._id}</div>
+          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
+            {invoice.client}{invoice.projectName ? ` · ${invoice.projectName}` : ''} &middot; {invoice.period}
+          </div>
         </div>
         <button onClick={onClose} style={{ background: 'var(--surface3)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 8, padding: '4px 10px', fontSize: 16 }}>&times;</button>
       </div>

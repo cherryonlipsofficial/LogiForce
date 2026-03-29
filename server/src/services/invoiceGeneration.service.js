@@ -13,7 +13,7 @@ const { notifyByRole } = require('./notification.service')
 async function generateInvoice(batchId, accountsUserId) {
   // STEP 1 — Validate batch
   const batch = await AttendanceBatch.findById(batchId)
-    .populate('projectId', 'name projectCode ratePerDriver clientId')
+    .populate('projectId', 'name projectCode ratePerDriver rateBasis clientId')
     .populate('clientId', 'name vatNo paymentTerms')
 
   if (!batch) throw Object.assign(new Error('Batch not found'), { statusCode: 404 })
@@ -74,7 +74,15 @@ async function generateInvoice(batchId, accountsUserId) {
   }
 
   const STANDARD_DAYS = 26
-  const dailyRate = parseFloat((ratePerDriver / STANDARD_DAYS).toFixed(4))
+  const rateBasis = batch.projectId.rateBasis || 'monthly_fixed'
+  let dailyRate
+  if (rateBasis === 'daily_rate') {
+    // Daily rate: ratePerDriver IS the daily rate
+    dailyRate = ratePerDriver
+  } else {
+    // Monthly fixed (default): divide by standard days
+    dailyRate = parseFloat((ratePerDriver / STANDARD_DAYS).toFixed(4))
+  }
 
   // STEP 4 — Build line items (one per driver)
   const lineItems = []
