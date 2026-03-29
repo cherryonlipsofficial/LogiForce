@@ -35,6 +35,7 @@ const attendanceBatchSchema = new Schema(
         'disputed',
         'dispute_responded',
         'invoiced',
+        'processed',
         'rejected',
       ],
       default: 'uploaded',

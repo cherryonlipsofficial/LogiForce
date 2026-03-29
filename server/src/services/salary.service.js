@@ -41,7 +41,7 @@ const calculateDriverSalary = async (driverId, year, month, processedBy) => {
   }
 
   // Verify the batch is approved
-  if (attendance.batchId && !['approved', 'processed'].includes(attendance.batchId.status)) {
+  if (attendance.batchId && !['fully_approved', 'invoiced', 'processed'].includes(attendance.batchId.status)) {
     const err = new Error(
       `Attendance batch is not approved (status: ${attendance.batchId.status})`
     );
@@ -342,7 +342,7 @@ const runPayroll = async (clientId, projectId, year, month, processedBy) => {
 
   // Filter to only those with approved batches
   const approvedRecords = attendanceRecords.filter(
-    (r) => r.batchId && ['approved', 'processed'].includes(r.batchId.status)
+    (r) => r.batchId && ['fully_approved', 'invoiced'].includes(r.batchId.status)
   );
 
   if (approvedRecords.length === 0) {

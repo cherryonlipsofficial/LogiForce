@@ -162,7 +162,7 @@ router.delete('/batches/:id', requirePermission('attendance.approve'), async (re
   const batch = await AttendanceBatch.findById(req.params.id);
   if (!batch) return sendError(res, 'Batch not found', 404);
 
-  if (batch.status === 'approved' || batch.status === 'processed') {
+  if (['fully_approved', 'invoiced', 'processed'].includes(batch.status)) {
     return sendError(res, `Cannot delete batch in ${batch.status} status`, 400);
   }
 
