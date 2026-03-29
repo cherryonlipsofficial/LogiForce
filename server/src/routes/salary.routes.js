@@ -6,7 +6,7 @@ const { SalaryRun, CompanySettings, Client } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
 const validate = require('../middleware/validate');
-const { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation } = require('../middleware/validators/salary.validators');
+const { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation, manualDeductionValidation } = require('../middleware/validators/salary.validators');
 const auditLogger = require('../utils/auditLogger');
 const { generatePayslipPDF } = require('../utils/pdfGenerator');
 
@@ -15,7 +15,7 @@ router.use(protect);
 
 // POST /api/salary/run — trigger payroll run for client/period
 router.post('/run', requirePermission('salary.run'), validate(runSalaryValidation), async (req, res) => {
-  const { clientId, projectId, year, month } = req.body;
+  const { clientId, projectId, year, month, includeOT, includeTransport } = req.body;
 
   // Check for existing runs in this period for the same project (duplicate check)
   const existingRuns = await SalaryRun.find({
@@ -38,7 +38,8 @@ router.post('/run', requirePermission('salary.run'), validate(runSalaryValidatio
     projectId,
     parseInt(year),
     parseInt(month),
-    req.user._id
+    req.user._id,
+    { includeOT: !!includeOT, includeTransport: !!includeTransport }
   );
 
   // Audit log
@@ -140,6 +141,21 @@ router.put('/runs/:id/adjust', requirePermission('salary.adjust'), validate(adju
 
   await run.save();
   sendSuccess(res, run, 'Salary run adjusted');
+});
+
+// POST /api/salary/runs/:id/deduction — manually add a typed deduction (role-gated)
+router.post('/runs/:id/deduction', requirePermission('salary.manage_deductions'), validate(manualDeductionValidation), async (req, res) => {
+  const { type, amount, description } = req.body;
+
+  const run = await salaryService.addManualDeduction(
+    req.params.id,
+    { type, amount, description },
+    req.user._id
+  );
+
+  await auditLogger.logChange('SalaryRun', req.params.id, 'deduction_added', null, `${type}: ${amount} AED`, req.user._id, 'manual_deduction');
+
+  sendSuccess(res, run, 'Deduction added');
 });
 
 // POST /api/salary/runs/:id/dispute — raise dispute on a salary run

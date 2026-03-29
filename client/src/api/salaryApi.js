@@ -17,3 +17,6 @@ export const getWpsFile = (params) =>
 
 export const getPayslipPdf = (id) =>
   axiosInstance.get(`/salary/runs/${id}/payslip`, { responseType: 'blob' }).then(r => r.data);
+
+export const addDeduction = (runId, data) =>
+  axiosInstance.post(`/salary/runs/${runId}/deduction`, data).then(r => r.data);

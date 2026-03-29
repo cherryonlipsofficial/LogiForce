@@ -15,10 +15,17 @@ module.exports = {
     STANDARD_HOURS_PER_DAY: 8,
     OT_MULTIPLIER: 1.25,
     TRANSPORT_ALLOWANCE: 200,
-    FOOD_ALLOWANCE_RATE: 0.056,
     MAX_ADVANCE_RECOVERY_RATE: 0.5,
     TELECOM_SIM_MONTHLY_CHARGE: 100,
   },
+  DEDUCTION_TYPES: [
+    'telecom_sim',
+    'vehicle_rental',
+    'salik',
+    'advance_recovery',
+    'penalty',
+    'deduction_carryover',
+  ],
   WPS: {
     EMPLOYER_ID: 'LOGIFORCE001',
   },
