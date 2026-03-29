@@ -1,6 +1,6 @@
 const { Invoice, SalaryRun, Client, Driver, DriverLedger, Project, AttendanceBatch, AttendanceRecord, DriverProjectAssignment } = require('../models');
+const { computeLineAmount, STANDARD_DAYS } = require('../utils/rateCalculator');
 
-const STANDARD_DAYS = 26;
 const VAT_RATE = 0.05;
 
 const generateInvoice = async (clientId, year, month, createdBy, { projectId, attendanceBatchIds } = {}) => {
@@ -91,20 +91,16 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
     const rateBasis = proj.rateBasis || 'monthly_fixed';
     const drivers = runs.map((run) => {
       const rate = run.projectRatePerDriver || proj.ratePerDriver || fallbackRate;
-      let ratePerDay;
-      if (rateBasis === 'daily_rate') {
-        ratePerDay = rate;
-      } else {
-        ratePerDay = rate / STANDARD_DAYS;
-      }
+      const { dailyRate, amount } = computeLineAmount(rate, rateBasis, run.workingDays);
       return {
         driverId: run.driverId._id,
         employeeCode: run.driverId.employeeCode,
         driverName: run.driverId.fullName,
         workingDays: run.workingDays,
         ratePerDriver: rate,
-        ratePerDay: Math.round(ratePerDay * 100) / 100,
-        amount: Math.round(run.workingDays * ratePerDay * 100) / 100,
+        ratePerDay: Math.round(dailyRate * 100) / 100,
+        rateBasis,
+        amount,
       };
     });
 
@@ -115,6 +111,7 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
       projectName: proj.name || 'Unknown project',
       projectCode: proj.projectCode || '',
       ratePerDriver: proj.ratePerDriver || fallbackRate,
+      rateBasis,
       drivers,
       driverCount: drivers.length,
       subtotal: Math.round(subtotal * 100) / 100,
@@ -123,15 +120,15 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
 
   if (unassignedRuns.length > 0) {
     const drivers = unassignedRuns.map((run) => {
-      const ratePerDay = fallbackRate / STANDARD_DAYS;
+      const { dailyRate, amount } = computeLineAmount(fallbackRate, 'monthly_fixed', run.workingDays);
       return {
         driverId: run.driverId._id,
         employeeCode: run.driverId.employeeCode,
         driverName: run.driverId.fullName,
         workingDays: run.workingDays,
         ratePerDriver: fallbackRate,
-        ratePerDay: Math.round(ratePerDay * 100) / 100,
-        amount: Math.round(run.workingDays * ratePerDay * 100) / 100,
+        ratePerDay: Math.round(dailyRate * 100) / 100,
+        amount,
       };
     });
 
@@ -263,18 +260,7 @@ const generateFromAttendanceBatches = async (client, year, month, createdBy, pro
     }
 
     const rateBasis = project.rateBasis || 'monthly_fixed';
-    let dailyRate;
-    let amount;
-
-    if (rateBasis === 'daily_rate') {
-      // Daily rate: ratePerDriver IS the daily rate, multiply directly by working days
-      dailyRate = ratePerDriver;
-      amount = parseFloat((ratePerDriver * record.workingDays).toFixed(2));
-    } else {
-      // Monthly fixed (default): divide monthly rate by standard days
-      dailyRate = ratePerDriver / STANDARD_DAYS;
-      amount = parseFloat((dailyRate * record.workingDays).toFixed(2));
-    }
+    const { dailyRate, amount } = computeLineAmount(ratePerDriver, rateBasis, record.workingDays);
 
     projectMap[projKey].ratePerDriver = ratePerDriver;
     projectMap[projKey].dailyRate = parseFloat(dailyRate.toFixed(4));
@@ -287,6 +273,7 @@ const generateFromAttendanceBatches = async (client, year, month, createdBy, pro
       overtimeHours: record.overtimeHours || 0,
       ratePerDriver: ratePerDriver,
       ratePerDay: parseFloat(dailyRate.toFixed(2)),
+      rateBasis,
       amount,
     });
     projectMap[projKey].subtotal += amount;

@@ -13,7 +13,7 @@ const { SALARY } = require('../config/constants');
 /**
  * Calculate salary for a single driver for a given period.
  */
-const calculateDriverSalary = async (driverId, year, month, processedBy) => {
+const calculateDriverSalary = async (driverId, year, month, processedBy, { clientId: requestClientId, attendanceBatchId } = {}) => {
   // 1. Fetch driver (with project info)
   const driver = await Driver.findById(driverId)
     .populate('supplierId')
@@ -41,7 +41,7 @@ const calculateDriverSalary = async (driverId, year, month, processedBy) => {
   }
 
   // Verify the batch is approved
-  if (attendance.batchId && !['approved', 'processed'].includes(attendance.batchId.status)) {
+  if (attendance.batchId && !['fully_approved', 'invoiced', 'processed'].includes(attendance.batchId.status)) {
     const err = new Error(
       `Attendance batch is not approved (status: ${attendance.batchId.status})`
     );
@@ -123,9 +123,12 @@ const calculateDriverSalary = async (driverId, year, month, processedBy) => {
   }
 
   // 9. Create SalaryRun document
+  const resolvedClientId = driver.clientId || requestClientId;
+  const resolvedBatchId = attendanceBatchId || (attendance.batchId?._id || attendance.batchId);
   const salaryRun = await SalaryRun.create({
     driverId,
-    clientId: driver.clientId,
+    clientId: resolvedClientId,
+    attendanceBatchId: resolvedBatchId,
     projectId: projectId || undefined,
     projectRatePerDriver: projectRatePerDriver || undefined,
     period: { year, month },
@@ -342,7 +345,7 @@ const runPayroll = async (clientId, projectId, year, month, processedBy) => {
 
   // Filter to only those with approved batches
   const approvedRecords = attendanceRecords.filter(
-    (r) => r.batchId && ['approved', 'processed'].includes(r.batchId.status)
+    (r) => r.batchId && ['fully_approved', 'invoiced'].includes(r.batchId.status)
   );
 
   if (approvedRecords.length === 0) {
@@ -366,7 +369,8 @@ const runPayroll = async (clientId, projectId, year, month, processedBy) => {
         record.driverId,
         year,
         month,
-        processedBy
+        processedBy,
+        { clientId, attendanceBatchId: record.batchId?._id || record.batchId }
       );
       runs.push(salaryRun);
       totalGross += salaryRun.grossSalary;

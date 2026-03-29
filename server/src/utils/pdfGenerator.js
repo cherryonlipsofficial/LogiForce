@@ -287,7 +287,7 @@ const generateInvoicePDF = (invoice, client, project, companySettings) => {
     y += headerRowH;
 
     // --- Sub-header row ---
-    const subHeaders = ['Sr.', 'Name of Employee / Driver', 'Payable Days', 'Rate', 'Amount', 'Rate', 'Amount', 'Total (In AED)'];
+    const subHeaders = ['Sr.', 'Name of Employee / Driver', 'Payable Days', 'Rate/Day', 'Amount', 'Rate', 'Amount', 'Total (In AED)'];
     const subFontSizes = [6, 6.5, 6, 6, 6, 6, 6, 5.5];
     const subAligns = ['center', 'center', 'center', 'center', 'center', 'center', 'center', 'center'];
     const colKeys = ['sr', 'name', 'days', 'rate', 'amount', 'vatRate', 'vatAmt', 'total'];
