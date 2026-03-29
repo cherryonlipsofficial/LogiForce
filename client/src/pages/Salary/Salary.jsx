@@ -13,7 +13,7 @@ import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
 import ProjectSelect from '../../components/ui/ProjectSelect';
 import { useNavigate } from 'react-router-dom';
-import { getRuns, runPayroll, approveRun, getWpsFile } from '../../api/salaryApi';
+import { getRuns, runPayroll, approveRun, getWpsFile, addDeduction } from '../../api/salaryApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
 import Pagination from '../../components/ui/Pagination';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
@@ -156,11 +156,36 @@ const Salary = () => {
   );
 };
 
+const DEDUCTION_TYPE_LABELS = {
+  telecom_sim: 'Telecom SIM',
+  vehicle_rental: 'Vehicle Rental',
+  salik: 'Salik/Tolls',
+  advance_recovery: 'Advance Recovery',
+  penalty: 'Penalty',
+  deduction_carryover: 'Carryover',
+};
+
 const RunDetail = ({ run, onClose }) => {
   const { isMobile } = useBreakpoint();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const st = statusMap[run.status] || statusMap.draft;
+  const [showDeductionForm, setShowDeductionForm] = useState(false);
+  const [dedType, setDedType] = useState('telecom_sim');
+  const [dedAmount, setDedAmount] = useState('');
+  const [dedDesc, setDedDesc] = useState('');
+
+  const { mutate: submitDeduction, isLoading: submittingDed } = useMutation({
+    mutationFn: (data) => addDeduction(run._id, data),
+    onSuccess: () => {
+      toast.success('Deduction added');
+      qc.invalidateQueries(['salary-runs']);
+      setShowDeductionForm(false);
+      setDedAmount('');
+      setDedDesc('');
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Failed to add deduction'),
+  });
 
   const { mutate: approve, isLoading: approving } = useMutation({
     mutationFn: () => approveRun(run._id),
@@ -242,6 +267,42 @@ const RunDetail = ({ run, onClose }) => {
           </div>
         )}
 
+        {run.status === 'draft' && (
+          <PermissionGate permission="salary.manage_deductions">
+            <div style={{ marginBottom: 20 }}>
+              {!showDeductionForm ? (
+                <Btn small variant="ghost" onClick={() => setShowDeductionForm(true)}>+ Add deduction</Btn>
+              ) : (
+                <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 14 }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 10, color: 'var(--text2)' }}>Add manual deduction</div>
+                  <div style={{ marginBottom: 8 }}>
+                    <label style={{ display: 'block', fontSize: 11, color: 'var(--text3)', marginBottom: 3 }}>Type</label>
+                    <select value={dedType} onChange={(e) => setDedType(e.target.value)} style={{ width: '100%', height: 32, fontSize: 12 }}>
+                      {Object.entries(DEDUCTION_TYPE_LABELS).map(([k, v]) => (
+                        <option key={k} value={k}>{v}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{ marginBottom: 8 }}>
+                    <label style={{ display: 'block', fontSize: 11, color: 'var(--text3)', marginBottom: 3 }}>Amount (AED)</label>
+                    <input type="number" step="0.01" min="0.01" value={dedAmount} onChange={(e) => setDedAmount(e.target.value)} placeholder="0.00" style={{ width: '100%', height: 32, fontSize: 12 }} />
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ display: 'block', fontSize: 11, color: 'var(--text3)', marginBottom: 3 }}>Description (optional)</label>
+                    <input type="text" value={dedDesc} onChange={(e) => setDedDesc(e.target.value)} placeholder="e.g. March SIM charge" style={{ width: '100%', height: 32, fontSize: 12 }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <Btn small variant="primary" disabled={submittingDed || !dedAmount} onClick={() => submitDeduction({ type: dedType, amount: parseFloat(dedAmount), description: dedDesc || undefined })}>
+                      {submittingDed ? 'Adding...' : 'Add'}
+                    </Btn>
+                    <Btn small variant="ghost" onClick={() => setShowDeductionForm(false)} disabled={submittingDed}>Cancel</Btn>
+                  </div>
+                </div>
+              )}
+            </div>
+          </PermissionGate>
+        )}
+
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <PermissionGate permission="salary.approve">
             {run.status === 'draft' && (
@@ -275,6 +336,8 @@ const RunPayrollModal = ({ onClose }) => {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  const [includeOT, setIncludeOT] = useState(false);
+  const [includeTransport, setIncludeTransport] = useState(false);
   const qc = useQueryClient();
 
   const { mutate: run, isLoading } = useMutation({
@@ -313,7 +376,7 @@ const RunPayrollModal = ({ onClose }) => {
       toast.error('Please select a project');
       return;
     }
-    run({ clientId, projectId, year: Number(year), month: Number(month) });
+    run({ clientId, projectId, year: Number(year), month: Number(month), includeOT, includeTransport });
   };
 
   const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 4 };
@@ -342,6 +405,17 @@ const RunPayrollModal = ({ onClose }) => {
               ))}
             </select>
           </div>
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 8 }}>Optional earnings</div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginBottom: 6 }}>
+            <input type="checkbox" checked={includeOT} onChange={(e) => setIncludeOT(e.target.checked)} />
+            Include overtime (OT)
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+            <input type="checkbox" checked={includeTransport} onChange={(e) => setIncludeTransport(e.target.checked)} />
+            Include transport allowance
+          </label>
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
           <Btn variant="ghost" onClick={onClose} disabled={isLoading}>Cancel</Btn>

@@ -62,6 +62,7 @@ module.exports = {
     'salary.approve':          { label: 'Approve salary',          module: 'Salary',     description: 'Approve individual or bulk salary runs' },
     'salary.adjust':           { label: 'Make salary adjustments', module: 'Salary',     description: 'Add manual adjustments to salary runs' },
     'salary.export_wps':       { label: 'Export WPS file',         module: 'Salary',     description: 'Download WPS salary transfer file' },
+    'salary.manage_deductions': { label: 'Manage deductions',       module: 'Salary',     description: 'Manually add or edit salary deductions (telecom, vehicle, salik, advance, penalty, carryover)' },
 
     // ── INVOICES ──
     'invoices.view':           { label: 'View invoices',           module: 'Invoices',   description: 'See invoice list and details' },

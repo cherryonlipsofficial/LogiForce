@@ -14,7 +14,7 @@ const { SALARY } = require('../config/constants');
 /**
  * Calculate salary for a single driver for a given period.
  */
-const calculateDriverSalary = async (driverId, year, month, processedBy, { clientId: requestClientId, attendanceBatchId } = {}) => {
+const calculateDriverSalary = async (driverId, year, month, processedBy, { clientId: requestClientId, attendanceBatchId, includeOT = false, includeTransport = false } = {}) => {
   // 1. Fetch driver (with project info)
   const driver = await Driver.findById(driverId)
     .populate('supplierId')
@@ -66,20 +66,20 @@ const calculateDriverSalary = async (driverId, year, month, processedBy, { clien
 
   proratedSalary = Math.round(proratedSalary * 100) / 100;
 
-  // 4. Calculate overtime pay
-  const otRate =
-    (baseSalary / SALARY.STANDARD_WORKING_DAYS / SALARY.STANDARD_HOURS_PER_DAY) *
-    SALARY.OT_MULTIPLIER;
-  const overtimePay = Math.round(otRate * overtimeHours * 100) / 100;
+  // 4. Calculate overtime pay (only if explicitly enabled)
+  let overtimePay = 0;
+  if (includeOT && overtimeHours > 0) {
+    const otRate =
+      (baseSalary / SALARY.STANDARD_WORKING_DAYS / SALARY.STANDARD_HOURS_PER_DAY) *
+      SALARY.OT_MULTIPLIER;
+    overtimePay = Math.round(otRate * overtimeHours * 100) / 100;
+  }
 
-  // 5. Calculate allowances
-  const allowances = [
-    { type: 'transport', amount: SALARY.TRANSPORT_ALLOWANCE },
-    {
-      type: 'food',
-      amount: Math.round(baseSalary * SALARY.FOOD_ALLOWANCE_RATE * 100) / 100,
-    },
-  ];
+  // 5. Calculate allowances (only transport, only if explicitly enabled; no food)
+  const allowances = [];
+  if (includeTransport) {
+    allowances.push({ type: 'transport', amount: SALARY.TRANSPORT_ALLOWANCE });
+  }
   const totalAllowances = allowances.reduce((sum, a) => sum + a.amount, 0);
 
   // 6. Gross salary
@@ -330,7 +330,7 @@ const getDeductionCarryover = async (driverId, year, month) => {
 /**
  * Run payroll for all active drivers of a client for a given period.
  */
-const runPayroll = async (clientId, projectId, year, month, processedBy) => {
+const runPayroll = async (clientId, projectId, year, month, processedBy, { includeOT = false, includeTransport = false } = {}) => {
   // 1. Resolve clientId from project to ensure consistency with stored records
   if (projectId) {
     const project = await Project.findById(projectId).select('clientId');
@@ -380,7 +380,7 @@ const runPayroll = async (clientId, projectId, year, month, processedBy) => {
         year,
         month,
         processedBy,
-        { clientId, attendanceBatchId: record.batchId?._id || record.batchId }
+        { clientId, attendanceBatchId: record.batchId?._id || record.batchId, includeOT, includeTransport }
       );
       runs.push(salaryRun);
       totalGross += salaryRun.grossSalary;
@@ -589,6 +589,56 @@ const extractBankCode = (iban) => {
   return iban.substring(4, 7);
 };
 
+/**
+ * Add a manual deduction to a salary run (by authorized role).
+ * Supported types: telecom_sim, vehicle_rental, salik, advance_recovery, penalty, deduction_carryover
+ */
+const addManualDeduction = async (runId, { type, amount, description }, addedBy) => {
+  const { DEDUCTION_TYPES } = require('../config/constants');
+
+  if (!DEDUCTION_TYPES.includes(type)) {
+    const err = new Error(`Invalid deduction type "${type}". Allowed: ${DEDUCTION_TYPES.join(', ')}`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const salaryRun = await SalaryRun.findById(runId);
+  if (!salaryRun) {
+    const err = new Error('Salary run not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (salaryRun.status === 'approved' || salaryRun.status === 'paid') {
+    const err = new Error(`Cannot add deductions to a ${salaryRun.status} salary run`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const deductionAmount = Math.round(parseFloat(amount) * 100) / 100;
+  if (deductionAmount <= 0) {
+    const err = new Error('Deduction amount must be greater than zero');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  salaryRun.deductions.push({
+    type,
+    referenceId: null,
+    amount: deductionAmount,
+    description: description || `Manual ${type.replace(/_/g, ' ')} deduction`,
+    status: 'applied',
+  });
+
+  salaryRun.totalDeductions = Math.round(
+    salaryRun.deductions.filter((d) => d.amount > 0).reduce((sum, d) => sum + d.amount, 0) * 100
+  ) / 100;
+  salaryRun.netSalary = Math.max(0, Math.round((salaryRun.grossSalary - salaryRun.totalDeductions) * 100) / 100);
+
+  await salaryRun.save();
+  return salaryRun;
+};
+
 module.exports = {
   calculateDriverSalary,
   calculateDeductions,
@@ -596,4 +646,5 @@ module.exports = {
   postLedgerEntries,
   approveSalaryRun,
   generateWpsFile,
+  addManualDeduction,
 };

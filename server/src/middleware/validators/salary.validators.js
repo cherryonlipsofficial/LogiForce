@@ -1,4 +1,5 @@
 const { body } = require('express-validator');
+const { DEDUCTION_TYPES } = require('../../config/constants');
 
 const runSalaryValidation = [
   body('clientId')
@@ -13,6 +14,12 @@ const runSalaryValidation = [
   body('month')
     .notEmpty().withMessage('Month is required')
     .isInt({ min: 1, max: 12 }).withMessage('Month must be between 1 and 12'),
+  body('includeOT')
+    .optional()
+    .isBoolean().withMessage('includeOT must be a boolean'),
+  body('includeTransport')
+    .optional()
+    .isBoolean().withMessage('includeTransport must be a boolean'),
 ];
 
 const adjustSalaryValidation = [
@@ -35,4 +42,17 @@ const disputeSalaryValidation = [
     .isLength({ min: 3, max: 500 }).withMessage('Reason must be 3-500 characters'),
 ];
 
-module.exports = { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation };
+const manualDeductionValidation = [
+  body('type')
+    .notEmpty().withMessage('Deduction type is required')
+    .isIn(DEDUCTION_TYPES).withMessage(`Type must be one of: ${DEDUCTION_TYPES.join(', ')}`),
+  body('amount')
+    .notEmpty().withMessage('Amount is required')
+    .isFloat({ min: 0.01 }).withMessage('Amount must be a positive number'),
+  body('description')
+    .optional()
+    .trim()
+    .isLength({ max: 500 }).withMessage('Description must be under 500 characters'),
+];
+
+module.exports = { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation, manualDeductionValidation };

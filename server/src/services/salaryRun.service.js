@@ -69,7 +69,7 @@ async function runSalaryForBatch(batchId, processedByUserId) {
         continue;
       }
 
-      // STEP 3 — Calculate gross salary
+      // STEP 3 — Calculate gross salary (no auto OT/Transport/Food)
       const workingDays = record.workingDays || 0;
       const overtimeHours = record.overtimeHours || 0;
       const baseSalary = driver.baseSalary || 0;
@@ -84,11 +84,6 @@ async function runSalaryForBatch(batchId, processedByUserId) {
           ((baseSalary / STANDARD_DAYS) * workingDays).toFixed(2)
         );
       }
-
-      // Overtime: (baseSalary / 26 / 8) * 1.25 * overtimeHours
-      const otRate = (baseSalary / STANDARD_DAYS / 8) * 1.25;
-      const otPay = parseFloat((otRate * overtimeHours).toFixed(2));
-      grossSalary = parseFloat((grossSalary + otPay).toFixed(2));
 
       // STEP 4 — Get pending advance installments for this driver/period
       const advances = await DriverAdvance.find({
