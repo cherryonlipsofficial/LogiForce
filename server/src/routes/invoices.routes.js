@@ -142,4 +142,22 @@ router.get('/:id/pdf', requirePermission('invoices.download'), async (req, res) 
   res.send(pdfBuffer);
 });
 
+// DELETE /api/invoices/:id — hard delete invoice (admin only)
+router.delete('/:id', requirePermission('invoices.delete'), async (req, res) => {
+  const invoice = await Invoice.findById(req.params.id);
+  if (!invoice) return sendError(res, 'Invoice not found', 404);
+
+  // If this invoice was generated from attendance batches, reset them so they can be re-invoiced
+  if (invoice.attendanceBatchId) {
+    await AttendanceBatch.updateMany(
+      { invoiceId: invoice._id },
+      { $set: { status: 'fully_approved', invoiceId: null, invoicedAt: null, invoicedBy: null } }
+    );
+  }
+
+  await Invoice.findByIdAndDelete(req.params.id);
+
+  sendSuccess(res, null, 'Invoice deleted successfully');
+});
+
 module.exports = router;

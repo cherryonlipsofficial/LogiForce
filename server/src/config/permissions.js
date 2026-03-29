@@ -68,6 +68,7 @@ module.exports = {
     'invoices.generate':       { label: 'Generate invoices',       module: 'Invoices',   description: 'Create invoices for clients' },
     'invoices.edit':           { label: 'Edit invoices',           module: 'Invoices',   description: 'Update invoice status and details' },
     'invoices.credit_note':    { label: 'Issue credit notes',      module: 'Invoices',   description: 'Create and link credit notes' },
+    'invoices.delete':         { label: 'Delete invoices',         module: 'Invoices',   description: 'Permanently delete invoices' },
     'invoices.download':       { label: 'Download invoice PDF',    module: 'Invoices',   description: 'Export invoices as PDF' },
 
     // ── ADVANCES ──
