@@ -326,14 +326,19 @@ const getDeductionCarryover = async (driverId, year, month) => {
 /**
  * Run payroll for all active drivers of a client for a given period.
  */
-const runPayroll = async (clientId, year, month, processedBy) => {
-  // 1. Find all active drivers for this client with approved attendance
-  const attendanceRecords = await AttendanceRecord.find({
+const runPayroll = async (clientId, projectId, year, month, processedBy) => {
+  // 1. Find all active drivers for this client/project with approved attendance
+  const query = {
     clientId,
     'period.year': year,
     'period.month': month,
     status: { $in: ['valid', 'warning', 'overridden'] },
-  }).populate('batchId');
+  };
+  if (projectId) {
+    query.projectId = projectId;
+  }
+
+  const attendanceRecords = await AttendanceRecord.find(query).populate('batchId');
 
   // Filter to only those with approved batches
   const approvedRecords = attendanceRecords.filter(
@@ -342,7 +347,7 @@ const runPayroll = async (clientId, year, month, processedBy) => {
 
   if (approvedRecords.length === 0) {
     const err = new Error(
-      'No approved attendance records found for this client/period'
+      'No approved attendance records found for this client/project/period'
     );
     err.statusCode = 404;
     throw err;

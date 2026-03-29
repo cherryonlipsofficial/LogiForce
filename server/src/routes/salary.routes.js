@@ -14,11 +14,12 @@ router.use(protect);
 
 // POST /api/salary/run — trigger payroll run for client/period
 router.post('/run', requirePermission('salary.run'), validate(runSalaryValidation), async (req, res) => {
-  const { clientId, year, month } = req.body;
+  const { clientId, projectId, year, month } = req.body;
 
-  // Check for existing runs in this period (duplicate check)
+  // Check for existing runs in this period for the same project (duplicate check)
   const existingRuns = await SalaryRun.find({
     clientId,
+    projectId,
     'period.year': parseInt(year),
     'period.month': parseInt(month),
   });
@@ -26,20 +27,21 @@ router.post('/run', requirePermission('salary.run'), validate(runSalaryValidatio
   if (existingRuns.length > 0) {
     return sendError(
       res,
-      `Salary runs already exist for this period (${existingRuns.length} runs). Delete or resolve them before re-running.`,
+      `Salary runs already exist for this project/period (${existingRuns.length} runs). Delete or resolve them before re-running.`,
       409
     );
   }
 
   const result = await salaryService.runPayroll(
     clientId,
+    projectId,
     parseInt(year),
     parseInt(month),
     req.user._id
   );
 
   // Audit log
-  await auditLogger.logChange('SalaryRun', null, 'payroll', null, `${year}-${month} for client ${clientId}`, req.user._id, 'salary_run');
+  await auditLogger.logChange('SalaryRun', null, 'payroll', null, `${year}-${month} for client ${clientId} project ${projectId}`, req.user._id, 'salary_run');
 
   sendSuccess(res, result, 'Payroll run completed', 201);
 });
