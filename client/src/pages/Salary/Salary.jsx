@@ -24,6 +24,7 @@ const fallbackRuns = [
   { _id: 'SAL-003', projectId: { name: 'Talabat Delivery' }, driverId: { fullName: 'Rashed Mohammed' }, period: 'Mar 2026', status: 'approved', grossSalary: 2400, totalDeductions: 310, netSalary: 2090, createdAt: '2026-03-19T10:30:00Z', approvedBy: 'Finance Manager' },
   { _id: 'SAL-004', projectId: { name: 'Amazon Prime Now' }, driverId: { fullName: 'Faisal Hassan' }, period: 'Feb 2026', status: 'paid', grossSalary: 2600, totalDeductions: 380, netSalary: 2220, createdAt: '2026-02-20T08:00:00Z', approvedBy: 'Finance Manager' },
   { _id: 'SAL-005', projectId: { name: 'Noon Express' }, driverId: { fullName: 'Saeed Ibrahim' }, period: 'Feb 2026', status: 'paid', grossSalary: 2700, totalDeductions: 400, netSalary: 2300, createdAt: '2026-02-19T09:00:00Z', approvedBy: 'Finance Manager' },
+  { _id: 'SAL-006', projectId: { name: 'NoonFood Riders' }, driverId: { fullName: 'Fayyaz Memon' }, period: 'Mar 2026', status: 'approved', grossSalary: 2742.09, totalDeductions: 100, netSalary: 2642.09, createdAt: '2026-03-21T10:00:00Z', approvedBy: 'Finance Manager' },
 ];
 
 const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
