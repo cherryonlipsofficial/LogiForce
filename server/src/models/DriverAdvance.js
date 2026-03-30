@@ -17,7 +17,6 @@ const driverAdvanceSchema = new Schema(
     clientId: {
       type: Schema.Types.ObjectId,
       ref: 'Client',
-      required: true,
     },
 
     // Who requested it
