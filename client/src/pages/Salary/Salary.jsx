@@ -75,6 +75,7 @@ const DEDUCTION_TYPE_LABELS = {
   advance_recovery: 'Advance Recovery',
   penalty: 'Penalty',
   deduction_carryover: 'Carryover',
+  other: 'Other',
 };
 
 const APPROVAL_STAGES = [
