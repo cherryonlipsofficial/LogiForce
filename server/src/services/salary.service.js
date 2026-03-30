@@ -257,7 +257,7 @@ const calculateDeductions = async (driverId, year, month, grossSalary) => {
 
   for (const advance of scheduledAdvances) {
     const installment = advance.recoverySchedule.find(
-      (s) => s.period.year === year && s.period.month === month && !s.recovered
+      (s) => parseInt(s.period.year) === year && parseInt(s.period.month) === month && !s.recovered
     );
     if (!installment || installment.amountToRecover <= 0) continue;
 
@@ -519,7 +519,7 @@ const updateAdvanceRecoveries = async (salaryRun) => {
     if (!driverAdvance) continue;
 
     const installment = driverAdvance.recoverySchedule.find(
-      (s) => s.period.year === year && s.period.month === month && !s.recovered
+      (s) => parseInt(s.period.year) === year && parseInt(s.period.month) === month && !s.recovered
     );
 
     if (installment) {
