@@ -55,9 +55,10 @@ const calculateDriverSalary = async (driverId, year, month, processedBy, { clien
   const { workingDays, overtimeHours = 0 } = attendance;
 
   // 3. Calculate prorated salary based on pay structure
+  const daysInMonth = new Date(year, month, 0).getDate();
   let proratedSalary = 0;
   if (payStructure === 'MONTHLY_FIXED') {
-    proratedSalary = (baseSalary / SALARY.STANDARD_WORKING_DAYS) * workingDays;
+    proratedSalary = Math.min((baseSalary / daysInMonth) * workingDays, baseSalary);
   } else if (payStructure === 'DAILY_RATE') {
     proratedSalary = baseSalary * workingDays;
   } else if (payStructure === 'PER_TRIP') {
