@@ -163,7 +163,7 @@ router.get('/batches/:id', requirePermission('attendance.view'), async (req, res
   if (!batch) return sendError(res, 'Batch not found', 404);
 
   const records = await AttendanceRecord.find({ batchId: batch._id })
-    .populate('driverId', 'fullName employeeCode');
+    .populate('driverId', 'fullName employeeCode clientUserId payStructure');
 
   sendSuccess(res, { batch, records });
 });
