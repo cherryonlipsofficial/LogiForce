@@ -337,7 +337,7 @@ router.get('/bulk-import/template', async (req, res) => {
   const XLSX = require('xlsx');
   const headers = ['fullName', 'nationality', 'phoneUae', 'emiratesId', 'passportNumber', 'passportExpiry', 'dateOfBirth', 'email', 'homeCountryPhone', 'emergencyContactName', 'emergencyContactPhone', 'emergencyContactRelation', 'joinDate', 'baseSalary', 'payStructure', 'clientName', 'clientUserId', 'project', 'passportSubmissionType'];
 
-  const sampleRow = ['John Doe', 'Indian', '971501234567', '784-1234-1234567-1', 'AB1234567', '2027-06-15', '1990-01-15', 'john.doe@example.com', '919876543210', 'Jane Doe', '971509876543', 'Spouse', '2024-01-01', '3000', 'MONTHLY_FIXED', 'Acme Logistics', 'CLT-001', 'Downtown Route', 'own'];
+  const sampleRow = ['John Doe', 'Indian', '+971501234567', '784-1234-1234567-1', 'AB1234567', '2027-06-15', '1990-01-15', 'john.doe@example.com', '919876543210', 'Jane Doe', '+971509876543', 'Spouse', '2024-01-01', '3000', 'MONTHLY_FIXED', 'Acme Logistics', 'CLT-001', 'Downtown Route', 'own'];
 
   const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
 

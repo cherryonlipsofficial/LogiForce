@@ -13,7 +13,7 @@ const createDriverValidation = [
   body('phoneUae')
     .optional()
     .trim()
-    .matches(/^\+?971\d{8,9}$/).withMessage('UAE phone must match format +971XXXXXXXXX'),
+    .matches(/^\+971\d{8,9}$/).withMessage('UAE phone must match format +971XXXXXXXXX (+ prefix is mandatory)'),
   body('baseSalary')
     .optional()
     .isFloat({ min: 0 }).withMessage('Base salary must be a positive number'),
@@ -82,7 +82,7 @@ const updateDriverValidation = [
   body('phoneUae')
     .optional()
     .trim()
-    .matches(/^\+?971\d{8,9}$/).withMessage('UAE phone must match format +971XXXXXXXXX'),
+    .matches(/^\+971\d{8,9}$/).withMessage('UAE phone must match format +971XXXXXXXXX (+ prefix is mandatory)'),
   body('baseSalary')
     .optional()
     .isFloat({ min: 0 }).withMessage('Base salary must be a positive number'),
