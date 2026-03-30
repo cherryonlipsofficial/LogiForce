@@ -87,6 +87,8 @@ async function generateInvoice(batchId, accountsUserId) {
     if (!driver) continue
 
     const workingDays = record.workingDays || 0
+    if (workingDays <= 0) continue   // skip zero-day records — they add nothing to the invoice
+
     const { dailyRate, amount } = computeLineAmount(ratePerDriver, rateBasis, workingDays)
 
     const vatAmount_item = parseFloat((amount * 0.05).toFixed(2))
