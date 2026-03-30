@@ -317,6 +317,11 @@ const Advances = () => {
                         <span style={{ fontSize: 11, color: 'var(--text3)' }}>
                           {d.employeeCode || ''}
                         </span>
+                        {d.clientUserId && (
+                          <span style={{ fontSize: 11, color: 'var(--text3)' }}>
+                            ID: {d.clientUserId}
+                          </span>
+                        )}
                         {!isActive && (
                           <Badge variant="default" style={{ fontSize: 9, padding: '1px 6px' }}>{d.status}</Badge>
                         )}
