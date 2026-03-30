@@ -274,13 +274,26 @@ const ApprovalHistory = ({ approvals }) => {
   );
 };
 
+// Which roles can act on which approval stage
+const ROLE_STAGE_MAP = {
+  ops: ['draft'],                           // Operations approval
+  compliance: ['ops_approved'],             // Compliance approval
+  junior_accountant: ['compliance_approved'], // Accounts approval
+  accountant: ['compliance_approved', 'accounts_approved'], // Accounts approval + Process
+  admin: ['draft', 'ops_approved', 'compliance_approved', 'accounts_approved'], // All stages
+};
+
 const RunDetail = ({ run, onClose }) => {
   const { isMobile } = useBreakpoint();
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const { role, isAdmin } = useAuth();
   // Use detail.status (fresh from API) to avoid stale button states after approval
   const currentStatus = detail?.status || run.status;
   const st = statusMap[currentStatus] || statusMap.draft;
+  // Determine which stages this user's role can act on
+  const allowedStages = isAdmin ? ROLE_STAGE_MAP.admin : (ROLE_STAGE_MAP[role] || []);
+  const canActOnCurrentStage = allowedStages.includes(currentStatus);
   const [viewingPdf, setViewingPdf] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingWps, setDownloadingWps] = useState(false);
@@ -640,25 +653,27 @@ const RunDetail = ({ run, onClose }) => {
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {/* Stage-specific approval buttons — all gated by single salary.approve permission */}
-          <PermissionGate permission="salary.approve">
-            {currentStatus === 'draft' && (
-              <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Operations)', action: opsApprove })} disabled={stageApproving}>
-                Approve (Operations)
-              </Btn>
-            )}
-            {currentStatus === 'ops_approved' && (
-              <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Compliance)', action: complianceApprove })} disabled={stageApproving}>
-                Approve (Compliance)
-              </Btn>
-            )}
-            {currentStatus === 'compliance_approved' && (
-              <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Accounts)', action: accountsApprove })} disabled={stageApproving}>
-                Approve (Accounts)
-              </Btn>
-            )}
-          </PermissionGate>
-          {currentStatus === 'accounts_approved' && (
+          {/* Stage-specific approval buttons — gated by salary.approve permission + user role */}
+          {canActOnCurrentStage && (
+            <PermissionGate permission="salary.approve">
+              {currentStatus === 'draft' && (
+                <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Operations)', action: opsApprove })} disabled={stageApproving}>
+                  Approve (Operations)
+                </Btn>
+              )}
+              {currentStatus === 'ops_approved' && (
+                <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Compliance)', action: complianceApprove })} disabled={stageApproving}>
+                  Approve (Compliance)
+                </Btn>
+              )}
+              {currentStatus === 'compliance_approved' && (
+                <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Accounts)', action: accountsApprove })} disabled={stageApproving}>
+                  Approve (Accounts)
+                </Btn>
+              )}
+            </PermissionGate>
+          )}
+          {currentStatus === 'accounts_approved' && canActOnCurrentStage && (
             <PermissionGate permission="salary.process">
               <Btn variant="primary" onClick={() => processMut()} disabled={processing}>
                 {processing ? 'Processing...' : 'Process Salary'}
