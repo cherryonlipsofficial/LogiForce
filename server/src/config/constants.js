@@ -2,6 +2,7 @@ module.exports = {
   ROLES: {
     ADMIN: 'admin',
     ACCOUNTANT: 'accountant',
+    JUNIOR_ACCOUNTANT: 'junior_accountant',
     OPS: 'ops',
     COMPLIANCE: 'compliance',
     SALES: 'sales',

@@ -56,6 +56,14 @@ const projectSchema = new Schema(
       type: Number,
       default: 0,
     },
+    // Day of month when salary should be released for this project
+    // Capped at 28 to avoid month-length issues
+    salaryReleaseDay: {
+      type: Number,
+      min: 1,
+      max: 28,
+      default: 25,
+    },
     // Timestamps & audit
     createdBy: {
       type: Schema.Types.ObjectId,

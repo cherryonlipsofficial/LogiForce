@@ -9,6 +9,11 @@ const typeColors = {
   advance_requested: '#f59e0b',
   advance_approved: '#22c55e',
   advance_rejected: '#ef4444',
+  salary_ops_approved: '#3b82f6',
+  salary_compliance_approved: '#3b82f6',
+  salary_accounts_approved: '#22c55e',
+  salary_processed: '#22c55e',
+  salary_approval_reminder: '#f59e0b',
 };
 
 function formatRelativeTime(dateStr) {
@@ -33,6 +38,9 @@ function getNavigationPath(notification) {
   }
   if (referenceModel === 'Advance') {
     return '/advances';
+  }
+  if (referenceModel === 'SalaryRun' || referenceModel === 'Project') {
+    return '/salary';
   }
   return null;
 }

@@ -29,3 +29,16 @@ export const markAsPaid = (id) =>
 
 export const disputeRun = (id, reason) =>
   axiosInstance.post(`/salary/runs/${id}/dispute`, { reason }).then(r => r.data);
+
+// Multi-stage approval endpoints
+export const approveByOps = (id, data) =>
+  axiosInstance.put(`/salary/runs/${id}/approve/ops`, data).then(r => r.data);
+
+export const approveByCompliance = (id, data) =>
+  axiosInstance.put(`/salary/runs/${id}/approve/compliance`, data).then(r => r.data);
+
+export const approveByAccounts = (id, data) =>
+  axiosInstance.put(`/salary/runs/${id}/approve/accounts`, data).then(r => r.data);
+
+export const processRun = (id) =>
+  axiosInstance.put(`/salary/runs/${id}/process`).then(r => r.data);

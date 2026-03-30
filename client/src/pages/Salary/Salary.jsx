@@ -13,18 +13,18 @@ import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
 import ProjectSelect from '../../components/ui/ProjectSelect';
 import { useNavigate } from 'react-router-dom';
-import { getRuns, runPayroll, approveRun, getWpsFile, getPayslipPdf, getRun, addDeduction, deleteRun, markAsPaid, disputeRun } from '../../api/salaryApi';
+import { getRuns, runPayroll, approveRun, getWpsFile, getPayslipPdf, getRun, addDeduction, deleteRun, markAsPaid, disputeRun, approveByOps, approveByCompliance, approveByAccounts, processRun } from '../../api/salaryApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
 import Pagination from '../../components/ui/Pagination';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const fallbackRuns = [
   { _id: 'SAL-001', projectId: { name: 'Amazon Prime Now' }, driverId: { fullName: 'Ahmed Khan' }, period: 'Mar 2026', status: 'draft', grossSalary: 2500, totalDeductions: 350, netSalary: 2150, createdAt: '2026-03-21T08:00:00Z', approvedBy: null },
-  { _id: 'SAL-002', projectId: { name: 'Noon Express' }, driverId: { fullName: 'Omar Ali' }, period: 'Mar 2026', status: 'approved', grossSalary: 2800, totalDeductions: 420, netSalary: 2380, createdAt: '2026-03-20T14:00:00Z', approvedBy: 'Finance Manager' },
-  { _id: 'SAL-003', projectId: { name: 'Talabat Delivery' }, driverId: { fullName: 'Rashed Mohammed' }, period: 'Mar 2026', status: 'approved', grossSalary: 2400, totalDeductions: 310, netSalary: 2090, createdAt: '2026-03-19T10:30:00Z', approvedBy: 'Finance Manager' },
-  { _id: 'SAL-004', projectId: { name: 'Amazon Prime Now' }, driverId: { fullName: 'Faisal Hassan' }, period: 'Feb 2026', status: 'paid', grossSalary: 2600, totalDeductions: 380, netSalary: 2220, createdAt: '2026-02-20T08:00:00Z', approvedBy: 'Finance Manager' },
-  { _id: 'SAL-005', projectId: { name: 'Noon Express' }, driverId: { fullName: 'Saeed Ibrahim' }, period: 'Feb 2026', status: 'paid', grossSalary: 2700, totalDeductions: 400, netSalary: 2300, createdAt: '2026-02-19T09:00:00Z', approvedBy: 'Finance Manager' },
-  { _id: 'SAL-006', projectId: { name: 'NoonFood Riders' }, driverId: { fullName: 'Fayyaz Memon' }, period: 'Mar 2026', status: 'approved', grossSalary: 2742.09, totalDeductions: 100, netSalary: 2642.09, createdAt: '2026-03-21T10:00:00Z', approvedBy: 'Finance Manager' },
+  { _id: 'SAL-002', projectId: { name: 'Noon Express' }, driverId: { fullName: 'Omar Ali' }, period: 'Mar 2026', status: 'ops_approved', grossSalary: 2800, totalDeductions: 420, netSalary: 2380, createdAt: '2026-03-20T14:00:00Z' },
+  { _id: 'SAL-003', projectId: { name: 'Talabat Delivery' }, driverId: { fullName: 'Rashed Mohammed' }, period: 'Mar 2026', status: 'compliance_approved', grossSalary: 2400, totalDeductions: 310, netSalary: 2090, createdAt: '2026-03-19T10:30:00Z' },
+  { _id: 'SAL-004', projectId: { name: 'Amazon Prime Now' }, driverId: { fullName: 'Faisal Hassan' }, period: 'Feb 2026', status: 'paid', grossSalary: 2600, totalDeductions: 380, netSalary: 2220, createdAt: '2026-02-20T08:00:00Z' },
+  { _id: 'SAL-005', projectId: { name: 'Noon Express' }, driverId: { fullName: 'Saeed Ibrahim' }, period: 'Feb 2026', status: 'processed', grossSalary: 2700, totalDeductions: 400, netSalary: 2300, createdAt: '2026-02-19T09:00:00Z' },
+  { _id: 'SAL-006', projectId: { name: 'NoonFood Riders' }, driverId: { fullName: 'Fayyaz Memon' }, period: 'Mar 2026', status: 'accounts_approved', grossSalary: 2742.09, totalDeductions: 100, netSalary: 2642.09, createdAt: '2026-03-21T10:00:00Z' },
 ];
 
 const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -40,8 +40,12 @@ const formatPeriod = (period) => {
 
 const statusMap = {
   draft: { label: 'Draft', variant: 'warning' },
+  ops_approved: { label: 'Ops Approved', variant: 'info' },
+  compliance_approved: { label: 'Compliance Approved', variant: 'info' },
+  accounts_approved: { label: 'Accounts Approved', variant: 'info' },
+  processed: { label: 'Processed', variant: 'success' },
   approved: { label: 'Approved', variant: 'success' },
-  paid: { label: 'Paid', variant: 'info' },
+  paid: { label: 'Paid', variant: 'success' },
   disputed: { label: 'Disputed', variant: 'danger' },
   cancelled: { label: 'Cancelled', variant: 'danger' },
 };
@@ -65,7 +69,7 @@ const Salary = () => {
 
   const totalGross = runs.reduce((s, r) => s + (r.grossSalary || 0), 0);
   const totalNet = runs.reduce((s, r) => s + (r.netSalary || 0), 0);
-  const draftCount = runs.filter((r) => r.status === 'draft').length;
+  const draftCount = runs.filter((r) => !['processed', 'paid'].includes(r.status)).length;
 
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -81,7 +85,10 @@ const Salary = () => {
           <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} style={{ width: isMobile ? '100%' : 180, height: 34 }}>
             <option value="all">All statuses</option>
             <option value="draft">Draft</option>
-            <option value="approved">Approved</option>
+            <option value="ops_approved">Ops Approved</option>
+            <option value="compliance_approved">Compliance Approved</option>
+            <option value="accounts_approved">Accounts Approved</option>
+            <option value="processed">Processed</option>
             <option value="paid">Paid</option>
             <option value="disputed">Disputed</option>
           </select>
@@ -186,6 +193,87 @@ const DEDUCTION_TYPE_LABELS = {
   deduction_carryover: 'Carryover',
 };
 
+const APPROVAL_STAGES = [
+  { key: 'ops', label: 'Operations', statusAfter: 'ops_approved', permission: 'salary.approve_ops' },
+  { key: 'compliance', label: 'Compliance', statusAfter: 'compliance_approved', permission: 'salary.approve_compliance' },
+  { key: 'accounts', label: 'Accounts', statusAfter: 'accounts_approved', permission: 'salary.approve_accounts' },
+  { key: 'process', label: 'Processing', statusAfter: 'processed', permission: 'salary.process' },
+];
+
+const stageStatusOrder = ['draft', 'ops_approved', 'compliance_approved', 'accounts_approved', 'processed', 'paid'];
+
+const ApprovalTracker = ({ detail }) => {
+  const approvals = detail.approvals || [];
+  const currentIdx = stageStatusOrder.indexOf(detail.status);
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <SectionHeader>Approval Progress</SectionHeader>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, overflowX: 'auto', padding: '8px 0' }}>
+        {APPROVAL_STAGES.map((stage, i) => {
+          const stageApproval = approvals.find(a => a.stage === stage.key);
+          const stageIdx = stageStatusOrder.indexOf(stage.statusAfter);
+          const isComplete = currentIdx >= stageIdx;
+          const isCurrent = currentIdx === stageIdx - 1;
+
+          return (
+            <div key={stage.key} style={{ display: 'flex', alignItems: 'flex-start', flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, minWidth: 70 }}>
+                <div style={{
+                  width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 13, fontWeight: 600,
+                  background: isComplete ? '#4ade80' : isCurrent ? '#fbbf24' : 'var(--surface3)',
+                  color: isComplete ? '#000' : isCurrent ? '#000' : 'var(--text3)',
+                  border: isCurrent ? '2px solid #fbbf24' : 'none',
+                  animation: isCurrent ? 'pulse 2s infinite' : 'none',
+                }}>
+                  {isComplete ? '\u2713' : i + 1}
+                </div>
+                <div style={{ fontSize: 10, fontWeight: 500, marginTop: 4, textAlign: 'center', color: isComplete ? '#4ade80' : isCurrent ? '#fbbf24' : 'var(--text3)' }}>
+                  {stage.label}
+                </div>
+                {stageApproval && (
+                  <div style={{ fontSize: 9, color: 'var(--text3)', textAlign: 'center', marginTop: 2 }}>
+                    {typeof stageApproval.approvedBy === 'object' ? stageApproval.approvedBy?.name : ''}
+                  </div>
+                )}
+              </div>
+              {i < APPROVAL_STAGES.length - 1 && (
+                <div style={{ width: 24, height: 2, background: isComplete ? '#4ade80' : 'var(--border)', marginTop: 14, flexShrink: 0 }} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }`}</style>
+    </div>
+  );
+};
+
+const ApprovalHistory = ({ approvals }) => {
+  if (!approvals || approvals.length === 0) return null;
+
+  const stageLabels = { ops: 'Operations', compliance: 'Compliance', accounts: 'Accounts' };
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <SectionHeader>Approval History</SectionHeader>
+      {approvals.map((a, i) => (
+        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+          <div>
+            <div style={{ fontWeight: 500, color: '#4ade80' }}>{stageLabels[a.stage] || a.stage} Approval</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+              By {typeof a.approvedBy === 'object' ? a.approvedBy?.name : a.approvedBy || 'Unknown'}
+            </div>
+            {a.remarks && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2, fontStyle: 'italic' }}>{a.remarks}</div>}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', whiteSpace: 'nowrap' }}>{formatDate(a.approvedAt)}</div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const RunDetail = ({ run, onClose }) => {
   const { isMobile } = useBreakpoint();
   const qc = useQueryClient();
@@ -203,6 +291,8 @@ const RunDetail = ({ run, onClose }) => {
   const [disputeReason, setDisputeReason] = useState('');
   const [confirmPay, setConfirmPay] = useState(false);
   const [deleteRemark, setDeleteRemark] = useState('');
+  const [approvalRemarks, setApprovalRemarks] = useState('');
+  const [showApprovalConfirm, setShowApprovalConfirm] = useState(null);
 
   // Fetch full run details (with all populated fields)
   const { data: fullRunData } = useQuery({
@@ -269,6 +359,37 @@ const RunDetail = ({ run, onClose }) => {
     },
     onError: () => toast.error('Failed to approve run'),
   });
+
+  const invalidateAll = () => {
+    qc.invalidateQueries(['salary-runs']);
+    qc.invalidateQueries(['salary-run-detail', run._id]);
+  };
+
+  const { mutate: opsApprove, isPending: opsApproving } = useMutation({
+    mutationFn: (data) => approveByOps(run._id, data),
+    onSuccess: () => { toast.success('Approved by Operations'); invalidateAll(); setShowApprovalConfirm(null); setApprovalRemarks(''); onClose(); },
+    onError: (err) => toast.error(err.response?.data?.message || 'Failed to approve'),
+  });
+
+  const { mutate: complianceApprove, isPending: complianceApproving } = useMutation({
+    mutationFn: (data) => approveByCompliance(run._id, data),
+    onSuccess: () => { toast.success('Approved by Compliance'); invalidateAll(); setShowApprovalConfirm(null); setApprovalRemarks(''); onClose(); },
+    onError: (err) => toast.error(err.response?.data?.message || 'Failed to approve'),
+  });
+
+  const { mutate: accountsApprove, isPending: accountsApproving } = useMutation({
+    mutationFn: (data) => approveByAccounts(run._id, data),
+    onSuccess: () => { toast.success('Approved by Accounts'); invalidateAll(); setShowApprovalConfirm(null); setApprovalRemarks(''); onClose(); },
+    onError: (err) => toast.error(err.response?.data?.message || 'Failed to approve'),
+  });
+
+  const { mutate: processMut, isPending: processing } = useMutation({
+    mutationFn: () => processRun(run._id),
+    onSuccess: () => { toast.success('Salary run processed'); invalidateAll(); onClose(); },
+    onError: (err) => toast.error(err.response?.data?.message || 'Failed to process'),
+  });
+
+  const stageApproving = opsApproving || complianceApproving || accountsApproving;
 
   const handleWpsDownload = async () => {
     setDownloadingWps(true);
@@ -347,10 +468,14 @@ const RunDetail = ({ run, onClose }) => {
           <InfoRow label="Working Days" value={detail.workingDays ?? '—'} />
           <InfoRow label="Overtime Hours" value={detail.overtimeHours ?? 0} />
           <InfoRow label="Created" value={formatDate(detail.createdAt)} />
-          {detail.approvedBy && <InfoRow label="Approved by" value={typeof detail.approvedBy === 'object' ? detail.approvedBy.name : detail.approvedBy} />}
-          {detail.approvedAt && <InfoRow label="Approved on" value={formatDate(detail.approvedAt)} />}
+          {detail.projectId?.salaryReleaseDay && <InfoRow label="Salary Release Date" value={`${detail.projectId.salaryReleaseDay}th of every month`} />}
+          {detail.processedBy && <InfoRow label="Processed by" value={typeof detail.processedBy === 'object' ? detail.processedBy.name : detail.processedBy} />}
+          {detail.processedAt && <InfoRow label="Processed on" value={formatDate(detail.processedAt)} />}
           {detail.paidAt && <InfoRow label="Paid on" value={formatDate(detail.paidAt)} />}
         </div>
+
+        {/* Approval Progress Tracker */}
+        <ApprovalTracker detail={detail} />
 
         {/* Earnings Breakdown */}
         <div style={{ marginBottom: 20 }}>
@@ -425,8 +550,11 @@ const RunDetail = ({ run, onClose }) => {
           </div>
         )}
 
-        {/* Add Deduction Form (draft only) */}
-        {run.status === 'draft' && (
+        {/* Approval History */}
+        <ApprovalHistory approvals={detail.approvals} />
+
+        {/* Add Deduction Form (draft, ops_approved, compliance_approved) */}
+        {['draft', 'ops_approved', 'compliance_approved'].includes(run.status) && (
           <PermissionGate permission="salary.manage_deductions">
             <div style={{ marginBottom: 20 }}>
               {!showDeductionForm ? (
@@ -485,17 +613,70 @@ const RunDetail = ({ run, onClose }) => {
           </div>
         )}
 
+        {/* Approval Confirmation Form */}
+        {showApprovalConfirm && (
+          <div style={{ marginBottom: 16, border: '1px solid rgba(74,222,128,0.3)', borderRadius: 8, padding: 14, background: 'rgba(74,222,128,0.05)' }}>
+            <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8, color: '#4ade80' }}>{showApprovalConfirm.title}</div>
+            <div style={{ marginBottom: 8 }}>
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--text3)', marginBottom: 3 }}>Remarks (optional)</label>
+              <textarea
+                value={approvalRemarks}
+                onChange={(e) => setApprovalRemarks(e.target.value)}
+                placeholder="Add any remarks for this approval..."
+                rows={2}
+                style={{ width: '100%', fontSize: 12, resize: 'vertical' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <Btn small variant="primary" disabled={stageApproving} onClick={() => showApprovalConfirm.action({ remarks: approvalRemarks || undefined })}>
+                {stageApproving ? 'Submitting...' : 'Confirm'}
+              </Btn>
+              <Btn small variant="ghost" onClick={() => { setShowApprovalConfirm(null); setApprovalRemarks(''); }} disabled={stageApproving}>Cancel</Btn>
+            </div>
+          </div>
+        )}
+
         {/* Actions */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <PermissionGate permission="salary.approve">
-            {run.status === 'draft' && (
-              <Btn variant="primary" onClick={() => approve()} disabled={approving}>
-                {approving ? 'Approving...' : 'Approve run'}
+          {/* Stage-specific approval buttons */}
+          {run.status === 'draft' && (
+            <PermissionGate permission="salary.approve_ops">
+              <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Operations)', action: opsApprove })} disabled={stageApproving}>
+                Approve (Operations)
               </Btn>
-            )}
-          </PermissionGate>
+            </PermissionGate>
+          )}
+          {run.status === 'ops_approved' && (
+            <PermissionGate permission="salary.approve_compliance">
+              <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Compliance)', action: complianceApprove })} disabled={stageApproving}>
+                Approve (Compliance)
+              </Btn>
+            </PermissionGate>
+          )}
+          {run.status === 'compliance_approved' && (
+            <PermissionGate permission="salary.approve_accounts">
+              <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Accounts)', action: accountsApprove })} disabled={stageApproving}>
+                Approve (Accounts)
+              </Btn>
+            </PermissionGate>
+          )}
+          {run.status === 'accounts_approved' && (
+            <PermissionGate permission="salary.process">
+              <Btn variant="primary" onClick={() => processMut()} disabled={processing}>
+                {processing ? 'Processing...' : 'Process Salary'}
+              </Btn>
+            </PermissionGate>
+          )}
+          {/* Legacy approve button for backward compat */}
+          {run.status === 'draft' && (
+            <PermissionGate permission="salary.approve">
+              <Btn variant="ghost" onClick={() => approve()} disabled={approving}>
+                {approving ? 'Approving...' : 'Quick Approve (Legacy)'}
+              </Btn>
+            </PermissionGate>
+          )}
           <PermissionGate permission="salary.pay">
-            {run.status === 'approved' && (
+            {(run.status === 'processed' || run.status === 'approved') && (
               !confirmPay ? (
                 <Btn variant="primary" onClick={() => setConfirmPay(true)}>Mark as Paid</Btn>
               ) : (
@@ -515,7 +696,7 @@ const RunDetail = ({ run, onClose }) => {
             )}
           </PermissionGate>
           <PermissionGate permission="salary.export_wps">
-            {(run.status === 'approved' || run.status === 'paid') && (
+            {(['approved', 'processed', 'paid'].includes(run.status)) && (
               <Btn variant="ghost" onClick={handleWpsDownload} disabled={downloadingWps}>
                 {downloadingWps ? 'Downloading...' : 'Download WPS'}
               </Btn>

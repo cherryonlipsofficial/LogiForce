@@ -9,6 +9,14 @@ const typeColors = {
   attendance_disputed: '#ef4444',
   dispute_responded: '#f59e0b',
   invoice_generated: '#a855f7',
+  advance_requested: '#f59e0b',
+  advance_approved: '#22c55e',
+  advance_rejected: '#ef4444',
+  salary_ops_approved: '#3b82f6',
+  salary_compliance_approved: '#3b82f6',
+  salary_accounts_approved: '#22c55e',
+  salary_processed: '#22c55e',
+  salary_approval_reminder: '#f59e0b',
 };
 
 const typeLabels = {
@@ -18,6 +26,14 @@ const typeLabels = {
   attendance_disputed: 'Attendance',
   dispute_responded: 'Attendance',
   invoice_generated: 'Invoices',
+  advance_requested: 'Advances',
+  advance_approved: 'Advances',
+  advance_rejected: 'Advances',
+  salary_ops_approved: 'Salary',
+  salary_compliance_approved: 'Salary',
+  salary_accounts_approved: 'Salary',
+  salary_processed: 'Salary',
+  salary_approval_reminder: 'Salary',
 };
 
 const filters = [
@@ -25,6 +41,8 @@ const filters = [
   { key: 'unread', label: 'Unread' },
   { key: 'attendance', label: 'Attendance' },
   { key: 'invoices', label: 'Invoices' },
+  { key: 'salary', label: 'Salary' },
+  { key: 'advances', label: 'Advances' },
 ];
 
 function formatRelativeTime(dateStr) {
@@ -46,6 +64,12 @@ function getNavigationPath(notification) {
   }
   if (referenceModel === 'Invoice') {
     return '/invoices';
+  }
+  if (referenceModel === 'SalaryRun' || referenceModel === 'Project') {
+    return '/salary';
+  }
+  if (referenceModel === 'Advance') {
+    return '/advances';
   }
   return null;
 }
@@ -70,6 +94,8 @@ const Notifications = () => {
     if (filter === 'unread') return !n.isRead;
     if (filter === 'attendance') return (typeLabels[n.type] || '') === 'Attendance';
     if (filter === 'invoices') return (typeLabels[n.type] || '') === 'Invoices';
+    if (filter === 'salary') return (typeLabels[n.type] || '') === 'Salary';
+    if (filter === 'advances') return (typeLabels[n.type] || '') === 'Advances';
     return true;
   });
 

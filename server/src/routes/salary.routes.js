@@ -6,7 +6,7 @@ const { SalaryRun, CompanySettings, Client, DriverLedger } = require('../models'
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
 const validate = require('../middleware/validate');
-const { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation, manualDeductionValidation } = require('../middleware/validators/salary.validators');
+const { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation, manualDeductionValidation, approvalRemarksValidation } = require('../middleware/validators/salary.validators');
 const auditLogger = require('../utils/auditLogger');
 const { generatePayslipPDF } = require('../utils/pdfGenerator');
 
@@ -82,23 +82,49 @@ router.get('/runs/:id', requirePermission('salary.view'), async (req, res) => {
   const run = await SalaryRun.findOne({ _id: req.params.id, isDeleted: { $ne: true } })
     .populate('driverId', 'fullName employeeCode bankName iban payStructure')
     .populate('clientId', 'name')
-    .populate('projectId', 'name')
+    .populate('projectId', 'name salaryReleaseDay')
     .populate('attendanceRecordId')
     .populate('processedBy', 'name')
-    .populate('approvedBy', 'name');
+    .populate('approvedBy', 'name')
+    .populate('approvals.approvedBy', 'name');
 
   if (!run) return sendError(res, 'Salary run not found', 404);
 
   sendSuccess(res, run);
 });
 
-// PUT /api/salary/runs/:id/approve — approve single run
+// PUT /api/salary/runs/:id/approve/ops — Operations approval (draft → ops_approved)
+router.put('/runs/:id/approve/ops', requirePermission('salary.approve_ops'), validate(approvalRemarksValidation), async (req, res) => {
+  const run = await salaryService.approveByOps(req.params.id, req.user._id, req.body.remarks);
+  await auditLogger.logChange('SalaryRun', req.params.id, 'status', 'draft', 'ops_approved', req.user._id, 'salary_ops_approval');
+  sendSuccess(res, run, 'Salary run approved by Operations');
+});
+
+// PUT /api/salary/runs/:id/approve/compliance — Compliance approval (ops_approved → compliance_approved)
+router.put('/runs/:id/approve/compliance', requirePermission('salary.approve_compliance'), validate(approvalRemarksValidation), async (req, res) => {
+  const run = await salaryService.approveByCompliance(req.params.id, req.user._id, req.body.remarks);
+  await auditLogger.logChange('SalaryRun', req.params.id, 'status', 'ops_approved', 'compliance_approved', req.user._id, 'salary_compliance_approval');
+  sendSuccess(res, run, 'Salary run approved by Compliance');
+});
+
+// PUT /api/salary/runs/:id/approve/accounts — Junior Accounts approval (compliance_approved → accounts_approved)
+router.put('/runs/:id/approve/accounts', requirePermission('salary.approve_accounts'), validate(approvalRemarksValidation), async (req, res) => {
+  const run = await salaryService.approveByAccounts(req.params.id, req.user._id, req.body.remarks);
+  await auditLogger.logChange('SalaryRun', req.params.id, 'status', 'compliance_approved', 'accounts_approved', req.user._id, 'salary_accounts_approval');
+  sendSuccess(res, run, 'Salary run approved by Accounts');
+});
+
+// PUT /api/salary/runs/:id/process — Senior Accountant processes (accounts_approved → processed)
+router.put('/runs/:id/process', requirePermission('salary.process'), async (req, res) => {
+  const run = await salaryService.processSalaryRun(req.params.id, req.user._id);
+  await auditLogger.logChange('SalaryRun', req.params.id, 'status', 'accounts_approved', 'processed', req.user._id, 'salary_processing');
+  sendSuccess(res, run, 'Salary run processed');
+});
+
+// PUT /api/salary/runs/:id/approve — legacy backward-compatible approve (routes to appropriate stage)
 router.put('/runs/:id/approve', requirePermission('salary.approve'), async (req, res) => {
   const run = await salaryService.approveSalaryRun(req.params.id, req.user._id);
-
-  // Audit log
-  await auditLogger.logChange('SalaryRun', req.params.id, 'status', 'draft', 'approved', req.user._id, 'salary_approval');
-
+  await auditLogger.logChange('SalaryRun', req.params.id, 'status', 'unknown', run.status, req.user._id, 'salary_approval');
   sendSuccess(res, run, 'Salary run approved');
 });
 
@@ -200,16 +226,17 @@ router.put('/runs/:id/pay', requirePermission('salary.pay'), async (req, res) =>
   const run = await SalaryRun.findById(req.params.id);
   if (!run) return sendError(res, 'Salary run not found', 404);
 
-  if (run.status !== 'approved') {
-    return sendError(res, `Cannot mark a ${run.status} salary run as paid`, 400);
+  if (run.status !== 'approved' && run.status !== 'processed') {
+    return sendError(res, `Cannot mark a ${run.status} salary run as paid — must be 'processed' or 'approved'`, 400);
   }
 
+  const prevStatus = run.status;
   run.status = 'paid';
   run.paidAt = new Date();
 
   await run.save();
 
-  await auditLogger.logChange('SalaryRun', req.params.id, 'status', 'approved', 'paid', req.user._id, 'salary_payment');
+  await auditLogger.logChange('SalaryRun', req.params.id, 'status', prevStatus, 'paid', req.user._id, 'salary_payment');
 
   sendSuccess(res, run, 'Salary run marked as paid');
 });

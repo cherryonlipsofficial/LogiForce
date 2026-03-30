@@ -194,22 +194,12 @@ async function runSalaryForBatch(batchId, processedByUserId) {
 
 /**
  * Approve a salary run.
+ * @deprecated Use stage-specific functions in salary.service.js instead.
+ * Kept for backward compatibility — delegates to the main salary service.
  */
 async function approveSalaryRun(salaryRunId, approvedByUserId) {
-  const run = await SalaryRun.findById(salaryRunId);
-  if (!run)
-    throw Object.assign(new Error('Salary run not found'), { statusCode: 404 });
-  if (run.status !== 'draft') {
-    throw Object.assign(
-      new Error(`Cannot approve a salary run with status "${run.status}"`),
-      { statusCode: 400 }
-    );
-  }
-  run.status = 'approved';
-  run.approvedBy = approvedByUserId;
-  run.approvedAt = new Date();
-  await run.save();
-  return run;
+  const salaryService = require('./salary.service');
+  return salaryService.approveSalaryRun(salaryRunId, approvedByUserId);
 }
 
 /**
