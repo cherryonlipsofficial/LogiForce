@@ -94,21 +94,21 @@ router.get('/runs/:id', requirePermission('salary.view'), async (req, res) => {
 });
 
 // PUT /api/salary/runs/:id/approve/ops — Operations approval (draft → ops_approved)
-router.put('/runs/:id/approve/ops', requirePermission('salary.approve_ops'), validate(approvalRemarksValidation), async (req, res) => {
+router.put('/runs/:id/approve/ops', requirePermission('salary.approve'), validate(approvalRemarksValidation), async (req, res) => {
   const run = await salaryService.approveByOps(req.params.id, req.user._id, req.body.remarks);
   await auditLogger.logChange('SalaryRun', req.params.id, 'status', 'draft', 'ops_approved', req.user._id, 'salary_ops_approval');
   sendSuccess(res, run, 'Salary run approved by Operations');
 });
 
 // PUT /api/salary/runs/:id/approve/compliance — Compliance approval (ops_approved → compliance_approved)
-router.put('/runs/:id/approve/compliance', requirePermission('salary.approve_compliance'), validate(approvalRemarksValidation), async (req, res) => {
+router.put('/runs/:id/approve/compliance', requirePermission('salary.approve'), validate(approvalRemarksValidation), async (req, res) => {
   const run = await salaryService.approveByCompliance(req.params.id, req.user._id, req.body.remarks);
   await auditLogger.logChange('SalaryRun', req.params.id, 'status', 'ops_approved', 'compliance_approved', req.user._id, 'salary_compliance_approval');
   sendSuccess(res, run, 'Salary run approved by Compliance');
 });
 
 // PUT /api/salary/runs/:id/approve/accounts — Junior Accounts approval (compliance_approved → accounts_approved)
-router.put('/runs/:id/approve/accounts', requirePermission('salary.approve_accounts'), validate(approvalRemarksValidation), async (req, res) => {
+router.put('/runs/:id/approve/accounts', requirePermission('salary.approve'), validate(approvalRemarksValidation), async (req, res) => {
   const run = await salaryService.approveByAccounts(req.params.id, req.user._id, req.body.remarks);
   await auditLogger.logChange('SalaryRun', req.params.id, 'status', 'compliance_approved', 'accounts_approved', req.user._id, 'salary_accounts_approval');
   sendSuccess(res, run, 'Salary run approved by Accounts');

@@ -60,11 +60,7 @@ module.exports = {
     // ── SALARY ──
     'salary.view':             { label: 'View salary runs',        module: 'Salary',     description: 'See salary calculations and breakdowns' },
     'salary.run':              { label: 'Run payroll',             module: 'Salary',     description: 'Trigger salary processing for a period' },
-    // @deprecated — use stage-specific salary.approve_ops / salary.approve_compliance / salary.approve_accounts instead
-    'salary.approve':          { label: 'Approve salary',          module: 'Salary',     description: 'Approve individual or bulk salary runs (legacy)' },
-    'salary.approve_ops':        { label: 'Approve salary (Operations)', module: 'Salary', description: 'Operations team approval — mark deductions complete and approve' },
-    'salary.approve_compliance': { label: 'Approve salary (Compliance)', module: 'Salary', description: 'Compliance team approval — verify driver document validity' },
-    'salary.approve_accounts':   { label: 'Approve salary (Accounts)',   module: 'Salary', description: 'Junior accounts approval — final deduction review' },
+    'salary.approve':          { label: 'Approve salary',          module: 'Salary',     description: 'Approve salary runs at any applicable stage (Operations, Compliance, or Accounts)' },
     'salary.process':            { label: 'Process salary',              module: 'Salary', description: 'Senior accountant — process salary after all 3 approvals' },
     'salary.adjust':           { label: 'Make salary adjustments', module: 'Salary',     description: 'Add manual adjustments to salary runs' },
     'salary.export_wps':       { label: 'Export WPS file',         module: 'Salary',     description: 'Download WPS salary transfer file' },

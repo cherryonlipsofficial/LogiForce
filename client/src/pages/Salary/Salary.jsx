@@ -638,40 +638,28 @@ const RunDetail = ({ run, onClose }) => {
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {/* Stage-specific approval buttons */}
-          {run.status === 'draft' && (
-            <PermissionGate permission="salary.approve_ops">
+          {/* Stage-specific approval buttons — all gated by single salary.approve permission */}
+          <PermissionGate permission="salary.approve">
+            {run.status === 'draft' && (
               <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Operations)', action: opsApprove })} disabled={stageApproving}>
                 Approve (Operations)
               </Btn>
-            </PermissionGate>
-          )}
-          {run.status === 'ops_approved' && (
-            <PermissionGate permission="salary.approve_compliance">
+            )}
+            {run.status === 'ops_approved' && (
               <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Compliance)', action: complianceApprove })} disabled={stageApproving}>
                 Approve (Compliance)
               </Btn>
-            </PermissionGate>
-          )}
-          {run.status === 'compliance_approved' && (
-            <PermissionGate permission="salary.approve_accounts">
+            )}
+            {run.status === 'compliance_approved' && (
               <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Accounts)', action: accountsApprove })} disabled={stageApproving}>
                 Approve (Accounts)
               </Btn>
-            </PermissionGate>
-          )}
+            )}
+          </PermissionGate>
           {run.status === 'accounts_approved' && (
             <PermissionGate permission="salary.process">
               <Btn variant="primary" onClick={() => processMut()} disabled={processing}>
                 {processing ? 'Processing...' : 'Process Salary'}
-              </Btn>
-            </PermissionGate>
-          )}
-          {/* Legacy approve button for backward compat */}
-          {run.status === 'draft' && (
-            <PermissionGate permission="salary.approve">
-              <Btn variant="ghost" onClick={() => approve()} disabled={approving}>
-                {approving ? 'Approving...' : 'Quick Approve (Legacy)'}
               </Btn>
             </PermissionGate>
           )}
