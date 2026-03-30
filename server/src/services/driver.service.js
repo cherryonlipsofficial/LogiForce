@@ -50,7 +50,7 @@ const findAll = async (filters = {}, pagination = {}) => {
     Driver.find(query)
       .populate('clientId', 'name')
       .populate('supplierId', 'name')
-      .populate('projectId', 'name')
+      .populate({ path: 'projectId', select: 'name clientId', populate: { path: 'clientId', select: 'name' } })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),

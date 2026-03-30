@@ -20,7 +20,7 @@ const RequestAdvanceModal = ({ driver, onClose, onSuccess }) => {
     mutationFn: () => requestAdvance({
       driverId: driver._id,
       projectId: driver.projectId?._id || driver.projectId,
-      clientId: driver.clientId?._id || driver.clientId,
+      clientId: driver.clientId?._id || driver.projectId?.clientId?._id || driver.clientId,
       amount: Number(amount),
       reason,
     }),
@@ -50,7 +50,7 @@ const RequestAdvanceModal = ({ driver, onClose, onSuccess }) => {
   const driverName = driver.fullName || driver.name || 'Unknown';
   const driverCode = driver.employeeCode || '';
   const projectName = driver.projectId?.name || driver.project || '—';
-  const clientName = driver.clientId?.name || driver.client || '—';
+  const clientName = driver.clientId?.name || driver.projectId?.clientId?.name || driver.client || '—';
 
   return (
     <Modal title={`Request advance for ${driverName}`} onClose={onClose} width={440}>

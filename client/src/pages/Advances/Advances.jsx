@@ -43,7 +43,7 @@ const Advances = () => {
 
   const { data: driverResults } = useQuery({
     queryKey: ['drivers-search', driverSearch],
-    queryFn: () => getDrivers({ search: driverSearch, status: 'active', limit: 10 }),
+    queryFn: () => getDrivers({ search: driverSearch, limit: 10 }),
     enabled: showDriverSearch && driverSearch.length >= 2,
     keepPreviousData: true,
   });
@@ -176,14 +176,16 @@ const Advances = () => {
                     <div style={{ fontSize: 18, fontWeight: 700, color: '#f59e0b', fontFamily: 'var(--mono)' }}>
                       AED {Number(adv.amount).toLocaleString()}
                     </div>
-                    <div style={{ display: 'flex', gap: 6, marginTop: 10, justifyContent: 'flex-end' }}>
-                      <Btn small variant="success" onClick={() => setReviewModal({ advance: adv, decision: 'approved' })}>
-                        Approve
-                      </Btn>
-                      <Btn small variant="danger" onClick={() => setReviewModal({ advance: adv, decision: 'rejected' })}>
-                        Reject
-                      </Btn>
-                    </div>
+                    {hasPermission('advances.approve') && (
+                      <div style={{ display: 'flex', gap: 6, marginTop: 10, justifyContent: 'flex-end' }}>
+                        <Btn small variant="success" onClick={() => setReviewModal({ advance: adv, decision: 'approved' })}>
+                          Approve
+                        </Btn>
+                        <Btn small variant="danger" onClick={() => setReviewModal({ advance: adv, decision: 'rejected' })}>
+                          Reject
+                        </Btn>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -223,12 +225,16 @@ const Advances = () => {
                     <td style={{ padding: '11px 14px', fontSize: 12 }}>{adv.requestedBy?.name || '—'}</td>
                     <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--text3)' }}>{formatDate(adv.createdAt)}</td>
                     <td style={{ padding: '11px 14px' }}>
-                      {adv.status === 'pending' && hasPermission('advances.review') && (
+                      {adv.status === 'pending' && hasPermission('advances.approve') ? (
                         <div style={{ display: 'flex', gap: 6 }}>
                           <Btn small variant="success" onClick={() => setReviewModal({ advance: adv, decision: 'approved' })}>Approve</Btn>
                           <Btn small variant="danger" onClick={() => setReviewModal({ advance: adv, decision: 'rejected' })}>Reject</Btn>
                         </div>
-                      )}
+                      ) : adv.status !== 'pending' && adv.reviewedByName ? (
+                        <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+                          {adv.status === 'approved' ? 'Approved' : adv.status === 'rejected' ? 'Rejected' : adv.status.replace('_', ' ')} by {adv.reviewedByName}
+                        </div>
+                      ) : null}
                     </td>
                   </tr>
                 ))}
@@ -288,32 +294,44 @@ const Advances = () => {
                 </div>
               ) : searchedDrivers.length === 0 ? (
                 <div style={{ fontSize: 12, color: 'var(--text3)', padding: '16px 0', textAlign: 'center' }}>
-                  No active drivers found
+                  No drivers found
                 </div>
               ) : (
-                searchedDrivers.map(d => (
-                  <div
-                    key={d._id}
-                    onClick={() => setSelectedDriver(d)}
-                    style={{
-                      padding: '10px 12px', cursor: 'pointer', borderRadius: 8,
-                      border: '1px solid var(--border)', marginBottom: 6,
-                      transition: 'background .1s',
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>
-                      {d.fullName || d.name}
-                      <span style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 8 }}>
-                        {d.employeeCode || ''}
-                      </span>
+                searchedDrivers.map(d => {
+                  const isActive = d.status === 'active';
+                  return (
+                    <div
+                      key={d._id}
+                      onClick={() => isActive && setSelectedDriver(d)}
+                      style={{
+                        padding: '10px 12px', cursor: isActive ? 'pointer' : 'not-allowed', borderRadius: 8,
+                        border: '1px solid var(--border)', marginBottom: 6,
+                        opacity: isActive ? 1 : 0.55,
+                        transition: 'background .1s',
+                      }}
+                      onMouseEnter={e => isActive && (e.currentTarget.style.background = 'var(--surface2)')}
+                      onMouseLeave={e => isActive && (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span>{d.fullName || d.name}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text3)' }}>
+                          {d.employeeCode || ''}
+                        </span>
+                        {!isActive && (
+                          <Badge variant="default" style={{ fontSize: 9, padding: '1px 6px' }}>{d.status}</Badge>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+                        {d.projectId?.name || '—'} &middot; {d.clientId?.name || d.projectId?.clientId?.name || '—'}
+                      </div>
+                      {!isActive && (
+                        <div style={{ fontSize: 10, color: '#f87171', marginTop: 3 }}>
+                          Only active drivers can receive advances
+                        </div>
+                      )}
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
-                      {d.projectId?.name || '—'} &middot; {d.clientId?.name || '—'}
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
