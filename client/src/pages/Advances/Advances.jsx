@@ -161,6 +161,11 @@ const Advances = () => {
                       <span style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 8 }}>
                         {adv.driverId?.employeeCode || adv.driverCode || ''}
                       </span>
+                      {adv.driverId?.clientUserId && (
+                        <span style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 8 }}>
+                          ID: {adv.driverId.clientUserId}
+                        </span>
+                      )}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
                       {adv.projectId?.name || adv.project || '—'}
@@ -213,7 +218,10 @@ const Advances = () => {
                   <tr key={adv._id} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '11px 14px' }}>
                       <div style={{ fontSize: 12, fontWeight: 500 }}>{adv.driverId?.fullName || adv.driverName || '—'}</div>
-                      <div style={{ fontSize: 10, color: 'var(--text3)' }}>{adv.driverId?.employeeCode || adv.driverCode || ''}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text3)' }}>
+                        {adv.driverId?.employeeCode || adv.driverCode || ''}
+                        {adv.driverId?.clientUserId && <span style={{ marginLeft: 6 }}>ID: {adv.driverId.clientUserId}</span>}
+                      </div>
                     </td>
                     <td style={{ padding: '11px 14px', fontSize: 12 }}>{adv.projectId?.name || adv.project || '—'}</td>
                     <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 600, fontFamily: 'var(--mono)' }}>

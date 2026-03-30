@@ -58,7 +58,7 @@ router.get('/', requirePermission('advances.view'), async (req, res) => {
 
   const [advances, total] = await Promise.all([
     Advance.find(query)
-      .populate('driverId', 'fullName employeeCode')
+      .populate('driverId', 'fullName employeeCode clientUserId')
       .populate('approvedBy', 'name')
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -152,7 +152,7 @@ router.get('/driver', requirePermission('advances.view'), async (req, res) => {
 
   const [advances, total, statsAgg] = await Promise.all([
     DriverAdvance.find(filter)
-      .populate('driverId', 'fullName employeeCode')
+      .populate('driverId', 'fullName employeeCode clientUserId')
       .populate('projectId', 'name')
       .populate('requestedBy', 'name')
       .sort({ requestedAt: -1 })
@@ -189,7 +189,7 @@ router.get('/driver', requirePermission('advances.view'), async (req, res) => {
 // GET /api/advances/driver/:id — single driver advance
 router.get('/driver/:id', requirePermission('advances.view'), async (req, res) => {
   const advance = await DriverAdvance.findById(req.params.id)
-    .populate('driverId', 'fullName employeeCode baseSalary')
+    .populate('driverId', 'fullName employeeCode clientUserId baseSalary')
     .populate('projectId', 'name')
     .populate('requestedBy', 'name')
     .populate('reviewedBy', 'name');
