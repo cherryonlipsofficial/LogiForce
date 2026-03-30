@@ -6,7 +6,7 @@ const { SalaryRun, CompanySettings, Client, DriverLedger } = require('../models'
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
 const validate = require('../middleware/validate');
-const { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation, manualDeductionValidation, approvalRemarksValidation } = require('../middleware/validators/salary.validators');
+const { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation, manualDeductionValidation, approvalRemarksValidation, bulkApprovalValidation } = require('../middleware/validators/salary.validators');
 const auditLogger = require('../utils/auditLogger');
 const { generatePayslipPDF } = require('../utils/pdfGenerator');
 
@@ -119,6 +119,58 @@ router.put('/runs/:id/process', requirePermission('salary.process'), async (req,
   const run = await salaryService.processSalaryRun(req.params.id, req.user._id);
   await auditLogger.logChange('SalaryRun', req.params.id, 'status', 'accounts_approved', 'processed', req.user._id, 'salary_processing');
   sendSuccess(res, run, 'Salary run processed');
+});
+
+// PUT /api/salary/bulk-approve/ops — Bulk operations approval
+router.put('/bulk-approve/ops', requirePermission('salary.approve'), validate(bulkApprovalValidation), async (req, res) => {
+  const { runIds, remarks } = req.body;
+  const results = await salaryService.bulkApproveByOps(runIds, req.user._id, remarks);
+
+  for (const item of results.approved) {
+    await auditLogger.logChange('SalaryRun', item._id, 'status', 'draft', 'ops_approved', req.user._id, 'salary_bulk_ops_approval');
+  }
+
+  const msg = `Bulk ops approval: ${results.approved.length} approved, ${results.errors.length} failed`;
+  sendSuccess(res, results, msg);
+});
+
+// PUT /api/salary/bulk-approve/compliance — Bulk compliance approval
+router.put('/bulk-approve/compliance', requirePermission('salary.approve'), validate(bulkApprovalValidation), async (req, res) => {
+  const { runIds, remarks } = req.body;
+  const results = await salaryService.bulkApproveByCompliance(runIds, req.user._id, remarks);
+
+  for (const item of results.approved) {
+    await auditLogger.logChange('SalaryRun', item._id, 'status', 'ops_approved', 'compliance_approved', req.user._id, 'salary_bulk_compliance_approval');
+  }
+
+  const msg = `Bulk compliance approval: ${results.approved.length} approved, ${results.errors.length} failed`;
+  sendSuccess(res, results, msg);
+});
+
+// PUT /api/salary/bulk-approve/accounts — Bulk accounts approval
+router.put('/bulk-approve/accounts', requirePermission('salary.approve'), validate(bulkApprovalValidation), async (req, res) => {
+  const { runIds, remarks } = req.body;
+  const results = await salaryService.bulkApproveByAccounts(runIds, req.user._id, remarks);
+
+  for (const item of results.approved) {
+    await auditLogger.logChange('SalaryRun', item._id, 'status', 'compliance_approved', 'accounts_approved', req.user._id, 'salary_bulk_accounts_approval');
+  }
+
+  const msg = `Bulk accounts approval: ${results.approved.length} approved, ${results.errors.length} failed`;
+  sendSuccess(res, results, msg);
+});
+
+// PUT /api/salary/bulk-process — Bulk process salary runs
+router.put('/bulk-process', requirePermission('salary.process'), validate(bulkApprovalValidation), async (req, res) => {
+  const { runIds } = req.body;
+  const results = await salaryService.bulkProcess(runIds, req.user._id);
+
+  for (const item of results.processed) {
+    await auditLogger.logChange('SalaryRun', item._id, 'status', 'accounts_approved', 'processed', req.user._id, 'salary_bulk_processing');
+  }
+
+  const msg = `Bulk processing: ${results.processed.length} processed, ${results.errors.length} failed`;
+  sendSuccess(res, results, msg);
 });
 
 // PUT /api/salary/runs/:id/approve — legacy backward-compatible approve (routes to appropriate stage)

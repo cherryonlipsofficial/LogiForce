@@ -42,3 +42,16 @@ export const approveByAccounts = (id, data) =>
 
 export const processRun = (id) =>
   axiosInstance.put(`/salary/runs/${id}/process`).then(r => r.data);
+
+// Bulk approval endpoints
+export const bulkApproveByOps = (data) =>
+  axiosInstance.put('/salary/bulk-approve/ops', data).then(r => r.data);
+
+export const bulkApproveByCompliance = (data) =>
+  axiosInstance.put('/salary/bulk-approve/compliance', data).then(r => r.data);
+
+export const bulkApproveByAccounts = (data) =>
+  axiosInstance.put('/salary/bulk-approve/accounts', data).then(r => r.data);
+
+export const bulkProcess = (data) =>
+  axiosInstance.put('/salary/bulk-process', data).then(r => r.data);
