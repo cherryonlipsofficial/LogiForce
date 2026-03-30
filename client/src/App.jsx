@@ -28,6 +28,8 @@ import ExpiredDocuments from './pages/ExpiredDocuments';
 import ProfilePage from './pages/Profile';
 import NotificationsPage from './pages/Notifications';
 import Advances from './pages/Advances/Advances';
+import CreditNotes from './pages/CreditNotes/CreditNotes';
+import StatementOfAccounts from './pages/StatementOfAccounts/StatementOfAccounts';
 import NotFound from './pages/NotFound';
 
 const queryClient = new QueryClient();
@@ -56,12 +58,14 @@ const RouterContent = () => (
         <Route path="/attendance" element={<ProtectedPage permission="attendance.view"><Attendance /></ProtectedPage>} />
         <Route path="/salary" element={<ProtectedPage permission="salary.view"><Salary /></ProtectedPage>} />
         <Route path="/invoices" element={<ProtectedPage permission="invoices.view"><Invoices /></ProtectedPage>} />
+        <Route path="/credit-notes" element={<ProtectedPage permission="credit_notes.view"><CreditNotes /></ProtectedPage>} />
         <Route path="/advances" element={<ProtectedPage permission="advances.view"><Advances /></ProtectedPage>} />
         <Route path="/clients" element={<ProtectedPage permission="clients.view"><Clients /></ProtectedPage>} />
         <Route path="/projects" element={<ProtectedPage permission="projects.view"><Projects /></ProtectedPage>} />
         <Route path="/suppliers" element={<ProtectedPage permission="suppliers.view"><Suppliers /></ProtectedPage>} />
         <Route path="/vehicles" element={<ProtectedPage permission="vehicles.view"><VehiclesPage /></ProtectedPage>} />
         <Route path="/reports" element={<ProtectedPage permission="reports.view"><Reports /></ProtectedPage>} />
+        <Route path="/statement-of-accounts" element={<ProtectedPage permission="reports.statement_of_accounts"><StatementOfAccounts /></ProtectedPage>} />
         <Route path="/settings" element={<ProtectedPage permission="settings.view"><Settings /></ProtectedPage>} />
         <Route path="/users" element={<ProtectedPage permission="users.view"><UsersPage /></ProtectedPage>} />
         <Route path="/roles" element={<ProtectedPage permission="roles.manage"><RolesPage /></ProtectedPage>} />

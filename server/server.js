@@ -44,6 +44,7 @@ app.use('/api/clients', require('./src/routes/clients.routes'));
 app.use('/api/suppliers', require('./src/routes/suppliers.routes'));
 app.use('/api/attendance', require('./src/routes/attendance.routes'));
 app.use('/api/invoices', require('./src/routes/invoices.routes'));
+app.use('/api/credit-notes', require('./src/routes/creditNotes.routes'));
 app.use('/api/reports', require('./src/routes/reports.routes'));
 app.use('/api/advances', require('./src/routes/advances.routes'));
 app.use('/api/salary', require('./src/routes/salary.routes'));

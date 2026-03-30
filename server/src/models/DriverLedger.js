@@ -22,6 +22,7 @@ const driverLedgerSchema = new mongoose.Schema(
         'manual_debit',
         'penalty',
         'credit_note',
+        'credit_note_debit',
       ],
       required: true,
     },

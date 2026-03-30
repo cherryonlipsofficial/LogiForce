@@ -288,6 +288,39 @@ const calculateDeductions = async (driverId, year, month, grossSalary) => {
     });
   }
 
+  // g) Credit note deductions — unsettled CN line items for this driver
+  const CreditNote = require('../models/CreditNote');
+
+  const unsettledCNLines = await CreditNote.find({
+    'lineItems': {
+      $elemMatch: {
+        driverId: driverId,
+        salaryDeducted: false,
+        manuallyResolved: false,
+      },
+    },
+    status: { $in: ['sent', 'adjusted'] },
+    isDeleted: { $ne: true },
+  });
+
+  for (const cn of unsettledCNLines) {
+    for (const line of cn.lineItems) {
+      if (
+        line.driverId.toString() === driverId.toString() &&
+        !line.salaryDeducted &&
+        !line.manuallyResolved
+      ) {
+        deductions.push({
+          type: 'credit_note',
+          referenceId: String(cn._id) + ':' + String(line._id),
+          amount: Math.round(line.totalWithVat * 100) / 100,
+          description: `Credit note ${cn.creditNoteNo} - ${cn.description || cn.noteType}`,
+          status: 'applied',
+        });
+      }
+    }
+  }
+
   // f) Deduction carryover from previous month
   const carryover = await getDeductionCarryover(driverId, year, month);
   if (carryover > 0) {
@@ -679,6 +712,48 @@ const processSalaryRun = async (runId, userId) => {
 
   // Update advance recoveries
   await updateAdvanceRecoveries(salaryRun);
+
+  // Mark credit note lines as salary-deducted
+  const CreditNote = require('../models/CreditNote');
+  const creditNoteDeductions = (salaryRun.deductions || []).filter(d => d.type === 'credit_note');
+  for (const ded of creditNoteDeductions) {
+    if (!ded.referenceId) continue;
+    const [cnId, lineId] = ded.referenceId.split(':');
+    if (!cnId || !lineId) continue;
+
+    await CreditNote.findOneAndUpdate(
+      { _id: cnId, 'lineItems._id': lineId },
+      {
+        $set: {
+          'lineItems.$.salaryDeducted': true,
+          'lineItems.$.salaryDeductedAt': new Date(),
+          'lineItems.$.salaryRunId': salaryRun._id,
+        },
+      }
+    );
+
+    // Post debit entry to DriverLedger
+    const lastEntry = await DriverLedger.findOne({ driverId: salaryRun.driverId })
+      .sort({ createdAt: -1 });
+    const previousBalance = lastEntry?.runningBalance || 0;
+
+    await DriverLedger.create({
+      driverId: salaryRun.driverId,
+      salaryRunId: salaryRun._id,
+      entryType: 'credit_note_debit',
+      debit: ded.amount,
+      credit: 0,
+      runningBalance: previousBalance - ded.amount,
+      description: ded.description,
+      referenceId: ded.referenceId,
+      period: salaryRun.period,
+      createdBy: userId,
+    });
+
+    // Check if entire CN is now settled
+    const { checkAndSettleCreditNote } = require('./creditNote.service');
+    await checkAndSettleCreditNote(cnId);
+  }
 
   // Notify relevant users
   const { notifyByRole } = require('./notification.service');

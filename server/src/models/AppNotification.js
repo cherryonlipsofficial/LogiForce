@@ -32,6 +32,10 @@ const appNotificationSchema = new Schema(
         'salary_accounts_approved',
         'salary_processed',
         'salary_approval_reminder',
+        'credit_note_created',
+        'credit_note_sent',
+        'credit_note_adjusted',
+        'credit_note_settled',
       ],
     },
 

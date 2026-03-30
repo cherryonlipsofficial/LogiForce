@@ -372,6 +372,20 @@ router.get('/vehicle-cost-per-driver', requirePermission('reports.financial'), a
   }
 });
 
+// GET /api/reports/statement-of-accounts — per-project statement
+router.get('/statement-of-accounts', requirePermission('reports.statement_of_accounts'), async (req, res) => {
+  const { projectId, year } = req.query;
+  if (!projectId) return sendError(res, 'projectId is required', 400);
+
+  const creditNoteService = require('../services/creditNote.service');
+  const result = await creditNoteService.getStatementOfAccounts(
+    projectId,
+    year ? parseInt(year) : new Date().getFullYear()
+  );
+
+  sendSuccess(res, result);
+});
+
 // GET /api/reports/alert-count — count actionable alerts for the logged-in user
 router.get('/alert-count', async (req, res) => {
   try {
