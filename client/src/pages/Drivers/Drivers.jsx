@@ -69,7 +69,7 @@ const Drivers = () => {
   });
   const projectsList = projectsData?.data || [];
 
-  const drivers = data?.data || fallbackDrivers;
+  const drivers = data?.data ?? fallbackDrivers;
   const pagination = data?.pagination;
   const counts = countsData?.data || {};
 
@@ -268,43 +268,51 @@ const Drivers = () => {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((d) => (
-                  <tr
-                    key={d._id || d.id}
-                    onClick={() => setSelected(d)}
-                    style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: 'background .1s' }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <td style={{ padding: '11px 14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <Avatar initials={getInitials(d.fullName || d.name)} size={30} />
-                        <div>
-                          <div style={{ fontSize: 13 }}>{d.fullName || d.name}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text3)' }}>{d.employeeCode || d.id}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td style={{ padding: '11px 14px', fontSize: 12 }}>{d.nationality || '—'}</td>
-                    <td style={{ padding: '11px 14px', fontSize: 12 }}>{d.projectId?.name || d.project || '—'}</td>
-                    <td style={{ padding: '11px 14px' }}><StatusBadge status={d.status} /></td>
-                    <td style={{ padding: '11px 14px' }}>
-                      <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>AED {(d.baseSalary || 0).toLocaleString()}</span>
-                    </td>
-                    <td style={{ padding: '11px 14px' }}>
-                      <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: (d.netSalary || 0) > 0 ? '#4ade80' : '#f87171' }}>
-                        AED {(d.netSalary || 0).toLocaleString()}
-                      </span>
-                    </td>
-                    <td style={{ padding: '11px 14px' }}>
-                      {(d.advanceBalance || 0) > 0 ? (
-                        <Badge variant="warning">AED {d.advanceBalance.toLocaleString()}</Badge>
-                      ) : (
-                        <span style={{ color: 'var(--text3)', fontSize: 12 }}>—</span>
-                      )}
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: '40px 14px', textAlign: 'center', color: 'var(--text3)', fontSize: 14 }}>
+                      No driver record
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filtered.map((d) => (
+                    <tr
+                      key={d._id || d.id}
+                      onClick={() => setSelected(d)}
+                      style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: 'background .1s' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <td style={{ padding: '11px 14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <Avatar initials={getInitials(d.fullName || d.name)} size={30} />
+                          <div>
+                            <div style={{ fontSize: 13 }}>{d.fullName || d.name}</div>
+                            <div style={{ fontSize: 10, color: 'var(--text3)' }}>{d.employeeCode || d.id}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ padding: '11px 14px', fontSize: 12 }}>{d.nationality || '—'}</td>
+                      <td style={{ padding: '11px 14px', fontSize: 12 }}>{d.projectId?.name || d.project || '—'}</td>
+                      <td style={{ padding: '11px 14px' }}><StatusBadge status={d.status} /></td>
+                      <td style={{ padding: '11px 14px' }}>
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>AED {(d.baseSalary || 0).toLocaleString()}</span>
+                      </td>
+                      <td style={{ padding: '11px 14px' }}>
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: (d.netSalary || 0) > 0 ? '#4ade80' : '#f87171' }}>
+                          AED {(d.netSalary || 0).toLocaleString()}
+                        </span>
+                      </td>
+                      <td style={{ padding: '11px 14px' }}>
+                        {(d.advanceBalance || 0) > 0 ? (
+                          <Badge variant="warning">AED {d.advanceBalance.toLocaleString()}</Badge>
+                        ) : (
+                          <span style={{ color: 'var(--text3)', fontSize: 12 }}>—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
