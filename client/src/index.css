@@ -16,6 +16,7 @@
   --text:#e8eaf0;
   --text2:#8b909e;
   --text3:#555c70;
+  --shadow:0 1px 3px rgba(0,0,0,0.3);
   --mono:'DM Mono',monospace;
   --sans:'DM Sans',sans-serif;
   --display:'Playfair Display',serif;
@@ -25,6 +26,25 @@
   --sidebar-w-collapsed:64px;
   --topbar-h:56px;
   --content-padding:24px;
+}
+
+[data-theme="light"]{
+  --bg:#f5f6fa;
+  --surface:#ffffff;
+  --surface2:#eef0f6;
+  --surface3:#e2e5ef;
+  --border:rgba(0,0,0,0.08);
+  --border2:rgba(0,0,0,0.13);
+  --accent:#3b7de8;
+  --accent2:#6a4dd6;
+  --teal:#159970;
+  --red:#dc2626;
+  --yellow:#d97706;
+  --green:#16a34a;
+  --text:#1a1d27;
+  --text2:#5b6070;
+  --text3:#8b909e;
+  --shadow:0 1px 3px rgba(0,0,0,0.1);
 }
 
 html{font-size:14px}
@@ -46,6 +66,11 @@ body{
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+[data-theme="light"] select option{
+  background:var(--surface);
+  color:var(--text);
+}
 
 button{
   font-family:var(--sans);

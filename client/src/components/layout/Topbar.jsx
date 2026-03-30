@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { useSyncTime } from '../../hooks/useSyncTime.jsx';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
+import { useUserPrefs } from '../../hooks/useUserPrefs';
 import toast from 'react-hot-toast';
 import axiosInstance from '../../api/axiosInstance';
 import { getNotifications, getUnreadCount, markAsRead, markAllAsRead } from '../../api/notificationsApi';
@@ -223,6 +224,7 @@ const Topbar = ({ page, onMenuToggle, showMenuButton }) => {
   const searchRef = useRef(null);
   const lastSynced = useSyncTime();
   const { isMobile, isTablet } = useBreakpoint();
+  const { theme, setTheme } = useUserPrefs();
   const [menuOpen, setMenuOpen] = useState(false);
   const [showPerms, setShowPerms] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -435,6 +437,28 @@ const Topbar = ({ page, onMenuToggle, showMenuButton }) => {
               {alertCount} {alertCount === 1 ? 'alert' : 'alerts'}
             </button>
           )}
+
+          {/* Theme toggle */}
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            style={{
+              background: 'var(--surface3)',
+              border: '1px solid var(--border2)',
+              borderRadius: 8,
+              padding: '6px 12px',
+              fontSize: 16,
+              cursor: 'pointer',
+              color: 'var(--text2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: 'auto',
+              lineHeight: 1,
+            }}
+          >
+            {theme === 'dark' ? '☀' : '☾'}
+          </button>
 
           {/* Notification bell - always visible */}
           <div className="notif-panel-container" style={{ position: 'relative' }}>
