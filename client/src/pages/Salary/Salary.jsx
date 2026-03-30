@@ -171,6 +171,7 @@ const ROLE_STAGE_MAP = {
   ops: ['draft'],                           // Operations approval
   compliance: ['ops_approved'],             // Compliance approval
   accountant: ['compliance_approved', 'accounts_approved'], // Accounts approval + Process
+  accounts: ['compliance_approved', 'accounts_approved'],   // Alias for accountant
   admin: ['draft', 'ops_approved', 'compliance_approved', 'accounts_approved'], // All stages
 };
 
@@ -178,7 +179,7 @@ const RunDetail = ({ run, onClose }) => {
   const { isMobile } = useBreakpoint();
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { role, isAdmin } = useAuth();
+  const { role, isAdmin, hasPermission } = useAuth();
   const [viewingPdf, setViewingPdf] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingWps, setDownloadingWps] = useState(false);
@@ -206,7 +207,10 @@ const RunDetail = ({ run, onClose }) => {
   const currentStatus = detail?.status || run.status;
   const st = statusMap[currentStatus] || statusMap.draft;
   // Determine which stages this user's role can act on
-  const allowedStages = isAdmin ? ROLE_STAGE_MAP.admin : (ROLE_STAGE_MAP[role] || []);
+  // Fallback: if role not in map but user has salary.approve permission, allow all approval stages
+  const allowedStages = isAdmin
+    ? ROLE_STAGE_MAP.admin
+    : (ROLE_STAGE_MAP[role] || (hasPermission('salary.approve') ? ['draft', 'ops_approved', 'compliance_approved', 'accounts_approved'] : []));
   const canActOnCurrentStage = allowedStages.includes(currentStatus);
 
   const { mutate: submitDeduction, isPending: submittingDed } = useMutation({
