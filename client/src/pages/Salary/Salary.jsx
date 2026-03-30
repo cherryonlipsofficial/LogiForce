@@ -274,11 +274,26 @@ const ApprovalHistory = ({ approvals }) => {
   );
 };
 
+// Which roles can act on which approval stage
+// Which roles can act on which approval stage
+const ROLE_STAGE_MAP = {
+  ops: ['draft'],                           // Operations approval
+  compliance: ['ops_approved'],             // Compliance approval
+  accountant: ['compliance_approved', 'accounts_approved'], // Accounts approval + Process
+  admin: ['draft', 'ops_approved', 'compliance_approved', 'accounts_approved'], // All stages
+};
+
 const RunDetail = ({ run, onClose }) => {
   const { isMobile } = useBreakpoint();
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const st = statusMap[run.status] || statusMap.draft;
+  const { role, isAdmin } = useAuth();
+  // Use detail.status (fresh from API) to avoid stale button states after approval
+  const currentStatus = detail?.status || run.status;
+  const st = statusMap[currentStatus] || statusMap.draft;
+  // Determine which stages this user's role can act on
+  const allowedStages = isAdmin ? ROLE_STAGE_MAP.admin : (ROLE_STAGE_MAP[role] || []);
+  const canActOnCurrentStage = allowedStages.includes(currentStatus);
   const [viewingPdf, setViewingPdf] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingWps, setDownloadingWps] = useState(false);
@@ -316,7 +331,7 @@ const RunDetail = ({ run, onClose }) => {
   });
 
   const { mutate: removeRun, isPending: deleting } = useMutation({
-    mutationFn: () => deleteRun(run._id, run.status === 'paid' ? { remark: deleteRemark } : undefined),
+    mutationFn: () => deleteRun(run._id, currentStatus === 'paid' ? { remark: deleteRemark } : undefined),
     onSuccess: () => {
       toast.success('Salary run deleted');
       qc.invalidateQueries(['salary-runs']);
@@ -554,7 +569,7 @@ const RunDetail = ({ run, onClose }) => {
         <ApprovalHistory approvals={detail.approvals} />
 
         {/* Add Deduction Form (draft, ops_approved, compliance_approved) */}
-        {['draft', 'ops_approved', 'compliance_approved'].includes(run.status) && (
+        {['draft', 'ops_approved', 'compliance_approved'].includes(currentStatus) && (
           <PermissionGate permission="salary.manage_deductions">
             <div style={{ marginBottom: 20 }}>
               {!showDeductionForm ? (
@@ -638,25 +653,27 @@ const RunDetail = ({ run, onClose }) => {
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {/* Stage-specific approval buttons — all gated by single salary.approve permission */}
-          <PermissionGate permission="salary.approve">
-            {run.status === 'draft' && (
-              <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Operations)', action: opsApprove })} disabled={stageApproving}>
-                Approve (Operations)
-              </Btn>
-            )}
-            {run.status === 'ops_approved' && (
-              <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Compliance)', action: complianceApprove })} disabled={stageApproving}>
-                Approve (Compliance)
-              </Btn>
-            )}
-            {run.status === 'compliance_approved' && (
-              <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Accounts)', action: accountsApprove })} disabled={stageApproving}>
-                Approve (Accounts)
-              </Btn>
-            )}
-          </PermissionGate>
-          {run.status === 'accounts_approved' && (
+          {/* Stage-specific approval buttons — gated by salary.approve permission + user role */}
+          {canActOnCurrentStage && (
+            <PermissionGate permission="salary.approve">
+              {currentStatus === 'draft' && (
+                <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Operations)', action: opsApprove })} disabled={stageApproving}>
+                  Approve (Operations)
+                </Btn>
+              )}
+              {currentStatus === 'ops_approved' && (
+                <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Compliance)', action: complianceApprove })} disabled={stageApproving}>
+                  Approve (Compliance)
+                </Btn>
+              )}
+              {currentStatus === 'compliance_approved' && (
+                <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Accounts)', action: accountsApprove })} disabled={stageApproving}>
+                  Approve (Accounts)
+                </Btn>
+              )}
+            </PermissionGate>
+          )}
+          {currentStatus === 'accounts_approved' && canActOnCurrentStage && (
             <PermissionGate permission="salary.process">
               <Btn variant="primary" onClick={() => processMut()} disabled={processing}>
                 {processing ? 'Processing...' : 'Process Salary'}
@@ -664,7 +681,7 @@ const RunDetail = ({ run, onClose }) => {
             </PermissionGate>
           )}
           <PermissionGate permission="salary.pay">
-            {(run.status === 'processed' || run.status === 'approved') && (
+            {(currentStatus === 'processed' || currentStatus === 'approved') && (
               !confirmPay ? (
                 <Btn variant="primary" onClick={() => setConfirmPay(true)}>Mark as Paid</Btn>
               ) : (
@@ -679,18 +696,18 @@ const RunDetail = ({ run, onClose }) => {
             )}
           </PermissionGate>
           <PermissionGate permission="salary.dispute">
-            {run.status !== 'paid' && run.status !== 'disputed' && !showDisputeForm && (
+            {currentStatus !== 'paid' && currentStatus !== 'disputed' && !showDisputeForm && (
               <Btn variant="danger" onClick={() => setShowDisputeForm(true)}>Dispute</Btn>
             )}
           </PermissionGate>
           <PermissionGate permission="salary.export_wps">
-            {(['approved', 'processed', 'paid'].includes(run.status)) && (
+            {(['approved', 'processed', 'paid'].includes(currentStatus)) && (
               <Btn variant="ghost" onClick={handleWpsDownload} disabled={downloadingWps}>
                 {downloadingWps ? 'Downloading...' : 'Download WPS'}
               </Btn>
             )}
           </PermissionGate>
-          {run.status === 'paid' && (
+          {currentStatus === 'paid' && (
             <PermissionGate permission="salary.view">
               <Btn variant="ghost" onClick={handleViewPayslip} disabled={viewingPdf}>
                 {viewingPdf ? 'Loading...' : 'View Payslip'}
@@ -705,7 +722,7 @@ const RunDetail = ({ run, onClose }) => {
               <Btn variant="danger" small onClick={() => setConfirmDelete(true)}>Delete</Btn>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
-                {run.status === 'paid' && (
+                {currentStatus === 'paid' && (
                   <div>
                     <label style={{ display: 'block', fontSize: 11, color: '#f87171', marginBottom: 4 }}>Remark (required for paid salary runs)</label>
                     <input
@@ -719,7 +736,7 @@ const RunDetail = ({ run, onClose }) => {
                 )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 12, color: '#f87171' }}>Are you sure?</span>
-                  <Btn variant="danger" small onClick={() => removeRun()} disabled={deleting || (run.status === 'paid' && deleteRemark.trim().length < 3)}>
+                  <Btn variant="danger" small onClick={() => removeRun()} disabled={deleting || (currentStatus === 'paid' && deleteRemark.trim().length < 3)}>
                     {deleting ? 'Deleting...' : 'Yes, delete'}
                   </Btn>
                   <Btn variant="ghost" small onClick={() => { setConfirmDelete(false); setDeleteRemark(''); }} disabled={deleting}>Cancel</Btn>

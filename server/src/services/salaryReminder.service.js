@@ -5,7 +5,7 @@ const { notifyByRole } = require('./notification.service');
 const STATUS_TO_ROLE = {
   draft: ['ops'],
   ops_approved: ['compliance'],
-  compliance_approved: ['junior_accountant'],
+  compliance_approved: ['accountant'],
   accounts_approved: ['accountant'],
 };
 
