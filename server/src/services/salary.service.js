@@ -14,7 +14,7 @@ const { SALARY } = require('../config/constants');
 /**
  * Calculate salary for a single driver for a given period.
  */
-const calculateDriverSalary = async (driverId, year, month, processedBy, { clientId: requestClientId, attendanceBatchId, includeOT = false, includeTransport = false } = {}) => {
+const calculateDriverSalary = async (driverId, year, month, processedBy, { clientId: requestClientId, attendanceBatchId } = {}) => {
   // 1. Fetch driver (with project info)
   const driver = await Driver.findById(driverId)
     .populate('supplierId')
@@ -66,25 +66,11 @@ const calculateDriverSalary = async (driverId, year, month, processedBy, { clien
 
   proratedSalary = Math.round(proratedSalary * 100) / 100;
 
-  // 4. Calculate overtime pay (only if explicitly enabled)
-  let overtimePay = 0;
-  if (includeOT && overtimeHours > 0) {
-    const otRate =
-      (baseSalary / SALARY.STANDARD_WORKING_DAYS / SALARY.STANDARD_HOURS_PER_DAY) *
-      SALARY.OT_MULTIPLIER;
-    overtimePay = Math.round(otRate * overtimeHours * 100) / 100;
-  }
-
-  // 5. Calculate allowances (only transport, only if explicitly enabled; no food)
+  // 4. Gross salary (OT and allowances are not auto-included; configure manually in Draft)
+  const overtimePay = 0;
   const allowances = [];
-  if (includeTransport) {
-    allowances.push({ type: 'transport', amount: SALARY.TRANSPORT_ALLOWANCE });
-  }
-  const totalAllowances = allowances.reduce((sum, a) => sum + a.amount, 0);
 
-  // 6. Gross salary
-  const grossSalary =
-    Math.round((proratedSalary + overtimePay + totalAllowances) * 100) / 100;
+  const grossSalary = Math.round(proratedSalary * 100) / 100;
 
   // 7. Calculate deductions
   const deductions = await calculateDeductions(driverId, year, month, grossSalary);
@@ -330,7 +316,7 @@ const getDeductionCarryover = async (driverId, year, month) => {
 /**
  * Run payroll for all active drivers of a client for a given period.
  */
-const runPayroll = async (clientId, projectId, year, month, processedBy, { includeOT = false, includeTransport = false } = {}) => {
+const runPayroll = async (clientId, projectId, year, month, processedBy) => {
   // 1. Resolve clientId from project to ensure consistency with stored records
   if (projectId) {
     const project = await Project.findById(projectId).select('clientId');
@@ -380,7 +366,7 @@ const runPayroll = async (clientId, projectId, year, month, processedBy, { inclu
         year,
         month,
         processedBy,
-        { clientId, attendanceBatchId: record.batchId?._id || record.batchId, includeOT, includeTransport }
+        { clientId, attendanceBatchId: record.batchId?._id || record.batchId }
       );
       runs.push(salaryRun);
       totalGross += salaryRun.grossSalary;

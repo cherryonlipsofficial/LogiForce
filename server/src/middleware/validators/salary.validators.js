@@ -14,12 +14,6 @@ const runSalaryValidation = [
   body('month')
     .notEmpty().withMessage('Month is required')
     .isInt({ min: 1, max: 12 }).withMessage('Month must be between 1 and 12'),
-  body('includeOT')
-    .optional()
-    .isBoolean().withMessage('includeOT must be a boolean'),
-  body('includeTransport')
-    .optional()
-    .isBoolean().withMessage('includeTransport must be a boolean'),
 ];
 
 const adjustSalaryValidation = [

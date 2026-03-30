@@ -572,8 +572,6 @@ const RunPayrollModal = ({ onClose }) => {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const [includeOT, setIncludeOT] = useState(false);
-  const [includeTransport, setIncludeTransport] = useState(false);
   const qc = useQueryClient();
 
   const { mutate: run, isLoading } = useMutation({
@@ -612,7 +610,7 @@ const RunPayrollModal = ({ onClose }) => {
       toast.error('Please select a project');
       return;
     }
-    run({ clientId, projectId, year: Number(year), month: Number(month), includeOT, includeTransport });
+    run({ clientId, projectId, year: Number(year), month: Number(month) });
   };
 
   const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 4 };
@@ -641,17 +639,6 @@ const RunPayrollModal = ({ onClose }) => {
               ))}
             </select>
           </div>
-        </div>
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 8 }}>Optional earnings</div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginBottom: 6 }}>
-            <input type="checkbox" checked={includeOT} onChange={(e) => setIncludeOT(e.target.checked)} />
-            Include overtime (OT)
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-            <input type="checkbox" checked={includeTransport} onChange={(e) => setIncludeTransport(e.target.checked)} />
-            Include transport allowance
-          </label>
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
           <Btn variant="ghost" onClick={onClose} disabled={isLoading}>Cancel</Btn>
