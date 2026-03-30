@@ -1,4 +1,4 @@
-const { DriverAdvance, Driver, User } = require('../models');
+const { DriverAdvance, Driver, User, DriverLedger } = require('../models');
 const { notifyByRole, notifyUsers } = require('./notification.service');
 
 /**
@@ -144,6 +144,22 @@ async function reviewAdvance(advanceId, decision, reviewData, reviewerUserId) {
   advance.recoverySchedule = schedule;
   advance.totalRecovered = 0;
   await advance.save();
+
+  // Post ledger entry for the approved advance
+  const lastEntry = await DriverLedger.findOne({ driverId: advance.driverId._id || advance.driverId })
+    .sort({ createdAt: -1 });
+  const previousBalance = lastEntry?.runningBalance || 0;
+
+  await DriverLedger.create({
+    driverId: advance.driverId._id || advance.driverId,
+    entryType: 'advance_issued',
+    debit: advance.amount,
+    credit: 0,
+    runningBalance: previousBalance - advance.amount,
+    description: `Advance issued – AED ${advance.amount}${reviewData.reviewNotes ? ' (' + reviewData.reviewNotes + ')' : ''}`,
+    referenceId: advance._id.toString(),
+    createdBy: reviewerUserId,
+  });
 
   // Notify requester
   await notifyUsers([advance.requestedBy], {
