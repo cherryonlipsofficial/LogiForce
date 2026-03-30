@@ -27,6 +27,7 @@ const DisputeModal = ({ batch, onClose, onSuccess }) => {
     onSuccess: () => {
       toast.success('Dispute raised. Accounts team notified.');
       qc.invalidateQueries(['batch-approvals', batch._id]);
+      qc.invalidateQueries(['batch-disputes', batch._id]);
       qc.invalidateQueries(['attendance-batches']);
       onSuccess?.();
       onClose();

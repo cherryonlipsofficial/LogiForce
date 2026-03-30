@@ -306,6 +306,7 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
           currentUserRole={currentUserRole}
           onApprove={() => setApproveModal(batch)}
           onDispute={() => setDisputeModal(batch)}
+          onRespondDispute={openDisputes.length > 0 ? () => setRespondModal(openDisputes[0]) : undefined}
           onGenerateInvoice={() => setInvoiceModal(batch)}
           onRunSalary={async () => {
             try {
