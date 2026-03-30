@@ -136,6 +136,7 @@ router.post('/upload', requirePermission('attendance.upload'), attendanceUpload.
       period,
       workingDays: r.workingDays,
       overtimeHours: r.overtimeHours,
+      totalOrders: r.totalOrders,
       rawEmployeeCode: r.employeeCode,
       status: r.status,
       issues: r.issues,
@@ -201,7 +202,7 @@ router.delete('/batches/:id', requirePermission('attendance.approve'), async (re
 
 // PUT /api/attendance/records/:id/override — override a flagged record
 router.put('/records/:id/override', requirePermission('attendance.override'), validate(overrideRecordValidation), async (req, res) => {
-  const { reason, workingDays, overtimeHours } = req.body;
+  const { reason, workingDays, overtimeHours, totalOrders } = req.body;
 
   const record = await AttendanceRecord.findById(req.params.id);
   if (!record) return sendError(res, 'Attendance record not found', 404);
@@ -211,6 +212,7 @@ router.put('/records/:id/override', requirePermission('attendance.override'), va
   record.overrideBy = req.user._id;
   if (workingDays !== undefined) record.workingDays = workingDays;
   if (overtimeHours !== undefined) record.overtimeHours = overtimeHours;
+  if (totalOrders !== undefined) record.totalOrders = totalOrders;
   await record.save();
 
   sendSuccess(res, record, 'Record overridden');

@@ -34,6 +34,10 @@ const attendanceRecordSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    totalOrders: {
+      type: Number,
+      default: 0,
+    },
     rawEmployeeCode: {
       type: String,
     },

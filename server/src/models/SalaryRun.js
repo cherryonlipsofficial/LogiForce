@@ -46,6 +46,9 @@ const salaryRunSchema = new Schema(
     overtimeHours: {
       type: Number,
     },
+    totalOrders: {
+      type: Number,
+    },
     baseSalary: {
       type: Number,
     },

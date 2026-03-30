@@ -24,6 +24,7 @@ const parseAttendanceFile = async (file, columnMapping, clientId, period) => {
     driverName: row[columnMapping.driverName] || '',
     workingDays: parseFloat(row[columnMapping.workingDays]) || 0,
     overtimeHours: parseFloat(row[columnMapping.overtimeHours]) || 0,
+    totalOrders: parseFloat(row[columnMapping.totalOrders]) || 0,
   }));
 
   // Process each row: match drivers, validate
