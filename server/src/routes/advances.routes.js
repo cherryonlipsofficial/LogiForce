@@ -139,19 +139,51 @@ router.post('/driver', requirePermission('advances.request'), async (req, res) =
   sendSuccess(res, advance, 'Advance requested', 201);
 });
 
-// GET /api/advances/driver — list driver advances with filters
+// GET /api/advances/driver — list driver advances with filters + pagination + stats
 router.get('/driver', requirePermission('advances.view'), async (req, res) => {
+  const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
+  const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
+  const skip = (page - 1) * limit;
+
   const filter = {};
   if (req.query.status) filter.status = req.query.status;
   if (req.query.driverId) filter.driverId = req.query.driverId;
   if (req.query.projectId) filter.projectId = req.query.projectId;
 
-  const advances = await DriverAdvance.find(filter)
-    .populate('driverId', 'fullName employeeCode')
-    .populate('projectId', 'name')
-    .populate('requestedBy', 'name')
-    .sort({ requestedAt: -1 });
-  res.json({ success: true, data: advances });
+  const [advances, total, statsAgg] = await Promise.all([
+    DriverAdvance.find(filter)
+      .populate('driverId', 'fullName employeeCode')
+      .populate('projectId', 'name')
+      .populate('requestedBy', 'name')
+      .sort({ requestedAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    DriverAdvance.countDocuments(filter),
+    DriverAdvance.aggregate([
+      {
+        $group: {
+          _id: null,
+          pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
+          approved: { $sum: { $cond: [{ $eq: ['$status', 'approved'] }, 1, 0] } },
+          recovered: { $sum: { $cond: [{ $eq: ['$status', 'fully_recovered'] }, 1, 0] } },
+          totalOutstanding: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'approved'] }, { $subtract: ['$amount', '$totalRecovered'] }, 0],
+            },
+          },
+        },
+      },
+    ]),
+  ]);
+
+  const stats = statsAgg[0] || { pending: 0, approved: 0, recovered: 0, totalOutstanding: 0 };
+
+  res.json({
+    success: true,
+    data: advances,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+    stats,
+  });
 });
 
 // GET /api/advances/driver/:id — single driver advance
