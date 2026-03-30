@@ -107,6 +107,7 @@ const invoiceSchema = new Schema(
     paidDate: {
       type: Date,
     },
+    // Legacy embedded credit notes (kept for backward compat with old data)
     creditNotes: [
       {
         amount: { type: Number },
@@ -115,6 +116,27 @@ const invoiceSchema = new Schema(
         createdAt: { type: Date, default: Date.now },
       },
     ],
+
+    // Credit notes linked to this invoice (for reconciliation with standalone CreditNote model)
+    linkedCreditNotes: [
+      {
+        creditNoteId: { type: Schema.Types.ObjectId, ref: 'CreditNote' },
+        creditNoteNo: { type: String },
+        amount: { type: Number },
+        linkedAt: { type: Date, default: Date.now },
+        linkedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+      },
+    ],
+
+    // Computed: total after credit notes
+    adjustedTotal: { type: Number },
+
+    // Payment tracking
+    amountReceived: { type: Number, default: 0 },
+    paymentReference: { type: String },
+    paymentDate: { type: Date },
+    paymentVariance: { type: Number },
+
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: 'User',

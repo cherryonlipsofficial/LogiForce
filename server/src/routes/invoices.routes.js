@@ -146,6 +146,23 @@ router.get('/:id/pdf', requirePermission('invoices.download'), async (req, res) 
   res.send(pdfBuffer);
 });
 
+// PUT /api/invoices/:id/payment — record payment received
+router.put('/:id/payment', requirePermission('invoices.edit'), async (req, res) => {
+  const { amountReceived, paymentReference, paymentDate } = req.body;
+  if (!amountReceived || amountReceived <= 0) {
+    return sendError(res, 'amountReceived is required and must be positive', 400);
+  }
+
+  const creditNoteService = require('../services/creditNote.service');
+  const invoice = await creditNoteService.recordInvoicePayment(
+    req.params.id,
+    { amountReceived: parseFloat(amountReceived), paymentReference, paymentDate },
+    req.user._id
+  );
+
+  sendSuccess(res, invoice, 'Payment recorded successfully');
+});
+
 // DELETE /api/invoices/:id — delete invoice (soft delete if paid, hard delete otherwise)
 router.delete('/:id', requirePermission('invoices.delete'), async (req, res) => {
   const invoice = await Invoice.findOne({ _id: req.params.id, isDeleted: { $ne: true } });

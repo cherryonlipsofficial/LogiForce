@@ -13,6 +13,7 @@ import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
 import ProjectSelect from '../../components/ui/ProjectSelect';
 import { getInvoices, generateInvoice, updateStatus, addCreditNote, downloadPdf, deleteInvoice, getApprovedBatches } from '../../api/invoicesApi';
+import { recordInvoicePayment } from '../../api/creditNotesApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
 import Pagination from '../../components/ui/Pagination';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
@@ -167,6 +168,7 @@ const InvoiceDetail = ({ invoice, onClose }) => {
   const { isMobile } = useBreakpoint();
   const qc = useQueryClient();
   const [showCreditNote, setShowCreditNote] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteRemark, setDeleteRemark] = useState('');
   const [viewingPdf, setViewingPdf] = useState(false);
@@ -244,9 +246,34 @@ const InvoiceDetail = ({ invoice, onClose }) => {
           {invoice.paidAt && <InfoRow label="Paid on" value={formatDate(invoice.paidAt)} />}
         </div>
 
+        {/* Adjusted total display */}
+        {invoice.adjustedTotal != null && invoice.adjustedTotal !== invoice.amount && invoice.adjustedTotal !== (invoice.total ?? invoice.amount) && (
+          <div style={{ background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12 }}>
+            <div style={{ display: 'flex', gap: 16 }}>
+              <span>Original: <strong>{formatCurrencyFull(invoice.total ?? invoice.amount)}</strong></span>
+              <span style={{ color: '#a78bfa' }}>Credit Notes: <strong>-{formatCurrencyFull((invoice.total ?? invoice.amount) - invoice.adjustedTotal)}</strong></span>
+              <span>Adjusted: <strong>{formatCurrencyFull(invoice.adjustedTotal)}</strong></span>
+            </div>
+          </div>
+        )}
+
+        {/* Linked credit notes (standalone CN module) */}
+        {invoice.linkedCreditNotes?.length > 0 && (
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>Linked credit notes</div>
+            {invoice.linkedCreditNotes.map((lcn, i) => (
+              <div key={i} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '10px 14px', marginBottom: 6, fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: '#a78bfa' }}>{lcn.creditNoteNo}</span>
+                <span style={{ fontWeight: 500 }}>{formatCurrencyFull(lcn.amount)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Legacy credit notes */}
         {invoice.creditNotes?.length > 0 && (
           <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>Credit notes</div>
+            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>Credit notes (legacy)</div>
             {invoice.creditNotes.map((cn, i) => (
               <div key={i} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '10px 14px', marginBottom: 6, fontSize: 12 }}>
                 <span style={{ color: '#a78bfa', fontWeight: 500 }}>{formatCurrencyFull(cn.amount)}</span>
@@ -256,13 +283,31 @@ const InvoiceDetail = ({ invoice, onClose }) => {
           </div>
         )}
 
+        {/* Payment info */}
+        {invoice.amountReceived > 0 && (
+          <div style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12 }}>
+            <div style={{ display: 'flex', gap: 16 }}>
+              <span>Received: <strong>{formatCurrencyFull(invoice.amountReceived)}</strong></span>
+              {invoice.paymentReference && <span style={{ color: 'var(--text3)' }}>Ref: {invoice.paymentReference}</span>}
+              {invoice.paymentVariance != null && invoice.paymentVariance !== 0 && (
+                <span style={{ color: invoice.paymentVariance > 0 ? '#4ade80' : '#f87171' }}>
+                  Variance: {formatCurrencyFull(invoice.paymentVariance)}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <PermissionGate permission="invoices.edit">
             {invoice.status === 'draft' && (
               <Btn variant="primary" onClick={() => changeStatus({ status: 'sent' })} disabled={changing}>Mark as sent</Btn>
             )}
             {(invoice.status === 'sent' || invoice.status === 'overdue') && (
-              <Btn variant="success" onClick={() => changeStatus({ status: 'paid' })} disabled={changing}>Mark as paid</Btn>
+              <>
+                <Btn variant="success" onClick={() => changeStatus({ status: 'paid' })} disabled={changing}>Mark as paid</Btn>
+                <Btn variant="primary" onClick={() => setShowPayment(true)}>Record payment</Btn>
+              </>
             )}
           </PermissionGate>
           <PermissionGate permission="invoices.download">
@@ -274,7 +319,7 @@ const InvoiceDetail = ({ invoice, onClose }) => {
             </Btn>
           </PermissionGate>
           <PermissionGate permission="invoices.credit_note">
-            <Btn variant="ghost" onClick={() => setShowCreditNote(true)}>Add credit note</Btn>
+            <Btn variant="ghost" onClick={() => setShowCreditNote(true)}>Add credit note (legacy)</Btn>
           </PermissionGate>
           <PermissionGate permission="invoices.delete">
             {!confirmDelete ? (
@@ -305,6 +350,7 @@ const InvoiceDetail = ({ invoice, onClose }) => {
       </div>
 
       {showCreditNote && <CreditNoteModal invoiceId={invoice._id} onClose={() => { setShowCreditNote(false); onClose(); }} />}
+      {showPayment && <PaymentModal invoice={invoice} onClose={() => { setShowPayment(false); onClose(); }} />}
     </SidePanel>
   );
 };
@@ -358,6 +404,76 @@ const CreditNoteModal = ({ invoiceId, onClose }) => {
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
           <Btn variant="primary" type="submit" disabled={isLoading}>{isLoading ? 'Adding...' : 'Add credit note'}</Btn>
+        </div>
+      </form>
+    </Modal>
+  );
+};
+
+const PaymentModal = ({ invoice, onClose }) => {
+  const [amountReceived, setAmountReceived] = useState('');
+  const [paymentReference, setPaymentReference] = useState('');
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const qc = useQueryClient();
+
+  const expectedAmount = invoice.adjustedTotal != null ? invoice.adjustedTotal : (invoice.total ?? invoice.amount);
+
+  const { mutate: doRecord, isPending } = useMutation({
+    mutationFn: (data) => recordInvoicePayment(invoice._id, data),
+    onSuccess: (res) => {
+      const variance = res?.data?.paymentVariance;
+      if (variance === 0) {
+        toast.success('Payment recorded — invoice marked as paid');
+      } else {
+        toast.success(`Payment recorded — variance: ${variance} AED`);
+      }
+      qc.invalidateQueries(['invoices']);
+      onClose();
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Failed to record payment'),
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!amountReceived || parseFloat(amountReceived) <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+    doRecord({
+      amountReceived: parseFloat(amountReceived),
+      paymentReference,
+      paymentDate,
+    });
+  };
+
+  const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 4 };
+
+  return (
+    <Modal title="Record payment" onClose={onClose} width={400}>
+      <form onSubmit={handleSubmit}>
+        <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12 }}>
+          Expected amount: <strong>{formatCurrencyFull(expectedAmount)}</strong>
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>Amount received (AED) *</label>
+          <input type="number" value={amountReceived} onChange={(e) => setAmountReceived(e.target.value)} placeholder="0.00" step="0.01" />
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>Payment reference</label>
+          <input value={paymentReference} onChange={(e) => setPaymentReference(e.target.value)} placeholder="Bank ref / cheque number" />
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>Payment date</label>
+          <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
+        </div>
+        {amountReceived && parseFloat(amountReceived) !== expectedAmount && (
+          <div style={{ fontSize: 12, color: '#fbbf24', marginBottom: 14 }}>
+            Variance: {formatCurrencyFull(parseFloat(amountReceived) - expectedAmount)} AED
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+          <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+          <Btn variant="primary" type="submit" disabled={isPending}>{isPending ? 'Recording...' : 'Record payment'}</Btn>
         </div>
       </form>
     </Modal>

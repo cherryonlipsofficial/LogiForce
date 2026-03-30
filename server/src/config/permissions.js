@@ -78,6 +78,15 @@ module.exports = {
     'invoices.delete':         { label: 'Delete invoices',         module: 'Invoices',   description: 'Permanently delete invoices' },
     'invoices.download':       { label: 'Download invoice PDF',    module: 'Invoices',   description: 'Export invoices as PDF' },
 
+    // ── CREDIT NOTES ──
+    'credit_notes.view':        { label: 'View credit notes',       module: 'Credit Notes', description: 'See credit note list and details' },
+    'credit_notes.create':      { label: 'Create credit notes',     module: 'Credit Notes', description: 'Generate new credit notes with driver line items' },
+    'credit_notes.send':        { label: 'Send credit notes',       module: 'Credit Notes', description: 'Mark credit notes as sent to client' },
+    'credit_notes.adjust':      { label: 'Adjust credit notes',     module: 'Credit Notes', description: 'Link credit notes to invoices when client confirms deduction' },
+    'credit_notes.settle':      { label: 'Settle credit notes',     module: 'Credit Notes', description: 'Manually resolve credit note lines for resigned drivers' },
+    'credit_notes.delete':      { label: 'Delete credit notes',     module: 'Credit Notes', description: 'Delete draft credit notes' },
+    'credit_notes.download':    { label: 'Download CN PDF',         module: 'Credit Notes', description: 'Generate and download credit note PDFs' },
+
     // ── ADVANCES ──
     'advances.view':           { label: 'View advances',           module: 'Advances',   description: 'View driver advance requests and history' },
     'advances.request':        { label: 'Request advance',         module: 'Advances',   description: 'Submit advance requests for drivers (Sales and Operations)' },
@@ -91,6 +100,7 @@ module.exports = {
     'reports.view':            { label: 'View reports',            module: 'Reports',    description: 'Access the reports section' },
     'reports.export':          { label: 'Export reports',          module: 'Reports',    description: 'Download reports as XLSX or PDF' },
     'reports.financial':       { label: 'Financial reports',       module: 'Reports',    description: 'Access P&L, cost and revenue reports' },
+    'reports.statement_of_accounts': { label: 'Statement of accounts', module: 'Reports', description: 'View statement of accounts per project with invoices, credit notes, and payments' },
 
     // ── SETTINGS ──
     'settings.view':           { label: 'View settings',           module: 'Settings',   description: 'Access system settings' },

@@ -854,4 +854,339 @@ const generatePayslipPDF = (salaryRun, driver, project, client, companySettings)
   });
 };
 
-module.exports = { generateInvoicePDF, generatePayslipPDF };
+// ── Credit Note PDF Generator ─────────────────────────────────────────────────
+
+// Column layout for credit note line items
+const CN_TABLE_LEFT = PAGE_MARGIN;
+const cnCols = {
+  sl:      { x: CN_TABLE_LEFT,       w: 25  },
+  type:    { x: CN_TABLE_LEFT + 25,  w: 55  },
+  daName:  { x: CN_TABLE_LEFT + 80,  w: 170 },
+  empId:   { x: CN_TABLE_LEFT + 250, w: 50  },
+  refNo:   { x: CN_TABLE_LEFT + 300, w: 75  },
+  amount:  { x: CN_TABLE_LEFT + 375, w: 55  },
+  vat:     { x: CN_TABLE_LEFT + 430, w: 50  },
+  total:   { x: CN_TABLE_LEFT + 480, w: 55  },
+};
+
+function drawCNRow(doc, y, rowHeight, values, options = {}) {
+  const { fill, font, fontSize } = {
+    fill: null,
+    font: 'Helvetica',
+    fontSize: 7,
+    ...options,
+  };
+
+  const colKeys = ['sl', 'type', 'daName', 'empId', 'refNo', 'amount', 'vat', 'total'];
+  const aligns  = ['center', 'center', 'left', 'center', 'left', 'right', 'right', 'right'];
+
+  colKeys.forEach((key, i) => {
+    drawCell(doc, cnCols[key].x, y, cnCols[key].w, rowHeight, {
+      fill,
+      text: values[i] || '',
+      font,
+      fontSize,
+      align: aligns[i],
+    });
+  });
+}
+
+const generateCreditNotePDF = (creditNote, client, project, companySettings) => {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({
+      size: 'A4',
+      margin: PAGE_MARGIN,
+      bufferPages: true,
+    });
+    const buffers = [];
+
+    doc.on('data', (chunk) => buffers.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(buffers)));
+    doc.on('error', reject);
+
+    const settings = companySettings || {};
+    let y = PAGE_MARGIN;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // SECTION 1 — Company Header
+    // ══════════════════════════════════════════════════════════════════════════
+    const headerHeight = 80;
+
+    if (settings.logoBase64) {
+      try {
+        const logoBuffer = Buffer.from(settings.logoBase64, 'base64');
+        doc.image(logoBuffer, PAGE_MARGIN, y, { width: 120, height: 70 });
+      } catch (_) {}
+    }
+
+    const rightX = PAGE_MARGIN + 300;
+    doc.save();
+    doc.font('Helvetica-Bold').fontSize(11).fillColor('#000000');
+    doc.text(settings.companyName || 'Company Name', rightX, y, { width: 235, align: 'right' });
+
+    doc.font('Helvetica').fontSize(8);
+    const detailsY = y + 16;
+    const lines = [
+      settings.addressLine1 || '',
+      settings.addressLine2 || '',
+      settings.country || 'United Arab Emirates',
+      settings.email ? `Email : ${settings.email}` : '',
+      settings.trn ? `TRN No : ${settings.trn}` : '',
+    ].filter(Boolean);
+
+    lines.forEach((line, i) => {
+      doc.text(line, rightX, detailsY + i * 11, { width: 235, align: 'right' });
+    });
+    doc.restore();
+
+    y += headerHeight + 5;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // SECTION 2 — Title Bar ("CREDIT NOTE")
+    // ══════════════════════════════════════════════════════════════════════════
+    const titleBarHeight = 24;
+    doc.save();
+    doc.rect(PAGE_MARGIN, y, CONTENT_WIDTH, titleBarHeight).fill(BLUE);
+    doc.restore();
+
+    doc.save();
+    doc.font('Helvetica-Bold').fontSize(16).fillColor('#000000');
+    doc.text('CREDIT NOTE', PAGE_MARGIN, y + 4, { width: CONTENT_WIDTH, align: 'center' });
+    doc.restore();
+
+    y += titleBarHeight + 8;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // SECTION 3 — Info Table (2-column)
+    // ══════════════════════════════════════════════════════════════════════════
+    const metaRowH = 18;
+    const metaColW = CONTENT_WIDTH / 2;
+    const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+    const deductionMonth = creditNote.period
+      ? `${monthNames[(creditNote.period.month || 1) - 1]} ${creditNote.period.year}`
+      : '';
+
+    const metaRows = [
+      [`Customer : ${client?.name || ''}`, `Credit Note No : ${creditNote.creditNoteNo || ''}`],
+      [`Customer TRN No : ${client?.vatNo || ''}`, `Credit Note Date : ${formatDate(creditNote.createdAt)}`],
+      [`Address : ${client?.address || ''}`, `Document Currency : AED`],
+      [`Description : ${creditNote.description || ''}`, `Deduction Month : ${deductionMonth}`],
+    ];
+
+    metaRows.forEach((row) => {
+      row.forEach((text, colIdx) => {
+        drawCell(doc, PAGE_MARGIN + colIdx * metaColW, y, metaColW, metaRowH, {
+          text,
+          font: 'Helvetica-Bold',
+          fontSize: 8,
+          padding: 4,
+        });
+      });
+      y += metaRowH;
+    });
+
+    y += 6;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // SECTION 4 — Line Items Table
+    // ══════════════════════════════════════════════════════════════════════════
+    const headerRowH = 16;
+    const dataRowH = 14;
+
+    // Column headers
+    const cnHeaders = ['Sl No', 'Type', 'DA ID / DA Name / Description', 'EMP ID', 'Reference / Plate No', 'Amount', 'VAT', 'TOTAL'];
+    const cnColKeys = ['sl', 'type', 'daName', 'empId', 'refNo', 'amount', 'vat', 'total'];
+    const cnAligns = ['center', 'center', 'center', 'center', 'center', 'center', 'center', 'center'];
+
+    cnColKeys.forEach((key, i) => {
+      drawCell(doc, cnCols[key].x, y, cnCols[key].w, headerRowH, {
+        fill: BLUE,
+        text: cnHeaders[i],
+        font: 'Helvetica-Bold',
+        fontSize: 6.5,
+        align: cnAligns[i],
+        padding: 2,
+      });
+    });
+
+    y += headerRowH;
+
+    // Data rows
+    const lineItems = creditNote.lineItems || [];
+    const MIN_ROWS = 20;
+    const totalRows = Math.max(lineItems.length, MIN_ROWS);
+    const availableHeight = 842 - PAGE_MARGIN - 180;
+
+    let sumAmount = 0;
+    let sumVat = 0;
+    let sumTotal = 0;
+
+    const noteTypeLabel = (creditNote.noteType || '').replace(/_/g, ' ');
+
+    for (let i = 0; i < totalRows; i++) {
+      // Page overflow check
+      if (y + dataRowH > availableHeight && i < lineItems.length) {
+        doc.addPage();
+        y = PAGE_MARGIN;
+
+        cnColKeys.forEach((key, idx) => {
+          drawCell(doc, cnCols[key].x, y, cnCols[key].w, headerRowH, {
+            fill: BLUE, text: cnHeaders[idx], font: 'Helvetica-Bold',
+            fontSize: 6.5, align: cnAligns[idx], padding: 2,
+          });
+        });
+        y += headerRowH;
+      }
+
+      if (i < lineItems.length) {
+        const item = lineItems[i];
+        const daName = `${item.driverName || ''}${item.clientUserId ? '_' + item.clientUserId : ''}`;
+
+        sumAmount += item.amount || 0;
+        sumVat += item.vatAmount || 0;
+        sumTotal += item.totalWithVat || 0;
+
+        drawCNRow(doc, y, dataRowH, [
+          String(i + 1),
+          noteTypeLabel,
+          daName,
+          item.employeeCode || '',
+          item.referenceNo || '',
+          formatCurrency(item.amount || 0),
+          formatCurrency(item.vatAmount || 0),
+          formatCurrency(item.totalWithVat || 0),
+        ]);
+      } else {
+        drawCNRow(doc, y, dataRowH, ['', '', '', '', '', '', '', '']);
+      }
+
+      y += dataRowH;
+    }
+
+    // Totals row
+    const totalsRowH = 16;
+    drawCNRow(doc, y, totalsRowH, [
+      '',
+      '',
+      'Total',
+      '',
+      '',
+      formatCurrency(sumAmount),
+      formatCurrency(sumVat),
+      formatCurrency(sumTotal),
+    ], { font: 'Helvetica-Bold', fontSize: 7 });
+
+    y += totalsRowH + 6;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // SECTION 5 — Summary Block (Amount in Words + totals)
+    // ══════════════════════════════════════════════════════════════════════════
+    const summaryRowH = 16;
+    const wordsColW = CONTENT_WIDTH - 170;
+    const labelColW = 70;
+    const valueColW = 100;
+    const labelX = PAGE_MARGIN + wordsColW;
+    const valueX = labelX + labelColW;
+
+    // Row 1: Amount in Words label | AMOUNT | value
+    drawCell(doc, PAGE_MARGIN, y, wordsColW, summaryRowH, {
+      text: 'Amount in Words',
+      font: 'Helvetica-Bold',
+      fontSize: 8,
+      padding: 4,
+    });
+    drawCell(doc, labelX, y, labelColW, summaryRowH, {
+      text: 'AMOUNT',
+      font: 'Helvetica-Bold',
+      fontSize: 8,
+      align: 'center',
+      padding: 4,
+    });
+    drawCell(doc, valueX, y, valueColW, summaryRowH, {
+      text: formatCurrency(creditNote.subtotal || sumAmount),
+      font: 'Helvetica',
+      fontSize: 8,
+      align: 'right',
+      padding: 4,
+    });
+    y += summaryRowH;
+
+    // Row 2: Amount words text | VAT | value
+    const wordsText = creditNote.amountInWords || amountToWords(creditNote.totalAmount || sumTotal);
+    drawCell(doc, PAGE_MARGIN, y, wordsColW, summaryRowH, {
+      text: wordsText,
+      font: 'Helvetica-Oblique',
+      fontSize: 7,
+      padding: 4,
+    });
+    drawCell(doc, labelX, y, labelColW, summaryRowH, {
+      text: 'VAT',
+      font: 'Helvetica-Bold',
+      fontSize: 8,
+      align: 'center',
+      padding: 4,
+    });
+    drawCell(doc, valueX, y, valueColW, summaryRowH, {
+      text: formatCurrency(creditNote.totalVat || sumVat),
+      font: 'Helvetica',
+      fontSize: 8,
+      align: 'right',
+      padding: 4,
+    });
+    y += summaryRowH;
+
+    // Row 3: (empty) | TOTAL AMOUNT | value
+    drawCell(doc, PAGE_MARGIN, y, wordsColW, summaryRowH, { text: '' });
+    drawCell(doc, labelX, y, labelColW, summaryRowH, {
+      text: 'TOTAL AMOUNT',
+      font: 'Helvetica-Bold',
+      fontSize: 8,
+      align: 'center',
+      padding: 4,
+    });
+    drawCell(doc, valueX, y, valueColW, summaryRowH, {
+      text: formatCurrency(creditNote.totalAmount || sumTotal),
+      font: 'Helvetica-Bold',
+      fontSize: 9,
+      align: 'right',
+      padding: 4,
+    });
+    y += summaryRowH + 10;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // SECTION 6 — Footer (Stamp + Prepared By / Received By)
+    // ══════════════════════════════════════════════════════════════════════════
+    const footerY = y;
+
+    // Left: Prepared By
+    doc.save();
+    doc.font('Helvetica').fontSize(8).fillColor('#000000');
+    doc.text('Prepared By:', PAGE_MARGIN, footerY);
+    const prepLineY = footerY + 40;
+    doc.lineWidth(0.5).moveTo(PAGE_MARGIN, prepLineY).lineTo(PAGE_MARGIN + 120, prepLineY).stroke('#000000');
+    doc.restore();
+
+    // Center: Stamp
+    const stampX = PAGE_MARGIN + CONTENT_WIDTH / 2 - 50;
+    if (settings.stampBase64) {
+      try {
+        const stampBuffer = Buffer.from(settings.stampBase64, 'base64');
+        doc.image(stampBuffer, stampX, footerY, { width: 100, height: 60 });
+      } catch (_) {}
+    }
+
+    // Right: Received By
+    const recX = PAGE_MARGIN + CONTENT_WIDTH - 140;
+    doc.save();
+    doc.font('Helvetica').fontSize(8).fillColor('#000000');
+    doc.text('Received By:', recX, footerY);
+    const recLineY = footerY + 40;
+    doc.lineWidth(0.5).moveTo(recX, recLineY).lineTo(recX + 120, recLineY).stroke('#000000');
+    doc.restore();
+
+    doc.end();
+  });
+};
+
+module.exports = { generateInvoicePDF, generatePayslipPDF, generateCreditNotePDF };

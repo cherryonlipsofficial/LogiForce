@@ -25,6 +25,15 @@ module.exports = {
     'advance_recovery',
     'penalty',
     'deduction_carryover',
+    'credit_note',
+    'other',
+  ],
+  CREDIT_NOTE_TYPES: [
+    'traffic_fine',
+    'penalty',
+    'damage',
+    'client_chargeback',
+    'attendance_correction',
     'other',
   ],
   WPS: {
