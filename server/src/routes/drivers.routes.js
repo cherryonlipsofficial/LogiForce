@@ -295,7 +295,6 @@ router.post('/bulk-import', requirePermission('drivers.create'), (req, res, next
       joiningdate: 'joinDate', joining_date: 'joinDate', 'joining date': 'joinDate',
       passportnumber: 'passportNumber', passport_number: 'passportNumber', 'passport number': 'passportNumber',
       visanumber: 'visaNumber', visa_number: 'visaNumber', 'visa number': 'visaNumber',
-      employeecode: 'employeeCode', employee_code: 'employeeCode', 'employee code': 'employeeCode',
       passportexpiry: 'passportExpiry', passport_expiry: 'passportExpiry', 'passport expiry': 'passportExpiry',
       dateofbirth: 'dateOfBirth', date_of_birth: 'dateOfBirth', 'date of birth': 'dateOfBirth',
       email: 'email',
@@ -336,9 +335,9 @@ router.post('/bulk-import', requirePermission('drivers.create'), (req, res, next
 // GET /api/drivers/bulk-import/template — download XLSX template
 router.get('/bulk-import/template', async (req, res) => {
   const XLSX = require('xlsx');
-  const headers = ['employeeCode', 'fullName', 'nationality', 'phoneUae', 'emiratesId', 'passportNumber', 'passportExpiry', 'dateOfBirth', 'email', 'homeCountryPhone', 'emergencyContactName', 'emergencyContactPhone', 'emergencyContactRelation', 'joinDate', 'baseSalary', 'payStructure', 'clientName', 'clientUserId', 'project', 'passportSubmissionType'];
+  const headers = ['fullName', 'nationality', 'phoneUae', 'emiratesId', 'passportNumber', 'passportExpiry', 'dateOfBirth', 'email', 'homeCountryPhone', 'emergencyContactName', 'emergencyContactPhone', 'emergencyContactRelation', 'joinDate', 'baseSalary', 'payStructure', 'clientName', 'clientUserId', 'project', 'passportSubmissionType'];
 
-  const sampleRow = ['EMP001', 'John Doe', 'Indian', '971501234567', '784-1234-1234567-1', 'AB1234567', '2027-06-15', '1990-01-15', 'john.doe@example.com', '919876543210', 'Jane Doe', '971509876543', 'Spouse', '2024-01-01', '3000', 'MONTHLY_FIXED', 'Acme Logistics', 'CLT-001', 'Downtown Route', 'own'];
+  const sampleRow = ['John Doe', 'Indian', '971501234567', '784-1234-1234567-1', 'AB1234567', '2027-06-15', '1990-01-15', 'john.doe@example.com', '919876543210', 'Jane Doe', '971509876543', 'Spouse', '2024-01-01', '3000', 'MONTHLY_FIXED', 'Acme Logistics', 'CLT-001', 'Downtown Route', 'own'];
 
   const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
 

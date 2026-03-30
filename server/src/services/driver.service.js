@@ -399,7 +399,6 @@ const bulkCreate = async (rows, userId) => {
       const emergencyContactName = str(row.emergencyContactName);
       const emergencyContactPhone = expandNumber(row.emergencyContactPhone);
       const emergencyContactRelation = str(row.emergencyContactRelation);
-      const employeeCode = str(row.employeeCode);
       const clientName = str(row.clientName);
       const clientUserId = str(row.clientUserId);
 
@@ -412,7 +411,6 @@ const bulkCreate = async (rows, userId) => {
       if (emergencyContactName) driverData.emergencyContactName = emergencyContactName;
       if (emergencyContactPhone) driverData.emergencyContactPhone = emergencyContactPhone;
       if (emergencyContactRelation) driverData.emergencyContactRelation = emergencyContactRelation;
-      if (employeeCode) driverData.employeeCode = employeeCode;
       if (clientName) driverData.clientName = clientName;
       if (clientUserId) driverData.clientUserId = clientUserId;
 
