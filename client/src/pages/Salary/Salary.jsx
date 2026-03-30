@@ -207,10 +207,10 @@ const RunDetail = ({ run, onClose }) => {
   const currentStatus = detail?.status || run.status;
   const st = statusMap[currentStatus] || statusMap.draft;
   // Determine which stages this user's role can act on
-  // Fallback: if role not in map but user has salary.approve permission, allow all approval stages
+  // Only allow stages explicitly mapped to the user's role — no fallback to all stages
   const allowedStages = isAdmin
     ? ROLE_STAGE_MAP.admin
-    : (ROLE_STAGE_MAP[role] || (hasPermission('salary.approve') ? ['draft', 'ops_approved', 'compliance_approved', 'accounts_approved'] : []));
+    : (ROLE_STAGE_MAP[role] || []);
   const canActOnCurrentStage = allowedStages.includes(currentStatus);
 
   const { mutate: submitDeduction, isPending: submittingDed } = useMutation({
