@@ -7,7 +7,7 @@ export const getAdvance = (id) =>
   axiosInstance.get(`/advances/${id}`).then(r => r.data);
 
 export const requestAdvance = (data) =>
-  axiosInstance.post('/advances', data).then(r => r.data);
+  axiosInstance.post('/advances/driver', data).then(r => r.data);
 
 export const reviewAdvance = (id, data) =>
   axiosInstance.put(`/advances/${id}/review`, data).then(r => r.data);
