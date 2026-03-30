@@ -171,6 +171,7 @@ const ROLE_STAGE_MAP = {
   ops: ['draft'],                           // Operations approval
   compliance: ['ops_approved'],             // Compliance approval
   accountant: ['compliance_approved', 'accounts_approved', 'processed'], // Accounts approval + Process + Pay
+  accounts: ['compliance_approved', 'accounts_approved', 'processed'],   // Alias for accountant
   admin: ['draft', 'ops_approved', 'compliance_approved', 'accounts_approved', 'processed'], // All stages
 };
 
@@ -178,7 +179,7 @@ const RunDetail = ({ run, onClose }) => {
   const { isMobile } = useBreakpoint();
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { role, isAdmin } = useAuth();
+  const { role, isAdmin, hasPermission } = useAuth();
   const [viewingPdf, setViewingPdf] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingWps, setDownloadingWps] = useState(false);
@@ -206,7 +207,10 @@ const RunDetail = ({ run, onClose }) => {
   const currentStatus = detail?.status || run.status;
   const st = statusMap[currentStatus] || statusMap.draft;
   // Determine which stages this user's role can act on
-  const allowedStages = isAdmin ? ROLE_STAGE_MAP.admin : (ROLE_STAGE_MAP[role] || []);
+  // Only allow stages explicitly mapped to the user's role — no fallback to all stages
+  const allowedStages = isAdmin
+    ? ROLE_STAGE_MAP.admin
+    : (ROLE_STAGE_MAP[role] || []);
   const canActOnCurrentStage = allowedStages.includes(currentStatus);
 
   const { mutate: submitDeduction, isPending: submittingDed } = useMutation({
@@ -745,6 +749,7 @@ const Salary = () => {
   const [showRunModal, setShowRunModal] = useState(false);
   const [selectedRun, setSelectedRun] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [driverSearch, setDriverSearch] = useState('');
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkRemarks, setBulkRemarks] = useState('');
@@ -760,7 +765,9 @@ const Salary = () => {
 
   const runs = data?.data || fallbackRuns;
   const pagination = data?.pagination;
-  const filtered = runs;
+  const filtered = driverSearch.trim()
+    ? runs.filter((r) => (r.driverId?.fullName || '').toLowerCase().includes(driverSearch.trim().toLowerCase()))
+    : runs;
 
   const totalGross = runs.reduce((s, r) => s + (r.grossSalary || 0), 0);
   const totalNet = runs.reduce((s, r) => s + (r.netSalary || 0), 0);
@@ -829,6 +836,13 @@ const Salary = () => {
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
+          <input
+            type="text"
+            placeholder="Search by driver name..."
+            value={driverSearch}
+            onChange={(e) => { setDriverSearch(e.target.value); setPage(1); }}
+            style={{ width: isMobile ? '100%' : 220, height: 34, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13 }}
+          />
           <select value={statusFilter} onChange={(e) => handleFilterChange(e.target.value)} style={{ width: isMobile ? '100%' : 180, height: 34 }}>
             <option value="all">All statuses</option>
             <option value="draft">Draft</option>
@@ -907,7 +921,7 @@ const Salary = () => {
                       />
                     )}
                   </th>
-                  {['Run ID', 'Project', 'Period', 'Driver', 'Gross', 'Deductions', 'Net', 'Status', 'Created'].map((h) => (
+                  {['Driver', 'Project', 'Period', 'Gross', 'Deductions', 'Net', 'Status', 'Created'].map((h) => (
                     <th key={h} style={{ padding: '9px 14px', fontSize: 11, color: 'var(--text3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'left', background: 'var(--surface2)' }}>
                       {h}
                     </th>
@@ -935,12 +949,9 @@ const Salary = () => {
                           />
                         )}
                       </td>
-                      <td style={{ padding: '11px 14px' }}>
-                        <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>{r._id}</span>
-                      </td>
+                      <td style={{ padding: '11px 14px', fontSize: 12 }}>{r.driverId?.fullName || '—'}</td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{r.projectId?.name || '—'}</td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{formatPeriod(r.period)}</td>
-                      <td style={{ padding: '11px 14px', fontSize: 12 }}>{r.driverId?.fullName || '—'}</td>
                       <td style={{ padding: '11px 14px' }}>
                         <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{formatCurrencyFull(r.grossSalary)}</span>
                       </td>
