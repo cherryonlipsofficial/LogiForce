@@ -273,16 +273,23 @@ const getLedger = async (driverId, pagination = {}) => {
   const limit = parseInt(pagination.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (page - 1) * limit;
 
+  const filter = { driverId, isDeleted: { $ne: true } };
   const [entries, total] = await Promise.all([
-    DriverLedger.find({ driverId })
+    DriverLedger.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .populate('createdBy', 'name'),
-    DriverLedger.countDocuments({ driverId }),
+    DriverLedger.countDocuments(filter),
   ]);
 
   return { entries, total, page, limit };
+};
+
+const getAllLedger = async (driverId) => {
+  return DriverLedger.find({ driverId, isDeleted: { $ne: true } })
+    .sort({ createdAt: -1 })
+    .populate('createdBy', 'name');
 };
 
 const getExpiringDocuments = async (days = 30) => {
@@ -512,6 +519,7 @@ module.exports = {
   update,
   hardDelete,
   getLedger,
+  getAllLedger,
   getExpiringDocuments,
   getStatusCounts,
   bulkCreate,

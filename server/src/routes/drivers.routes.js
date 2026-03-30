@@ -428,6 +428,35 @@ router.get('/:id/ledger', async (req, res) => {
   sendPaginated(res, result.entries, result.total, result.page, result.limit);
 });
 
+// GET /api/drivers/:id/ledger/export — export ledger as CSV
+router.get('/:id/ledger/export', async (req, res) => {
+  const entries = await driverService.getAllLedger(req.params.id);
+  const escapeCsv = (val) => {
+    const str = String(val ?? '');
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const headers = ['Date', 'Entry Type', 'Description', 'Debit (AED)', 'Credit (AED)', 'Running Balance (AED)', 'Reference', 'Created By'];
+  const rows = entries.map((e) => [
+    e.createdAt ? new Date(e.createdAt).toLocaleDateString() : '',
+    e.entryType,
+    e.description,
+    e.debit || 0,
+    e.credit || 0,
+    e.runningBalance ?? '',
+    e.referenceId || '',
+    e.createdBy?.name || '',
+  ].map(escapeCsv).join(','));
+
+  const csv = [headers.join(','), ...rows].join('\n');
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename=driver-ledger-export.csv');
+  res.send(csv);
+});
+
 // GET /api/drivers/:id/salary-runs — list salary runs for driver
 router.get('/:id/salary-runs', async (req, res) => {
   const runs = await SalaryRun.find({ driverId: req.params.id })
