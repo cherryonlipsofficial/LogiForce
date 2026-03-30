@@ -7,6 +7,15 @@ const attendanceBatchSchema = new Schema(
       type: String,
       unique: true,
     },
+    version: {
+      type: Number,
+      default: 1,
+    },
+    previousBatchId: {
+      type: Schema.Types.ObjectId,
+      ref: 'AttendanceBatch',
+      default: null,
+    },
     projectId: {
       type: Schema.Types.ObjectId,
       ref: 'Project',
@@ -138,10 +147,10 @@ const attendanceBatchSchema = new Schema(
   }
 );
 
-// Prevents duplicate batch for same project + period
-attendanceBatchSchema.index({ projectId: 1, 'period.year': 1, 'period.month': 1 }, { unique: true });
+// Prevents duplicate batch for same project + period + version
+attendanceBatchSchema.index({ projectId: 1, 'period.year': 1, 'period.month': 1, version: 1 }, { unique: true });
 
-// Auto-generate batchId: ATT-YYYY-MM-PROJECTCODE
+// Auto-generate batchId: ATT-YYYY-MM-PROJECTCODE or ATT-YYYY-MM-PROJECTCODE-vN for revisions
 attendanceBatchSchema.pre('save', async function (next) {
   if (this.batchId) return next();
 
@@ -153,7 +162,8 @@ attendanceBatchSchema.pre('save', async function (next) {
   const yyyy = String(this.period.year);
   const mm = String(this.period.month).padStart(2, '0');
 
-  this.batchId = `ATT-${yyyy}-${mm}-${projectTag}`;
+  const base = `ATT-${yyyy}-${mm}-${projectTag}`;
+  this.batchId = this.version > 1 ? `${base}-v${this.version}` : base;
   next();
 });
 

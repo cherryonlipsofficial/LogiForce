@@ -65,6 +65,31 @@ router.post('/upload', requirePermission('attendance.upload'), attendanceUpload.
 
   const period = { year: parseInt(year), month: parseInt(month) };
 
+  // Check for existing batch for same project + period (to allow revised uploads)
+  let version = 1;
+  let previousBatchId = null;
+  const existingBatch = await AttendanceBatch.findOne({
+    projectId,
+    'period.year': period.year,
+    'period.month': period.month,
+  }).sort({ version: -1 });
+
+  if (existingBatch) {
+    if (!['disputed', 'rejected'].includes(existingBatch.status)) {
+      return sendError(
+        res,
+        'An attendance batch already exists for this project and period. Only disputed or rejected batches can be revised.',
+        409
+      );
+    }
+    version = existingBatch.version + 1;
+    previousBatchId = existingBatch._id;
+
+    // Mark the old batch as superseded
+    existingBatch.status = 'rejected';
+    await existingBatch.save();
+  }
+
   // Parse and validate file
   const { rows, stats } = await attendanceService.parseAttendanceFile(
     req.file,
@@ -78,6 +103,8 @@ router.post('/upload', requirePermission('attendance.upload'), attendanceUpload.
     clientId,
     projectId,
     period,
+    version,
+    previousBatchId,
     status: 'uploaded',
     totalRows: stats.total,
     matchedRows: stats.matched,
