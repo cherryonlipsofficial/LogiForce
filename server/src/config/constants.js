@@ -25,6 +25,7 @@ module.exports = {
     'advance_recovery',
     'penalty',
     'deduction_carryover',
+    'other',
   ],
   WPS: {
     EMPLOYER_ID: 'LOGIFORCE001',
