@@ -31,7 +31,7 @@ const AdvanceReviewModal = ({ advance, decision, onClose, onSuccess }) => {
     mutationFn: () => reviewAdvance(advance._id, {
       decision,
       reviewNotes: notes,
-      ...(isApprove ? { recoverySchedule: schedule.map(s => ({ year: s.year, month: s.month, amount: Number(s.amount) })) } : {}),
+      ...(isApprove ? { recoverySchedule: schedule.map(s => ({ period: { year: s.year, month: s.month }, amountToRecover: Number(s.amount) })) } : {}),
     }),
     onSuccess: () => {
       toast.success(`Advance ${decision}`);
