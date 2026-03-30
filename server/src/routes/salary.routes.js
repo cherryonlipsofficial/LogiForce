@@ -15,7 +15,7 @@ router.use(protect);
 
 // POST /api/salary/run — trigger payroll run for client/period
 router.post('/run', requirePermission('salary.run'), validate(runSalaryValidation), async (req, res) => {
-  const { clientId, projectId, year, month, includeOT, includeTransport } = req.body;
+  const { clientId, projectId, year, month } = req.body;
 
   // Check for existing runs in this period for the same project (duplicate check)
   const existingRuns = await SalaryRun.find({
@@ -39,8 +39,7 @@ router.post('/run', requirePermission('salary.run'), validate(runSalaryValidatio
     projectId,
     parseInt(year),
     parseInt(month),
-    req.user._id,
-    { includeOT: !!includeOT, includeTransport: !!includeTransport }
+    req.user._id
   );
 
   // Audit log
