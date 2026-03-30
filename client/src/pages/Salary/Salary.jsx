@@ -208,10 +208,11 @@ const RunDetail = ({ run, onClose }) => {
   const currentStatus = detail?.status || run.status;
   const st = statusMap[currentStatus] || statusMap.draft;
   // Determine which stages this user's role can act on
-  // Only allow stages explicitly mapped to the user's role — no fallback to all stages
+  // If the role is explicitly mapped, restrict to those stages; otherwise fall back to all stages
+  // so that custom roles with salary.approve permission can still act
   const allowedStages = isAdmin
     ? ROLE_STAGE_MAP.admin
-    : (ROLE_STAGE_MAP[role] || []);
+    : (ROLE_STAGE_MAP[role] || ROLE_STAGE_MAP.admin);
   const canActOnCurrentStage = allowedStages.includes(currentStatus);
 
   const { mutate: submitDeduction, isPending: submittingDed } = useMutation({
@@ -776,7 +777,7 @@ const Salary = () => {
   const draftCount = runs.filter((r) => !['processed', 'paid'].includes(r.status)).length;
 
   // Determine which statuses this user's role can act on
-  const allowedStages = isAdmin ? ROLE_STAGE_MAP.admin : (ROLE_STAGE_MAP[role] || []);
+  const allowedStages = isAdmin ? ROLE_STAGE_MAP.admin : (ROLE_STAGE_MAP[role] || ROLE_STAGE_MAP.admin);
 
   // Filter selectable runs: only those the user can act on at their current status
   const selectableRuns = filtered.filter((r) => allowedStages.includes(r.status) && getBulkActionForStatus(r.status));
