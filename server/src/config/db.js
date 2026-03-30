@@ -22,6 +22,29 @@ const ensureAdminRole = async () => {
   );
 };
 
+const migrateAttendanceBatchIndexes = async () => {
+  const db = mongoose.connection.db;
+  const collection = db.collection('attendancebatches');
+
+  // Drop the stale unique index that lacks the version field
+  try {
+    await collection.dropIndex('projectId_1_period.year_1_period.month_1');
+    console.log('Dropped stale attendancebatches index (without version)');
+  } catch {
+    // Index already dropped or doesn't exist — nothing to do
+  }
+
+  // Backfill version=1 on any old documents missing it
+  await collection.updateMany(
+    { version: { $exists: false } },
+    { $set: { version: 1 } }
+  );
+
+  // Let Mongoose create the correct index (with version) if missing
+  const AttendanceBatch = require('../models/AttendanceBatch');
+  await AttendanceBatch.syncIndexes();
+};
+
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGODB_URI, {
@@ -30,6 +53,7 @@ const connectDB = async () => {
     });
     console.log(`MongoDB connected: ${conn.connection.host}`);
     await ensureAdminRole();
+    await migrateAttendanceBatchIndexes();
   } catch (error) {
     console.error(`MongoDB connection error: ${error.message}`);
     process.exit(1);
