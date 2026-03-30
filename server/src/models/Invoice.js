@@ -119,6 +119,20 @@ const invoiceSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: 'User',
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+    deletedAt: {
+      type: Date,
+    },
+    deletedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    deleteRemark: {
+      type: String,
+    },
   },
   {
     timestamps: true,

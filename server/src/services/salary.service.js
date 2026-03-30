@@ -530,6 +530,7 @@ const generateWpsFile = async (clientId, year, month) => {
     'period.year': year,
     'period.month': month,
     status: { $in: ['approved', 'paid'] },
+    isDeleted: { $ne: true },
   };
   if (clientId) query.clientId = clientId;
 
