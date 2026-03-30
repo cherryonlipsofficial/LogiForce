@@ -516,11 +516,11 @@ const InfoRow = ({ label, value }) => (
   </div>
 );
 
-const TEMPLATE_COLUMNS = ['employee_code', 'driver_name', 'working_days', 'overtime_hours'];
+const TEMPLATE_COLUMNS = ['employee_code', 'driver_name', 'working_days', 'overtime_hours', 'total_orders'];
 const TEMPLATE_SAMPLE_ROWS = [
-  ['EMP001', 'Ahmed Khan', '22', '5'],
-  ['EMP002', 'Sara Ali', '20', '0'],
-  ['EMP003', 'Omar Hassan', '25', '8'],
+  ['EMP001', 'Ahmed Khan', '22', '5', '150'],
+  ['EMP002', 'Sara Ali', '20', '0', '120'],
+  ['EMP003', 'Omar Hassan', '25', '8', '200'],
 ];
 
 const downloadTemplate = () => {
@@ -628,7 +628,8 @@ const UploadModal = ({ onClose }) => {
             <strong>employee_code</strong> &mdash; required, must match a driver in the system<br />
             <strong>driver_name</strong> &mdash; optional, for reference only<br />
             <strong>working_days</strong> &mdash; required, number between 0&ndash;31<br />
-            <strong>overtime_hours</strong> &mdash; optional, defaults to 0
+            <strong>overtime_hours</strong> &mdash; optional, defaults to 0<br />
+            <strong>total_orders</strong> &mdash; required for per-order pay structure, number of orders delivered
           </div>
         </div>
 
