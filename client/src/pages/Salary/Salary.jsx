@@ -193,6 +193,7 @@ const RunDetail = ({ run, onClose }) => {
   const st = statusMap[run.status] || statusMap.draft;
   const [viewingPdf, setViewingPdf] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [downloadingWps, setDownloadingWps] = useState(false);
   const [showDeductionForm, setShowDeductionForm] = useState(false);
   const [dedType, setDedType] = useState('telecom_sim');
   const [dedAmount, setDedAmount] = useState('');
@@ -211,7 +212,7 @@ const RunDetail = ({ run, onClose }) => {
   });
   const detail = fullRunData?.data || run;
 
-  const { mutate: submitDeduction, isLoading: submittingDed } = useMutation({
+  const { mutate: submitDeduction, isPending: submittingDed } = useMutation({
     mutationFn: (data) => addDeduction(run._id, data),
     onSuccess: () => {
       toast.success('Deduction added');
@@ -224,7 +225,7 @@ const RunDetail = ({ run, onClose }) => {
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to add deduction'),
   });
 
-  const { mutate: removeRun, isLoading: deleting } = useMutation({
+  const { mutate: removeRun, isPending: deleting } = useMutation({
     mutationFn: () => deleteRun(run._id, run.status === 'paid' ? { remark: deleteRemark } : undefined),
     onSuccess: () => {
       toast.success('Salary run deleted');
@@ -234,7 +235,7 @@ const RunDetail = ({ run, onClose }) => {
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to delete salary run'),
   });
 
-  const { mutate: payRun, isLoading: paying } = useMutation({
+  const { mutate: payRun, isPending: paying } = useMutation({
     mutationFn: () => markAsPaid(run._id),
     onSuccess: () => {
       toast.success('Salary run marked as paid');
@@ -246,7 +247,7 @@ const RunDetail = ({ run, onClose }) => {
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to mark as paid'),
   });
 
-  const { mutate: dispute, isLoading: disputing } = useMutation({
+  const { mutate: dispute, isPending: disputing } = useMutation({
     mutationFn: (reason) => disputeRun(run._id, reason),
     onSuccess: () => {
       toast.success('Salary run disputed');
@@ -259,7 +260,7 @@ const RunDetail = ({ run, onClose }) => {
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to dispute salary run'),
   });
 
-  const { mutate: approve, isLoading: approving } = useMutation({
+  const { mutate: approve, isPending: approving } = useMutation({
     mutationFn: () => approveRun(run._id),
     onSuccess: () => {
       toast.success('Payroll run approved');
@@ -270,6 +271,7 @@ const RunDetail = ({ run, onClose }) => {
   });
 
   const handleWpsDownload = async () => {
+    setDownloadingWps(true);
     try {
       const year = run.period?.year || new Date().getFullYear();
       const month = run.period?.month || (new Date().getMonth() + 1);
@@ -283,6 +285,8 @@ const RunDetail = ({ run, onClose }) => {
       toast.success('WPS file downloaded');
     } catch {
       toast.error('Failed to download WPS file');
+    } finally {
+      setDownloadingWps(false);
     }
   };
 
@@ -512,7 +516,9 @@ const RunDetail = ({ run, onClose }) => {
           </PermissionGate>
           <PermissionGate permission="salary.export_wps">
             {(run.status === 'approved' || run.status === 'paid') && (
-              <Btn variant="ghost" onClick={handleWpsDownload}>Download WPS</Btn>
+              <Btn variant="ghost" onClick={handleWpsDownload} disabled={downloadingWps}>
+                {downloadingWps ? 'Downloading...' : 'Download WPS'}
+              </Btn>
             )}
           </PermissionGate>
           {run.status === 'paid' && (
@@ -574,7 +580,7 @@ const RunPayrollModal = ({ onClose }) => {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const qc = useQueryClient();
 
-  const { mutate: run, isLoading } = useMutation({
+  const { mutate: run, isPending: isLoading } = useMutation({
     mutationFn: (data) => runPayroll(data),
     onSuccess: (res) => {
       const result = res?.data || {};

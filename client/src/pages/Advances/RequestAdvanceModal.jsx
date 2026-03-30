@@ -16,7 +16,7 @@ const RequestAdvanceModal = ({ driver, onClose, onSuccess }) => {
   const baseSalary = Number(driver.baseSalary) || 0;
   const maxRecommended = Math.floor(baseSalary * 0.5);
 
-  const { mutate: submit, isLoading } = useMutation({
+  const { mutate: submit, isPending: isLoading } = useMutation({
     mutationFn: () => requestAdvance({
       driverId: driver._id,
       projectId: driver.projectId?._id || driver.projectId,

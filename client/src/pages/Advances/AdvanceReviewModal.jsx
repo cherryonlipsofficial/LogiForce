@@ -27,7 +27,7 @@ const AdvanceReviewModal = ({ advance, decision, onClose, onSuccess }) => {
     [schedule]
   );
 
-  const { mutate: submit, isLoading } = useMutation({
+  const { mutate: submit, isPending: isLoading } = useMutation({
     mutationFn: () => reviewAdvance(advance._id, {
       decision,
       reviewNotes: notes,

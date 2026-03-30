@@ -14,7 +14,7 @@ const InvoicePreviewModal = ({ batch, onClose, onSuccess }) => {
   const [apiError, setApiError] = useState('');
   const qc = useQueryClient();
 
-  const { mutate: generate, isLoading } = useMutation({
+  const { mutate: generate, isPending: isLoading } = useMutation({
     mutationFn: () => generateInvoice(batch._id),
     onSuccess: (res) => {
       const inv = res?.data || res;

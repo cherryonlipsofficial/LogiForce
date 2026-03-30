@@ -588,10 +588,10 @@ const RolesPanel = () => {
                       <Btn
                         small
                         variant="danger"
-                        disabled={detail.isSystemRole || (detail.userCount || 0) > 0}
+                        disabled={detail.isSystemRole || (detail.userCount || 0) > 0 || deleteMutation.isPending}
                         onClick={handleDeleteRole}
                       >
-                        Delete
+                        {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
                       </Btn>
                     </div>
                   </PermissionGate>
@@ -649,8 +649,10 @@ const RolesPanel = () => {
                     {changesCount} change{changesCount !== 1 ? 's' : ''} pending
                   </span>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <Btn small onClick={() => setLocalPerms([...(detail.permissions || [])])}>Discard</Btn>
-                    <Btn small variant="primary" onClick={handleSavePermissions}>Save changes</Btn>
+                    <Btn small onClick={() => setLocalPerms([...(detail.permissions || [])])} disabled={updateMutation.isPending}>Discard</Btn>
+                    <Btn small variant="primary" onClick={handleSavePermissions} disabled={updateMutation.isPending}>
+                      {updateMutation.isPending ? 'Saving...' : 'Save changes'}
+                    </Btn>
                   </div>
                 </div>
               )}

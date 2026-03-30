@@ -36,6 +36,7 @@ const Drivers = () => {
   const [selected, setSelected] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showBulkImportModal, setShowBulkImportModal] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [search, setSearch] = useState(() => searchParams.get('search') || '');
   const [driverFilter, setDriverFilter] = useState(() => searchParams.get('search') || '');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -73,6 +74,8 @@ const Drivers = () => {
   const counts = countsData?.data || {};
 
   const handleExport = async () => {
+    if (exporting) return;
+    setExporting(true);
     try {
       const params = {
         status: statusFilter !== 'all' ? statusFilter : undefined,
@@ -93,6 +96,8 @@ const Drivers = () => {
       toast.success('Drivers exported successfully');
     } catch {
       toast.error('Failed to export drivers');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -226,7 +231,9 @@ const Drivers = () => {
             </button>
           )}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <Btn small variant="ghost" onClick={handleExport}>Export</Btn>
+            <Btn small variant="ghost" onClick={handleExport} disabled={exporting}>
+              {exporting ? 'Exporting...' : 'Export'}
+            </Btn>
             <PermissionGate permission="drivers.create">
               <Btn small variant="ghost" onClick={() => setShowBulkImportModal(true)}>Bulk import</Btn>
               <Btn small variant="primary" onClick={() => setShowAddModal(true)}>+ Add driver</Btn>

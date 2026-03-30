@@ -11,7 +11,7 @@ const OverrideModal = ({ record, batchId, onClose, onSuccess }) => {
   const [overtimeHours, setOvertimeHours] = useState(record.overtimeHours ?? '');
   const qc = useQueryClient();
 
-  const { mutate: override, isLoading } = useMutation({
+  const { mutate: override, isPending: isLoading } = useMutation({
     mutationFn: () => {
       const data = { reason };
       if (workingDays !== '' && Number(workingDays) !== record.workingDays) {

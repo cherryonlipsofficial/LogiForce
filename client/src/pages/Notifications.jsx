@@ -55,6 +55,8 @@ const Notifications = () => {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState('all');
+  const [markingAll, setMarkingAll] = useState(false);
+  const [markingId, setMarkingId] = useState(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['notifications-page', page],
@@ -72,15 +74,27 @@ const Notifications = () => {
   });
 
   const handleMarkRead = async (id) => {
-    await markAsRead(id);
-    queryClient.invalidateQueries({ queryKey: ['notifications-page'] });
-    queryClient.invalidateQueries({ queryKey: ['notif-unread-count'] });
+    if (markingId) return;
+    setMarkingId(id);
+    try {
+      await markAsRead(id);
+      queryClient.invalidateQueries({ queryKey: ['notifications-page'] });
+      queryClient.invalidateQueries({ queryKey: ['notif-unread-count'] });
+    } finally {
+      setMarkingId(null);
+    }
   };
 
   const handleMarkAllRead = async () => {
-    await markAllAsRead();
-    queryClient.invalidateQueries({ queryKey: ['notifications-page'] });
-    queryClient.invalidateQueries({ queryKey: ['notif-unread-count'] });
+    if (markingAll) return;
+    setMarkingAll(true);
+    try {
+      await markAllAsRead();
+      queryClient.invalidateQueries({ queryKey: ['notifications-page'] });
+      queryClient.invalidateQueries({ queryKey: ['notif-unread-count'] });
+    } finally {
+      setMarkingAll(false);
+    }
   };
 
   const pillStyle = (active) => ({
@@ -106,6 +120,7 @@ const Notifications = () => {
         <h2 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>Notifications</h2>
         <button
           onClick={handleMarkAllRead}
+          disabled={markingAll}
           style={{
             background: 'none',
             border: '1px solid var(--border2)',
@@ -113,10 +128,11 @@ const Notifications = () => {
             padding: '6px 14px',
             fontSize: 12,
             color: 'var(--accent)',
-            cursor: 'pointer',
+            cursor: markingAll ? 'not-allowed' : 'pointer',
+            opacity: markingAll ? 0.5 : 1,
           }}
         >
-          Mark all as read
+          {markingAll ? 'Marking...' : 'Mark all as read'}
         </button>
       </div>
 
@@ -211,6 +227,7 @@ const Notifications = () => {
                 {isUnread && (
                   <button
                     onClick={(e) => { e.stopPropagation(); handleMarkRead(n._id); }}
+                    disabled={markingId === n._id}
                     style={{
                       background: 'none',
                       border: '1px solid var(--border2)',
@@ -218,12 +235,13 @@ const Notifications = () => {
                       padding: '4px 10px',
                       fontSize: 11,
                       color: 'var(--text3)',
-                      cursor: 'pointer',
+                      cursor: markingId === n._id ? 'not-allowed' : 'pointer',
+                      opacity: markingId === n._id ? 0.5 : 1,
                       flexShrink: 0,
                       marginTop: 2,
                     }}
                   >
-                    Mark read
+                    {markingId === n._id ? 'Marking...' : 'Mark read'}
                   </button>
                 )}
               </div>
