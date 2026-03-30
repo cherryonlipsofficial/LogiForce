@@ -19,6 +19,25 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
     return generateFromAttendanceBatches(client, year, month, createdBy, projectId, attendanceBatchIds);
   }
 
+  // Auto-discover approved attendance batches for this client/period
+  const batchQuery = {
+    clientId,
+    status: 'fully_approved',
+    invoiceId: null,
+    'period.year': year,
+    'period.month': month,
+  };
+  if (projectId) {
+    batchQuery.projectId = projectId;
+  }
+
+  const approvedBatches = await AttendanceBatch.find(batchQuery).select('_id');
+
+  if (approvedBatches.length > 0) {
+    const batchIds = approvedBatches.map((b) => b._id);
+    return generateFromAttendanceBatches(client, year, month, createdBy, projectId, batchIds);
+  }
+
   // Legacy flow: generate from salary runs
   // 1. Check no invoice already exists for this client/period/project
   const existingQuery = {
@@ -51,7 +70,7 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
   const salaryRuns = await SalaryRun.find(salaryQuery).populate('driverId', 'employeeCode fullName');
 
   if (salaryRuns.length === 0) {
-    const err = new Error('No approved salary runs found for this client/period');
+    const err = new Error('No approved salary runs or attendance batches found for this client/period');
     err.statusCode = 400;
     throw err;
   }
