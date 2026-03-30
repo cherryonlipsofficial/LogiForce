@@ -189,8 +189,27 @@ router.delete('/runs/:id', requirePermission('salary.delete'), async (req, res) 
   sendSuccess(res, null, 'Salary run deleted');
 });
 
+// PUT /api/salary/runs/:id/pay — mark an approved salary run as paid
+router.put('/runs/:id/pay', requirePermission('salary.pay'), async (req, res) => {
+  const run = await SalaryRun.findById(req.params.id);
+  if (!run) return sendError(res, 'Salary run not found', 404);
+
+  if (run.status !== 'approved') {
+    return sendError(res, `Cannot mark a ${run.status} salary run as paid`, 400);
+  }
+
+  run.status = 'paid';
+  run.paidAt = new Date();
+
+  await run.save();
+
+  await auditLogger.logChange('SalaryRun', req.params.id, 'status', 'approved', 'paid', req.user._id, 'salary_payment');
+
+  sendSuccess(res, run, 'Salary run marked as paid');
+});
+
 // POST /api/salary/runs/:id/dispute — raise dispute on a salary run
-router.post('/runs/:id/dispute', validate(disputeSalaryValidation), async (req, res) => {
+router.post('/runs/:id/dispute', requirePermission('salary.dispute'), validate(disputeSalaryValidation), async (req, res) => {
   const { reason } = req.body;
 
   const run = await SalaryRun.findById(req.params.id);
