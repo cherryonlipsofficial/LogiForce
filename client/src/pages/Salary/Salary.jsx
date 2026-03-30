@@ -275,10 +275,10 @@ const ApprovalHistory = ({ approvals }) => {
 };
 
 // Which roles can act on which approval stage
+// Which roles can act on which approval stage
 const ROLE_STAGE_MAP = {
   ops: ['draft'],                           // Operations approval
   compliance: ['ops_approved'],             // Compliance approval
-  junior_accountant: ['compliance_approved'], // Accounts approval
   accountant: ['compliance_approved', 'accounts_approved'], // Accounts approval + Process
   admin: ['draft', 'ops_approved', 'compliance_approved', 'accounts_approved'], // All stages
 };

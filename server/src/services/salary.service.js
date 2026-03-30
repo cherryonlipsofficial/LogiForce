@@ -595,7 +595,7 @@ const approveByCompliance = async (runId, userId, remarks) => {
 
   // Notify junior accounts team
   const { notifyByRole } = require('./notification.service');
-  await notifyByRole(['junior_accountant'], {
+  await notifyByRole(['accountant'], {
     type: 'salary_compliance_approved',
     title: 'Salary run ready for accounts review',
     message: `Salary run ${salaryRun.runId} has been approved by Compliance and is awaiting accounts review.`,
