@@ -85,7 +85,7 @@ const driverSchema = new mongoose.Schema(
     },
     payStructure: {
       type: String,
-      enum: ['MONTHLY_FIXED', 'DAILY_RATE', 'PER_TRIP'],
+      enum: ['MONTHLY_FIXED', 'DAILY_RATE', 'PER_ORDER'],
     },
     status: {
       type: String,

@@ -19,7 +19,7 @@ const createDriverValidation = [
     .isFloat({ min: 0 }).withMessage('Base salary must be a positive number'),
   body('payStructure')
     .optional()
-    .isIn(['MONTHLY_FIXED', 'DAILY_RATE', 'PER_TRIP']).withMessage('Pay structure must be MONTHLY_FIXED, DAILY_RATE, or PER_TRIP'),
+    .isIn(['MONTHLY_FIXED', 'DAILY_RATE', 'PER_ORDER']).withMessage('Pay structure must be MONTHLY_FIXED, DAILY_RATE, or PER_ORDER'),
   body('status')
     .optional()
     .isIn(['draft', 'pending_kyc', 'pending_verification', 'active', 'on_leave', 'suspended', 'resigned', 'offboarded'])
@@ -88,7 +88,7 @@ const updateDriverValidation = [
     .isFloat({ min: 0 }).withMessage('Base salary must be a positive number'),
   body('payStructure')
     .optional()
-    .isIn(['MONTHLY_FIXED', 'DAILY_RATE', 'PER_TRIP']).withMessage('Pay structure must be MONTHLY_FIXED, DAILY_RATE, or PER_TRIP'),
+    .isIn(['MONTHLY_FIXED', 'DAILY_RATE', 'PER_ORDER']).withMessage('Pay structure must be MONTHLY_FIXED, DAILY_RATE, or PER_ORDER'),
   body('status')
     .optional()
     .isIn(['draft', 'pending_kyc', 'pending_verification', 'active', 'on_leave', 'suspended', 'resigned', 'offboarded'])

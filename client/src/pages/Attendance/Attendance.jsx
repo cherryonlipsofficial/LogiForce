@@ -374,6 +374,7 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
                     <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'left', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>Name</th>
                     <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'right', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>Days</th>
                     <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'right', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>OT hrs</th>
+                    <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'right', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>Orders</th>
                     <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'left', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>Status</th>
                     {hasPermission('attendance.override') && (
                       <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'center', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>Action</th>
@@ -394,6 +395,9 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
                       </td>
                       <td style={{ padding: '7px 12px', fontSize: 12, fontFamily: 'var(--mono)', textAlign: 'right', borderBottom: '1px solid var(--border)' }}>
                         {rec.overtimeHours || 0}
+                      </td>
+                      <td style={{ padding: '7px 12px', fontSize: 12, fontFamily: 'var(--mono)', textAlign: 'right', borderBottom: '1px solid var(--border)' }}>
+                        {rec.totalOrders || 0}
                       </td>
                       <td style={{ padding: '7px 12px', fontSize: 12, borderBottom: '1px solid var(--border)' }}>
                         <Badge variant={rec.status === 'valid' ? 'success' : rec.status === 'warning' ? 'warning' : rec.status === 'overridden' ? 'info' : 'danger'}>
@@ -568,7 +572,7 @@ const UploadModal = ({ onClose }) => {
     fd.append('projectId', projectId);
     fd.append('year', year);
     fd.append('month', month);
-    fd.append('columnMapping', JSON.stringify({ employeeCode: 'employee_code', workingDays: 'working_days', overtimeHours: 'overtime_hours' }));
+    fd.append('columnMapping', JSON.stringify({ employeeCode: 'employee_code', workingDays: 'working_days', overtimeHours: 'overtime_hours', totalOrders: 'total_orders' }));
     upload(fd);
   };
 

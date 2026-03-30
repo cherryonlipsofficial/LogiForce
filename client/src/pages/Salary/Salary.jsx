@@ -378,6 +378,7 @@ const RunDetail = ({ run, onClose }) => {
           <InfoRow label="Pay Structure" value={(detail.driverId?.payStructure || '—').replace(/_/g, ' ')} />
           <InfoRow label="Working Days" value={detail.workingDays ?? '—'} />
           <InfoRow label="Overtime Hours" value={detail.overtimeHours ?? 0} />
+          <InfoRow label="Total Orders" value={detail.totalOrders ?? 0} />
           <InfoRow label="Created" value={formatDate(detail.createdAt)} />
           {detail.projectId?.salaryReleaseDay && <InfoRow label="Salary Release Date" value={`${detail.projectId.salaryReleaseDay}th of every month`} />}
           {detail.processedBy && <InfoRow label="Processed by" value={typeof detail.processedBy === 'object' ? detail.processedBy.name : detail.processedBy} />}
@@ -392,7 +393,7 @@ const RunDetail = ({ run, onClose }) => {
         <div style={{ marginBottom: 20 }}>
           <SectionHeader color="#4ade80">Earnings</SectionHeader>
           <BreakdownRow label="Base Salary" value={formatCurrencyFull(detail.baseSalary)} />
-          <BreakdownRow label="Prorated Salary" value={formatCurrencyFull(detail.proratedSalary)} sub={`Based on ${detail.workingDays ?? 0} working days`} />
+          <BreakdownRow label="Prorated Salary" value={formatCurrencyFull(detail.proratedSalary)} sub={detail.driverId?.payStructure === 'PER_ORDER' ? `Based on ${detail.totalOrders ?? 0} orders` : `Based on ${detail.workingDays ?? 0} working days`} />
           {(detail.overtimePay > 0) && (
             <BreakdownRow label="Overtime Pay" value={formatCurrencyFull(detail.overtimePay)} sub={`${detail.overtimeHours ?? 0} hours @ 1.25x rate`} />
           )}

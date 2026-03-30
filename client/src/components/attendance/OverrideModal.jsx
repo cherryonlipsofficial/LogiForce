@@ -9,6 +9,7 @@ const OverrideModal = ({ record, batchId, onClose, onSuccess }) => {
   const [reason, setReason] = useState('');
   const [workingDays, setWorkingDays] = useState(record.workingDays ?? '');
   const [overtimeHours, setOvertimeHours] = useState(record.overtimeHours ?? '');
+  const [totalOrders, setTotalOrders] = useState(record.totalOrders ?? '');
   const qc = useQueryClient();
 
   const { mutate: override, isPending: isLoading } = useMutation({
@@ -19,6 +20,9 @@ const OverrideModal = ({ record, batchId, onClose, onSuccess }) => {
       }
       if (overtimeHours !== '' && Number(overtimeHours) !== record.overtimeHours) {
         data.overtimeHours = Number(overtimeHours);
+      }
+      if (totalOrders !== '' && Number(totalOrders) !== record.totalOrders) {
+        data.totalOrders = Number(totalOrders);
       }
       return overrideRecord(record._id, data);
     },
@@ -97,6 +101,22 @@ const OverrideModal = ({ record, batchId, onClose, onSuccess }) => {
             value={overtimeHours}
             onChange={(e) => setOvertimeHours(e.target.value)}
             placeholder={String(record.overtimeHours ?? 0)}
+            style={{
+              width: '100%', borderRadius: 8, border: '1px solid var(--border2)',
+              background: 'var(--surface)', color: 'var(--text)', padding: '8px 10px', fontSize: 13,
+            }}
+          />
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 4 }}>
+            Total orders
+          </label>
+          <input
+            type="number"
+            min="0"
+            value={totalOrders}
+            onChange={(e) => setTotalOrders(e.target.value)}
+            placeholder={String(record.totalOrders ?? 0)}
             style={{
               width: '100%', borderRadius: 8, border: '1px solid var(--border2)',
               background: 'var(--surface)', color: 'var(--text)', padding: '8px 10px', fontSize: 13,

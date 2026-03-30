@@ -449,7 +449,7 @@ const AddDriverModal = ({ onClose }) => {
               <option value="">Select pay structure</option>
               <option value="MONTHLY_FIXED">Monthly fixed</option>
               <option value="DAILY_RATE">Daily rate</option>
-              <option value="PER_TRIP">Per trip</option>
+              <option value="PER_ORDER">Per order</option>
             </select>
             {errors.payStructure && <span style={errorStyle}>{errors.payStructure.message}</span>}
           </div>

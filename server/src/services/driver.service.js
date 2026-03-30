@@ -359,8 +359,8 @@ const bulkCreate = async (rows, userId) => {
       }
 
       // Validate payStructure if provided
-      if (payStructure && !['MONTHLY_FIXED', 'DAILY_RATE', 'PER_TRIP'].includes(payStructure)) {
-        throw new Error('Pay structure must be MONTHLY_FIXED, DAILY_RATE, or PER_TRIP');
+      if (payStructure && !['MONTHLY_FIXED', 'DAILY_RATE', 'PER_ORDER'].includes(payStructure)) {
+        throw new Error('Pay structure must be MONTHLY_FIXED, DAILY_RATE, or PER_ORDER');
       }
 
       // Resolve project by name or ID if provided

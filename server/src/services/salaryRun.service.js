@@ -76,9 +76,13 @@ async function runSalaryForBatch(batchId, processedByUserId) {
       const baseSalary = driver.baseSalary || 0;
       const daysInMonth = new Date(parseInt(batch.period.year), parseInt(batch.period.month), 0).getDate();
 
+      const totalOrders = record.totalOrders || 0;
+
       let grossSalary = 0;
       if (driver.payStructure === 'DAILY_RATE') {
         grossSalary = baseSalary * workingDays;
+      } else if (driver.payStructure === 'PER_ORDER') {
+        grossSalary = parseFloat((totalOrders * baseSalary).toFixed(2));
       } else {
         // MONTHLY_FIXED — prorate by actual days in month, capped at base salary
         grossSalary = parseFloat(
@@ -138,6 +142,7 @@ async function runSalaryForBatch(batchId, processedByUserId) {
         period: batch.period,
         workingDays,
         overtimeHours,
+        totalOrders,
         baseSalary,
         grossSalary,
         advanceDeductions,
