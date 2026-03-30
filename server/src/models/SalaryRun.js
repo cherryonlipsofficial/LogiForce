@@ -110,6 +110,20 @@ const salaryRunSchema = new Schema(
     notes: {
       type: String,
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+    deletedAt: {
+      type: Date,
+    },
+    deletedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    deleteRemark: {
+      type: String,
+    },
   },
   {
     timestamps: true,

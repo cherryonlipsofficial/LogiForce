@@ -51,7 +51,7 @@ router.get('/', requirePermission('invoices.view'), async (req, res) => {
   const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (page - 1) * limit;
 
-  const query = {};
+  const query = { isDeleted: { $ne: true } };
   if (req.query.clientId) query.clientId = req.query.clientId;
   if (req.query.status) query.status = req.query.status;
   if (req.query.year) query['period.year'] = parseInt(req.query.year);
@@ -73,7 +73,7 @@ router.get('/', requirePermission('invoices.view'), async (req, res) => {
 
 // GET /api/invoices/:id — get invoice with line items
 router.get('/:id', requirePermission('invoices.view'), async (req, res) => {
-  const invoice = await Invoice.findById(req.params.id)
+  const invoice = await Invoice.findOne({ _id: req.params.id, isDeleted: { $ne: true } })
     .populate('clientId')
     .populate('createdBy', 'name')
     .populate('lineItems.driverId', 'fullName employeeCode')
@@ -142,11 +142,27 @@ router.get('/:id/pdf', requirePermission('invoices.download'), async (req, res) 
   res.send(pdfBuffer);
 });
 
-// DELETE /api/invoices/:id — hard delete invoice (admin only)
+// DELETE /api/invoices/:id — delete invoice (soft delete if paid, hard delete otherwise)
 router.delete('/:id', requirePermission('invoices.delete'), async (req, res) => {
-  const invoice = await Invoice.findById(req.params.id);
+  const invoice = await Invoice.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
   if (!invoice) return sendError(res, 'Invoice not found', 404);
 
+  if (invoice.status === 'paid') {
+    const { remark } = req.body;
+    if (!remark || remark.trim().length < 3) {
+      return sendError(res, 'Remark is mandatory for deleting a paid invoice (minimum 3 characters)', 400);
+    }
+
+    invoice.isDeleted = true;
+    invoice.deletedAt = new Date();
+    invoice.deletedBy = req.user._id;
+    invoice.deleteRemark = remark.trim();
+    await invoice.save();
+
+    return sendSuccess(res, null, 'Paid invoice soft-deleted successfully');
+  }
+
+  // Non-paid invoices: hard delete
   // If this invoice was generated from attendance batches, reset them so they can be re-invoiced
   if (invoice.attendanceBatchId) {
     await AttendanceBatch.updateMany(

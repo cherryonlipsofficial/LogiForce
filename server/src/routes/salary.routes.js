@@ -23,6 +23,7 @@ router.post('/run', requirePermission('salary.run'), validate(runSalaryValidatio
     projectId,
     'period.year': parseInt(year),
     'period.month': parseInt(month),
+    isDeleted: { $ne: true },
   });
 
   if (existingRuns.length > 0) {
@@ -54,7 +55,7 @@ router.get('/runs', requirePermission('salary.view'), async (req, res) => {
   const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (page - 1) * limit;
 
-  const query = {};
+  const query = { isDeleted: { $ne: true } };
   if (req.query.clientId) query.clientId = req.query.clientId;
   if (req.query.driverId) query.driverId = req.query.driverId;
   if (req.query.status) query.status = req.query.status;
@@ -79,7 +80,7 @@ router.get('/runs', requirePermission('salary.view'), async (req, res) => {
 
 // GET /api/salary/runs/:id — get single run with full breakdown
 router.get('/runs/:id', requirePermission('salary.view'), async (req, res) => {
-  const run = await SalaryRun.findById(req.params.id)
+  const run = await SalaryRun.findOne({ _id: req.params.id, isDeleted: { $ne: true } })
     .populate('driverId', 'fullName employeeCode bankName iban payStructure')
     .populate('clientId', 'name')
     .populate('projectId', 'name')
@@ -158,15 +159,29 @@ router.post('/runs/:id/deduction', requirePermission('salary.manage_deductions')
   sendSuccess(res, run, 'Deduction added');
 });
 
-// DELETE /api/salary/runs/:id — delete a salary run (draft/approved only)
+// DELETE /api/salary/runs/:id — delete a salary run (soft delete if paid, hard delete otherwise)
 router.delete('/runs/:id', requirePermission('salary.delete'), async (req, res) => {
-  const run = await SalaryRun.findById(req.params.id);
+  const run = await SalaryRun.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
   if (!run) return sendError(res, 'Salary run not found', 404);
 
   if (run.status === 'paid') {
-    return sendError(res, 'Cannot delete a paid salary run', 400);
+    const { remark } = req.body;
+    if (!remark || remark.trim().length < 3) {
+      return sendError(res, 'Remark is mandatory for deleting a paid salary run (minimum 3 characters)', 400);
+    }
+
+    run.isDeleted = true;
+    run.deletedAt = new Date();
+    run.deletedBy = req.user._id;
+    run.deleteRemark = remark.trim();
+    await run.save();
+
+    await auditLogger.logChange('SalaryRun', req.params.id, 'soft_delete', run.status, `Remark: ${remark.trim()}`, req.user._id, 'salary_run_soft_deletion');
+
+    return sendSuccess(res, null, 'Paid salary run soft-deleted successfully');
   }
 
+  // Non-paid runs: hard delete
   await SalaryRun.findByIdAndDelete(req.params.id);
 
   await auditLogger.logChange('SalaryRun', req.params.id, 'delete', run.status, null, req.user._id, 'salary_run_deletion');
