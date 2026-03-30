@@ -160,6 +160,13 @@ const ApprovalHistory = ({ approvals }) => {
 
 // Which roles can act on which approval stage
 // Which roles can act on which approval stage
+const InfoRow = ({ label, value }) => (
+  <div>
+    <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 2 }}>{label}</div>
+    <div style={{ fontSize: 13 }}>{value}</div>
+  </div>
+);
+
 const ROLE_STAGE_MAP = {
   ops: ['draft'],                           // Operations approval
   compliance: ['ops_approved'],             // Compliance approval
@@ -633,13 +640,6 @@ const RunDetail = ({ run, onClose }) => {
     </SidePanel>
   );
 };
-
-const InfoRow = ({ label, value }) => (
-  <div>
-    <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 2 }}>{label}</div>
-    <div style={{ fontSize: 13 }}>{value}</div>
-  </div>
-);
 
 const RunPayrollModal = ({ onClose }) => {
   const { isMobile } = useBreakpoint();
