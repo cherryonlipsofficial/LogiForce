@@ -441,14 +441,16 @@ const RunDetail = ({ run, onClose }) => {
               <Btn variant="ghost" onClick={handleWpsDownload}>Download WPS</Btn>
             )}
           </PermissionGate>
-          <PermissionGate permission="salary.view">
-            <Btn variant="ghost" onClick={handleViewPayslip} disabled={viewingPdf}>
-              {viewingPdf ? 'Loading...' : 'View Payslip'}
-            </Btn>
-            <Btn variant="primary" onClick={handleDownloadPayslip} disabled={downloadingPdf}>
-              {downloadingPdf ? 'Downloading...' : 'Download Payslip PDF'}
-            </Btn>
-          </PermissionGate>
+          {run.status === 'paid' && (
+            <PermissionGate permission="salary.view">
+              <Btn variant="ghost" onClick={handleViewPayslip} disabled={viewingPdf}>
+                {viewingPdf ? 'Loading...' : 'View Payslip'}
+              </Btn>
+              <Btn variant="primary" onClick={handleDownloadPayslip} disabled={downloadingPdf}>
+                {downloadingPdf ? 'Downloading...' : 'Download Payslip PDF'}
+              </Btn>
+            </PermissionGate>
+          )}
           <PermissionGate permission="salary.delete">
             {!confirmDelete ? (
               <Btn variant="danger" small onClick={() => setConfirmDelete(true)}>Delete</Btn>
