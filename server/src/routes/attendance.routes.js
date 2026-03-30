@@ -199,22 +199,6 @@ router.delete('/batches/:id', requirePermission('attendance.approve'), async (re
   sendSuccess(res, null, 'Batch deleted');
 });
 
-// GET /api/attendance/:driverId/:year/:month — specific attendance record
-router.get('/:driverId/:year/:month', requirePermission('attendance.view'), async (req, res) => {
-  const { driverId, year, month } = req.params;
-
-  const record = await AttendanceRecord.findOne({
-    driverId,
-    'period.year': parseInt(year),
-    'period.month': parseInt(month),
-  })
-    .populate('driverId', 'fullName employeeCode')
-    .populate('batchId', 'batchId status');
-
-  if (!record) return sendError(res, 'Attendance record not found', 404);
-  sendSuccess(res, record);
-});
-
 // PUT /api/attendance/records/:id/override — override a flagged record
 router.put('/records/:id/override', requirePermission('attendance.override'), validate(overrideRecordValidation), async (req, res) => {
   const { reason, workingDays, overtimeHours } = req.body;
@@ -353,6 +337,24 @@ router.post('/batches/:id/run-salary', requirePermission('salary.run'), async (r
 router.get('/batches/:id/salary-runs', requirePermission('salary.view'), async (req, res) => {
   const runs = await getSalaryRunsByBatch(req.params.id);
   res.json({ success: true, data: runs });
+});
+
+// GET /api/attendance/:driverId/:year/:month — specific attendance record
+// NOTE: This wildcard route must be defined AFTER all /batches/* routes
+// to avoid intercepting them (e.g. /batches/:id/disputes).
+router.get('/:driverId/:year/:month', requirePermission('attendance.view'), async (req, res) => {
+  const { driverId, year, month } = req.params;
+
+  const record = await AttendanceRecord.findOne({
+    driverId,
+    'period.year': parseInt(year),
+    'period.month': parseInt(month),
+  })
+    .populate('driverId', 'fullName employeeCode')
+    .populate('batchId', 'batchId status');
+
+  if (!record) return sendError(res, 'Attendance record not found', 404);
+  sendSuccess(res, record);
 });
 
 module.exports = router;
