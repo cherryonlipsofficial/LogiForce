@@ -81,6 +81,12 @@ const RequestAdvanceModal = ({ driver, onClose, onSuccess }) => {
               <div style={{ fontSize: 13, marginTop: 2, fontFamily: 'var(--mono)' }}>AED {baseSalary.toLocaleString()}</div>
             </div>
           )}
+          {driver.clientUserId && (
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--text3)' }}>Client User ID</div>
+              <div style={{ fontSize: 13, marginTop: 2 }}>{driver.clientUserId}</div>
+            </div>
+          )}
         </div>
       </div>
 
