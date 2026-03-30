@@ -4,6 +4,7 @@ const {
   AttendanceBatch,
   SalaryRun,
   Advance,
+  DriverAdvance,
   Supplier,
   DriverLedger,
   DriverProjectAssignment,
@@ -216,7 +217,7 @@ const calculateDeductions = async (driverId, year, month, grossSalary) => {
     });
   }
 
-  // d) Advance recovery
+  // d) Advance recovery — legacy Advance model
   const activeAdvances = await Advance.find({
     driverId,
     status: 'active',
@@ -239,6 +240,34 @@ const calculateDeductions = async (driverId, year, month, grossSalary) => {
         status: 'applied',
       });
     }
+  }
+
+  // d2) Advance recovery — DriverAdvance with approved recovery schedule
+  const scheduledAdvances = await DriverAdvance.find({
+    driverId,
+    status: 'approved',
+    'recoverySchedule': {
+      $elemMatch: {
+        'period.year': year,
+        'period.month': month,
+        recovered: false,
+      },
+    },
+  });
+
+  for (const advance of scheduledAdvances) {
+    const installment = advance.recoverySchedule.find(
+      (s) => s.period.year === year && s.period.month === month && !s.recovered
+    );
+    if (!installment || installment.amountToRecover <= 0) continue;
+
+    deductions.push({
+      type: 'advance_recovery',
+      referenceId: String(advance._id),
+      amount: Math.round(installment.amountToRecover * 100) / 100,
+      description: `Advance recovery installment #${installment.installmentNo} (${advance.reason})`,
+      status: 'applied',
+    });
   }
 
   // e) Penalties — check DriverLedger for penalty entries in this period
@@ -462,24 +491,52 @@ const updateAdvanceRecoveries = async (salaryRun) => {
     (d) => d.type === 'advance_recovery'
   );
 
+  const { year, month } = salaryRun.period;
+
   for (const deduction of advanceDeductions) {
     if (!deduction.referenceId) continue;
 
+    // Try legacy Advance model first
     const advance = await Advance.findById(deduction.referenceId);
-    if (!advance) continue;
+    if (advance) {
+      advance.amountRecovered += deduction.amount;
+      advance.recoverySchedule.push({
+        salaryRunId: salaryRun._id,
+        amount: deduction.amount,
+        date: new Date(),
+      });
 
-    advance.amountRecovered += deduction.amount;
-    advance.recoverySchedule.push({
-      salaryRunId: salaryRun._id,
-      amount: deduction.amount,
-      date: new Date(),
-    });
+      if (advance.amountRecovered >= advance.amountIssued) {
+        advance.status = 'fully_recovered';
+      }
 
-    if (advance.amountRecovered >= advance.amountIssued) {
-      advance.status = 'fully_recovered';
+      await advance.save();
+      continue;
     }
 
-    await advance.save();
+    // Try DriverAdvance model (scheduled installments)
+    const driverAdvance = await DriverAdvance.findById(deduction.referenceId);
+    if (!driverAdvance) continue;
+
+    const installment = driverAdvance.recoverySchedule.find(
+      (s) => s.period.year === year && s.period.month === month && !s.recovered
+    );
+
+    if (installment) {
+      installment.recovered = true;
+      installment.recoveredAt = new Date();
+      installment.salaryRunId = salaryRun._id;
+    }
+
+    driverAdvance.totalRecovered += deduction.amount;
+
+    // Mark fully recovered if all installments done
+    const allRecovered = driverAdvance.recoverySchedule.every((s) => s.recovered);
+    if (allRecovered || driverAdvance.totalRecovered >= driverAdvance.amount) {
+      driverAdvance.status = 'fully_recovered';
+    }
+
+    await driverAdvance.save();
   }
 };
 
