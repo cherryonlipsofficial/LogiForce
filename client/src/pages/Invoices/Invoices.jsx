@@ -374,15 +374,13 @@ const GenerateInvoiceModal = ({ onClose }) => {
   const [selectedBatchIds, setSelectedBatchIds] = useState([]);
   const qc = useQueryClient();
 
-  const canFetchBatches = !!(clientId && year && month);
+  const canFetchBatches = !!clientId;
 
-  const { data: batchesData, isLoading: batchesLoading } = useQuery({
-    queryKey: ['approved-batches', clientId, projectId, year, month],
+  const { data: batchesData, isLoading: batchesLoading, isError: batchesError } = useQuery({
+    queryKey: ['approved-batches', clientId, projectId],
     queryFn: () => getApprovedBatches({
       clientId,
       ...(projectId && { projectId }),
-      year: Number(year),
-      month: Number(month),
     }),
     enabled: canFetchBatches,
     staleTime: 30 * 1000,
@@ -404,20 +402,32 @@ const GenerateInvoiceModal = ({ onClose }) => {
   const handlePeriodChange = (field, val) => {
     if (field === 'year') setYear(val);
     else setMonth(val);
-    setSelectedBatchIds([]);
+  };
+
+  const autoFillPeriod = (batchIds) => {
+    if (batchIds.length === 0) return;
+    const batch = approvedBatches.find((b) => b._id === batchIds[0]);
+    if (batch?.period) {
+      setYear(batch.period.year);
+      setMonth(batch.period.month);
+    }
   };
 
   const toggleBatch = (batchId) => {
-    setSelectedBatchIds((prev) =>
-      prev.includes(batchId) ? prev.filter((id) => id !== batchId) : [...prev, batchId]
-    );
+    setSelectedBatchIds((prev) => {
+      const next = prev.includes(batchId) ? prev.filter((id) => id !== batchId) : [...prev, batchId];
+      if (!prev.includes(batchId)) autoFillPeriod([batchId]);
+      return next;
+    });
   };
 
   const toggleAllBatches = () => {
     if (selectedBatchIds.length === approvedBatches.length) {
       setSelectedBatchIds([]);
     } else {
-      setSelectedBatchIds(approvedBatches.map((b) => b._id));
+      const all = approvedBatches.map((b) => b._id);
+      setSelectedBatchIds(all);
+      autoFillPeriod(all);
     }
   };
 
@@ -480,9 +490,13 @@ const GenerateInvoiceModal = ({ onClose }) => {
             </div>
             {batchesLoading ? (
               <div style={{ fontSize: 12, color: 'var(--text3)', padding: '8px 0' }}>Loading batches...</div>
+            ) : batchesError ? (
+              <div style={{ fontSize: 12, color: 'var(--danger, #ef4444)', padding: '10px 12px', background: 'var(--surface2)', borderRadius: 8 }}>
+                Failed to load attendance batches. Please try again.
+              </div>
             ) : approvedBatches.length === 0 ? (
               <div style={{ fontSize: 12, color: 'var(--text3)', padding: '10px 12px', background: 'var(--surface2)', borderRadius: 8 }}>
-                No approved attendance batches found for this selection.
+                No approved attendance batches found for this client.
               </div>
             ) : (
               <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
@@ -504,7 +518,7 @@ const GenerateInvoiceModal = ({ onClose }) => {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text2)' }}>{batch.batchId}</div>
                       <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>
-                        {batch.projectId?.name || 'Unknown project'} &middot; {batch.matchedRows ?? batch.totalRows ?? '—'} records
+                        {batch.projectId?.name || 'Unknown project'} &middot; {batch.period ? `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][(batch.period.month || 1) - 1]} ${batch.period.year}` : '—'} &middot; {batch.matchedRows ?? batch.totalRows ?? '—'} records
                       </div>
                     </div>
                     <Badge variant="success" style={{ fontSize: 10 }}>Approved</Badge>
