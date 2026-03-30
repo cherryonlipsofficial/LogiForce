@@ -115,7 +115,7 @@ async function reviewAdvance(advanceId, decision, reviewData, reviewerUserId) {
   }
 
   const scheduleTotal = reviewData.recoverySchedule.reduce(
-    (sum, s) => sum + s.amountToRecover,
+    (sum, s) => sum + parseFloat(s.amountToRecover),
     0
   );
 
@@ -128,11 +128,14 @@ async function reviewAdvance(advanceId, decision, reviewData, reviewerUserId) {
     );
   }
 
-  // Build schedule with installment numbers
+  // Build schedule with installment numbers (ensure period values are integers)
   const schedule = reviewData.recoverySchedule.map((s, idx) => ({
     installmentNo: idx + 1,
-    period: s.period,
-    amountToRecover: s.amountToRecover,
+    period: {
+      year: parseInt(s.period.year),
+      month: parseInt(s.period.month),
+    },
+    amountToRecover: parseFloat(s.amountToRecover),
     recovered: false,
   }));
 
