@@ -340,6 +340,7 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
               ['Labour card no.', d.labourCardNo || '—'],
               ['Labour card expiry', formatDate(d.labourCardExpiry)],
               ['Vehicle plate', d.vehiclePlate || d.vehicle || '—'],
+              ['Personal verification', d.personalVerificationDone ? 'Done' : 'Not done'],
             ].map(([l, v]) => (
               <div
                 key={l}

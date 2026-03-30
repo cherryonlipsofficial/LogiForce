@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import Btn from '../ui/Btn';
+import Modal from '../ui/Modal';
 import PermissionGate from '../ui/PermissionGate';
 import { verifyContacts, setClientUserId, activateDriver } from '../../api/driversApi';
 
@@ -45,6 +46,7 @@ const REQUIRED_DOCS = [
 
 const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
   const [clientUserIdInput, setClientUserIdInput] = useState('');
+  const [showActivateConfirm, setShowActivateConfirm] = useState(false);
   const queryClient = useQueryClient();
   const driverId = driver._id || driver.id;
   const status = driver.status;
@@ -78,13 +80,17 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
   });
 
   const activateDriverMutation = useMutation({
-    mutationFn: () => activateDriver(driverId),
+    mutationFn: () => activateDriver(driverId, { personalVerificationConfirmed: true }),
     onSuccess: () => {
+      setShowActivateConfirm(false);
       toast.success('Driver activated successfully');
       invalidateDriver();
       onActionComplete?.();
     },
-    onError: (err) => toast.error(err?.response?.data?.message || 'Failed to activate driver'),
+    onError: (err) => {
+      setShowActivateConfirm(false);
+      toast.error(err?.response?.data?.message || 'Failed to activate driver');
+    },
   });
 
   // Don't render banner until status summary API has loaded
@@ -242,30 +248,81 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
   // ── Pending Verification ──
   if (status === 'pending_verification') {
     return (
-      <div style={boxStyles.blue}>
-        <div style={{ marginBottom: 6 }}>
-          <CheckIcon /> All KYC documents uploaded and valid.
+      <>
+        <div style={boxStyles.blue}>
+          <div style={{ marginBottom: 6 }}>
+            <CheckIcon /> All KYC documents uploaded and valid.
+          </div>
+          <div style={{ fontWeight: 500, marginBottom: 10 }}>
+            Compliance team can now activate this driver.
+          </div>
+          <PermissionGate permission="drivers.activate">
+            <Btn
+              variant="success"
+              onClick={() => setShowActivateConfirm(true)}
+              disabled={activateDriverMutation.isPending}
+              small
+            >
+              Activate driver
+            </Btn>
+          </PermissionGate>
         </div>
-        <div style={{ fontWeight: 500, marginBottom: 10 }}>
-          Compliance team can now activate this driver.
-        </div>
-        <PermissionGate permission="drivers.activate">
-          <Btn
-            variant="success"
-            onClick={() => activateDriverMutation.mutate()}
-            disabled={activateDriverMutation.isPending}
-            small
-          >
-            {activateDriverMutation.isPending ? 'Activating...' : 'Activate driver'}
-          </Btn>
-        </PermissionGate>
-      </div>
+
+        {showActivateConfirm && (
+          <Modal title="Confirm Personal Verification" onClose={() => setShowActivateConfirm(false)} width={420}>
+            <div style={{ padding: '16px 20px' }}>
+              <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16, lineHeight: 1.5 }}>
+                Before activating this driver, please confirm that you have completed the
+                <strong> personal verification</strong> of the driver (e.g. in-person identity check,
+                document authenticity, and physical appearance match).
+              </div>
+              <div style={{
+                background: 'rgba(245,158,11,0.08)',
+                border: '1px solid rgba(245,158,11,0.25)',
+                borderRadius: 8,
+                padding: '10px 12px',
+                fontSize: 12,
+                color: '#b45309',
+                marginBottom: 20,
+              }}>
+                This confirmation is mandatory. By proceeding, you certify that the driver's personal
+                verification has been done.
+              </div>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <Btn
+                  variant="ghost"
+                  small
+                  onClick={() => setShowActivateConfirm(false)}
+                  disabled={activateDriverMutation.isPending}
+                >
+                  Cancel
+                </Btn>
+                <Btn
+                  variant="success"
+                  small
+                  onClick={() => activateDriverMutation.mutate()}
+                  disabled={activateDriverMutation.isPending}
+                >
+                  {activateDriverMutation.isPending ? 'Activating...' : 'Yes, verification done — Activate'}
+                </Btn>
+              </div>
+            </div>
+          </Modal>
+        )}
+      </>
     );
   }
 
   // ── Active — show Client User ID update for Operations / Admin ──
   if (status === 'active') {
     return (
+      <div>
+        {summary.personalVerificationDone && (
+          <div style={{ ...boxStyles.green, marginBottom: 10, fontSize: 12 }}>
+            <CheckIcon /> Personal verification done
+            {summary.personalVerificationAt ? ` on ${formatDate(summary.personalVerificationAt)}` : ''}
+          </div>
+        )}
       <PermissionGate permission="drivers.update_client_id">
         <div style={boxStyles.green}>
           {driver.clientUserId && (
@@ -303,6 +360,7 @@ const DriverStatusBanner = ({ driver, statusSummary, onActionComplete }) => {
           </div>
         </div>
       </PermissionGate>
+      </div>
     );
   }
 

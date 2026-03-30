@@ -126,6 +126,11 @@ const driverSchema = new mongoose.Schema(
     // Tracks whether driver was manually activated from pending_verification
     activatedManually:      { type: Boolean, default: false },
 
+    // Tracks whether Compliance has confirmed personal verification of the driver
+    personalVerificationDone:  { type: Boolean, default: false },
+    personalVerificationBy:    { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    personalVerificationAt:    { type: Date },
+
     // Tracks who last changed the status and why
     lastStatusChange: {
       from:      { type: String },

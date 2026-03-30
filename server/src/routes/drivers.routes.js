@@ -555,7 +555,8 @@ router.put('/:id/client-user-id', requirePermission('drivers.update_client_id'),
 // POST /api/drivers/:id/activate — Activate driver from pending_verification
 router.post('/:id/activate', requirePermission('drivers.activate'), async (req, res) => {
   try {
-    const driver = await activateDriver(req.params.id, req.user._id);
+    const { personalVerificationConfirmed } = req.body;
+    const driver = await activateDriver(req.params.id, req.user._id, { personalVerificationConfirmed });
     sendSuccess(res, driver, `Driver activated. Current status: ${driver.status}`);
   } catch (err) {
     sendError(res, err.message, err.statusCode || 500);

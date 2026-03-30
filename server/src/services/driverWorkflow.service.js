@@ -79,7 +79,7 @@ async function setClientUserId(driverId, clientUserId, userId) {
   return updated;
 }
 
-async function activateDriver(driverId, userId) {
+async function activateDriver(driverId, userId, { personalVerificationConfirmed } = {}) {
   const driver = await Driver.findById(driverId);
   if (!driver) {
     const err = new Error('Driver not found');
@@ -93,11 +93,23 @@ async function activateDriver(driverId, userId) {
     throw err;
   }
 
+  if (!personalVerificationConfirmed) {
+    const err = new Error('Personal verification confirmation is mandatory before activating a driver');
+    err.statusCode = 400;
+    throw err;
+  }
+
   driver.activatedManually = true;
+  driver.personalVerificationDone = true;
+  driver.personalVerificationBy = userId;
+  driver.personalVerificationAt = new Date();
   await driver.save();
 
   const activatingUser = await User.findById(userId).select('email').lean();
   const activatedByLabel = activatingUser?.email ? `Driver activated by ${activatingUser.email}` : 'Driver activated by authorized user';
+  await logEvent(driverId, 'personal_verification_confirmed', {
+    description: `Personal verification confirmed by ${activatingUser?.email || 'authorized user'}`,
+  }, userId);
   await logEvent(driverId, 'driver_activated', {
     description: activatedByLabel,
   }, userId);
@@ -226,6 +238,9 @@ async function getDriverStatusSummary(driverId) {
     isPassportSubmitted: driver.isPassportSubmitted || false,
     passportSubmissionType: driver.passportSubmissionType || null,
     guaranteePassportValid: driver.guaranteePassportValid,
+    personalVerificationDone: driver.personalVerificationDone || false,
+    personalVerificationBy: driver.personalVerificationBy || null,
+    personalVerificationAt: driver.personalVerificationAt || null,
   };
 }
 
