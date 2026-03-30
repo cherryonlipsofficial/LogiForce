@@ -173,6 +173,19 @@ router.put('/bulk-process', requirePermission('salary.process'), validate(bulkAp
   sendSuccess(res, results, msg);
 });
 
+// PUT /api/salary/bulk-pay — Bulk mark salary runs as paid
+router.put('/bulk-pay', requirePermission('salary.pay'), validate(bulkApprovalValidation), async (req, res) => {
+  const { runIds } = req.body;
+  const results = await salaryService.bulkMarkAsPaid(runIds, req.user._id);
+
+  for (const item of results.paid) {
+    await auditLogger.logChange('SalaryRun', item._id, 'status', 'processed', 'paid', req.user._id, 'salary_bulk_payment');
+  }
+
+  const msg = `Bulk payment: ${results.paid.length} marked as paid, ${results.errors.length} failed`;
+  sendSuccess(res, results, msg);
+});
+
 // PUT /api/salary/runs/:id/approve — legacy backward-compatible approve (routes to appropriate stage)
 router.put('/runs/:id/approve', requirePermission('salary.approve'), async (req, res) => {
   const run = await salaryService.approveSalaryRun(req.params.id, req.user._id);

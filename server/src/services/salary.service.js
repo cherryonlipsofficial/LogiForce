@@ -901,6 +901,28 @@ const bulkProcess = async (runIds, userId) => {
   return results;
 };
 
+const bulkMarkAsPaid = async (runIds, userId) => {
+  const results = { paid: [], errors: [] };
+  for (const runId of runIds) {
+    try {
+      const salaryRun = await SalaryRun.findById(runId);
+      if (!salaryRun) {
+        throw new Error('Salary run not found');
+      }
+      if (salaryRun.status !== 'approved' && salaryRun.status !== 'processed') {
+        throw new Error(`Cannot mark a ${salaryRun.status} salary run as paid — must be 'processed' or 'approved'`);
+      }
+      salaryRun.status = 'paid';
+      salaryRun.paidAt = new Date();
+      await salaryRun.save();
+      results.paid.push({ _id: salaryRun._id, runId: salaryRun.runId, status: salaryRun.status });
+    } catch (err) {
+      results.errors.push({ _id: runId, error: err.message });
+    }
+  }
+  return results;
+};
+
 module.exports = {
   calculateDriverSalary,
   calculateDeductions,
@@ -915,6 +937,7 @@ module.exports = {
   bulkApproveByCompliance,
   bulkApproveByAccounts,
   bulkProcess,
+  bulkMarkAsPaid,
   generateWpsFile,
   addManualDeduction,
 };

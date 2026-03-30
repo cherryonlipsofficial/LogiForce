@@ -55,3 +55,6 @@ export const bulkApproveByAccounts = (data) =>
 
 export const bulkProcess = (data) =>
   axiosInstance.put('/salary/bulk-process', data).then(r => r.data);
+
+export const bulkMarkAsPaid = (data) =>
+  axiosInstance.put('/salary/bulk-pay', data).then(r => r.data);

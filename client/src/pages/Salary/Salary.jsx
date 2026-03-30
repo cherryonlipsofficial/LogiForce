@@ -13,7 +13,7 @@ import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
 import ProjectSelect from '../../components/ui/ProjectSelect';
 import { useNavigate } from 'react-router-dom';
-import { getRuns, runPayroll, approveRun, getWpsFile, getPayslipPdf, getRun, addDeduction, deleteRun, markAsPaid, disputeRun, approveByOps, approveByCompliance, approveByAccounts, processRun, bulkApproveByOps, bulkApproveByCompliance, bulkApproveByAccounts, bulkProcess } from '../../api/salaryApi';
+import { getRuns, runPayroll, approveRun, getWpsFile, getPayslipPdf, getRun, addDeduction, deleteRun, markAsPaid, disputeRun, approveByOps, approveByCompliance, approveByAccounts, processRun, bulkApproveByOps, bulkApproveByCompliance, bulkApproveByAccounts, bulkProcess, bulkMarkAsPaid } from '../../api/salaryApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
 import Pagination from '../../components/ui/Pagination';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
@@ -170,8 +170,8 @@ const InfoRow = ({ label, value }) => (
 const ROLE_STAGE_MAP = {
   ops: ['draft'],                           // Operations approval
   compliance: ['ops_approved'],             // Compliance approval
-  accountant: ['compliance_approved', 'accounts_approved'], // Accounts approval + Process
-  admin: ['draft', 'ops_approved', 'compliance_approved', 'accounts_approved'], // All stages
+  accountant: ['compliance_approved', 'accounts_approved', 'processed'], // Accounts approval + Process + Pay
+  admin: ['draft', 'ops_approved', 'compliance_approved', 'accounts_approved', 'processed'], // All stages
 };
 
 const RunDetail = ({ run, onClose }) => {
@@ -735,6 +735,7 @@ const getBulkActionForStatus = (status) => {
     case 'ops_approved': return { label: 'Approve (Compliance)', key: 'compliance' };
     case 'compliance_approved': return { label: 'Approve (Accounts)', key: 'accounts' };
     case 'accounts_approved': return { label: 'Process', key: 'process' };
+    case 'processed': return { label: 'Mark as Paid', key: 'pay' };
     default: return null;
   }
 };
@@ -799,12 +800,13 @@ const Salary = () => {
         case 'compliance': return bulkApproveByCompliance({ runIds, remarks });
         case 'accounts': return bulkApproveByAccounts({ runIds, remarks });
         case 'process': return bulkProcess({ runIds });
+        case 'pay': return bulkMarkAsPaid({ runIds });
         default: throw new Error('Unknown bulk action');
       }
     },
     onSuccess: (res) => {
       const data = res?.data || res || {};
-      const approved = data.approved?.length || data.processed?.length || 0;
+      const approved = data.approved?.length || data.processed?.length || data.paid?.length || 0;
       const errors = data.errors?.length || 0;
       if (approved > 0) toast.success(`${approved} salary run(s) updated successfully`);
       if (errors > 0) toast.error(`${errors} salary run(s) failed`);
@@ -860,7 +862,7 @@ const Salary = () => {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 8, alignItems: 'stretch', flex: 1 }}>
-                  {bulkAction.key !== 'process' && (
+                  {bulkAction.key !== 'process' && bulkAction.key !== 'pay' && (
                     <input
                       type="text"
                       value={bulkRemarks}
