@@ -19,7 +19,7 @@ const DisputeResponseModal = ({ dispute, onClose, onSuccess }) => {
   const [error, setError] = useState('');
   const qc = useQueryClient();
 
-  const { mutate: submit, isLoading } = useMutation({
+  const { mutate: submit, isPending: isLoading } = useMutation({
     mutationFn: () => respondToDispute(dispute._id, message),
     onSuccess: () => {
       toast.success('Response sent. Reviewer has been notified.');

@@ -173,7 +173,7 @@ const CreateRoleModal = ({ onClose, roles, permissionsList }) => {
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [selectedPermissions, setSelectedPermissions] = useState([]);
 
-  const { mutate: doCreate, isLoading } = useMutation({
+  const { mutate: doCreate, isPending: isLoading } = useMutation({
     mutationFn: (data) => createRole(data),
     onSuccess: () => {
       toast.success('Role created successfully');
@@ -367,7 +367,7 @@ const EditRoleDetailsModal = ({ role, onClose }) => {
   const [displayName, setDisplayName] = useState(role.displayName || '');
   const [description, setDescription] = useState(role.description || '');
 
-  const { mutate: doUpdate, isLoading } = useMutation({
+  const { mutate: doUpdate, isPending: isLoading } = useMutation({
     mutationFn: (data) => updateRole(role._id, data),
     onSuccess: () => {
       toast.success('Role details updated');
@@ -427,7 +427,7 @@ const DuplicateRoleModal = ({ role, onClose, onCreated }) => {
   const [name, setName] = useState(role.name + '_copy');
   const [displayName, setDisplayName] = useState((role.displayName || role.name) + ' (copy)');
 
-  const { mutate: doDuplicate, isLoading } = useMutation({
+  const { mutate: doDuplicate, isPending: isLoading } = useMutation({
     mutationFn: (data) => duplicateRole(role._id, data),
     onSuccess: (res) => {
       toast.success('Role duplicated');
@@ -544,7 +544,7 @@ export default function RolesPage() {
   }
 
   // Mutations
-  const { mutate: doUpdatePerms, isLoading: isSaving } = useMutation({
+  const { mutate: doUpdatePerms, isPending: isSaving } = useMutation({
     mutationFn: ({ id, data }) => updateRole(id, data),
     onSuccess: () => {
       toast.success(`Role updated \u2014 ${localPermissions.length} permissions`);

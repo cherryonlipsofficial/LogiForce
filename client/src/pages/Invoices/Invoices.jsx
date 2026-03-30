@@ -169,9 +169,11 @@ const InvoiceDetail = ({ invoice, onClose }) => {
   const [showCreditNote, setShowCreditNote] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteRemark, setDeleteRemark] = useState('');
+  const [viewingPdf, setViewingPdf] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const st = statusMap[invoice.status] || statusMap.draft;
 
-  const { mutate: changeStatus, isLoading: changing } = useMutation({
+  const { mutate: changeStatus, isPending: changing } = useMutation({
     mutationFn: ({ status }) => updateStatus(invoice._id, { status }),
     onSuccess: () => {
       toast.success('Invoice status updated');
@@ -181,7 +183,7 @@ const InvoiceDetail = ({ invoice, onClose }) => {
     onError: () => toast.error('Failed to update status'),
   });
 
-  const { mutate: removeInvoice, isLoading: deleting } = useMutation({
+  const { mutate: removeInvoice, isPending: deleting } = useMutation({
     mutationFn: () => deleteInvoice(invoice._id, invoice.status === 'paid' ? { remark: deleteRemark } : undefined),
     onSuccess: () => {
       toast.success('Invoice deleted');
@@ -192,16 +194,20 @@ const InvoiceDetail = ({ invoice, onClose }) => {
   });
 
   const handleViewPdf = async () => {
+    setViewingPdf(true);
     try {
       const blob = await downloadPdf(invoice._id);
       const blobUrl = URL.createObjectURL(blob);
       window.open(blobUrl, '_blank');
     } catch {
       toast.error('Failed to load PDF');
+    } finally {
+      setViewingPdf(false);
     }
   };
 
   const handleDownloadPdf = async () => {
+    setDownloadingPdf(true);
     try {
       const blob = await downloadPdf(invoice._id);
       const url = URL.createObjectURL(blob);
@@ -212,6 +218,8 @@ const InvoiceDetail = ({ invoice, onClose }) => {
       URL.revokeObjectURL(url);
     } catch {
       toast.error('Failed to download PDF');
+    } finally {
+      setDownloadingPdf(false);
     }
   };
 
@@ -258,8 +266,12 @@ const InvoiceDetail = ({ invoice, onClose }) => {
             )}
           </PermissionGate>
           <PermissionGate permission="invoices.download">
-            <Btn variant="ghost" onClick={handleViewPdf}>View PDF</Btn>
-            <Btn variant="ghost" onClick={handleDownloadPdf}>Download PDF</Btn>
+            <Btn variant="ghost" onClick={handleViewPdf} disabled={viewingPdf}>
+              {viewingPdf ? 'Loading...' : 'View PDF'}
+            </Btn>
+            <Btn variant="ghost" onClick={handleDownloadPdf} disabled={downloadingPdf}>
+              {downloadingPdf ? 'Downloading...' : 'Download PDF'}
+            </Btn>
           </PermissionGate>
           <PermissionGate permission="invoices.credit_note">
             <Btn variant="ghost" onClick={() => setShowCreditNote(true)}>Add credit note</Btn>
@@ -284,7 +296,7 @@ const InvoiceDetail = ({ invoice, onClose }) => {
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   <span style={{ fontSize: 12, color: '#f87171' }}>Are you sure?</span>
                   <Btn variant="danger" onClick={() => removeInvoice()} disabled={deleting || (invoice.status === 'paid' && deleteRemark.trim().length < 3)}>{deleting ? 'Deleting...' : 'Yes, delete'}</Btn>
-                  <Btn variant="ghost" onClick={() => { setConfirmDelete(false); setDeleteRemark(''); }}>Cancel</Btn>
+                  <Btn variant="ghost" onClick={() => { setConfirmDelete(false); setDeleteRemark(''); }} disabled={deleting}>Cancel</Btn>
                 </div>
               </div>
             )}
@@ -310,7 +322,7 @@ const CreditNoteModal = ({ invoiceId, onClose }) => {
   const [driverId, setDriverId] = useState('');
   const qc = useQueryClient();
 
-  const { mutate: add, isLoading } = useMutation({
+  const { mutate: add, isPending: isLoading } = useMutation({
     mutationFn: (data) => addCreditNote(invoiceId, data),
     onSuccess: () => {
       toast.success('Credit note added');
@@ -409,7 +421,7 @@ const GenerateInvoiceModal = ({ onClose }) => {
     }
   };
 
-  const { mutate: generate, isLoading } = useMutation({
+  const { mutate: generate, isPending: isLoading } = useMutation({
     mutationFn: (data) => generateInvoice(data),
     onSuccess: () => {
       toast.success('Invoice generated');

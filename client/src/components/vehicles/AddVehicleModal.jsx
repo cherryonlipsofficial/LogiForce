@@ -80,7 +80,7 @@ const AddVehicleModal = ({ category, supplierId, onClose, onSuccess }) => {
     return d;
   })();
 
-  const { mutate: save, isLoading } = useMutation({
+  const { mutate: save, isPending: isLoading } = useMutation({
     mutationFn: (data) =>
       createVehicle({
         supplierId,

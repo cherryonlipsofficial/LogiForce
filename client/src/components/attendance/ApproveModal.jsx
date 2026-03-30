@@ -11,7 +11,7 @@ const ApproveModal = ({ batch, onClose, onSuccess }) => {
   const [notes, setNotes] = useState('');
   const qc = useQueryClient();
 
-  const { mutate: approve, isLoading } = useMutation({
+  const { mutate: approve, isPending: isLoading } = useMutation({
     mutationFn: () => approveBatch(batch._id, notes),
     onSuccess: (res) => {
       const newStatus = res?.data?.status || res?.status;

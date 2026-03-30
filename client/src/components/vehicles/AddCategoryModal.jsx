@@ -45,7 +45,7 @@ const AddCategoryModal = ({ supplierId, supplierName, onClose, onSuccess }) => {
     },
   });
 
-  const { mutate: save, isLoading } = useMutation({
+  const { mutate: save, isPending: isLoading } = useMutation({
     mutationFn: (data) =>
       createCategory({
         ...data,

@@ -270,7 +270,7 @@ const AssignDriverModal = ({ projectId, clientId, onClose }) => {
 
   const drivers = (driversData?.data || []).filter((d) => !d.projectId || d.projectId === projectId);
 
-  const { mutate: doAssign, isLoading } = useMutation({
+  const { mutate: doAssign, isPending: isLoading } = useMutation({
     mutationFn: () => assignDriverToProject(projectId, selectedDriverId),
     onSuccess: () => {
       toast.success('Driver assigned');
@@ -338,7 +338,7 @@ const ProjectFormModal = ({ project, onClose }) => {
   });
   const qc = useQueryClient();
 
-  const { mutate: save, isLoading } = useMutation({
+  const { mutate: save, isPending: isLoading } = useMutation({
     mutationFn: (data) => {
       const payload = {
         ...data,

@@ -22,7 +22,7 @@ const DisputeModal = ({ batch, onClose, onSuccess }) => {
   const [errors, setErrors] = useState({});
   const qc = useQueryClient();
 
-  const { mutate: submit, isLoading } = useMutation({
+  const { mutate: submit, isPending: isLoading } = useMutation({
     mutationFn: (data) => raiseBatchDispute(batch._id, data),
     onSuccess: () => {
       toast.success('Dispute raised. Accounts team notified.');

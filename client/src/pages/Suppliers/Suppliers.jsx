@@ -221,7 +221,7 @@ const SupplierFormModal = ({ supplier, onClose }) => {
   });
   const qc = useQueryClient();
 
-  const { mutate: save, isLoading } = useMutation({
+  const { mutate: save, isPending: isLoading } = useMutation({
     mutationFn: (data) => {
       const payload = {
         ...data,

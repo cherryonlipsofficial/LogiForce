@@ -329,7 +329,9 @@ const UserPermissionsModal = ({ user, onClose }) => {
                   <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>{o.module || o.key.split('.')[0]}</div>
                   {o.reason && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{o.reason}</div>}
                 </div>
-                <Btn small variant="danger" onClick={() => removeOverride.mutate(o.key)}>Remove</Btn>
+                <Btn small variant="danger" onClick={() => removeOverride.mutate(o.key)} disabled={removeOverride.isPending}>
+                  {removeOverride.isPending ? 'Removing...' : 'Remove'}
+                </Btn>
               </div>
             ))}
           </div>
@@ -351,8 +353,8 @@ const UserPermissionsModal = ({ user, onClose }) => {
             {selectedGrant && (
               <>
                 <input style={{ ...inputStyle, marginBottom: 8 }} placeholder="Reason (optional)" value={grantReason} onChange={(e) => setGrantReason(e.target.value)} />
-                <Btn small variant="primary" onClick={() => addOverride.mutate({ key: selectedGrant.key, granted: true, reason: grantReason })}>
-                  Confirm
+                <Btn small variant="primary" onClick={() => addOverride.mutate({ key: selectedGrant.key, granted: true, reason: grantReason })} disabled={addOverride.isPending}>
+                  {addOverride.isPending ? 'Adding...' : 'Confirm'}
                 </Btn>
               </>
             )}
@@ -386,7 +388,9 @@ const UserPermissionsModal = ({ user, onClose }) => {
                   <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>{o.module || o.key.split('.')[0]}</div>
                   {o.reason && <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{o.reason}</div>}
                 </div>
-                <Btn small variant="success" onClick={() => removeOverride.mutate(o.key)}>Restore</Btn>
+                <Btn small variant="success" onClick={() => removeOverride.mutate(o.key)} disabled={removeOverride.isPending}>
+                  {removeOverride.isPending ? 'Restoring...' : 'Restore'}
+                </Btn>
               </div>
             ))}
           </div>
@@ -408,8 +412,8 @@ const UserPermissionsModal = ({ user, onClose }) => {
             {selectedDeny && (
               <>
                 <input style={{ ...inputStyle, marginBottom: 8 }} placeholder="Reason (optional)" value={denyReason} onChange={(e) => setDenyReason(e.target.value)} />
-                <Btn small variant="danger" onClick={() => addOverride.mutate({ key: selectedDeny.key, granted: false, reason: denyReason })}>
-                  Confirm deny
+                <Btn small variant="danger" onClick={() => addOverride.mutate({ key: selectedDeny.key, granted: false, reason: denyReason })} disabled={addOverride.isPending}>
+                  {addOverride.isPending ? 'Denying...' : 'Confirm deny'}
                 </Btn>
               </>
             )}
@@ -606,7 +610,9 @@ const UsersPanel = () => {
                           <Btn small onClick={() => setPermsUser(u)}>Permissions</Btn>
                         </PermissionGate>
                         <PermissionGate permission="users.delete">
-                          <Btn small variant="danger" onClick={() => handleDeactivate(u)}>Deactivate</Btn>
+                          <Btn small variant="danger" onClick={() => handleDeactivate(u)} disabled={deactivateMutation.isPending}>
+                            {deactivateMutation.isPending ? 'Deactivating...' : 'Deactivate'}
+                          </Btn>
                         </PermissionGate>
                       </div>
                     </td>

@@ -190,7 +190,7 @@ const ClientDetail = ({ client, onClose, onEdit, onDelete, hasPermission }) => {
     });
   };
 
-  const { mutate: doUpload, isLoading: uploading } = useMutation({
+  const { mutate: doUpload, isPending: uploading } = useMutation({
     mutationFn: (file) => uploadContract(client._id, file),
     onSuccess: (res) => {
       toast.success('Contract uploaded');
@@ -369,7 +369,7 @@ const ClientFormModal = ({ client, onClose }) => {
   });
   const qc = useQueryClient();
 
-  const { mutate: save, isLoading } = useMutation({
+  const { mutate: save, isPending: isLoading } = useMutation({
     mutationFn: (data) => {
       const payload = {
         ...data,
