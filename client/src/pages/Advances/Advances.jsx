@@ -8,8 +8,10 @@ import EmptyState from '../../components/ui/EmptyState';
 import Pagination from '../../components/ui/Pagination';
 import { useAuth } from '../../context/AuthContext';
 import { getAdvances } from '../../api/advancesApi';
+import { getDrivers } from '../../api/driversApi';
 import { formatDate } from '../../utils/formatters';
 import AdvanceReviewModal from './AdvanceReviewModal';
+import RequestAdvanceModal from './RequestAdvanceModal';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const STATUS_FILTERS = [
@@ -35,6 +37,17 @@ const Advances = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [reviewModal, setReviewModal] = useState(null);
+  const [showDriverSearch, setShowDriverSearch] = useState(false);
+  const [driverSearch, setDriverSearch] = useState('');
+  const [selectedDriver, setSelectedDriver] = useState(null);
+
+  const { data: driverResults } = useQuery({
+    queryKey: ['drivers-search', driverSearch],
+    queryFn: () => getDrivers({ search: driverSearch, status: 'active', limit: 10 }),
+    enabled: showDriverSearch && driverSearch.length >= 2,
+    keepPreviousData: true,
+  });
+  const searchedDrivers = driverResults?.data || [];
 
   const { data, isLoading } = useQuery({
     queryKey: ['advances', { status: tab === 'pending' ? 'pending' : (statusFilter !== 'all' ? statusFilter : undefined), page }],
@@ -67,6 +80,14 @@ const Advances = () => {
         <KpiCard label="Total outstanding (AED)" value={Number(kpis.totalOutstanding).toLocaleString()} color="#3b82f6" />
         <KpiCard label="Fully recovered" value={kpis.recovered} color="#a855f7" />
       </div>
+
+      {hasPermission('advances.request') && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Btn variant="primary" onClick={() => setShowDriverSearch(true)}>
+            + Request advance
+          </Btn>
+        </div>
+      )}
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         {/* Tabs */}
@@ -231,6 +252,84 @@ const Advances = () => {
           decision={reviewModal.decision}
           onClose={() => setReviewModal(null)}
           onSuccess={() => setReviewModal(null)}
+        />
+      )}
+
+      {showDriverSearch && !selectedDriver && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+        }} onClick={() => { setShowDriverSearch(false); setDriverSearch(''); }}>
+          <div
+            style={{
+              background: 'var(--surface)', borderRadius: 12, padding: 20,
+              width: isMobile ? '92%' : 420, maxHeight: '70vh', display: 'flex', flexDirection: 'column',
+              border: '1px solid var(--border)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Select driver</div>
+            <input
+              autoFocus
+              type="text"
+              placeholder="Search by name or employee code..."
+              value={driverSearch}
+              onChange={e => setDriverSearch(e.target.value)}
+              style={{
+                width: '100%', padding: '9px 12px', borderRadius: 8,
+                border: '1px solid var(--border2)', background: 'var(--surface)',
+                color: 'var(--text)', fontSize: 13, marginBottom: 8,
+              }}
+            />
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {driverSearch.length < 2 ? (
+                <div style={{ fontSize: 12, color: 'var(--text3)', padding: '16px 0', textAlign: 'center' }}>
+                  Type at least 2 characters to search
+                </div>
+              ) : searchedDrivers.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--text3)', padding: '16px 0', textAlign: 'center' }}>
+                  No active drivers found
+                </div>
+              ) : (
+                searchedDrivers.map(d => (
+                  <div
+                    key={d._id}
+                    onClick={() => setSelectedDriver(d)}
+                    style={{
+                      padding: '10px 12px', cursor: 'pointer', borderRadius: 8,
+                      border: '1px solid var(--border)', marginBottom: 6,
+                      transition: 'background .1s',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 500 }}>
+                      {d.fullName || d.name}
+                      <span style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 8 }}>
+                        {d.employeeCode || ''}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+                      {d.projectId?.name || '—'} &middot; {d.clientId?.name || '—'}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+              <Btn variant="ghost" onClick={() => { setShowDriverSearch(false); setDriverSearch(''); }}>
+                Cancel
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedDriver && (
+        <RequestAdvanceModal
+          driver={selectedDriver}
+          onClose={() => { setSelectedDriver(null); setShowDriverSearch(false); setDriverSearch(''); }}
+          onSuccess={() => { setSelectedDriver(null); setShowDriverSearch(false); setDriverSearch(''); }}
         />
       )}
     </div>
