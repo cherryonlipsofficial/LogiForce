@@ -376,7 +376,7 @@ const GenerateInvoiceModal = ({ onClose }) => {
 
   const canFetchBatches = !!(clientId && year && month);
 
-  const { data: batchesData, isLoading: batchesLoading } = useQuery({
+  const { data: batchesData, isLoading: batchesLoading, isError: batchesError } = useQuery({
     queryKey: ['approved-batches', clientId, projectId, year, month],
     queryFn: () => getApprovedBatches({
       clientId,
@@ -480,6 +480,10 @@ const GenerateInvoiceModal = ({ onClose }) => {
             </div>
             {batchesLoading ? (
               <div style={{ fontSize: 12, color: 'var(--text3)', padding: '8px 0' }}>Loading batches...</div>
+            ) : batchesError ? (
+              <div style={{ fontSize: 12, color: 'var(--danger, #ef4444)', padding: '10px 12px', background: 'var(--surface2)', borderRadius: 8 }}>
+                Failed to load attendance batches. Please try again.
+              </div>
             ) : approvedBatches.length === 0 ? (
               <div style={{ fontSize: 12, color: 'var(--text3)', padding: '10px 12px', background: 'var(--surface2)', borderRadius: 8 }}>
                 No approved attendance batches found for this selection.
@@ -504,7 +508,7 @@ const GenerateInvoiceModal = ({ onClose }) => {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text2)' }}>{batch.batchId}</div>
                       <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>
-                        {batch.projectId?.name || 'Unknown project'} &middot; {batch.matchedRows ?? batch.totalRows ?? '—'} records
+                        {batch.projectId?.name || 'Unknown project'} &middot; {batch.period ? `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][(batch.period.month || 1) - 1]} ${batch.period.year}` : '—'} &middot; {batch.matchedRows ?? batch.totalRows ?? '—'} records
                       </div>
                     </div>
                     <Badge variant="success" style={{ fontSize: 10 }}>Approved</Badge>

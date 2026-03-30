@@ -20,14 +20,18 @@ router.get('/approved-batches', async (req, res) => {
   if (req.query.year) query['period.year'] = parseInt(req.query.year);
   if (req.query.month) query['period.month'] = parseInt(req.query.month);
 
-  const batches = await AttendanceBatch.find(query)
-    .populate('clientId', 'name')
-    .populate('projectId', 'name projectCode')
-    .select('batchId clientId projectId period totalRows matchedRows status createdAt')
-    .sort({ createdAt: -1 })
-    .limit(100);
+  try {
+    const batches = await AttendanceBatch.find(query)
+      .populate('clientId', 'name')
+      .populate('projectId', 'name projectCode')
+      .select('batchId clientId projectId period totalRows matchedRows status createdAt')
+      .sort({ 'period.year': -1, 'period.month': -1, createdAt: -1 })
+      .limit(100);
 
-  sendSuccess(res, batches);
+    sendSuccess(res, batches);
+  } catch (err) {
+    sendError(res, err.message || 'Failed to fetch approved batches', 500);
+  }
 });
 
 // POST /api/invoices/generate — generate invoice for client/period
