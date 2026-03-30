@@ -30,7 +30,7 @@ const projectSchema = new Schema(
     },
     rateBasis: {
       type: String,
-      enum: ['monthly_fixed', 'daily_rate', 'per_trip'],
+      enum: ['monthly_fixed', 'daily_rate', 'per_order'],
       default: 'monthly_fixed',
     },
     currency: {
