@@ -80,4 +80,16 @@ app.listen(PORT, '0.0.0.0', () => {
       console.error('Expiry check failed:', err.message);
     }
   });
+
+  // Daily salary approval reminder at 9:00 AM
+  cron.schedule('0 9 * * *', async () => {
+    console.log('Running salary approval reminder check...');
+    try {
+      const { checkAndSendReminders } = require('./src/services/salaryReminder.service');
+      const result = await checkAndSendReminders();
+      console.log(`Salary reminders sent: ${result.notificationsSent}`);
+    } catch (err) {
+      console.error('Salary reminder check failed:', err.message);
+    }
+  });
 });

@@ -329,11 +329,13 @@ const ProjectFormModal = ({ project, onClose }) => {
       serviceType: project.serviceType || '',
       status: project.status || 'active',
       plannedDriverCount: project.plannedDriverCount || 0,
+      salaryReleaseDay: project.salaryReleaseDay || 25,
     } : {
       rateBasis: 'monthly_fixed',
       currency: 'AED',
       status: 'active',
       plannedDriverCount: 0,
+      salaryReleaseDay: 25,
     },
   });
   const qc = useQueryClient();
@@ -344,6 +346,7 @@ const ProjectFormModal = ({ project, onClose }) => {
         ...data,
         ratePerDriver: Number(data.ratePerDriver),
         plannedDriverCount: Number(data.plannedDriverCount) || 0,
+        salaryReleaseDay: Number(data.salaryReleaseDay) || 25,
       };
       return isEdit ? updateProject(project._id, payload) : createProject(payload);
     },
@@ -416,6 +419,11 @@ const ProjectFormModal = ({ project, onClose }) => {
           <div style={fieldStyle}>
             <label style={labelStyle}>Planned driver count</label>
             <input type="number" {...register('plannedDriverCount')} placeholder="0" />
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Salary release day (1-28)</label>
+            <input type="number" min="1" max="28" {...register('salaryReleaseDay', { min: 1, max: 28 })} placeholder="25" />
+            {errors.salaryReleaseDay && <span style={{ color: '#f87171', fontSize: 11 }}>Must be between 1 and 28</span>}
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Ops contact name</label>

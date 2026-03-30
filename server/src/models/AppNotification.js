@@ -27,6 +27,11 @@ const appNotificationSchema = new Schema(
         'advance_requested',
         'advance_approved',
         'advance_rejected',
+        'salary_ops_approved',
+        'salary_compliance_approved',
+        'salary_accounts_approved',
+        'salary_processed',
+        'salary_approval_reminder',
       ],
     },
 

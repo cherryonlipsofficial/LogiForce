@@ -538,7 +538,166 @@ const updateAdvanceRecoveries = async (salaryRun) => {
 };
 
 /**
- * Approve a salary run.
+ * Operations approval — draft → ops_approved
+ */
+const approveByOps = async (runId, userId, remarks) => {
+  const salaryRun = await SalaryRun.findById(runId);
+  if (!salaryRun) {
+    const err = new Error('Salary run not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (salaryRun.status !== 'draft') {
+    const err = new Error(`Cannot perform operations approval — salary run must be in 'draft' status (current: '${salaryRun.status}')`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  salaryRun.approvals.push({ stage: 'ops', approvedBy: userId, approvedAt: new Date(), remarks });
+  salaryRun.status = 'ops_approved';
+  await salaryRun.save();
+
+  // Notify compliance team
+  const { notifyByRole } = require('./notification.service');
+  await notifyByRole(['compliance'], {
+    type: 'salary_ops_approved',
+    title: 'Salary run ready for compliance review',
+    message: `Salary run ${salaryRun.runId} has been approved by Operations and is awaiting compliance review.`,
+    referenceModel: 'SalaryRun',
+    referenceId: salaryRun._id,
+    triggeredBy: userId,
+  });
+
+  return salaryRun;
+};
+
+/**
+ * Compliance approval — ops_approved → compliance_approved
+ */
+const approveByCompliance = async (runId, userId, remarks) => {
+  const salaryRun = await SalaryRun.findById(runId);
+  if (!salaryRun) {
+    const err = new Error('Salary run not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (salaryRun.status !== 'ops_approved') {
+    const err = new Error(`Cannot perform compliance approval — salary run must be in 'ops_approved' status (current: '${salaryRun.status}')`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  salaryRun.approvals.push({ stage: 'compliance', approvedBy: userId, approvedAt: new Date(), remarks });
+  salaryRun.status = 'compliance_approved';
+  await salaryRun.save();
+
+  // Notify junior accounts team
+  const { notifyByRole } = require('./notification.service');
+  await notifyByRole(['junior_accountant'], {
+    type: 'salary_compliance_approved',
+    title: 'Salary run ready for accounts review',
+    message: `Salary run ${salaryRun.runId} has been approved by Compliance and is awaiting accounts review.`,
+    referenceModel: 'SalaryRun',
+    referenceId: salaryRun._id,
+    triggeredBy: userId,
+  });
+
+  return salaryRun;
+};
+
+/**
+ * Junior Accounts approval — compliance_approved → accounts_approved
+ */
+const approveByAccounts = async (runId, userId, remarks) => {
+  const salaryRun = await SalaryRun.findById(runId);
+  if (!salaryRun) {
+    const err = new Error('Salary run not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (salaryRun.status !== 'compliance_approved') {
+    const err = new Error(`Cannot perform accounts approval — salary run must be in 'compliance_approved' status (current: '${salaryRun.status}')`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  salaryRun.approvals.push({ stage: 'accounts', approvedBy: userId, approvedAt: new Date(), remarks });
+  salaryRun.status = 'accounts_approved';
+  await salaryRun.save();
+
+  // Notify senior accountant
+  const { notifyByRole } = require('./notification.service');
+  await notifyByRole(['accountant'], {
+    type: 'salary_accounts_approved',
+    title: 'Salary run ready for processing',
+    message: `Salary run ${salaryRun.runId} has received all approvals and is ready to be processed.`,
+    referenceModel: 'SalaryRun',
+    referenceId: salaryRun._id,
+    triggeredBy: userId,
+  });
+
+  return salaryRun;
+};
+
+/**
+ * Senior Accountant processes — accounts_approved → processed
+ */
+const processSalaryRun = async (runId, userId) => {
+  const salaryRun = await SalaryRun.findById(runId);
+  if (!salaryRun) {
+    const err = new Error('Salary run not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (salaryRun.status !== 'accounts_approved') {
+    const err = new Error(`Cannot process salary run — must be in 'accounts_approved' status (current: '${salaryRun.status}')`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Verify all 3 approvals exist
+  const stages = salaryRun.approvals.map(a => a.stage);
+  for (const required of ['ops', 'compliance', 'accounts']) {
+    if (!stages.includes(required)) {
+      const err = new Error(`Missing '${required}' approval — cannot process salary run`);
+      err.statusCode = 400;
+      throw err;
+    }
+  }
+
+  salaryRun.status = 'processed';
+  salaryRun.processedBy = userId;
+  salaryRun.processedAt = new Date();
+  await salaryRun.save();
+
+  // Post ledger entries on processing (moved from old approval step)
+  await postLedgerEntries(salaryRun, userId);
+
+  // Update advance recoveries
+  await updateAdvanceRecoveries(salaryRun);
+
+  // Notify relevant users
+  const { notifyByRole } = require('./notification.service');
+  await notifyByRole(['accountant'], {
+    type: 'salary_processed',
+    title: 'Salary run processed',
+    message: `Salary run ${salaryRun.runId} has been processed and is ready for payment.`,
+    referenceModel: 'SalaryRun',
+    referenceId: salaryRun._id,
+    triggeredBy: userId,
+  });
+
+  return salaryRun;
+};
+
+/**
+ * Approve a salary run (legacy backward-compatible wrapper).
+ * Routes to the appropriate stage function based on current status.
+ * @deprecated Use stage-specific approveByOps/approveByCompliance/approveByAccounts/processSalaryRun instead.
  */
 const approveSalaryRun = async (runId, approvedBy) => {
   const salaryRun = await SalaryRun.findById(runId);
@@ -548,21 +707,23 @@ const approveSalaryRun = async (runId, approvedBy) => {
     throw err;
   }
 
-  if (salaryRun.status !== 'draft' && salaryRun.status !== 'pending_approval') {
-    const err = new Error(`Cannot approve salary run in ${salaryRun.status} status`);
-    err.statusCode = 400;
-    throw err;
+  // Route to appropriate stage based on current status
+  switch (salaryRun.status) {
+    case 'draft':
+    case 'pending_approval':
+      return approveByOps(runId, approvedBy);
+    case 'ops_approved':
+      return approveByCompliance(runId, approvedBy);
+    case 'compliance_approved':
+      return approveByAccounts(runId, approvedBy);
+    case 'accounts_approved':
+      return processSalaryRun(runId, approvedBy);
+    default: {
+      const err = new Error(`Cannot approve salary run in '${salaryRun.status}' status`);
+      err.statusCode = 400;
+      throw err;
+    }
   }
-
-  salaryRun.status = 'approved';
-  salaryRun.approvedBy = approvedBy;
-  salaryRun.approvedAt = new Date();
-  await salaryRun.save();
-
-  // Post ledger entries on approval (not on draft creation)
-  await postLedgerEntries(salaryRun, approvedBy);
-
-  return salaryRun;
 };
 
 /**
@@ -572,7 +733,7 @@ const generateWpsFile = async (clientId, year, month) => {
   const query = {
     'period.year': year,
     'period.month': month,
-    status: { $in: ['approved', 'paid'] },
+    status: { $in: ['approved', 'processed', 'paid'] },
     isDeleted: { $ne: true },
   };
   if (clientId) query.clientId = clientId;
@@ -653,7 +814,8 @@ const addManualDeduction = async (runId, { type, amount, description }, addedBy)
     throw err;
   }
 
-  if (salaryRun.status === 'approved' || salaryRun.status === 'paid') {
+  const blockedStatuses = ['processed', 'paid', 'approved'];
+  if (blockedStatuses.includes(salaryRun.status)) {
     const err = new Error(`Cannot add deductions to a ${salaryRun.status} salary run`);
     err.statusCode = 400;
     throw err;
@@ -689,6 +851,10 @@ module.exports = {
   runPayroll,
   postLedgerEntries,
   approveSalaryRun,
+  approveByOps,
+  approveByCompliance,
+  approveByAccounts,
+  processSalaryRun,
   generateWpsFile,
   addManualDeduction,
 };

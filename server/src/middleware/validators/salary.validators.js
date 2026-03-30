@@ -49,4 +49,11 @@ const manualDeductionValidation = [
     .isLength({ max: 500 }).withMessage('Description must be under 500 characters'),
 ];
 
-module.exports = { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation, manualDeductionValidation };
+const approvalRemarksValidation = [
+  body('remarks')
+    .optional()
+    .trim()
+    .isLength({ max: 500 }).withMessage('Remarks must be under 500 characters'),
+];
+
+module.exports = { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation, manualDeductionValidation, approvalRemarksValidation };
