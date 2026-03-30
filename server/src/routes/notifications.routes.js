@@ -4,6 +4,7 @@ const { protect } = require('../middleware/auth');
 const {
   getUserNotifications, markAsRead, markAllAsRead, getUnreadCount,
 } = require('../services/notification.service');
+const { getPendingApprovalsSummary } = require('../services/pendingApprovals.service');
 
 // All routes are protected
 router.use(protect);
@@ -19,6 +20,12 @@ router.get('/', async (req, res) => {
 router.get('/unread-count', async (req, res) => {
   const count = await getUnreadCount(req.user._id);
   res.json({ success: true, data: { count } });
+});
+
+// GET /api/notifications/pending-approvals
+router.get('/pending-approvals', async (req, res) => {
+  const summary = await getPendingApprovalsSummary(req.user);
+  res.json({ success: true, data: summary });
 });
 
 // PUT /api/notifications/:id/read

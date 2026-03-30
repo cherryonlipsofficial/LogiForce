@@ -11,3 +11,6 @@ export const markAsRead = (id) =>
 
 export const markAllAsRead = () =>
   axiosInstance.put('/notifications/mark-all-read');
+
+export const getPendingApprovals = () =>
+  axiosInstance.get('/notifications/pending-approvals');
