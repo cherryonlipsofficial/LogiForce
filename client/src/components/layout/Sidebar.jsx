@@ -5,6 +5,7 @@ import { useUserPrefs } from '../../hooks/useUserPrefs.jsx';
 import { getPendingExtensions } from '../../api/guaranteeApi';
 import { getDriverStatusCounts } from '../../api/driversApi';
 import { getInactiveUsers } from '../../api/usersApi';
+import { getPendingApprovals } from '../../api/notificationsApi';
 
 const mainNavItems = [
   { path: '/dashboard', label: 'Dashboard', icon: '▦' },
@@ -102,6 +103,14 @@ const Sidebar = ({ isOpen, onClose, overlay }) => {
     refetchInterval: 5 * 60 * 1000,
   });
   const pendingClientIdCount = driverCountsData?.data?.pendingClientId || 0;
+
+  // Pending approvals across the application
+  const { data: pendingApprovalsData } = useQuery({
+    queryKey: ['pending-approvals'],
+    queryFn: () => getPendingApprovals().then(r => r.data?.data || r.data || {}),
+    refetchInterval: 60 * 1000,
+  });
+  const pendingApprovals = pendingApprovalsData || {};
 
   const visibleMain = mainNavItems.filter(
     (item) => !item.permission || hasPermission(item.permission)
@@ -216,15 +225,90 @@ const Sidebar = ({ isOpen, onClose, overlay }) => {
         </div>
 
         <nav style={{ flex: 1, overflowY: 'auto', padding: '8px 10px' }}>
-          {visibleMain.map((item) => (
-            <NavItem
-              key={item.path}
-              item={item}
-              badge={item.path === '/drivers' ? pendingClientIdCount : 0}
-              badgeColor={item.path === '/drivers' ? '#f59e0b' : undefined}
-              onClick={handleNavClick}
-            />
-          ))}
+          {/* Pending Approvals Banner */}
+          {pendingApprovals.total > 0 && (
+            <div style={{
+              margin: '0 0 8px',
+              padding: '8px 10px',
+              background: 'rgba(245,158,11,0.10)',
+              border: '1px solid rgba(245,158,11,0.25)',
+              borderRadius: 8,
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                marginBottom: 6,
+              }}>
+                <span style={{ fontSize: 13 }}>⚡</span>
+                <span style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: '#f59e0b',
+                  letterSpacing: '-0.2px',
+                }}>
+                  {pendingApprovals.total} pending approval{pendingApprovals.total !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {(pendingApprovals.items || []).map((item) => (
+                  <NavLink
+                    key={item.type}
+                    to={item.path}
+                    onClick={handleNavClick}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '4px 8px',
+                      borderRadius: 5,
+                      fontSize: 11,
+                      color: 'var(--text2)',
+                      textDecoration: 'none',
+                      transition: 'background .1s',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(245,158,11,0.10)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <span>{item.label}</span>
+                    <span style={{
+                      background: '#f59e0b',
+                      color: '#78350f',
+                      borderRadius: 10,
+                      fontSize: 10,
+                      padding: '1px 6px',
+                      lineHeight: '16px',
+                      fontWeight: 600,
+                      minWidth: 18,
+                      textAlign: 'center',
+                    }}>
+                      {item.count}
+                    </span>
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {visibleMain.map((item) => {
+            const approvalBadge =
+              item.path === '/attendance' ? (pendingApprovals.attendance || 0) :
+              item.path === '/salary' ? (pendingApprovals.salary || 0) :
+              item.path === '/advances' ? (pendingApprovals.advances || 0) :
+              item.path === '/drivers' ? pendingClientIdCount : 0;
+            const approvalBadgeColor =
+              item.path === '/drivers' ? '#f59e0b' :
+              approvalBadge > 0 ? '#f59e0b' : undefined;
+            return (
+              <NavItem
+                key={item.path}
+                item={item}
+                badge={approvalBadge}
+                badgeColor={approvalBadgeColor}
+                onClick={handleNavClick}
+              />
+            );
+          })}
 
           {visibleAdmin.length > 0 && (
             <>
@@ -238,18 +322,20 @@ const Sidebar = ({ isOpen, onClose, overlay }) => {
                 </span>
                 <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
               </div>
-              {visibleAdmin.map((item) => (
-                <NavItem
-                  key={item.path}
-                  item={item}
-                  badge={
-                    item.path === '/users' ? pendingActivationCount :
-                    item.hasBadge ? pendingCount : 0
-                  }
-                  badgeColor={item.path === '/users' ? '#f59e0b' : undefined}
-                  onClick={handleNavClick}
-                />
-              ))}
+              {visibleAdmin.map((item) => {
+                const adminBadge =
+                  item.path === '/users' ? pendingActivationCount :
+                  item.hasBadge ? (pendingApprovals.guaranteeExtensions || pendingCount) : 0;
+                return (
+                  <NavItem
+                    key={item.path}
+                    item={item}
+                    badge={adminBadge}
+                    badgeColor={item.path === '/users' ? '#f59e0b' : undefined}
+                    onClick={handleNavClick}
+                  />
+                );
+              })}
             </>
           )}
         </nav>

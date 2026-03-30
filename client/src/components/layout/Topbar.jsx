@@ -7,7 +7,7 @@ import { useBreakpoint } from '../../hooks/useBreakpoint';
 import { useUserPrefs } from '../../hooks/useUserPrefs';
 import toast from 'react-hot-toast';
 import axiosInstance from '../../api/axiosInstance';
-import { getNotifications, getUnreadCount, markAsRead, markAllAsRead } from '../../api/notificationsApi';
+import { getNotifications, getUnreadCount, markAsRead, markAllAsRead, getPendingApprovals } from '../../api/notificationsApi';
 import Modal from '../ui/Modal';
 import Btn from '../ui/Btn';
 import PermissionGate from '../ui/PermissionGate';
@@ -261,6 +261,16 @@ const Topbar = ({ page, onMenuToggle, showMenuButton }) => {
 
   const roleName = user?.roleId?.displayName || role || 'User';
 
+  // Pending approvals count
+  const { data: pendingApprovalsData } = useQuery({
+    queryKey: ['pending-approvals'],
+    queryFn: () => getPendingApprovals().then(r => r.data?.data || r.data || {}),
+    refetchInterval: 60000,
+    enabled: isAuthenticated,
+  });
+  const pendingApprovalCount = pendingApprovalsData?.total || 0;
+  const pendingItems = pendingApprovalsData?.items || [];
+
   const { data: alertData } = useQuery({
     queryKey: ['alert-count'],
     queryFn: () => axiosInstance.get('/reports/alert-count').then((r) => r.data?.data || { total: 0 }),
@@ -416,6 +426,35 @@ const Topbar = ({ page, onMenuToggle, showMenuButton }) => {
             >
               Synced {formatTimeSince(lastSynced)}
             </span>
+          )}
+
+          {/* Pending approvals button - hidden on mobile */}
+          {!isMobile && pendingApprovalCount > 0 && (
+            <button
+              onClick={() => {
+                // Navigate to the first pending approval type
+                if (pendingItems.length > 0) navigate(pendingItems[0].path);
+              }}
+              title={pendingItems.map(i => `${i.count} ${i.label}`).join(', ')}
+              style={{
+                background: 'rgba(245,158,11,0.12)',
+                color: '#d97706',
+                border: '1px solid rgba(245,158,11,0.25)',
+                borderRadius: 8,
+                padding: '6px 14px',
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: 'pointer',
+                minHeight: 'auto',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                animation: pendingApprovalCount > 0 ? 'pendingPulse 2s ease-in-out infinite' : 'none',
+              }}
+            >
+              <span style={{ fontSize: 13 }}>⚡</span>
+              {pendingApprovalCount} pending
+            </button>
           )}
 
           {/* Alert button - hidden on mobile */}
