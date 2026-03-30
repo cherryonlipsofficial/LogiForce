@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
 const salaryService = require('../services/salary.service');
-const { SalaryRun, CompanySettings, Client } = require('../models');
+const { SalaryRun, CompanySettings, Client, DriverLedger } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
 const validate = require('../middleware/validate');
@@ -175,12 +175,19 @@ router.delete('/runs/:id', requirePermission('salary.delete'), async (req, res) 
     run.deleteRemark = remark.trim();
     await run.save();
 
+    // Soft-delete corresponding ledger entries
+    await DriverLedger.updateMany(
+      { salaryRunId: run._id },
+      { $set: { isDeleted: true } }
+    );
+
     await auditLogger.logChange('SalaryRun', req.params.id, 'soft_delete', run.status, `Remark: ${remark.trim()}`, req.user._id, 'salary_run_soft_deletion');
 
     return sendSuccess(res, null, 'Paid salary run soft-deleted successfully');
   }
 
-  // Non-paid runs: hard delete
+  // Non-paid runs: hard delete — also remove ledger entries
+  await DriverLedger.deleteMany({ salaryRunId: run._id });
   await SalaryRun.findByIdAndDelete(req.params.id);
 
   await auditLogger.logChange('SalaryRun', req.params.id, 'delete', run.status, null, req.user._id, 'salary_run_deletion');

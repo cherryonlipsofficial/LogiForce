@@ -409,10 +409,7 @@ const runPayroll = async (clientId, projectId, year, month, processedBy) => {
     }
   }
 
-  // 4. Post ledger entries for each run
-  for (const run of runs) {
-    await postLedgerEntries(run, processedBy);
-  }
+  // 4. Ledger entries are posted on approval, not on draft creation
 
   // 5. Update advance records
   for (const run of runs) {
@@ -561,6 +558,9 @@ const approveSalaryRun = async (runId, approvedBy) => {
   salaryRun.approvedBy = approvedBy;
   salaryRun.approvedAt = new Date();
   await salaryRun.save();
+
+  // Post ledger entries on approval (not on draft creation)
+  await postLedgerEntries(salaryRun, approvedBy);
 
   return salaryRun;
 };

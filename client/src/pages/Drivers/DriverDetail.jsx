@@ -12,7 +12,7 @@ import Btn from '../../components/ui/Btn';
 import Modal from '../../components/ui/Modal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useNavigate } from 'react-router-dom';
-import { getDriver, getDriverLedger, updateDriver, getDriverDocuments, uploadDriverDocument, fetchDocumentFile, getDocumentDirectUrl, getStatusSummary, getDriverHistory, activateDriver, deleteDriver, getActiveGuarantee } from '../../api/driversApi';
+import { getDriver, getDriverLedger, exportDriverLedger, updateDriver, getDriverDocuments, uploadDriverDocument, fetchDocumentFile, getDocumentDirectUrl, getStatusSummary, getDriverHistory, activateDriver, deleteDriver, getActiveGuarantee } from '../../api/driversApi';
 import PassportSubmissionField from '../../components/drivers/PassportSubmissionField';
 import GuaranteePassportCard from '../../components/drivers/GuaranteePassportCard';
 import { getProjects } from '../../api/projectsApi';
@@ -454,12 +454,36 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
                 </div>
               )}
             </div>
-            <SectionHeader title="Ledger — recent entries" />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <SectionHeader title="Ledger — recent entries" />
+              <Btn
+                size="xs"
+                variant="ghost"
+                onClick={async () => {
+                  try {
+                    const response = await exportDriverLedger(driverId);
+                    const url = window.URL.createObjectURL(new Blob([response.data]));
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `ledger-${d?.employeeCode || driverId}.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                  } catch {
+                    toast.error('Failed to export ledger');
+                  }
+                }}
+              >
+                Export CSV
+              </Btn>
+            </div>
             {ledgerLoading ? (
               <LoadingSpinner />
             ) : (
               ledger.map((e, i) => {
-                const isVehicleRental = e.description?.toLowerCase().includes('vehicle rental') || e.type === 'vehicle_rental';
+                const amount = (e.credit || 0) - (e.debit || 0);
+                const isVehicleRental = e.description?.toLowerCase().includes('vehicle rental') || e.entryType === 'vehicle_rental';
                 const vehiclePlate = isVehicleRental ? (d.vehiclePlate || d.vehicle) : null;
                 return (
                   <div
@@ -475,7 +499,7 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
                   >
                     <div>
                       <div style={{ color: 'var(--text)', marginBottom: 2 }}>{e.description}</div>
-                      <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>{e.ref}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>{e.referenceId}</div>
                       {vehiclePlate && (
                         <div
                           onClick={() => navigate(`/vehicles?plate=${encodeURIComponent(vehiclePlate)}`)}
@@ -498,11 +522,11 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
                       style={{
                         fontFamily: 'var(--mono)',
                         fontSize: 12,
-                        color: e.type === 'debit' || e.amount < 0 ? '#f87171' : '#4ade80',
+                        color: amount < 0 ? '#f87171' : '#4ade80',
                         fontWeight: 500,
                       }}
                     >
-                      {e.amount < 0 ? '−' : '+'} AED {Math.abs(e.amount).toLocaleString()}
+                      {amount < 0 ? '−' : '+'} AED {Math.abs(amount).toLocaleString()}
                     </span>
                   </div>
                 );
