@@ -398,15 +398,15 @@ const seed = async () => {
 
         // Salary run — mirrors salary.service.js calculation
         const baseSalary = driver.baseSalary;
-        const STANDARD_WORKING_DAYS = 26;
+        const daysInMonth = new Date(period.year, period.month, 0).getDate();
         const STANDARD_HOURS_PER_DAY = 8;
         const OT_MULTIPLIER = 1.25;
         const TRANSPORT_ALLOWANCE = 200;
         const FOOD_ALLOWANCE_RATE = 0.056;
         const TELECOM_SIM_MONTHLY_CHARGE = 100;
 
-        const proratedSalary = Math.round((baseSalary / STANDARD_WORKING_DAYS) * workingDays * 100) / 100;
-        const overtimePay = Math.round(overtimeHours * (baseSalary / STANDARD_WORKING_DAYS / STANDARD_HOURS_PER_DAY) * OT_MULTIPLIER * 100) / 100;
+        const proratedSalary = Math.round(Math.min((baseSalary / daysInMonth) * workingDays, baseSalary) * 100) / 100;
+        const overtimePay = Math.round(overtimeHours * (baseSalary / daysInMonth / STANDARD_HOURS_PER_DAY) * OT_MULTIPLIER * 100) / 100;
         const foodAllowance = Math.round(baseSalary * FOOD_ALLOWANCE_RATE * 100) / 100;
         const allowances = [
           { type: 'transport', amount: TRANSPORT_ALLOWANCE },
