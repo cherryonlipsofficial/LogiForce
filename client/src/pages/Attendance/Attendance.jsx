@@ -456,18 +456,20 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
           </div>
         )}
 
-        {batch.status === 'pending_review' && hasPermission('attendance.approve') && (
+        {batch.status === 'pending_review' && (
           <div>
-            {batch.errors > 0 && (
+            {hasPermission('attendance.approve') && batch.errors > 0 && (
               <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, padding: 12, fontSize: 12, color: '#f87171', marginBottom: 12 }}>
                 Cannot approve batch with {batch.errors} validation error(s). Please resolve all errors before approving.
               </div>
             )}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <Btn variant="danger" onClick={() => reject()} disabled={rejecting}>
-                {rejecting ? 'Rejecting...' : 'Reject'}
-              </Btn>
-            </div>
+            {hasPermission('attendance.reject') && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Btn variant="danger" onClick={() => reject()} disabled={rejecting}>
+                  {rejecting ? 'Rejecting...' : 'Reject'}
+                </Btn>
+              </div>
+            )}
           </div>
         )}
 

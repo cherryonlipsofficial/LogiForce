@@ -168,7 +168,7 @@ router.get('/batches/:id', requirePermission('attendance.view'), async (req, res
 });
 
 // PUT /api/attendance/batches/:id/reject — reject batch
-router.put('/batches/:id/reject', requirePermission('attendance.approve'), async (req, res) => {
+router.put('/batches/:id/reject', requirePermission('attendance.reject'), async (req, res) => {
   const batch = await AttendanceBatch.findById(req.params.id);
   if (!batch) return sendError(res, 'Batch not found', 404);
 
