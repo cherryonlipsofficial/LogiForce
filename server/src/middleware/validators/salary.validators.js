@@ -56,4 +56,15 @@ const approvalRemarksValidation = [
     .isLength({ max: 500 }).withMessage('Remarks must be under 500 characters'),
 ];
 
-module.exports = { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation, manualDeductionValidation, approvalRemarksValidation };
+const bulkApprovalValidation = [
+  body('runIds')
+    .isArray({ min: 1 }).withMessage('runIds must be a non-empty array'),
+  body('runIds.*')
+    .isMongoId().withMessage('Each runId must be a valid ID'),
+  body('remarks')
+    .optional()
+    .trim()
+    .isLength({ max: 500 }).withMessage('Remarks must be under 500 characters'),
+];
+
+module.exports = { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation, manualDeductionValidation, approvalRemarksValidation, bulkApprovalValidation };

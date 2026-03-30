@@ -845,6 +845,84 @@ const addManualDeduction = async (runId, { type, amount, description }, addedBy)
   return salaryRun;
 };
 
+/**
+ * Bulk approve salary runs for a given stage.
+ * Iterates through each ID, applies the stage-specific approval, and tracks successes/errors.
+ */
+const bulkApproveByOps = async (runIds, userId, remarks) => {
+  const results = { approved: [], errors: [] };
+  for (const runId of runIds) {
+    try {
+      const run = await approveByOps(runId, userId, remarks);
+      results.approved.push({ _id: run._id, runId: run.runId, status: run.status });
+    } catch (err) {
+      results.errors.push({ _id: runId, error: err.message });
+    }
+  }
+  return results;
+};
+
+const bulkApproveByCompliance = async (runIds, userId, remarks) => {
+  const results = { approved: [], errors: [] };
+  for (const runId of runIds) {
+    try {
+      const run = await approveByCompliance(runId, userId, remarks);
+      results.approved.push({ _id: run._id, runId: run.runId, status: run.status });
+    } catch (err) {
+      results.errors.push({ _id: runId, error: err.message });
+    }
+  }
+  return results;
+};
+
+const bulkApproveByAccounts = async (runIds, userId, remarks) => {
+  const results = { approved: [], errors: [] };
+  for (const runId of runIds) {
+    try {
+      const run = await approveByAccounts(runId, userId, remarks);
+      results.approved.push({ _id: run._id, runId: run.runId, status: run.status });
+    } catch (err) {
+      results.errors.push({ _id: runId, error: err.message });
+    }
+  }
+  return results;
+};
+
+const bulkProcess = async (runIds, userId) => {
+  const results = { processed: [], errors: [] };
+  for (const runId of runIds) {
+    try {
+      const run = await processSalaryRun(runId, userId);
+      results.processed.push({ _id: run._id, runId: run.runId, status: run.status });
+    } catch (err) {
+      results.errors.push({ _id: runId, error: err.message });
+    }
+  }
+  return results;
+};
+
+const bulkMarkAsPaid = async (runIds, userId) => {
+  const results = { paid: [], errors: [] };
+  for (const runId of runIds) {
+    try {
+      const salaryRun = await SalaryRun.findById(runId);
+      if (!salaryRun) {
+        throw new Error('Salary run not found');
+      }
+      if (salaryRun.status !== 'approved' && salaryRun.status !== 'processed') {
+        throw new Error(`Cannot mark a ${salaryRun.status} salary run as paid — must be 'processed' or 'approved'`);
+      }
+      salaryRun.status = 'paid';
+      salaryRun.paidAt = new Date();
+      await salaryRun.save();
+      results.paid.push({ _id: salaryRun._id, runId: salaryRun.runId, status: salaryRun.status });
+    } catch (err) {
+      results.errors.push({ _id: runId, error: err.message });
+    }
+  }
+  return results;
+};
+
 module.exports = {
   calculateDriverSalary,
   calculateDeductions,
@@ -855,6 +933,11 @@ module.exports = {
   approveByCompliance,
   approveByAccounts,
   processSalaryRun,
+  bulkApproveByOps,
+  bulkApproveByCompliance,
+  bulkApproveByAccounts,
+  bulkProcess,
+  bulkMarkAsPaid,
   generateWpsFile,
   addManualDeduction,
 };

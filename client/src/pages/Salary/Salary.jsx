@@ -13,7 +13,7 @@ import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
 import ProjectSelect from '../../components/ui/ProjectSelect';
 import { useNavigate } from 'react-router-dom';
-import { getRuns, runPayroll, approveRun, getWpsFile, getPayslipPdf, getRun, addDeduction, deleteRun, markAsPaid, disputeRun, approveByOps, approveByCompliance, approveByAccounts, processRun } from '../../api/salaryApi';
+import { getRuns, runPayroll, approveRun, getWpsFile, getPayslipPdf, getRun, addDeduction, deleteRun, markAsPaid, disputeRun, approveByOps, approveByCompliance, approveByAccounts, processRun, bulkApproveByOps, bulkApproveByCompliance, bulkApproveByAccounts, bulkProcess, bulkMarkAsPaid } from '../../api/salaryApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
 import Pagination from '../../components/ui/Pagination';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
@@ -170,9 +170,9 @@ const InfoRow = ({ label, value }) => (
 const ROLE_STAGE_MAP = {
   ops: ['draft'],                           // Operations approval
   compliance: ['ops_approved'],             // Compliance approval
-  accountant: ['compliance_approved', 'accounts_approved'], // Accounts approval + Process
-  accounts: ['compliance_approved', 'accounts_approved'],   // Alias for accountant
-  admin: ['draft', 'ops_approved', 'compliance_approved', 'accounts_approved'], // All stages
+  accountant: ['compliance_approved', 'accounts_approved', 'processed'], // Accounts approval + Process + Pay
+  accounts: ['compliance_approved', 'accounts_approved', 'processed'],   // Alias for accountant
+  admin: ['draft', 'ops_approved', 'compliance_approved', 'accounts_approved', 'processed'], // All stages
 };
 
 const RunDetail = ({ run, onClose }) => {
@@ -732,6 +732,18 @@ const RunPayrollModal = ({ onClose }) => {
   );
 };
 
+// Determine the bulk action available for a given status
+const getBulkActionForStatus = (status) => {
+  switch (status) {
+    case 'draft': return { label: 'Approve (Operations)', key: 'ops' };
+    case 'ops_approved': return { label: 'Approve (Compliance)', key: 'compliance' };
+    case 'compliance_approved': return { label: 'Approve (Accounts)', key: 'accounts' };
+    case 'accounts_approved': return { label: 'Process', key: 'process' };
+    case 'processed': return { label: 'Mark as Paid', key: 'pay' };
+    default: return null;
+  }
+};
+
 const Salary = () => {
   const { isMobile, isTablet } = useBreakpoint();
   const [showRunModal, setShowRunModal] = useState(false);
@@ -739,6 +751,11 @@ const Salary = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [driverSearch, setDriverSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkRemarks, setBulkRemarks] = useState('');
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false);
+  const { role, isAdmin } = useAuth();
+  const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ['salary-runs', { status: statusFilter, page }],
@@ -755,6 +772,58 @@ const Salary = () => {
   const totalGross = runs.reduce((s, r) => s + (r.grossSalary || 0), 0);
   const totalNet = runs.reduce((s, r) => s + (r.netSalary || 0), 0);
   const draftCount = runs.filter((r) => !['processed', 'paid'].includes(r.status)).length;
+
+  // Determine which statuses this user's role can act on
+  const allowedStages = isAdmin ? ROLE_STAGE_MAP.admin : (ROLE_STAGE_MAP[role] || []);
+
+  // Filter selectable runs: only those the user can act on at their current status
+  const selectableRuns = filtered.filter((r) => allowedStages.includes(r.status) && getBulkActionForStatus(r.status));
+
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === selectableRuns.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(selectableRuns.map((r) => r._id));
+    }
+  };
+
+  // Clear selection when filters/page change
+  const handleFilterChange = (val) => { setStatusFilter(val); setPage(1); setSelectedIds([]); };
+  const handlePageChange = (p) => { setPage(p); setSelectedIds([]); };
+
+  // Determine common bulk action (all selected must share the same status for a clean UX)
+  const selectedRuns = filtered.filter((r) => selectedIds.includes(r._id));
+  const selectedStatuses = [...new Set(selectedRuns.map((r) => r.status))];
+  const bulkAction = selectedStatuses.length === 1 ? getBulkActionForStatus(selectedStatuses[0]) : null;
+
+  const { mutate: executeBulkAction, isPending: bulkPending } = useMutation({
+    mutationFn: ({ key, runIds, remarks }) => {
+      switch (key) {
+        case 'ops': return bulkApproveByOps({ runIds, remarks });
+        case 'compliance': return bulkApproveByCompliance({ runIds, remarks });
+        case 'accounts': return bulkApproveByAccounts({ runIds, remarks });
+        case 'process': return bulkProcess({ runIds });
+        case 'pay': return bulkMarkAsPaid({ runIds });
+        default: throw new Error('Unknown bulk action');
+      }
+    },
+    onSuccess: (res) => {
+      const data = res?.data || res || {};
+      const approved = data.approved?.length || data.processed?.length || data.paid?.length || 0;
+      const errors = data.errors?.length || 0;
+      if (approved > 0) toast.success(`${approved} salary run(s) updated successfully`);
+      if (errors > 0) toast.error(`${errors} salary run(s) failed`);
+      qc.invalidateQueries(['salary-runs']);
+      setSelectedIds([]);
+      setBulkRemarks('');
+      setShowBulkConfirm(false);
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Bulk operation failed'),
+  });
 
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -774,7 +843,7 @@ const Salary = () => {
             onChange={(e) => { setDriverSearch(e.target.value); setPage(1); }}
             style={{ width: isMobile ? '100%' : 220, height: 34, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13 }}
           />
-          <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} style={{ width: isMobile ? '100%' : 180, height: 34 }}>
+          <select value={statusFilter} onChange={(e) => handleFilterChange(e.target.value)} style={{ width: isMobile ? '100%' : 180, height: 34 }}>
             <option value="all">All statuses</option>
             <option value="draft">Draft</option>
             <option value="ops_approved">Ops Approved</option>
@@ -791,6 +860,47 @@ const Salary = () => {
           </div>
         </div>
 
+        {/* Bulk Action Bar */}
+        {selectedIds.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: 10, padding: '10px 18px', borderBottom: '1px solid var(--border)', background: 'rgba(74,222,128,0.06)' }}>
+            <span style={{ fontSize: 13, fontWeight: 500 }}>
+              {selectedIds.length} selected
+            </span>
+            {bulkAction ? (
+              !showBulkConfirm ? (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <Btn small variant="primary" onClick={() => setShowBulkConfirm(true)}>
+                    {bulkAction.label} ({selectedIds.length})
+                  </Btn>
+                  <Btn small variant="ghost" onClick={() => setSelectedIds([])}>Clear</Btn>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 8, alignItems: 'stretch', flex: 1 }}>
+                  {bulkAction.key !== 'process' && bulkAction.key !== 'pay' && (
+                    <input
+                      type="text"
+                      value={bulkRemarks}
+                      onChange={(e) => setBulkRemarks(e.target.value)}
+                      placeholder="Remarks (optional)"
+                      style={{ flex: 1, height: 32, fontSize: 12, maxWidth: isMobile ? '100%' : 280 }}
+                    />
+                  )}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <Btn small variant="primary" disabled={bulkPending} onClick={() => executeBulkAction({ key: bulkAction.key, runIds: selectedIds, remarks: bulkRemarks || undefined })}>
+                      {bulkPending ? 'Processing...' : `Confirm ${bulkAction.label}`}
+                    </Btn>
+                    <Btn small variant="ghost" onClick={() => { setShowBulkConfirm(false); setBulkRemarks(''); }} disabled={bulkPending}>Cancel</Btn>
+                  </div>
+                </div>
+              )
+            ) : (
+              <span style={{ fontSize: 12, color: 'var(--text3)' }}>
+                {selectedStatuses.length > 1 ? 'Select runs with the same status for bulk action' : 'No bulk action available for this status'}
+              </span>
+            )}
+          </div>
+        )}
+
         {isLoading ? (
           <LoadingSpinner />
         ) : filtered.length === 0 ? (
@@ -800,6 +910,17 @@ const Salary = () => {
             <table style={{ width: '100%' }}>
               <thead>
                 <tr>
+                  <th style={{ padding: '9px 10px', background: 'var(--surface2)', width: 36 }}>
+                    {selectableRuns.length > 0 && (
+                      <input
+                        type="checkbox"
+                        checked={selectableRuns.length > 0 && selectedIds.length === selectableRuns.length}
+                        onChange={toggleSelectAll}
+                        style={{ cursor: 'pointer', accentColor: '#4ade80' }}
+                        title="Select all"
+                      />
+                    )}
+                  </th>
                   {['Driver', 'Project', 'Period', 'Gross', 'Deductions', 'Net', 'Status', 'Created'].map((h) => (
                     <th key={h} style={{ padding: '9px 14px', fontSize: 11, color: 'var(--text3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'left', background: 'var(--surface2)' }}>
                       {h}
@@ -814,10 +935,20 @@ const Salary = () => {
                     <tr
                       key={r._id}
                       onClick={() => setSelectedRun(r)}
-                      style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: 'background .1s' }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                      style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: 'background .1s', background: selectedIds.includes(r._id) ? 'rgba(74,222,128,0.06)' : 'transparent' }}
+                      onMouseEnter={(e) => { if (!selectedIds.includes(r._id)) e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
+                      onMouseLeave={(e) => { if (!selectedIds.includes(r._id)) e.currentTarget.style.background = 'transparent'; }}
                     >
+                      <td style={{ padding: '11px 10px', width: 36 }} onClick={(e) => e.stopPropagation()}>
+                        {allowedStages.includes(r.status) && getBulkActionForStatus(r.status) && (
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(r._id)}
+                            onChange={() => toggleSelect(r._id)}
+                            style={{ cursor: 'pointer', accentColor: '#4ade80' }}
+                          />
+                        )}
+                      </td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{r.driverId?.fullName || '—'}</td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{r.projectId?.name || '—'}</td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{formatPeriod(r.period)}</td>
@@ -845,7 +976,7 @@ const Salary = () => {
           totalPages={pagination?.pages || 1}
           total={pagination?.total ?? runs.length}
           pageSize={pagination?.limit || 20}
-          onPageChange={setPage}
+          onPageChange={handlePageChange}
         />
       </div>
 
