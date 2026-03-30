@@ -388,7 +388,7 @@ const ProjectFormModal = ({ project, onClose }) => {
             <select {...register('rateBasis')}>
               <option value="monthly_fixed">Monthly fixed</option>
               <option value="daily_rate">Daily rate</option>
-              <option value="per_trip">Per trip</option>
+              <option value="per_order">Per order</option>
             </select>
           </div>
           <div style={fieldStyle}>
