@@ -333,6 +333,7 @@ const Drivers = () => {
 
 const AddDriverModal = ({ onClose }) => {
   const queryClient = useQueryClient();
+  const { isMobile } = useBreakpoint();
   const { register, handleSubmit, formState: { errors }, setError, setValue, watch } = useForm();
   const [submitting, setSubmitting] = useState(false);
   const passportData = watch('passportData');
