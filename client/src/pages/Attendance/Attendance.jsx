@@ -363,21 +363,26 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
           <InfoRow label="Upload date" value={formatDate(batch.uploadedAt)} />
         </div>
 
-        {attendanceRecords.length > 0 && (
+        {attendanceRecords.length > 0 && (() => {
+          const batchPayStructure = attendanceRecords.find(r => r.driverId?.payStructure)?.driverId?.payStructure;
+          const isPerOrder = batchPayStructure === 'PER_ORDER';
+          const thStyle = { padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'left', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, whiteSpace: 'nowrap' };
+          const thStyleRight = { ...thStyle, textAlign: 'right' };
+          return (
           <div style={{ marginBottom: 24 }}>
             <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>Attendance records ({attendanceRecords.length})</div>
-            <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', maxHeight: 300, overflowY: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', maxHeight: 300, overflowY: 'auto', overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
                 <thead>
                   <tr>
-                    <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'left', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>Employee</th>
-                    <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'left', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>Name</th>
-                    <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'right', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>Days</th>
-                    <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'right', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>OT hrs</th>
-                    <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'right', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>Orders</th>
-                    <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'left', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>Status</th>
+                    <th style={thStyle}>Employee</th>
+                    <th style={thStyle}>Name</th>
+                    {!isPerOrder && <th style={thStyleRight}>Days</th>}
+                    {!isPerOrder && <th style={thStyleRight}>OT hrs</th>}
+                    {isPerOrder && <th style={thStyleRight}>Orders</th>}
+                    <th style={thStyle}>Status</th>
                     {hasPermission('attendance.override') && (
-                      <th style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'center', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>Action</th>
+                      <th style={{ ...thStyle, textAlign: 'center' }}>Action</th>
                     )}
                   </tr>
                 </thead>
@@ -385,20 +390,29 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
                   {attendanceRecords.map((rec) => (
                     <tr key={rec._id}>
                       <td style={{ padding: '7px 12px', fontSize: 12, fontFamily: 'var(--mono)', borderBottom: '1px solid var(--border)' }}>
-                        {rec.driverId?.employeeCode || rec.rawEmployeeCode || '—'}
+                        <div>{rec.driverId?.employeeCode || rec.rawEmployeeCode || '—'}</div>
+                        {rec.driverId?.clientUserId && (
+                          <div style={{ fontSize: 10, color: 'var(--text3)' }}>{rec.driverId.clientUserId}</div>
+                        )}
                       </td>
                       <td style={{ padding: '7px 12px', fontSize: 12, borderBottom: '1px solid var(--border)' }}>
                         {rec.driverId?.fullName || '—'}
                       </td>
-                      <td style={{ padding: '7px 12px', fontSize: 12, fontFamily: 'var(--mono)', textAlign: 'right', borderBottom: '1px solid var(--border)' }}>
-                        {rec.workingDays}
-                      </td>
-                      <td style={{ padding: '7px 12px', fontSize: 12, fontFamily: 'var(--mono)', textAlign: 'right', borderBottom: '1px solid var(--border)' }}>
-                        {rec.overtimeHours || 0}
-                      </td>
-                      <td style={{ padding: '7px 12px', fontSize: 12, fontFamily: 'var(--mono)', textAlign: 'right', borderBottom: '1px solid var(--border)' }}>
-                        {rec.totalOrders || 0}
-                      </td>
+                      {!isPerOrder && (
+                        <td style={{ padding: '7px 12px', fontSize: 12, fontFamily: 'var(--mono)', textAlign: 'right', borderBottom: '1px solid var(--border)' }}>
+                          {rec.workingDays}
+                        </td>
+                      )}
+                      {!isPerOrder && (
+                        <td style={{ padding: '7px 12px', fontSize: 12, fontFamily: 'var(--mono)', textAlign: 'right', borderBottom: '1px solid var(--border)' }}>
+                          {rec.overtimeHours || 0}
+                        </td>
+                      )}
+                      {isPerOrder && (
+                        <td style={{ padding: '7px 12px', fontSize: 12, fontFamily: 'var(--mono)', textAlign: 'right', borderBottom: '1px solid var(--border)' }}>
+                          {rec.totalOrders || 0}
+                        </td>
+                      )}
                       <td style={{ padding: '7px 12px', fontSize: 12, borderBottom: '1px solid var(--border)' }}>
                         <Badge variant={rec.status === 'valid' ? 'success' : rec.status === 'warning' ? 'warning' : rec.status === 'overridden' ? 'info' : 'danger'}>
                           {rec.status}
@@ -424,7 +438,8 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
               </table>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {batch.errors > 0 && (
           <div style={{ marginBottom: 24 }}>

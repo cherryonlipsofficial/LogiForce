@@ -289,6 +289,9 @@ const Drivers = () => {
                           <div>
                             <div style={{ fontSize: 13 }}>{d.fullName || d.name}</div>
                             <div style={{ fontSize: 10, color: 'var(--text3)' }}>{d.employeeCode || d.id}</div>
+                            {d.clientUserId && (
+                              <div style={{ fontSize: 10, color: 'var(--text3)' }}>{d.clientUserId}</div>
+                            )}
                           </div>
                         </div>
                       </td>
