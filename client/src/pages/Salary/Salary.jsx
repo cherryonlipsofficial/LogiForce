@@ -13,7 +13,7 @@ import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
 import ProjectSelect from '../../components/ui/ProjectSelect';
 import { useNavigate } from 'react-router-dom';
-import { getRuns, runPayroll, approveRun, getWpsFile, getPayslipPdf, getRun, addDeduction, deleteRun } from '../../api/salaryApi';
+import { getRuns, runPayroll, approveRun, getWpsFile, getPayslipPdf, getRun, addDeduction, deleteRun, markAsPaid, disputeRun } from '../../api/salaryApi';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
 import Pagination from '../../components/ui/Pagination';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
@@ -42,6 +42,7 @@ const statusMap = {
   draft: { label: 'Draft', variant: 'warning' },
   approved: { label: 'Approved', variant: 'success' },
   paid: { label: 'Paid', variant: 'info' },
+  disputed: { label: 'Disputed', variant: 'danger' },
   cancelled: { label: 'Cancelled', variant: 'danger' },
 };
 
@@ -82,6 +83,7 @@ const Salary = () => {
             <option value="draft">Draft</option>
             <option value="approved">Approved</option>
             <option value="paid">Paid</option>
+            <option value="disputed">Disputed</option>
           </select>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
             <PermissionGate permission="salary.run">
@@ -196,6 +198,9 @@ const RunDetail = ({ run, onClose }) => {
   const [dedAmount, setDedAmount] = useState('');
   const [dedDesc, setDedDesc] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showDisputeForm, setShowDisputeForm] = useState(false);
+  const [disputeReason, setDisputeReason] = useState('');
+  const [confirmPay, setConfirmPay] = useState(false);
 
   // Fetch full run details (with all populated fields)
   const { data: fullRunData } = useQuery({
@@ -226,6 +231,31 @@ const RunDetail = ({ run, onClose }) => {
       onClose();
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to delete salary run'),
+  });
+
+  const { mutate: payRun, isLoading: paying } = useMutation({
+    mutationFn: () => markAsPaid(run._id),
+    onSuccess: () => {
+      toast.success('Salary run marked as paid');
+      qc.invalidateQueries(['salary-runs']);
+      qc.invalidateQueries(['salary-run-detail', run._id]);
+      setConfirmPay(false);
+      onClose();
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Failed to mark as paid'),
+  });
+
+  const { mutate: dispute, isLoading: disputing } = useMutation({
+    mutationFn: (reason) => disputeRun(run._id, reason),
+    onSuccess: () => {
+      toast.success('Salary run disputed');
+      qc.invalidateQueries(['salary-runs']);
+      qc.invalidateQueries(['salary-run-detail', run._id]);
+      setShowDisputeForm(false);
+      setDisputeReason('');
+      onClose();
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Failed to dispute salary run'),
   });
 
   const { mutate: approve, isLoading: approving } = useMutation({
@@ -314,6 +344,7 @@ const RunDetail = ({ run, onClose }) => {
           <InfoRow label="Created" value={formatDate(detail.createdAt)} />
           {detail.approvedBy && <InfoRow label="Approved by" value={typeof detail.approvedBy === 'object' ? detail.approvedBy.name : detail.approvedBy} />}
           {detail.approvedAt && <InfoRow label="Approved on" value={formatDate(detail.approvedAt)} />}
+          {detail.paidAt && <InfoRow label="Paid on" value={formatDate(detail.paidAt)} />}
         </div>
 
         {/* Earnings Breakdown */}
@@ -426,6 +457,29 @@ const RunDetail = ({ run, onClose }) => {
           </PermissionGate>
         )}
 
+        {/* Dispute Form */}
+        {showDisputeForm && (
+          <div style={{ marginBottom: 16, border: '1px solid rgba(248,113,113,0.3)', borderRadius: 8, padding: 14, background: 'rgba(248,113,113,0.05)' }}>
+            <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8, color: '#f87171' }}>Dispute this salary run</div>
+            <div style={{ marginBottom: 8 }}>
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--text3)', marginBottom: 3 }}>Reason *</label>
+              <textarea
+                value={disputeReason}
+                onChange={(e) => setDisputeReason(e.target.value)}
+                placeholder="Describe the reason for dispute (min 3 characters)..."
+                rows={3}
+                style={{ width: '100%', fontSize: 12, resize: 'vertical' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <Btn small variant="danger" disabled={disputing || disputeReason.length < 3} onClick={() => dispute(disputeReason)}>
+                {disputing ? 'Submitting...' : 'Submit Dispute'}
+              </Btn>
+              <Btn small variant="ghost" onClick={() => { setShowDisputeForm(false); setDisputeReason(''); }} disabled={disputing}>Cancel</Btn>
+            </div>
+          </div>
+        )}
+
         {/* Actions */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <PermissionGate permission="salary.approve">
@@ -433,6 +487,26 @@ const RunDetail = ({ run, onClose }) => {
               <Btn variant="primary" onClick={() => approve()} disabled={approving}>
                 {approving ? 'Approving...' : 'Approve run'}
               </Btn>
+            )}
+          </PermissionGate>
+          <PermissionGate permission="salary.pay">
+            {run.status === 'approved' && (
+              !confirmPay ? (
+                <Btn variant="primary" onClick={() => setConfirmPay(true)}>Mark as Paid</Btn>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: '#4ade80' }}>Confirm payment?</span>
+                  <Btn variant="primary" small onClick={() => payRun()} disabled={paying}>
+                    {paying ? 'Processing...' : 'Yes, mark paid'}
+                  </Btn>
+                  <Btn variant="ghost" small onClick={() => setConfirmPay(false)} disabled={paying}>Cancel</Btn>
+                </div>
+              )
+            )}
+          </PermissionGate>
+          <PermissionGate permission="salary.dispute">
+            {run.status !== 'paid' && run.status !== 'disputed' && !showDisputeForm && (
+              <Btn variant="danger" onClick={() => setShowDisputeForm(true)}>Dispute</Btn>
             )}
           </PermissionGate>
           <PermissionGate permission="salary.export_wps">

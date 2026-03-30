@@ -23,3 +23,9 @@ export const addDeduction = (runId, data) =>
 
 export const deleteRun = (id) =>
   axiosInstance.delete(`/salary/runs/${id}`).then(r => r.data);
+
+export const markAsPaid = (id) =>
+  axiosInstance.put(`/salary/runs/${id}/pay`).then(r => r.data);
+
+export const disputeRun = (id, reason) =>
+  axiosInstance.post(`/salary/runs/${id}/dispute`, { reason }).then(r => r.data);
