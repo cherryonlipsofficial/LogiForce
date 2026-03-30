@@ -12,6 +12,7 @@ import AssignVehicleModal from './AssignVehicleModal';
 import ReturnVehicleModal from './ReturnVehicleModal';
 import VehicleAssignmentHistory from './VehicleAssignmentHistory';
 import { useAuth } from '../../context/AuthContext';
+import { useFormatters } from '../../hooks/useFormatters';
 import {
   getVehicle,
   renewContract,
@@ -150,6 +151,7 @@ const TerminateForm = ({ vehicleId, onDone }) => {
 
 /* ── main component ── */
 const VehicleDetailPanel = ({ vehicleId, onClose }) => {
+  const { n } = useFormatters();
   const { hasPermission } = useAuth();
   const canEditVehicle = hasPermission('vehicles.edit');
   const canOffHire = hasPermission('vehicles.off_hire');
@@ -240,7 +242,7 @@ const VehicleDetailPanel = ({ vehicleId, onClose }) => {
             <DetailRow k="Color" v={vehicle.color} />
             <DetailRow k="Chassis no." v={vehicle.chassisNumber} isMono />
             <DetailRow k="Engine no." v={vehicle.engineNumber} isMono />
-            <DetailRow k="Odometer" v={vehicle.odometer != null ? `${vehicle.odometer.toLocaleString()} km` : '—'} />
+            <DetailRow k="Odometer" v={vehicle.odometer != null ? `${n(vehicle.odometer.toLocaleString())} km` : '—'} />
 
             <div style={{ marginTop: 14 }}>
               <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8, fontWeight: 500 }}>
@@ -287,14 +289,14 @@ const VehicleDetailPanel = ({ vehicleId, onClose }) => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                   <span style={{ fontSize: 12, color: 'var(--text3)' }}>Monthly rate</span>
                   <span style={{ fontFamily: 'var(--mono)', fontSize: 16, color: '#4ade80', fontWeight: 500 }}>
-                    AED {Number(activeContract.monthlyRate || 0).toLocaleString()}
+                    AED {n(Number(activeContract.monthlyRate || 0).toLocaleString())}
                   </span>
                 </div>
                 {activeContract.totalValue != null && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
                     <span style={{ fontSize: 12, color: 'var(--text3)' }}>Total contract value</span>
                     <span style={{ fontFamily: 'var(--mono)', fontSize: 13, color: 'var(--text2)' }}>
-                      AED {Number(activeContract.totalValue).toLocaleString()}
+                      AED {n(Number(activeContract.totalValue).toLocaleString())}
                     </span>
                   </div>
                 )}
@@ -357,7 +359,7 @@ const VehicleDetailPanel = ({ vehicleId, onClose }) => {
                   <DetailRow k="Assigned since" v={fmt(currentAssignment.assignedDate)} />
                   <DetailRow
                     k="Monthly deduction"
-                    v={currentAssignment.monthlyDeductionAmount != null ? `AED ${Number(currentAssignment.monthlyDeductionAmount).toLocaleString()}` : '—'}
+                    v={currentAssignment.monthlyDeductionAmount != null ? `AED ${n(Number(currentAssignment.monthlyDeductionAmount).toLocaleString())}` : '—'}
                     isMono
                   />
                   <DetailRow k="Expected return" v={currentAssignment.expectedReturnDate ? fmt(currentAssignment.expectedReturnDate) : 'Open-ended'} />

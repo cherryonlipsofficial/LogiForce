@@ -5,12 +5,14 @@ import Modal from '../ui/Modal';
 import Btn from '../ui/Btn';
 import { generateInvoice } from '../../api/attendanceApi';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
+import { useFormatters } from '../../hooks/useFormatters';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const VAT_RATE = 0.05;
 
 const InvoicePreviewModal = ({ batch, onClose, onSuccess }) => {
   const { isMobile } = useBreakpoint();
+  const { n } = useFormatters();
   const [apiError, setApiError] = useState('');
   const qc = useQueryClient();
 
@@ -18,7 +20,7 @@ const InvoicePreviewModal = ({ batch, onClose, onSuccess }) => {
     mutationFn: () => generateInvoice(batch._id),
     onSuccess: (res) => {
       const inv = res?.data || res;
-      toast.success(`Invoice ${inv.invoiceNo || ''} generated — AED ${Number(inv.total || 0).toLocaleString()}`);
+      toast.success(`Invoice ${inv.invoiceNo || ''} generated — AED ${n(Number(inv.total || 0).toLocaleString())}`);
       qc.invalidateQueries(['attendance-batches']);
       qc.invalidateQueries(['invoices']);
       onSuccess?.();
@@ -120,14 +122,14 @@ const InvoicePreviewModal = ({ batch, onClose, onSuccess }) => {
                     {g.code && <div style={{ fontSize: 10, color: 'var(--text3)' }}>{g.code}</div>}
                   </td>
                   <td style={tdStyle}>
-                    <div>AED {Number(g.rate).toLocaleString()}/month</div>
+                    <div>AED {n(Number(g.rate).toLocaleString())}/month</div>
                     {g.dailyRate > 0 && (
-                      <div style={{ fontSize: 10, color: 'var(--text3)' }}>AED {Number(g.dailyRate).toLocaleString()}/day</div>
+                      <div style={{ fontSize: 10, color: 'var(--text3)' }}>AED {n(Number(g.dailyRate).toLocaleString())}/day</div>
                     )}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'center' }}>{g.drivers}</td>
                   <td style={{ ...tdStyle, textAlign: 'right', fontFamily: 'var(--mono)' }}>
-                    AED {Number(g.subtotal).toLocaleString()}
+                    AED {n(Number(g.subtotal).toLocaleString())}
                   </td>
                 </tr>
               ))}
@@ -148,15 +150,15 @@ const InvoicePreviewModal = ({ batch, onClose, onSuccess }) => {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
           <span>Subtotal</span>
-          <span style={{ fontFamily: 'var(--mono)' }}>AED {subtotal.toLocaleString()}</span>
+          <span style={{ fontFamily: 'var(--mono)' }}>AED {n(subtotal.toLocaleString())}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 8 }}>
           <span>VAT (5%)</span>
-          <span style={{ fontFamily: 'var(--mono)' }}>AED {vatAmount.toLocaleString()}</span>
+          <span style={{ fontFamily: 'var(--mono)' }}>AED {n(vatAmount.toLocaleString())}</span>
         </div>
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, display: 'flex', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 14, fontWeight: 600 }}>Total</span>
-          <span style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--mono)' }}>AED {total.toLocaleString()}</span>
+          <span style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--mono)' }}>AED {n(total.toLocaleString())}</span>
         </div>
       </div>
 

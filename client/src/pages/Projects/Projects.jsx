@@ -14,7 +14,8 @@ import { useAuth } from '../../context/AuthContext';
 import PermissionGate from '../../components/ui/PermissionGate';
 import { getProjects, createProject, updateProject, deleteProject, assignDriverToProject, unassignDriverFromProject, getProjectDrivers } from '../../api/projectsApi';
 import { getDrivers } from '../../api/driversApi';
-import { formatDate, formatCurrencyFull } from '../../utils/formatters';
+import { formatDate } from '../../utils/formatters';
+import { useFormatters } from '../../hooks/useFormatters';
 import Pagination from '../../components/ui/Pagination';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 
@@ -29,6 +30,7 @@ const statusColors = {
 
 const Projects = () => {
   const { isMobile, isTablet } = useBreakpoint();
+  const { formatCurrencyFull } = useFormatters();
   const [search, setSearch] = useState('');
   const [filterClient, setFilterClient] = useState('');
   const [filterStatus, setFilterStatus] = useState('');

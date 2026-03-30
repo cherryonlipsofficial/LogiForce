@@ -1,14 +1,25 @@
-export const formatCurrency = (amount) => {
-  if (amount == null) return '—';
-  const num = Number(amount);
-  if (num >= 1000000) return `AED ${(num / 1000000).toFixed(2)}M`;
-  if (num >= 1000) return `AED ${(num / 1000).toFixed(0)}K`;
-  return `AED ${num.toLocaleString()}`;
+import { toArabicNumerals } from './arabicNumerals';
+
+const _an = (str, arabic) => (arabic ? toArabicNumerals(str) : str);
+
+export const formatNumber = (value, arabic) => {
+  if (value == null) return '—';
+  return _an(Number(value).toLocaleString(), arabic);
 };
 
-export const formatCurrencyFull = (amount) => {
+export const formatCurrency = (amount, arabic) => {
   if (amount == null) return '—';
-  return `AED ${Number(amount).toLocaleString()}`;
+  const num = Number(amount);
+  let result;
+  if (num >= 1000000) result = `AED ${(num / 1000000).toFixed(2)}M`;
+  else if (num >= 1000) result = `AED ${(num / 1000).toFixed(0)}K`;
+  else result = `AED ${num.toLocaleString()}`;
+  return _an(result, arabic);
+};
+
+export const formatCurrencyFull = (amount, arabic) => {
+  if (amount == null) return '—';
+  return _an(`AED ${Number(amount).toLocaleString()}`, arabic);
 };
 
 export const formatDate = (date) => {
@@ -23,10 +34,10 @@ export const formatDate = (date) => {
 export const formatPhone = (phone) =>
   phone?.replace(/(\d{3})(\d{2})(\d{3})(\d{4})/, '$1 $2 $3 $4') || '';
 
-export const formatPercent = (value) => {
+export const formatPercent = (value, arabic) => {
   if (value == null) return '—';
   const sign = value >= 0 ? '+' : '';
-  return `${sign}${value.toFixed(1)}%`;
+  return _an(`${sign}${value.toFixed(1)}%`, arabic);
 };
 
 export function formatRelativeTime(dateString) {

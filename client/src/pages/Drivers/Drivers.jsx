@@ -17,6 +17,7 @@ import { getDrivers, createDriver, getDriverStatusCounts, exportDriversCsv, bulk
 import PassportSubmissionField from '../../components/drivers/PassportSubmissionField';
 import { getProjects } from '../../api/projectsApi';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
+import { useFormatters } from '../../hooks/useFormatters';
 
 const fallbackDrivers = [
   { id: 'DRV-00814', name: 'Mohamed Al Farsi', nationality: 'Emirati', client: 'Amazon UAE', supplier: 'Own vehicle', status: 'active', baseSalary: 2800, netSalary: 2313, advanceBalance: 500, workingDays: 22, overtimeHrs: 4.5, grossSalary: 2800, deductions: 487, joinDate: '03 Mar 2023', visaExpiry: '15 Apr 2026', emiratesId: '784-1985-1234567-1', phone: '+971 55 123 4567', vehicle: 'AB-12345', payStructure: 'Monthly fixed' },
@@ -32,6 +33,7 @@ const fallbackDrivers = [
 
 const Drivers = () => {
   const { isMobile, isTablet } = useBreakpoint();
+  const { n } = useFormatters();
   const [searchParams, setSearchParams] = useSearchParams();
   const [selected, setSelected] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -115,6 +117,7 @@ const Drivers = () => {
         <KpiCard label="On leave" value={(counts.onLeave ?? 0).toLocaleString()} color="#7eb3fc" />
         <KpiCard label="Suspended" value={(counts.suspended ?? 0).toLocaleString()} color="#f87171" />
         <KpiCard label="Resigned" value={(counts.resigned ?? 0).toLocaleString()} color="#a1a1aa" />
+
         <div
           onClick={() => { setClientIdFilter('missing'); setStatusFilter('all'); setPage(1); setDismissedClientIdAlert(true); }}
           style={{ cursor: 'pointer' }}
@@ -299,16 +302,16 @@ const Drivers = () => {
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{d.projectId?.name || d.project || '—'}</td>
                       <td style={{ padding: '11px 14px' }}><StatusBadge status={d.status} /></td>
                       <td style={{ padding: '11px 14px' }}>
-                        <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>AED {(d.baseSalary || 0).toLocaleString()}</span>
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>AED {n((d.baseSalary || 0).toLocaleString())}</span>
                       </td>
                       <td style={{ padding: '11px 14px' }}>
                         <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: (d.netSalary || 0) > 0 ? '#4ade80' : '#f87171' }}>
-                          AED {(d.netSalary || 0).toLocaleString()}
+                          AED {n((d.netSalary || 0).toLocaleString())}
                         </span>
                       </td>
                       <td style={{ padding: '11px 14px' }}>
                         {(d.advanceBalance || 0) > 0 ? (
-                          <Badge variant="warning">AED {d.advanceBalance.toLocaleString()}</Badge>
+                          <Badge variant="warning">AED {n(d.advanceBalance.toLocaleString())}</Badge>
                         ) : (
                           <span style={{ color: 'var(--text3)', fontSize: 12 }}>—</span>
                         )}

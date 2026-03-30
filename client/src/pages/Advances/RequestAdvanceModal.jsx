@@ -5,9 +5,11 @@ import Modal from '../../components/ui/Modal';
 import Btn from '../../components/ui/Btn';
 import { requestAdvance } from '../../api/advancesApi';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
+import { useFormatters } from '../../hooks/useFormatters';
 
 const RequestAdvanceModal = ({ driver, onClose, onSuccess }) => {
   const { isMobile } = useBreakpoint();
+  const { n } = useFormatters();
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
@@ -78,7 +80,7 @@ const RequestAdvanceModal = ({ driver, onClose, onSuccess }) => {
           {baseSalary > 0 && (
             <div>
               <div style={{ fontSize: 11, color: 'var(--text3)' }}>Base salary</div>
-              <div style={{ fontSize: 13, marginTop: 2, fontFamily: 'var(--mono)' }}>AED {baseSalary.toLocaleString()}</div>
+              <div style={{ fontSize: 13, marginTop: 2, fontFamily: 'var(--mono)' }}>AED {n(baseSalary.toLocaleString())}</div>
             </div>
           )}
           {driver.clientUserId && (
@@ -109,7 +111,7 @@ const RequestAdvanceModal = ({ driver, onClose, onSuccess }) => {
         />
         {baseSalary > 0 && (
           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>
-            Maximum recommended: 50% of monthly salary (AED {maxRecommended.toLocaleString()})
+            Maximum recommended: 50% of monthly salary (AED {n(maxRecommended.toLocaleString())})
           </div>
         )}
       </div>

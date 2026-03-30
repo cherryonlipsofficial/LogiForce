@@ -1,14 +1,8 @@
-import { useUserPrefs } from '../../hooks/useUserPrefs.jsx';
-
-const easternArabicDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-
-function toArabicNumerals(str) {
-  return String(str).replace(/\d/g, (d) => easternArabicDigits[parseInt(d)]);
-}
+import { useFormatters } from '../../hooks/useFormatters';
 
 const KpiCard = ({ label, value, sub, color }) => {
-  const { arabicNumerals } = useUserPrefs();
-  const displayValue = arabicNumerals ? toArabicNumerals(value) : value;
+  const { n } = useFormatters();
+  const displayValue = n(value);
 
   return (
     <div

@@ -13,6 +13,7 @@ import { formatDate } from '../../utils/formatters';
 import AdvanceReviewModal from './AdvanceReviewModal';
 import RequestAdvanceModal from './RequestAdvanceModal';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
+import { useFormatters } from '../../hooks/useFormatters';
 
 const STATUS_FILTERS = [
   { value: 'all', label: 'All' },
@@ -32,6 +33,7 @@ const statusVariant = {
 
 const Advances = () => {
   const { isMobile, isTablet } = useBreakpoint();
+  const { n } = useFormatters();
   const { hasPermission } = useAuth();
   const [tab, setTab] = useState('pending');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -179,7 +181,7 @@ const Advances = () => {
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 16 }}>
                     <div style={{ fontSize: 18, fontWeight: 700, color: '#f59e0b', fontFamily: 'var(--mono)' }}>
-                      AED {Number(adv.amount).toLocaleString()}
+                      AED {n(Number(adv.amount).toLocaleString())}
                     </div>
                     {hasPermission('advances.approve') && (
                       <div style={{ display: 'flex', gap: 6, marginTop: 10, justifyContent: 'flex-end' }}>
@@ -225,7 +227,7 @@ const Advances = () => {
                     </td>
                     <td style={{ padding: '11px 14px', fontSize: 12 }}>{adv.projectId?.name || adv.project || '—'}</td>
                     <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 600, fontFamily: 'var(--mono)' }}>
-                      AED {Number(adv.amount).toLocaleString()}
+                      AED {n(Number(adv.amount).toLocaleString())}
                     </td>
                     <td style={{ padding: '11px 14px' }}>
                       <Badge variant={statusVariant[adv.status] || 'default'}>{adv.status}</Badge>
