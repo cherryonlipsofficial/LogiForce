@@ -392,8 +392,6 @@ const bulkCreate = async (rows, userId) => {
       // Optional fields
       const passportNumber = expandNumber(row.passportNumber);
       const visaNumber = expandNumber(row.visaNumber);
-      const bankName = str(row.bankName);
-      const iban = expandNumber(row.iban);
       const passportExpiry = str(row.passportExpiry);
       const dateOfBirth = str(row.dateOfBirth);
       const email = str(row.email);
@@ -403,11 +401,10 @@ const bulkCreate = async (rows, userId) => {
       const emergencyContactRelation = str(row.emergencyContactRelation);
       const employeeCode = str(row.employeeCode);
       const clientName = str(row.clientName);
+      const clientUserId = str(row.clientUserId);
 
       if (passportNumber) driverData.passportNumber = passportNumber;
       if (visaNumber) driverData.visaNumber = visaNumber;
-      if (bankName) driverData.bankName = bankName;
-      if (iban) driverData.iban = iban;
       if (passportExpiry) driverData.passportExpiry = new Date(passportExpiry);
       if (dateOfBirth) driverData.dateOfBirth = new Date(dateOfBirth);
       if (email) driverData.email = email;
@@ -417,67 +414,18 @@ const bulkCreate = async (rows, userId) => {
       if (emergencyContactRelation) driverData.emergencyContactRelation = emergencyContactRelation;
       if (employeeCode) driverData.employeeCode = employeeCode;
       if (clientName) driverData.clientName = clientName;
+      if (clientUserId) driverData.clientUserId = clientUserId;
 
       // Passport submission fields
       const passportSubmissionType = str(row.passportSubmissionType).toLowerCase();
       if (passportSubmissionType === 'own') {
         driverData.isPassportSubmitted = true;
         driverData.passportSubmissionType = 'own';
-      } else if (passportSubmissionType === 'guarantee') {
-        // Validate required guarantor fields
-        const guarantorName = str(row.guarantorName);
-        const guarantorRelation = str(row.guarantorRelation).toLowerCase();
-        const guarantorPassportNumber = expandNumber(row.guarantorPassportNumber);
-        if (!guarantorName) throw new Error('Guarantor name is required when passport submission type is "guarantee"');
-        if (!guarantorRelation) throw new Error('Guarantor relation is required when passport submission type is "guarantee"');
-        if (!guarantorPassportNumber) throw new Error('Guarantor passport number is required when passport submission type is "guarantee"');
-
-        const validRelations = ['colleague', 'friend', 'family', 'other_employee'];
-        if (!validRelations.includes(guarantorRelation)) {
-          throw new Error(`Guarantor relation must be one of: ${validRelations.join(', ')}`);
-        }
-
-        driverData.isPassportSubmitted = true;
-        driverData.passportSubmissionType = 'guarantee';
-        // guaranteePassport will be created after driver is saved (needs driverId)
-        driverData._guaranteeData = {
-          guarantorName,
-          guarantorRelation,
-          guarantorPhone: expandNumber(row.guarantorPhone),
-          guarantorEmployeeCode: str(row.guarantorEmployeeCode),
-          guarantorPassportNumber,
-          guarantorPassportExpiry: str(row.guarantorPassportExpiry),
-        };
       } else if (passportSubmissionType && passportSubmissionType !== '') {
-        throw new Error('Passport submission type must be "own" or "guarantee"');
+        throw new Error('Passport submission type must be "own"');
       }
-
-      // Extract and remove temporary guarantee data before creating driver
-      const guaranteeData = driverData._guaranteeData;
-      delete driverData._guaranteeData;
 
       const driver = await Driver.create(driverData);
-
-      // Create guarantee passport record if needed
-      if (guaranteeData) {
-        const { GuaranteePassport } = require('../models');
-        const guaranteeDoc = await GuaranteePassport.create({
-          driverId: driver._id,
-          guarantorName: guaranteeData.guarantorName,
-          guarantorRelation: guaranteeData.guarantorRelation,
-          guarantorPhone: guaranteeData.guarantorPhone || undefined,
-          guarantorEmployeeCode: guaranteeData.guarantorEmployeeCode || undefined,
-          guarantorPassportNumber: guaranteeData.guarantorPassportNumber,
-          guarantorPassportExpiry: guaranteeData.guarantorPassportExpiry ? new Date(guaranteeData.guarantorPassportExpiry) : undefined,
-          submittedDate: new Date(),
-          status: 'active',
-          submittedBy: userId,
-        });
-
-        driver.activeGuaranteePassportId = guaranteeDoc._id;
-        driver.guaranteePassportValid = true;
-        await driver.save();
-      }
 
       await logEvent(driver._id, 'driver_created', {
         description: `Driver profile created via bulk import — ${driver.fullName || 'unnamed'}`,
@@ -487,11 +435,6 @@ const bulkCreate = async (rows, userId) => {
       if (passportSubmissionType === 'own') {
         await logEvent(driver._id, 'field_updated', {
           description: 'Passport submission confirmed via bulk import (own passport)',
-          fieldName: 'isPassportSubmitted',
-        }, userId);
-      } else if (passportSubmissionType === 'guarantee') {
-        await logEvent(driver._id, 'field_updated', {
-          description: `Guarantee passport recorded via bulk import — Guarantor: ${guaranteeData.guarantorName} (${guaranteeData.guarantorRelation})`,
           fieldName: 'isPassportSubmitted',
         }, userId);
       }

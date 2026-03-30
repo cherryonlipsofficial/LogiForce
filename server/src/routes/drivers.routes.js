@@ -295,8 +295,6 @@ router.post('/bulk-import', requirePermission('drivers.create'), (req, res, next
       joiningdate: 'joinDate', joining_date: 'joinDate', 'joining date': 'joinDate',
       passportnumber: 'passportNumber', passport_number: 'passportNumber', 'passport number': 'passportNumber',
       visanumber: 'visaNumber', visa_number: 'visaNumber', 'visa number': 'visaNumber',
-      bankname: 'bankName', bank_name: 'bankName', 'bank name': 'bankName',
-      iban: 'iban',
       employeecode: 'employeeCode', employee_code: 'employeeCode', 'employee code': 'employeeCode',
       passportexpiry: 'passportExpiry', passport_expiry: 'passportExpiry', 'passport expiry': 'passportExpiry',
       dateofbirth: 'dateOfBirth', date_of_birth: 'dateOfBirth', 'date of birth': 'dateOfBirth',
@@ -306,14 +304,9 @@ router.post('/bulk-import', requirePermission('drivers.create'), (req, res, next
       emergencycontactphone: 'emergencyContactPhone', emergency_contact_phone: 'emergencyContactPhone', 'emergency contact phone': 'emergencyContactPhone',
       emergencycontactrelation: 'emergencyContactRelation', emergency_contact_relation: 'emergencyContactRelation', 'emergency contact relation': 'emergencyContactRelation',
       clientname: 'clientName', client_name: 'clientName', 'client name': 'clientName',
+      clientuserid: 'clientUserId', client_user_id: 'clientUserId', 'client user id': 'clientUserId',
       visanumber: 'visaNumber', visa_number: 'visaNumber', 'visa number': 'visaNumber',
       passportsubmissiontype: 'passportSubmissionType', passport_submission_type: 'passportSubmissionType', 'passport submission type': 'passportSubmissionType', passportsubmission: 'passportSubmissionType', passport_submission: 'passportSubmissionType', 'passport submission': 'passportSubmissionType',
-      guarantorname: 'guarantorName', guarantor_name: 'guarantorName', 'guarantor name': 'guarantorName',
-      guarantorrelation: 'guarantorRelation', guarantor_relation: 'guarantorRelation', 'guarantor relation': 'guarantorRelation',
-      guarantorphone: 'guarantorPhone', guarantor_phone: 'guarantorPhone', 'guarantor phone': 'guarantorPhone',
-      guarantoremployeecode: 'guarantorEmployeeCode', guarantor_employee_code: 'guarantorEmployeeCode', 'guarantor employee code': 'guarantorEmployeeCode',
-      guarantorpassportnumber: 'guarantorPassportNumber', guarantor_passport_number: 'guarantorPassportNumber', 'guarantor passport number': 'guarantorPassportNumber',
-      guarantorpassportexpiry: 'guarantorPassportExpiry', guarantor_passport_expiry: 'guarantorPassportExpiry', 'guarantor passport expiry': 'guarantorPassportExpiry',
     };
     rows = rows.map(row => {
       const normalized = {};
@@ -343,13 +336,15 @@ router.post('/bulk-import', requirePermission('drivers.create'), (req, res, next
 // GET /api/drivers/bulk-import/template — download XLSX template
 router.get('/bulk-import/template', async (req, res) => {
   const XLSX = require('xlsx');
-  const headers = ['employeeCode', 'fullName', 'nationality', 'phoneUae', 'emiratesId', 'passportNumber', 'passportExpiry', 'dateOfBirth', 'email', 'bankName', 'iban', 'homeCountryPhone', 'emergencyContactName', 'emergencyContactPhone', 'emergencyContactRelation', 'joinDate', 'baseSalary', 'payStructure', 'clientName', 'project', 'passportSubmissionType', 'guarantorName', 'guarantorRelation', 'guarantorPhone', 'guarantorEmployeeCode', 'guarantorPassportNumber', 'guarantorPassportExpiry'];
+  const headers = ['employeeCode', 'fullName', 'nationality', 'phoneUae', 'emiratesId', 'passportNumber', 'passportExpiry', 'dateOfBirth', 'email', 'homeCountryPhone', 'emergencyContactName', 'emergencyContactPhone', 'emergencyContactRelation', 'joinDate', 'baseSalary', 'payStructure', 'clientName', 'clientUserId', 'project', 'passportSubmissionType'];
 
-  const ws = XLSX.utils.aoa_to_sheet([headers]);
+  const sampleRow = ['EMP001', 'John Doe', 'Indian', '971501234567', '784-1234-1234567-1', 'AB1234567', '2027-06-15', '1990-01-15', 'john.doe@example.com', '919876543210', 'Jane Doe', '971509876543', 'Spouse', '2024-01-01', '3000', 'MONTHLY_FIXED', 'Acme Logistics', 'CLT-001', 'Downtown Route', 'own'];
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
 
   // Set phone, visa, emirates ID, passport, IBAN columns to text format (@)
   // so Excel doesn't convert large numbers to scientific notation
-  const textColumns = ['phoneUae', 'emiratesId', 'passportNumber', 'iban', 'homeCountryPhone', 'emergencyContactPhone'];
+  const textColumns = ['phoneUae', 'emiratesId', 'passportNumber', 'homeCountryPhone', 'emergencyContactPhone'];
   const textColIndices = textColumns.map(h => headers.indexOf(h)).filter(i => i !== -1);
   const range = XLSX.utils.decode_range(ws['!ref']);
   for (const colIdx of textColIndices) {
