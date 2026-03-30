@@ -63,7 +63,7 @@ const deriveApproval = (subdoc, isApprovedByStatus) => {
   return subdoc || null;
 };
 
-const ApprovalStatusCard = ({ batch, currentUserRole, onApprove, onDispute, onGenerateInvoice, onRunSalary }) => {
+const ApprovalStatusCard = ({ batch, currentUserRole, onApprove, onDispute, onRespondDispute, onGenerateInvoice, onRunSalary }) => {
   const status = batch?.status;
 
   const salesApprovedByStatus = ['sales_approved', 'fully_approved', 'invoiced'].includes(status);
@@ -148,6 +148,13 @@ const ApprovalStatusCard = ({ batch, currentUserRole, onApprove, onDispute, onGe
             fontSize: 12, color: '#f59e0b',
           }}>
             Dispute raised. Coordinate with client, then upload revised attendance.
+            {onRespondDispute && (
+              <div style={{ marginTop: 10 }}>
+                <Btn small variant="primary" onClick={onRespondDispute}>
+                  Respond to dispute
+                </Btn>
+              </div>
+            )}
           </div>
         </PermissionGate>
       )}
