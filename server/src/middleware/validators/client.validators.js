@@ -5,9 +5,6 @@ const createClientValidation = [
     .trim()
     .notEmpty().withMessage('Client name is required')
     .isLength({ min: 2, max: 200 }).withMessage('Name must be 2-200 characters'),
-  body('ratePerDriver')
-    .optional()
-    .isFloat({ min: 0 }).withMessage('Rate per driver must be a positive number'),
   body('contactEmail')
     .optional()
     .isEmail().withMessage('Must be a valid email'),
@@ -21,9 +18,6 @@ const updateClientValidation = [
     .optional()
     .trim()
     .isLength({ min: 2, max: 200 }).withMessage('Name must be 2-200 characters'),
-  body('ratePerDriver')
-    .optional()
-    .isFloat({ min: 0 }).withMessage('Rate per driver must be a positive number'),
   body('contactEmail')
     .optional()
     .isEmail().withMessage('Must be a valid email'),
