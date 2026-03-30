@@ -179,12 +179,6 @@ const RunDetail = ({ run, onClose }) => {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { role, isAdmin } = useAuth();
-  // Use detail.status (fresh from API) to avoid stale button states after approval
-  const currentStatus = detail?.status || run.status;
-  const st = statusMap[currentStatus] || statusMap.draft;
-  // Determine which stages this user's role can act on
-  const allowedStages = isAdmin ? ROLE_STAGE_MAP.admin : (ROLE_STAGE_MAP[role] || []);
-  const canActOnCurrentStage = allowedStages.includes(currentStatus);
   const [viewingPdf, setViewingPdf] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingWps, setDownloadingWps] = useState(false);
@@ -207,6 +201,13 @@ const RunDetail = ({ run, onClose }) => {
     retry: 1,
   });
   const detail = fullRunData?.data || run;
+
+  // Use detail.status (fresh from API) to avoid stale button states after approval
+  const currentStatus = detail?.status || run.status;
+  const st = statusMap[currentStatus] || statusMap.draft;
+  // Determine which stages this user's role can act on
+  const allowedStages = isAdmin ? ROLE_STAGE_MAP.admin : (ROLE_STAGE_MAP[role] || []);
+  const canActOnCurrentStage = allowedStages.includes(currentStatus);
 
   const { mutate: submitDeduction, isPending: submittingDed } = useMutation({
     mutationFn: (data) => addDeduction(run._id, data),
