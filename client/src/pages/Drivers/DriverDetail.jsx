@@ -71,6 +71,7 @@ const DriverDetail = ({ driver, onClose }) => {
   const [changeStatusPreset, setChangeStatusPreset] = useState(null);
   const [viewingFile, setViewingFile] = useState(null); // { blobUrl, contentType, fileName }
   const [activating, setActivating] = useState(false);
+  const [showActivateConfirm, setShowActivateConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -610,20 +611,7 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
               variant="success"
               style={{ flex: 1, justifyContent: 'center' }}
               disabled={activating}
-              onClick={async () => {
-                setActivating(true);
-                try {
-                  await activateDriver(driverId);
-                  toast.success('Driver activated successfully');
-                  queryClient.invalidateQueries({ queryKey: ['driver', driverId] });
-                  queryClient.invalidateQueries({ queryKey: ['driver-status-summary', driverId] });
-                  queryClient.invalidateQueries({ queryKey: ['drivers'] });
-                } catch (err) {
-                  toast.error(err?.response?.data?.message || 'Failed to activate driver');
-                } finally {
-                  setActivating(false);
-                }
-              }}
+              onClick={() => setShowActivateConfirm(true)}
             >
               {activating ? 'Activating...' : 'Activate'}
             </Btn>
@@ -676,6 +664,62 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
             setShowStatusChange(false);
           }}
         />
+      )}
+
+      {showActivateConfirm && (
+        <Modal title="Confirm Personal Verification" onClose={() => setShowActivateConfirm(false)} width={420}>
+          <div style={{ padding: '16px 20px' }}>
+            <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16, lineHeight: 1.5 }}>
+              Before activating this driver, please confirm that you have completed the
+              <strong> personal verification</strong> of the driver (e.g. in-person identity check,
+              document authenticity, and physical appearance match).
+            </div>
+            <div style={{
+              background: 'rgba(245,158,11,0.08)',
+              border: '1px solid rgba(245,158,11,0.25)',
+              borderRadius: 8,
+              padding: '10px 12px',
+              fontSize: 12,
+              color: '#b45309',
+              marginBottom: 20,
+            }}>
+              This confirmation is mandatory. By proceeding, you certify that the driver's personal
+              verification has been done.
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <Btn
+                variant="ghost"
+                small
+                onClick={() => setShowActivateConfirm(false)}
+                disabled={activating}
+              >
+                Cancel
+              </Btn>
+              <Btn
+                variant="success"
+                small
+                disabled={activating}
+                onClick={async () => {
+                  setActivating(true);
+                  try {
+                    await activateDriver(driverId, { personalVerificationConfirmed: true });
+                    toast.success('Driver activated successfully');
+                    queryClient.invalidateQueries({ queryKey: ['driver', driverId] });
+                    queryClient.invalidateQueries({ queryKey: ['driver-status-summary', driverId] });
+                    queryClient.invalidateQueries({ queryKey: ['drivers'] });
+                    setShowActivateConfirm(false);
+                  } catch (err) {
+                    toast.error(err?.response?.data?.message || 'Failed to activate driver');
+                  } finally {
+                    setActivating(false);
+                  }
+                }}
+              >
+                {activating ? 'Activating...' : 'Yes, verification done — Activate'}
+              </Btn>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {changeStatusOpen && (
