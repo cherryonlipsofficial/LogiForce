@@ -168,6 +168,7 @@ const InvoiceDetail = ({ invoice, onClose }) => {
   const qc = useQueryClient();
   const [showCreditNote, setShowCreditNote] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteRemark, setDeleteRemark] = useState('');
   const st = statusMap[invoice.status] || statusMap.draft;
 
   const { mutate: changeStatus, isLoading: changing } = useMutation({
@@ -181,7 +182,7 @@ const InvoiceDetail = ({ invoice, onClose }) => {
   });
 
   const { mutate: removeInvoice, isLoading: deleting } = useMutation({
-    mutationFn: () => deleteInvoice(invoice._id),
+    mutationFn: () => deleteInvoice(invoice._id, invoice.status === 'paid' ? { remark: deleteRemark } : undefined),
     onSuccess: () => {
       toast.success('Invoice deleted');
       qc.invalidateQueries(['invoices']);
@@ -267,10 +268,24 @@ const InvoiceDetail = ({ invoice, onClose }) => {
             {!confirmDelete ? (
               <Btn variant="danger" onClick={() => setConfirmDelete(true)}>Delete invoice</Btn>
             ) : (
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <span style={{ fontSize: 12, color: '#f87171' }}>Are you sure?</span>
-                <Btn variant="danger" onClick={() => removeInvoice()} disabled={deleting}>{deleting ? 'Deleting...' : 'Yes, delete'}</Btn>
-                <Btn variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Btn>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+                {invoice.status === 'paid' && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, color: '#f87171', marginBottom: 4 }}>Remark (required for paid invoices)</label>
+                    <input
+                      type="text"
+                      value={deleteRemark}
+                      onChange={(e) => setDeleteRemark(e.target.value)}
+                      placeholder="Reason for deleting this paid invoice..."
+                      style={{ width: '100%', fontSize: 12 }}
+                    />
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: '#f87171' }}>Are you sure?</span>
+                  <Btn variant="danger" onClick={() => removeInvoice()} disabled={deleting || (invoice.status === 'paid' && deleteRemark.trim().length < 3)}>{deleting ? 'Deleting...' : 'Yes, delete'}</Btn>
+                  <Btn variant="ghost" onClick={() => { setConfirmDelete(false); setDeleteRemark(''); }}>Cancel</Btn>
+                </div>
               </div>
             )}
           </PermissionGate>

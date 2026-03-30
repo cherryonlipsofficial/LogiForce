@@ -42,6 +42,7 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
     'period.year': year,
     'period.month': month,
     status: 'approved',
+    isDeleted: { $ne: true },
   };
   if (projectId) {
     salaryQuery.projectId = projectId;

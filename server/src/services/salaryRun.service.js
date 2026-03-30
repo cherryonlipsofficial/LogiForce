@@ -60,6 +60,7 @@ async function runSalaryForBatch(batchId, processedByUserId) {
         projectId: batch.projectId._id,
         'period.year': batch.period.year,
         'period.month': batch.period.month,
+        isDeleted: { $ne: true },
       });
       if (existing) {
         results.skipped.push({

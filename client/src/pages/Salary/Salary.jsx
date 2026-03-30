@@ -196,6 +196,7 @@ const RunDetail = ({ run, onClose }) => {
   const [dedAmount, setDedAmount] = useState('');
   const [dedDesc, setDedDesc] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteRemark, setDeleteRemark] = useState('');
 
   // Fetch full run details (with all populated fields)
   const { data: fullRunData } = useQuery({
@@ -219,7 +220,7 @@ const RunDetail = ({ run, onClose }) => {
   });
 
   const { mutate: removeRun, isLoading: deleting } = useMutation({
-    mutationFn: () => deleteRun(run._id),
+    mutationFn: () => deleteRun(run._id, run.status === 'paid' ? { remark: deleteRemark } : undefined),
     onSuccess: () => {
       toast.success('Salary run deleted');
       qc.invalidateQueries(['salary-runs']);
@@ -448,21 +449,33 @@ const RunDetail = ({ run, onClose }) => {
               {downloadingPdf ? 'Downloading...' : 'Download Payslip PDF'}
             </Btn>
           </PermissionGate>
-          {run.status !== 'paid' && (
-            <PermissionGate permission="salary.delete">
-              {!confirmDelete ? (
-                <Btn variant="danger" small onClick={() => setConfirmDelete(true)}>Delete</Btn>
-              ) : (
+          <PermissionGate permission="salary.delete">
+            {!confirmDelete ? (
+              <Btn variant="danger" small onClick={() => setConfirmDelete(true)}>Delete</Btn>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+                {run.status === 'paid' && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, color: '#f87171', marginBottom: 4 }}>Remark (required for paid salary runs)</label>
+                    <input
+                      type="text"
+                      value={deleteRemark}
+                      onChange={(e) => setDeleteRemark(e.target.value)}
+                      placeholder="Reason for deleting this paid salary run..."
+                      style={{ width: '100%', fontSize: 12 }}
+                    />
+                  </div>
+                )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 12, color: '#f87171' }}>Are you sure?</span>
-                  <Btn variant="danger" small onClick={() => removeRun()} disabled={deleting}>
+                  <Btn variant="danger" small onClick={() => removeRun()} disabled={deleting || (run.status === 'paid' && deleteRemark.trim().length < 3)}>
                     {deleting ? 'Deleting...' : 'Yes, delete'}
                   </Btn>
-                  <Btn variant="ghost" small onClick={() => setConfirmDelete(false)} disabled={deleting}>Cancel</Btn>
+                  <Btn variant="ghost" small onClick={() => { setConfirmDelete(false); setDeleteRemark(''); }} disabled={deleting}>Cancel</Btn>
                 </div>
-              )}
-            </PermissionGate>
-          )}
+              </div>
+            )}
+          </PermissionGate>
         </div>
       </div>
     </SidePanel>
