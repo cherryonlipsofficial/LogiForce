@@ -12,7 +12,7 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
     throw err;
   }
 
-  const fallbackRate = client.ratePerDriver || 0;
+  const fallbackRate = 0;
 
   // If attendanceBatchIds are provided, generate from attendance batches
   if (attendanceBatchIds && attendanceBatchIds.length > 0) {
@@ -248,7 +248,7 @@ const generateFromAttendanceBatches = async (client, year, month, createdBy, pro
       };
     }
 
-    let ratePerDriver = project.ratePerDriver || client.ratePerDriver || 0;
+    let ratePerDriver = project.ratePerDriver || 0;
 
     const activeAssignment = await DriverProjectAssignment.findOne({
       driverId: driver._id,

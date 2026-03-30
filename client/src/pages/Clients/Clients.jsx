@@ -18,10 +18,10 @@ import Pagination from '../../components/ui/Pagination';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const fallbackClients = [
-  { _id: 'CLI-001', name: 'Amazon UAE', contactName: 'Ahmad Hassan', contactEmail: 'ahmad@amazon.ae', contactPhone: '+971 4 123 4567', isActive: true, driverCount: 342, monthlyBilling: 892400, contractStart: '2024-01-01', contractEnd: '2026-12-31', paymentTerms: 'Net 30', vatNo: 'TRN-100234567890003', ratePerDriver: 2600, billingCurrency: 'AED' },
-  { _id: 'CLI-002', name: 'Noon', contactName: 'Fatima Al Zahra', contactEmail: 'fatima@noon.com', contactPhone: '+971 4 234 5678', isActive: true, driverCount: 218, monthlyBilling: 558700, contractStart: '2024-06-01', contractEnd: '2026-05-31', paymentTerms: 'Net 30', vatNo: 'TRN-100345678901234', ratePerDriver: 2563, billingCurrency: 'AED' },
-  { _id: 'CLI-003', name: 'Talabat', contactName: 'Khalid Mustafa', contactEmail: 'khalid@talabat.com', contactPhone: '+971 4 345 6789', isActive: true, driverCount: 156, monthlyBilling: 389200, contractStart: '2025-01-01', contractEnd: '2027-12-31', paymentTerms: 'Net 45', vatNo: 'TRN-100456789012345', ratePerDriver: 2495, billingCurrency: 'AED' },
-  { _id: 'CLI-004', name: 'Careem', contactName: 'Layla Ibrahim', contactEmail: 'layla@careem.com', contactPhone: '+971 4 456 7890', isActive: false, driverCount: 0, monthlyBilling: 0, contractStart: '2023-01-01', contractEnd: '2025-12-31', paymentTerms: 'Net 30', vatNo: 'TRN-100567890123456', ratePerDriver: 2400, billingCurrency: 'AED' },
+  { _id: 'CLI-001', name: 'Amazon UAE', contactName: 'Ahmad Hassan', contactEmail: 'ahmad@amazon.ae', contactPhone: '+971 4 123 4567', isActive: true, driverCount: 342, monthlyBilling: 892400, contractStart: '2024-01-01', contractEnd: '2026-12-31', paymentTerms: 'Net 30', vatNo: 'TRN-100234567890003', billingCurrency: 'AED' },
+  { _id: 'CLI-002', name: 'Noon', contactName: 'Fatima Al Zahra', contactEmail: 'fatima@noon.com', contactPhone: '+971 4 234 5678', isActive: true, driverCount: 218, monthlyBilling: 558700, contractStart: '2024-06-01', contractEnd: '2026-05-31', paymentTerms: 'Net 30', vatNo: 'TRN-100345678901234', billingCurrency: 'AED' },
+  { _id: 'CLI-003', name: 'Talabat', contactName: 'Khalid Mustafa', contactEmail: 'khalid@talabat.com', contactPhone: '+971 4 345 6789', isActive: true, driverCount: 156, monthlyBilling: 389200, contractStart: '2025-01-01', contractEnd: '2027-12-31', paymentTerms: 'Net 45', vatNo: 'TRN-100456789012345', billingCurrency: 'AED' },
+  { _id: 'CLI-004', name: 'Careem', contactName: 'Layla Ibrahim', contactEmail: 'layla@careem.com', contactPhone: '+971 4 456 7890', isActive: false, driverCount: 0, monthlyBilling: 0, contractStart: '2023-01-01', contractEnd: '2025-12-31', paymentTerms: 'Net 30', vatNo: 'TRN-100567890123456', billingCurrency: 'AED' },
 ];
 
 const isClientActive = (c) => c.isActive !== undefined ? c.isActive : c.status === 'active';
@@ -289,7 +289,6 @@ const ClientDetail = ({ client, onClose, onEdit, onDelete, hasPermission }) => {
           <InfoRow label="Phone" value={client.contactPhone} />
           <InfoRow label="VAT / TRN" value={client.vatNo} />
           <InfoRow label="Trade licence no." value={client.tradeLicenceNo} />
-          <InfoRow label="Rate per driver" value={client.ratePerDriver ? formatCurrencyFull(client.ratePerDriver) : '—'} />
           <InfoRow label="Billing currency" value={client.billingCurrency || 'AED'} />
           <InfoRow label="Payment terms" value={client.paymentTerms} />
           <InfoRow label="Contract start" value={formatDate(client.contractStart)} />
@@ -356,7 +355,6 @@ const ClientFormModal = ({ client, onClose }) => {
       paymentTerms: client.paymentTerms || 'Net 30',
       vatNo: client.vatNo || '',
       tradeLicenceNo: client.tradeLicenceNo || '',
-      ratePerDriver: client.ratePerDriver || '',
       billingCurrency: client.billingCurrency || 'AED',
       contractStart: toDateInput(client.contractStart),
       contractEnd: toDateInput(client.contractEnd),
@@ -373,7 +371,6 @@ const ClientFormModal = ({ client, onClose }) => {
     mutationFn: (data) => {
       const payload = {
         ...data,
-        ratePerDriver: data.ratePerDriver !== '' && data.ratePerDriver != null ? Number(data.ratePerDriver) : undefined,
         isActive: data.isActive === true || data.isActive === 'true',
         contractStart: data.contractStart || null,
         contractEnd: data.contractEnd || null,
@@ -412,11 +409,6 @@ const ClientFormModal = ({ client, onClose }) => {
             <label style={labelStyle}>Phone</label>
             <input {...register('contactPhone', { validate: (v) => !v || !/\s/.test(v) || 'Phone number must not contain spaces' })} placeholder="+97141234567" onKeyDown={(e) => { if (e.key === ' ') e.preventDefault(); }} onPaste={(e) => { const pasted = e.clipboardData.getData('text'); if (/\s/.test(pasted)) { e.preventDefault(); const cleaned = pasted.replace(/\s/g, ''); document.execCommand('insertText', false, cleaned); } }} />
             {errors.contactPhone && <span style={{ color: '#f87171', fontSize: 11 }}>{errors.contactPhone.message}</span>}
-          </div>
-          <div style={fieldStyle}>
-            <label style={labelStyle}>Rate per driver</label>
-            <input type="number" step="any" {...register('ratePerDriver', { min: 0 })} placeholder="2500" />
-            {errors.ratePerDriver && <span style={{ color: '#f87171', fontSize: 11 }}>Must be a positive number</span>}
           </div>
           <div style={fieldStyle}>
             <label style={labelStyle}>Billing currency</label>

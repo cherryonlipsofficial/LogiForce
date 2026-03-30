@@ -18,11 +18,6 @@ const clientSchema = new mongoose.Schema(
       type: String,
       default: 'AED',
     },
-    ratePerDriver: {
-      type: Number,
-      // DEPRECATED: Rate now lives on Project. Kept for backward compatibility.
-      // New projects should set rate on the Project model instead.
-    },
     paymentTerms: {
       type: String,
       default: 'Net 30',
