@@ -374,13 +374,15 @@ const GenerateInvoiceModal = ({ onClose }) => {
   const [selectedBatchIds, setSelectedBatchIds] = useState([]);
   const qc = useQueryClient();
 
-  const canFetchBatches = !!clientId;
+  const canFetchBatches = !!(clientId && year && month);
 
   const { data: batchesData, isLoading: batchesLoading, isError: batchesError } = useQuery({
-    queryKey: ['approved-batches', clientId, projectId],
+    queryKey: ['approved-batches', clientId, projectId, year, month],
     queryFn: () => getApprovedBatches({
       clientId,
       ...(projectId && { projectId }),
+      year: Number(year),
+      month: Number(month),
     }),
     enabled: canFetchBatches,
     staleTime: 30 * 1000,
@@ -402,32 +404,20 @@ const GenerateInvoiceModal = ({ onClose }) => {
   const handlePeriodChange = (field, val) => {
     if (field === 'year') setYear(val);
     else setMonth(val);
-  };
-
-  const autoFillPeriod = (batchIds) => {
-    if (batchIds.length === 0) return;
-    const batch = approvedBatches.find((b) => b._id === batchIds[0]);
-    if (batch?.period) {
-      setYear(batch.period.year);
-      setMonth(batch.period.month);
-    }
+    setSelectedBatchIds([]);
   };
 
   const toggleBatch = (batchId) => {
-    setSelectedBatchIds((prev) => {
-      const next = prev.includes(batchId) ? prev.filter((id) => id !== batchId) : [...prev, batchId];
-      if (!prev.includes(batchId)) autoFillPeriod([batchId]);
-      return next;
-    });
+    setSelectedBatchIds((prev) =>
+      prev.includes(batchId) ? prev.filter((id) => id !== batchId) : [...prev, batchId]
+    );
   };
 
   const toggleAllBatches = () => {
     if (selectedBatchIds.length === approvedBatches.length) {
       setSelectedBatchIds([]);
     } else {
-      const all = approvedBatches.map((b) => b._id);
-      setSelectedBatchIds(all);
-      autoFillPeriod(all);
+      setSelectedBatchIds(approvedBatches.map((b) => b._id));
     }
   };
 
@@ -496,7 +486,7 @@ const GenerateInvoiceModal = ({ onClose }) => {
               </div>
             ) : approvedBatches.length === 0 ? (
               <div style={{ fontSize: 12, color: 'var(--text3)', padding: '10px 12px', background: 'var(--surface2)', borderRadius: 8 }}>
-                No approved attendance batches found for this client.
+                No approved attendance batches found for this selection.
               </div>
             ) : (
               <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
