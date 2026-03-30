@@ -87,13 +87,16 @@ async function runSalaryForBatch(batchId, processedByUserId) {
       }
 
       // STEP 4 — Get pending advance installments for this driver/period
+      const batchYear = parseInt(batch.period.year);
+      const batchMonth = parseInt(batch.period.month);
+
       const advances = await DriverAdvance.find({
         driverId: driver._id,
         status: 'approved',
         recoverySchedule: {
           $elemMatch: {
-            'period.year': batch.period.year,
-            'period.month': batch.period.month,
+            'period.year': batchYear,
+            'period.month': batchMonth,
             recovered: false,
           },
         },
@@ -105,8 +108,8 @@ async function runSalaryForBatch(batchId, processedByUserId) {
       for (const advance of advances) {
         const installment = advance.recoverySchedule.find(
           (s) =>
-            s.period.year === batch.period.year &&
-            s.period.month === batch.period.month &&
+            parseInt(s.period.year) === batchYear &&
+            parseInt(s.period.month) === batchMonth &&
             !s.recovered
         );
         if (!installment) continue;
