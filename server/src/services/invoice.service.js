@@ -413,8 +413,9 @@ const addCreditNote = async (invoiceId, { driverId, amount, reason }, createdBy)
     createdAt: new Date(),
   });
 
-  // 3. Subtract credit note amount from invoice total
-  invoice.total = Math.round((invoice.total - amount) * 100) / 100;
+  // 3. Compute adjusted total (preserve original total for display)
+  const totalCreditNotes = invoice.creditNotes.reduce((sum, cn) => sum + (cn.amount || 0), 0);
+  invoice.adjustedTotal = Math.round((invoice.subtotal + invoice.vatAmount - totalCreditNotes) * 100) / 100;
 
   // 4. Post credit_note entry to DriverLedger
   const lastEntry = await DriverLedger.findOne({ driverId })
