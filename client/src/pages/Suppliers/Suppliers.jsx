@@ -15,13 +15,6 @@ import { getSuppliers, createSupplier, updateSupplier, deleteSupplier } from '..
 import Pagination from '../../components/ui/Pagination';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 
-const fallbackSuppliers = [
-  { _id: 'SUP-001', name: 'Belhasa', contactName: 'Rashed Al Maktoum', contactEmail: 'rashed@belhasa.ae', contactPhone: '+971 4 567 8901', status: 'active', vehicleCount: 180, driverCount: 165, serviceType: 'Full fleet', monthlyRate: 'AED 1,200/vehicle', contractEnd: '2027-06-30' },
-  { _id: 'SUP-002', name: 'EasyLease', contactName: 'Maria Santos', contactEmail: 'maria@easylease.ae', contactPhone: '+971 4 678 9012', status: 'active', vehicleCount: 120, driverCount: 108, serviceType: 'Lease only', monthlyRate: 'AED 950/vehicle', contractEnd: '2026-12-31' },
-  { _id: 'SUP-003', name: 'LeasePlan', contactName: 'David Chen', contactEmail: 'david@leaseplan.ae', contactPhone: '+971 4 789 0123', status: 'active', vehicleCount: 85, driverCount: 72, serviceType: 'Lease + maintenance', monthlyRate: 'AED 1,400/vehicle', contractEnd: '2027-03-31' },
-  { _id: 'SUP-004', name: 'Own vehicle', contactName: '—', contactEmail: '—', contactPhone: '—', status: 'active', vehicleCount: 371, driverCount: 371, serviceType: 'Driver-owned', monthlyRate: '—', contractEnd: '—' },
-];
-
 const isSupplierActive = (s) => s.isActive !== undefined ? s.isActive : s.status === 'active';
 
 // Legacy canEdit removed — using PermissionGate / hasPermission instead
@@ -52,7 +45,7 @@ const Suppliers = () => {
     onError: () => toast.error('Failed to delete supplier'),
   });
 
-  const suppliers = data?.data || fallbackSuppliers;
+  const suppliers = data?.data || [];
   const pagination = data?.pagination;
   const filtered = suppliers;
 

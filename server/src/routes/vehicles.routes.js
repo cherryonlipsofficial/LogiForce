@@ -438,7 +438,8 @@ router.get('/:id', async (req, res) => {
   try {
     const vehicle = await Vehicle.findById(req.params.id)
       .populate('supplierId', 'name serviceType monthlyRate contactName')
-      .populate('assignedDriverId', 'fullName employeeCode clientId status phoneUae');
+      .populate('assignedDriverId', 'fullName employeeCode clientId status phoneUae')
+      .lean();
 
     if (!vehicle) return sendError(res, 'Vehicle not found', 404);
     sendSuccess(res, vehicle);
@@ -589,7 +590,8 @@ router.get('/:id/current-assignment', requirePermission('vehicles.view'), async 
       status: 'active',
     })
       .populate('driverId', 'fullName employeeCode phoneUae status')
-      .populate('assignedBy', 'name');
+      .populate('assignedBy', 'name')
+      .lean();
 
     sendSuccess(res, assignment || null);
   } catch (err) {

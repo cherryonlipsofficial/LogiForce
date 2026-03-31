@@ -24,6 +24,7 @@ import { useAuth } from '../../context/AuthContext';
 import { usePermission } from '../../hooks/usePermission';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 import { useFormatters } from '../../hooks/useFormatters';
+import { downloadBlob } from '../../utils/downloadBlob';
 
 const DOC_TYPES = [
   { value: 'emirates_id', label: 'Emirates ID' },
@@ -466,14 +467,8 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
                 onClick={async () => {
                   try {
                     const response = await exportDriverLedger(driverId);
-                    const url = window.URL.createObjectURL(new Blob([response.data]));
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `ledger-${d?.employeeCode || driverId}.csv`;
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                    window.URL.revokeObjectURL(url);
+                    const blob = new Blob([response.data]);
+                    downloadBlob(blob, `ledger-${d?.employeeCode || driverId}.csv`);
                   } catch {
                     toast.error('Failed to export ledger');
                   }
@@ -491,7 +486,7 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
                 const vehiclePlate = isVehicleRental ? (d.vehiclePlate || d.vehicle) : null;
                 return (
                   <div
-                    key={i}
+                    key={e._id || i}
                     style={{
                       display: 'flex',
                       justifyContent: 'space-between',

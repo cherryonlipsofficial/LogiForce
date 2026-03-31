@@ -1,5 +1,6 @@
 const PDFDocument = require('pdfkit');
 const { amountToWords } = require('./numberToWords');
+const logger = require('./logger');
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -127,8 +128,8 @@ const generateInvoicePDF = (invoice, client, project, companySettings) => {
       try {
         const logoBuffer = Buffer.from(settings.logoBase64, 'base64');
         doc.image(logoBuffer, PAGE_MARGIN, y, { width: 120, height: 70 });
-      } catch (_) {
-        // If logo fails to load, skip it
+      } catch (err) {
+        logger.warn('Non-critical operation failed', { error: err.message });
       }
     }
 
@@ -511,8 +512,8 @@ const generateInvoicePDF = (invoice, client, project, companySettings) => {
       try {
         const stampBuffer = Buffer.from(settings.stampBase64, 'base64');
         doc.image(stampBuffer, stampX, footerY, { width: 100, height: 60 });
-      } catch (_) {
-        // Skip if stamp fails
+      } catch (err) {
+        logger.warn('Non-critical operation failed', { error: err.message });
       }
     }
 
@@ -530,8 +531,8 @@ const generateInvoicePDF = (invoice, client, project, companySettings) => {
       try {
         const sigBuffer = Buffer.from(settings.signatureBase64, 'base64');
         doc.image(sigBuffer, sigX + 30, footerY + 25, { width: 80, height: 30 });
-      } catch (_) {
-        // Skip if signature fails
+      } catch (err) {
+        logger.warn('Non-critical operation failed', { error: err.message });
       }
     }
 
@@ -609,7 +610,9 @@ const generatePayslipPDF = (salaryRun, driver, project, client, companySettings)
       try {
         const logoBuffer = Buffer.from(settings.logoBase64, 'base64');
         doc.image(logoBuffer, PAGE_MARGIN, y, { width: 100, height: 50 });
-      } catch (_) {}
+      } catch (err) {
+        logger.warn('Non-critical operation failed', { error: err.message });
+      }
     }
 
     doc.save();
@@ -849,7 +852,9 @@ const generatePayslipPDF = (salaryRun, driver, project, client, companySettings)
       try {
         const sigBuffer = Buffer.from(settings.signatureBase64, 'base64');
         doc.image(sigBuffer, sigX + 20, y - 5, { width: 70, height: 25 });
-      } catch (_) {}
+      } catch (err) {
+        logger.warn('Non-critical operation failed', { error: err.message });
+      }
     }
     doc.save();
     doc.lineWidth(0.5).moveTo(sigX, y + 25).lineTo(sigX + 120, y + 25).stroke('#000');
@@ -930,7 +935,9 @@ const generateCreditNotePDF = (creditNote, client, project, companySettings) => 
       try {
         const logoBuffer = Buffer.from(settings.logoBase64, 'base64');
         doc.image(logoBuffer, PAGE_MARGIN, y, { width: 120, height: 70 });
-      } catch (_) {}
+      } catch (err) {
+        logger.warn('Non-critical operation failed', { error: err.message });
+      }
     }
 
     const rightX = PAGE_MARGIN + 300;
@@ -1186,7 +1193,9 @@ const generateCreditNotePDF = (creditNote, client, project, companySettings) => 
       try {
         const stampBuffer = Buffer.from(settings.stampBase64, 'base64');
         doc.image(stampBuffer, stampX, footerY, { width: 100, height: 60 });
-      } catch (_) {}
+      } catch (err) {
+        logger.warn('Non-critical operation failed', { error: err.message });
+      }
     }
 
     // Right: Received By

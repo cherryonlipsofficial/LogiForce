@@ -29,49 +29,6 @@ import PermissionGate from '../../components/ui/PermissionGate';
 import { useNavigate } from 'react-router-dom';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 
-const fallbackTrend = [
-  { month: 'Oct', gross: 2950000, net: 2540000, deductions: 410000 },
-  { month: 'Nov', gross: 3010000, net: 2590000, deductions: 420000 },
-  { month: 'Dec', gross: 3180000, net: 2740000, deductions: 440000 },
-  { month: 'Jan', gross: 3050000, net: 2620000, deductions: 430000 },
-  { month: 'Feb', gross: 3080000, net: 2680000, deductions: 400000 },
-  { month: 'Mar', gross: 3200000, net: 2790000, deductions: 410000 },
-];
-
-const fallbackDeductions = [
-  { name: 'Vehicle rental', value: 182000, color: '#BA7517' },
-  { name: 'Salik tolls', value: 51000, color: '#378ADD' },
-  { name: 'SIM charges', value: 68000, color: '#1DB388' },
-  { name: 'Advance recovery', value: 63000, color: '#D85A30' },
-  { name: 'Penalties', value: 46000, color: '#E24B4A' },
-];
-
-const fallbackInvoices = [
-  { id: 'INV-2026-03-001', client: 'Amazon UAE', total: 1932000, status: 'sent' },
-  { id: 'INV-2026-03-002', client: 'Noon', total: 1018500, status: 'draft' },
-  { id: 'INV-2026-02-001', client: 'Amazon UAE', total: 1922382, status: 'paid' },
-  { id: 'INV-2026-02-002', client: 'Noon', total: 1012234, status: 'overdue' },
-];
-
-const fallbackAlerts = [
-  { name: 'Ali Hassan', issue: '0 days recorded' },
-  { name: 'Raj Kumar', issue: 'Missing 3 days' },
-  { name: 'James Okafor', issue: 'Suspended' },
-];
-
-const fallbackFleet = [
-  { name: 'Al Futtaim Leasing', assigned: 180, available: 25, maintenance: 8, offHired: 12, total: 225 },
-  { name: 'Emirates Transport', assigned: 142, available: 18, maintenance: 5, offHired: 7, total: 172 },
-];
-
-const fallbackContractAlerts = [
-  { plate: 'DXB A 12345', daysRemaining: 5 },
-  { plate: 'DXB B 67890', daysRemaining: 12 },
-  { plate: 'AUH C 11223', daysRemaining: 18 },
-  { plate: 'SHJ D 44556', daysRemaining: 24 },
-  { plate: 'DXB E 78901', daysRemaining: 29 },
-];
-
 const FLEET_COLORS = {
   assigned: '#4ade80',
   available: '#4f8ef7',
@@ -194,15 +151,14 @@ const Dashboard = () => {
   const alertBreakdown = alertData?.breakdown || {};
   const totalAlerts = alertData?.total || 0;
 
-  const fleetSuppliers = fleetData?.data?.bySupplier || fallbackFleet;
+  const fleetSuppliers = fleetData?.data?.bySupplier || [];
 
-  // Contract alerts: suppliers with contractEnd within 30 days — derive from fleet or use fallback
-  const contractAlerts = fallbackContractAlerts;
+  const contractAlerts = expiringContracts;
 
-  const trend = summaryData?.data?.trend || fallbackTrend;
-  const deductions = summaryData?.data?.deductions || fallbackDeductions;
-  const invoices = invoiceData?.data || fallbackInvoices;
-  const alerts = summaryData?.data?.alerts || fallbackAlerts;
+  const trend = summaryData?.data?.trend || [];
+  const deductions = summaryData?.data?.deductions || [];
+  const invoices = invoiceData?.data || [];
+  const alerts = summaryData?.data?.alerts || [];
   const total = deductions.reduce((a, b) => a + b.value, 0);
 
   return (
@@ -344,8 +300,8 @@ const Dashboard = () => {
           <SectionHeader title="Attendance alerts" action={<Badge variant="danger">{alerts.length} error{alerts.length !== 1 ? 's' : ''}</Badge>} />
           <table style={{ width: '100%' }}>
             <tbody>
-              {alerts.map((a, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+              {alerts.map((a) => (
+                <tr key={a.name} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '8px 0', fontSize: 12, color: 'var(--text2)' }}>{a.name}</td>
                   <td style={{ padding: '8px 0', textAlign: 'right' }}>
                     <Badge variant="danger">{a.issue}</Badge>
@@ -435,8 +391,8 @@ const Dashboard = () => {
           <SectionHeader title="Contract alerts" action={<Badge variant="warning">{contractAlerts.length} expiring</Badge>} />
           <table style={{ width: '100%' }}>
             <tbody>
-              {contractAlerts.slice(0, 5).map((c, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+              {contractAlerts.slice(0, 5).map((c) => (
+                <tr key={c._id || c.plateNumber || c.plate} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '8px 0', fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text2)' }}>{c.plate}</td>
                   <td style={{ padding: '8px 0', textAlign: 'right' }}>
                     <Badge variant={c.daysRemaining <= 7 ? 'danger' : c.daysRemaining <= 14 ? 'warning' : 'info'}>
@@ -508,8 +464,8 @@ const Dashboard = () => {
                 ) : (
                   expiringContracts
                     .filter((c) => c.daysUntilExpiry <= 7)
-                    .map((c, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                    .map((c) => (
+                      <div key={c._id || c.plateNumber} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                         <div>
                           <div style={{ fontFamily: '"DM Mono", var(--mono)', fontSize: 12, fontWeight: 500 }}>{c.plateNumber || c.plate}</div>
                           <div style={{ fontSize: 10, color: 'var(--text3)' }}>{c.make} {c.model}</div>
@@ -535,8 +491,8 @@ const Dashboard = () => {
                 ) : (
                   expiringContracts
                     .filter((c) => c.daysUntilExpiry > 7 && c.daysUntilExpiry <= 30)
-                    .map((c, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                    .map((c) => (
+                      <div key={c._id || c.plateNumber} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                         <div>
                           <div style={{ fontFamily: '"DM Mono", var(--mono)', fontSize: 12, fontWeight: 500 }}>{c.plateNumber || c.plate}</div>
                           <div style={{ fontSize: 10, color: 'var(--text3)' }}>{c.make} {c.model}</div>
@@ -568,10 +524,10 @@ const Dashboard = () => {
                 <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
                   By supplier
                 </div>
-                {(fleetSummary.bySupplier || []).map((sup, i) => {
+                {(fleetSummary.bySupplier || []).map((sup) => {
                   const t = sup.total || 1;
                   return (
-                    <div key={i} style={{ marginBottom: 12 }}>
+                    <div key={sup.name} style={{ marginBottom: 12 }}>
                       <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 4 }}>{sup.name}</div>
                       <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: 'var(--surface3)' }}>
                         {sup.assigned > 0 && <div style={{ width: `${(sup.assigned / t) * 100}%`, background: '#4ade80', height: '100%' }} />}

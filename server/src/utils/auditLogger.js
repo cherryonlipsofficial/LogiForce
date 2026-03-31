@@ -1,4 +1,5 @@
 const AuditLog = require('../models/AuditLog');
+const logger = require('./logger');
 
 const logChange = async (model, documentId, field, oldValue, newValue, userId, action) => {
   try {
@@ -13,7 +14,7 @@ const logChange = async (model, documentId, field, oldValue, newValue, userId, a
       timestamp: new Date(),
     });
   } catch (err) {
-    console.error('Audit log write failed:', err.message);
+    logger.error('Audit log write failed', { error: err.message });
   }
 };
 

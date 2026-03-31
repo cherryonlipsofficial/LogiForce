@@ -5,37 +5,66 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
-const fs = require('fs');
-const path = require('path');
+const mongoose = require('mongoose');
+const rateLimit = require('express-rate-limit');
 const connectDB = require('./src/config/db');
 const errorHandler = require('./src/middleware/errorHandler');
+const logger = require('./src/utils/logger');
 
 const app = express();
 
 // Connect to MongoDB
 connectDB();
 
-// Middleware
+// CORS — supports comma-separated origins in CLIENT_URL
+const allowedOrigins = (process.env.CLIENT_URL || 'https://logi-force.vercel.app')
+  .split(',')
+  .map(o => o.trim());
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'https://logi-force.vercel.app',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, health checks)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
 }));
-app.use(helmet());
 
-// Morgan logging: combined format to file in production, dev format to console otherwise
-if (process.env.NODE_ENV === 'production') {
-  const logDir = path.join(__dirname, 'logs');
-  if (!fs.existsSync(logDir)) {
-    fs.mkdirSync(logDir, { recursive: true });
-  }
-  const accessLogStream = fs.createWriteStream(path.join(logDir, 'access.log'), { flags: 'a' });
-  app.use(morgan('combined', { stream: accessLogStream }));
-} else {
+app.use(helmet());
+app.disable('x-powered-by');
+
+// Morgan logging
+if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
+} else {
+  // In production, use short format to stdout — Winston handles structured logging
+  app.use(morgan('short'));
 }
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Global API rate limiter — 200 requests per minute per IP
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many requests. Please try again shortly.' },
+  skip: (req) => req.path === '/api/health',
+});
+
+app.use('/api', apiLimiter);
+
+// Prevent caching on API responses
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.set('Pragma', 'no-cache');
+  next();
+});
 
 // Routes
 app.use('/api/auth', require('./src/routes/auth.routes'));
@@ -57,41 +86,85 @@ app.use('/api', require('./src/routes/guaranteePassport.routes'));
 app.use('/api/notifications', require('./src/routes/notifications.routes'));
 app.use('/api/settings', require('./src/routes/settings.routes'));
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok' });
+// Deep health check
+app.get('/api/health', async (req, res) => {
+  const mongoState = mongoose.connection.readyState;
+  // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
+  const isHealthy = mongoState === 1;
+
+  const health = {
+    status: isHealthy ? 'ok' : 'degraded',
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
+    mongodb: isHealthy ? 'connected' : 'disconnected',
+  };
+
+  res.status(isHealthy ? 200 : 503).json(health);
 });
 
 // Error handler
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
+const server = app.listen(PORT, '0.0.0.0', () => {
+  logger.info(`Server running on port ${PORT}`);
 
   // Nightly guarantee passport expiry check at 01:00 AM
   const cron = require('node-cron');
   const { runExpiryCheck } = require('./src/services/guaranteePassport.service');
 
   cron.schedule('0 1 * * *', async () => {
-    console.log('Running guarantee passport expiry check...');
+    logger.info('Running guarantee passport expiry check...');
     try {
       const result = await runExpiryCheck();
-      console.log(`Expiry check complete: ${result.expiredCount} expired`);
+      logger.info(`Expiry check complete: ${result.expiredCount} expired`);
     } catch (err) {
-      console.error('Expiry check failed:', err.message);
+      logger.error('Expiry check failed', { error: err.message, stack: err.stack });
     }
   });
 
   // Daily salary approval reminder at 9:00 AM
   cron.schedule('0 9 * * *', async () => {
-    console.log('Running salary approval reminder check...');
+    logger.info('Running salary approval reminder check...');
     try {
       const { checkAndSendReminders } = require('./src/services/salaryReminder.service');
       const result = await checkAndSendReminders();
-      console.log(`Salary reminders sent: ${result.notificationsSent}`);
+      logger.info(`Salary reminders sent: ${result.notificationsSent}`);
     } catch (err) {
-      console.error('Salary reminder check failed:', err.message);
+      logger.error('Salary reminder check failed', { error: err.message, stack: err.stack });
     }
   });
+});
+
+// Graceful shutdown
+const gracefulShutdown = async (signal) => {
+  logger.info(`${signal} received. Shutting down gracefully...`);
+
+  // Stop accepting new connections
+  server.close(() => {
+    logger.info('HTTP server closed');
+  });
+
+  // Close MongoDB connection
+  try {
+    await mongoose.connection.close();
+    logger.info('MongoDB connection closed');
+  } catch (err) {
+    logger.error('Error closing MongoDB', { error: err.message });
+  }
+
+  process.exit(0);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Handle unhandled rejections
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection', { reason: String(reason) });
+});
+
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught Exception', { error: err.message, stack: err.stack });
+  process.exit(1);
 });

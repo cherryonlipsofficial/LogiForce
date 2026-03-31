@@ -155,7 +155,7 @@ router.put('/profile', protect, async (req, res) => {
   }
 
   // Check email uniqueness
-  const existing = await User.findOne({ email: email.toLowerCase(), _id: { $ne: req.user._id } });
+  const existing = await User.findOne({ email: email.toLowerCase(), _id: { $ne: req.user._id } }).lean();
   if (existing) {
     return sendError(res, 'Email is already in use by another account');
   }
@@ -180,7 +180,7 @@ router.put('/profile', protect, async (req, res) => {
     }
   } catch (_) { /* audit log failure should not block response */ }
 
-  const updated = await User.findById(user._id).populate('roleId', 'name displayName description').select('-password');
+  const updated = await User.findById(user._id).populate('roleId', 'name displayName description').select('-password').lean();
   sendSuccess(res, { user: updated });
 });
 
@@ -200,7 +200,7 @@ router.put('/profile/avatar', protect, async (req, res) => {
   user.preferences.initialsColor = preferredInitialsColor;
   await user.save();
 
-  const updated = await User.findById(user._id).select('-password');
+  const updated = await User.findById(user._id).select('-password').lean();
   sendSuccess(res, { user: updated });
 });
 

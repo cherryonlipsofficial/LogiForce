@@ -38,7 +38,8 @@ router.get('/batches', requirePermission('attendance.view'), async (req, res) =>
       .populate('uploadedBy', 'name')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit),
+      .limit(limit)
+      .lean(),
     AttendanceBatch.countDocuments(query),
   ]);
 
@@ -52,7 +53,7 @@ router.post('/upload', requirePermission('attendance.upload'), attendanceUpload.
   const { projectId, year, month, columnMapping } = req.body;
 
   // Look up project to derive clientId
-  const project = await Project.findById(projectId).select('clientId');
+  const project = await Project.findById(projectId).select('clientId').lean();
   if (!project) return sendError(res, 'Project not found', 404);
   const clientId = project.clientId;
 
@@ -158,12 +159,14 @@ router.get('/batches/:id', requirePermission('attendance.view'), async (req, res
     .populate('clientId', 'name')
     .populate('projectId', 'name projectCode')
     .populate('uploadedBy', 'name')
-    .populate('approvedBy', 'name');
+    .populate('approvedBy', 'name')
+    .lean();
 
   if (!batch) return sendError(res, 'Batch not found', 404);
 
   const records = await AttendanceRecord.find({ batchId: batch._id })
-    .populate('driverId', 'fullName employeeCode clientUserId payStructure');
+    .populate('driverId', 'fullName employeeCode clientUserId payStructure')
+    .lean();
 
   sendSuccess(res, { batch, records });
 });
@@ -301,7 +304,8 @@ router.get('/batches/:id/approvals', requirePermission('attendance.view'), async
         { path: 'raisedBy', select: 'name' },
         { path: 'response.respondedBy', select: 'name' },
       ],
-    });
+    })
+    .lean();
   if (!batch) return res.status(404).json({ message: 'Batch not found' });
   res.json({ success: true, data: batch });
 });
@@ -311,7 +315,8 @@ router.get('/batches/:id/disputes', requirePermission('attendance.view'), async 
   const disputes = await AttendanceDispute.find({ batchId: req.params.id })
     .populate('raisedBy', 'name')
     .populate('response.respondedBy', 'name')
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1 })
+    .lean();
   res.json({ success: true, data: disputes });
 });
 

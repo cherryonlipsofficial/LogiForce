@@ -131,7 +131,7 @@ router.get('/expired-documents', requirePermission('expired_documents.view'), as
 // GET /api/drivers/uploads/:fileKey — serve file from MongoDB
 router.get('/uploads/:fileKey', async (req, res) => {
   try {
-    const doc = await DriverDocument.findOne({ fileKey: req.params.fileKey });
+    const doc = await DriverDocument.findOne({ fileKey: req.params.fileKey }).lean();
     if (!doc || !doc.fileData) {
       return sendError(res, 'File not found', 404);
     }
@@ -327,7 +327,8 @@ router.post('/bulk-import', requirePermission('drivers.create'), (req, res, next
     const result = await driverService.bulkCreate(rows, req.user._id);
     sendSuccess(res, result, `Imported ${result.created} drivers${result.errors.length > 0 ? ` with ${result.errors.length} errors` : ''}`, 201);
   } catch (err) {
-    console.error('[BulkImport Error]', err);
+    const logger = require('../utils/logger');
+    logger.error('Bulk import failed', { error: err.message, stack: err.stack });
     return sendError(res, `Failed to process file: ${err.message}`, 400);
   }
 });
@@ -455,7 +456,8 @@ router.get('/:id/ledger/export', async (req, res) => {
 router.get('/:id/salary-runs', async (req, res) => {
   const runs = await SalaryRun.find({ driverId: req.params.id })
     .sort({ createdAt: -1 })
-    .populate('clientId', 'name');
+    .populate('clientId', 'name')
+    .lean();
   sendSuccess(res, runs);
 });
 
@@ -463,7 +465,8 @@ router.get('/:id/salary-runs', async (req, res) => {
 router.get('/:id/documents', async (req, res) => {
   const docs = await DriverDocument.find({ driverId: req.params.id })
     .select('-fileData')
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1 })
+    .lean();
   sendSuccess(res, docs);
 });
 

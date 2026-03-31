@@ -12,46 +12,7 @@ import { useFormatters } from '../../hooks/useFormatters';
 import { useNavigate } from 'react-router-dom';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 
-const fallbackPayroll = {
-  totalGross: 1764600,
-  totalNet: 1509200,
-  totalDeductions: 255400,
-  avgCostPerDriver: 2465,
-  trends: [
-    { month: 'Oct 25', gross: 1680000, net: 1440000, deductions: 240000 },
-    { month: 'Nov 25', gross: 1710000, net: 1462000, deductions: 248000 },
-    { month: 'Dec 25', gross: 1745000, net: 1490000, deductions: 255000 },
-    { month: 'Jan 26', gross: 1730000, net: 1480000, deductions: 250000 },
-    { month: 'Feb 26', gross: 1752000, net: 1500000, deductions: 252000 },
-    { month: 'Mar 26', gross: 1764600, net: 1509200, deductions: 255400 },
-  ],
-};
-
-const fallbackAging = {
-  current: 947900,
-  thirtyDays: 389200,
-  sixtyDays: 0,
-  ninetyPlus: 0,
-  buckets: [
-    { name: 'Current', value: 947900, color: '#4ade80' },
-    { name: '30 days', value: 389200, color: '#fbbf24' },
-    { name: '60 days', value: 0, color: '#f97316' },
-    { name: '90+ days', value: 0, color: '#f87171' },
-  ],
-};
-
-const fallbackCostPerDriver = [
-  { client: 'Amazon UAE', avgCost: 2608, driverCount: 342 },
-  { client: 'Noon', avgCost: 2563, driverCount: 218 },
-  { client: 'Talabat', avgCost: 2495, driverCount: 156 },
-];
-
 const COLORS = ['#4f8ef7', '#7c5ff0', '#1DB388', '#fbbf24'];
-
-const fallbackFleetUtil = [
-  { supplier: 'Al Futtaim Leasing', assigned: 180, available: 25 },
-  { supplier: 'Emirates Transport', assigned: 142, available: 18 },
-];
 
 const fleetReportCards = [
   { title: 'Fleet utilisation report', desc: '% of vehicles assigned vs idle per supplier', icon: '📊' },
@@ -120,7 +81,7 @@ const Reports = () => {
 
   const fleetUtil = fleetData?.data?.bySupplier
     ? fleetData.data.bySupplier.map((s) => ({ supplier: s.name, assigned: s.assigned, available: s.available }))
-    : fallbackFleetUtil;
+    : [];
 
   // Backend returns array of {clientName, totalGross, totalNet, totalDeductions, driverCount}
   // Aggregate into summary for KPI cards
@@ -134,9 +95,9 @@ const Reports = () => {
           payrollRaw.reduce((s, r) => s + (r.totalGross || 0), 0) /
           Math.max(1, payrollRaw.reduce((s, r) => s + (r.driverCount || 0), 0))
         ),
-        trends: fallbackPayroll.trends,
+        trends: [],
       }
-    : fallbackPayroll;
+    : { totalGross: 0, totalNet: 0, totalDeductions: 0, avgCostPerDriver: 0, trends: [] };
 
   // Backend returns {current_0_30, overdue_31_60, overdue_61_90, overdue_90_plus} buckets
   const agingRaw = agingData?.data;
@@ -149,13 +110,13 @@ const Reports = () => {
           { name: '90+ days', value: agingRaw.overdue_90_plus?.total || 0, color: '#f87171' },
         ],
       }
-    : fallbackAging;
+    : { buckets: [] };
 
   // Backend returns array of {clientName, avgCostPerDriver, driverCount, totalCost}
   const costRaw = costData?.data;
   const costPerDriver = costRaw && costRaw.length > 0
     ? costRaw.map((c) => ({ client: c.clientName, avgCost: c.avgCostPerDriver, driverCount: c.driverCount }))
-    : fallbackCostPerDriver;
+    : [];
 
   const isLoading = loadingPayroll || loadingAging || loadingCost;
 
@@ -230,8 +191,8 @@ const Reports = () => {
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
                   <Pie data={aging.buckets.filter((b) => b.value > 0)} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, value }) => `${name}: ${formatCurrency(value)}`}>
-                    {aging.buckets.filter((b) => b.value > 0).map((entry, i) => (
-                      <Cell key={i} fill={entry.color} />
+                    {aging.buckets.filter((b) => b.value > 0).map((entry) => (
+                      <Cell key={entry.name} fill={entry.color} />
                     ))}
                   </Pie>
                   <Tooltip {...tooltipStyle} formatter={(v) => formatCurrencyFull(v)} />

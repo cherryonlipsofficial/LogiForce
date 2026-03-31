@@ -14,6 +14,7 @@ import ClientSelect from '../../components/ui/ClientSelect';
 import ProjectSelect from '../../components/ui/ProjectSelect';
 import Pagination from '../../components/ui/Pagination';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
+import { downloadBlob } from '../../utils/downloadBlob';
 import { formatDate, formatCurrencyFull } from '../../utils/formatters';
 import {
   getCreditNotes,
@@ -226,12 +227,7 @@ const CreditNoteDetail = ({ cnId, onClose }) => {
     setDownloadingPdf(true);
     try {
       const blob = await downloadCreditNotePdf(cnId);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${cn?.creditNoteNo || cnId}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, `${cn?.creditNoteNo || cnId}.pdf`);
     } catch {
       toast.error('Failed to download PDF');
     } finally {

@@ -44,7 +44,8 @@ router.get('/', requirePermission('receivables.view'), async (req, res) => {
       .populate('writeOffApprovedBy', 'name')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit),
+      .limit(limit)
+      .lean(),
     DriverReceivable.countDocuments(query),
   ]);
 
@@ -60,7 +61,8 @@ router.get('/:id', requirePermission('receivables.view'), async (req, res) => {
     .populate('projectId', 'name projectCode')
     .populate('createdBy', 'name')
     .populate('recoveries.recoveredBy', 'name')
-    .populate('writeOffApprovedBy', 'name');
+    .populate('writeOffApprovedBy', 'name')
+    .lean();
 
   if (!receivable) return sendError(res, 'Driver receivable not found', 404);
   sendSuccess(res, receivable);

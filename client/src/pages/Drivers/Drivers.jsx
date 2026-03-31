@@ -14,22 +14,11 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import Pagination from '../../components/ui/Pagination';
 import DriverDetail from './DriverDetail';
 import { getDrivers, createDriver, getDriverStatusCounts, exportDriversCsv, bulkImportDrivers, downloadImportTemplate } from '../../api/driversApi';
+import { downloadBlob } from '../../utils/downloadBlob';
 import PassportSubmissionField from '../../components/drivers/PassportSubmissionField';
 import { getProjects } from '../../api/projectsApi';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 import { useFormatters } from '../../hooks/useFormatters';
-
-const fallbackDrivers = [
-  { id: 'DRV-00814', name: 'Mohamed Al Farsi', nationality: 'Emirati', client: 'Amazon UAE', supplier: 'Own vehicle', status: 'active', baseSalary: 2800, netSalary: 2313, advanceBalance: 500, workingDays: 22, overtimeHrs: 4.5, grossSalary: 2800, deductions: 487, joinDate: '03 Mar 2023', visaExpiry: '15 Apr 2026', emiratesId: '784-1985-1234567-1', phone: '+971 55 123 4567', vehicle: 'AB-12345', payStructure: 'Monthly fixed' },
-  { id: 'DRV-00234', name: 'Raj Kumar', nationality: 'Indian', client: 'Amazon UAE', supplier: 'Belhasa', status: 'active', baseSalary: 2200, netSalary: 0, advanceBalance: 1200, workingDays: 0, overtimeHrs: 0, grossSalary: 0, deductions: 225, joinDate: '15 Jun 2022', visaExpiry: '20 Aug 2026', emiratesId: '784-1990-7654321-2', phone: '+971 52 987 6543', vehicle: 'CD-67890', payStructure: 'Monthly fixed' },
-  { id: 'DRV-00410', name: 'Carlos Martinez', nationality: 'Filipino', client: 'Noon', supplier: 'EasyLease', status: 'active', baseSalary: 2500, netSalary: 2550, advanceBalance: 0, workingDays: 27, overtimeHrs: 12, grossSalary: 2900, deductions: 350, joinDate: '01 Jan 2023', visaExpiry: '10 Dec 2026', emiratesId: '784-1988-3456789-3', phone: '+971 56 111 2233', vehicle: 'EF-11223', payStructure: 'Monthly fixed' },
-  { id: 'DRV-00187', name: 'Suresh Patel', nationality: 'Indian', client: 'Noon', supplier: 'Own vehicle', status: 'active', baseSalary: 2400, netSalary: 2325, advanceBalance: 800, workingDays: 26, overtimeHrs: 8, grossSalary: 2600, deductions: 275, joinDate: '22 Feb 2022', visaExpiry: '05 Mar 2027', emiratesId: '784-1985-9876543-4', phone: '+971 50 444 5566', vehicle: 'GH-33445', payStructure: 'Monthly fixed' },
-  { id: 'DRV-00562', name: 'Ahmed Karimi', nationality: 'Pakistani', client: 'Amazon UAE', supplier: 'Belhasa', status: 'on_leave', baseSalary: 2600, netSalary: 2180, advanceBalance: 0, workingDays: 22, overtimeHrs: 0, grossSalary: 2600, deductions: 420, joinDate: '10 Apr 2021', visaExpiry: '25 Nov 2026', emiratesId: '784-1992-1122334-5', phone: '+971 55 777 8899', vehicle: 'IJ-55667', payStructure: 'Monthly fixed' },
-  { id: 'DRV-00318', name: 'James Okafor', nationality: 'Nigerian', client: 'Talabat', supplier: 'LeasePlan', status: 'suspended', baseSalary: 2300, netSalary: 1210, advanceBalance: 1800, workingDays: 18, overtimeHrs: 0, grossSalary: 1590, deductions: 380, joinDate: '08 Sep 2023', visaExpiry: '01 Mar 2026', emiratesId: '784-1995-5544332-6', phone: '+971 52 333 4455', vehicle: 'KL-77889', payStructure: 'Monthly fixed' },
-  { id: 'DRV-00091', name: 'Ali Hassan', nationality: 'Yemeni', client: 'Amazon UAE', supplier: 'Own vehicle', status: 'active', baseSalary: 2100, netSalary: 0, advanceBalance: 0, workingDays: 0, overtimeHrs: 0, grossSalary: 0, deductions: 75, joinDate: '14 Nov 2022', visaExpiry: '30 Jun 2026', emiratesId: '784-1987-6677889-7', phone: '+971 56 222 3344', vehicle: 'MN-99001', payStructure: 'Monthly fixed' },
-  { id: 'DRV-00655', name: 'Priya Sharma', nationality: 'Indian', client: 'Noon', supplier: 'EasyLease', status: 'active', baseSalary: 2700, netSalary: 2490, advanceBalance: 300, workingDays: 24, overtimeHrs: 6, grossSalary: 2800, deductions: 310, joinDate: '05 May 2023', visaExpiry: '12 Sep 2026', emiratesId: '784-1993-2233445-8', phone: '+971 50 666 7788', vehicle: 'OP-12234', payStructure: 'Monthly fixed' },
-  { id: 'DRV-00721', name: 'Fayyaz Memon', nationality: 'Pakistani', client: 'Noon', supplier: 'EasyLease', status: 'active', baseSalary: 2400, netSalary: 2642.09, advanceBalance: 0, workingDays: 25, overtimeHrs: 7, grossSalary: 2742.09, deductions: 100, joinDate: '10 Jan 2024', visaExpiry: '20 Jul 2027', emiratesId: '784-1991-8899001-9', phone: '+971 55 888 9900', vehicle: 'QR-44556', payStructure: 'Monthly fixed' },
-];
 
 const Drivers = () => {
   const { isMobile, isTablet } = useBreakpoint();
@@ -71,7 +60,7 @@ const Drivers = () => {
   });
   const projectsList = projectsData?.data || [];
 
-  const drivers = data?.data ?? fallbackDrivers;
+  const drivers = data?.data ?? [];
   const pagination = data?.pagination;
   const counts = countsData?.data || {};
 
@@ -87,14 +76,7 @@ const Drivers = () => {
       };
       const response = await exportDriversCsv(params);
       const blob = new Blob([response.data], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'drivers-export.csv';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      downloadBlob(blob, 'drivers-export.csv');
       toast.success('Drivers exported successfully');
     } catch {
       toast.error('Failed to export drivers');
@@ -548,14 +530,7 @@ const BulkImportModal = ({ onClose }) => {
     try {
       const response = await downloadImportTemplate();
       const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'drivers-import-template.xlsx';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      downloadBlob(blob, 'drivers-import-template.xlsx');
     } catch {
       toast.error('Failed to download template');
     }
