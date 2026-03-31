@@ -23,7 +23,6 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
   const batchQuery = {
     clientId,
     status: { $in: ['fully_approved', 'processed'] },
-    invoiceId: null,
     'period.year': year,
     'period.month': month,
   };
@@ -212,11 +211,19 @@ const generateFromAttendanceBatches = async (client, year, month, createdBy, pro
     _id: { $in: attendanceBatchIds },
     clientId: client._id,
     status: { $in: ['fully_approved', 'processed'] },
-    invoiceId: null,
   });
 
   if (batches.length !== attendanceBatchIds.length) {
     const err = new Error('Some attendance batches are invalid, already invoiced, or not fully approved');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Check if any batch already has an invoice linked
+  const alreadyInvoiced = batches.filter((b) => b.invoiceId);
+  if (alreadyInvoiced.length > 0) {
+    const ids = alreadyInvoiced.map((b) => b.batchId).join(', ');
+    const err = new Error(`Batch(es) ${ids} already have an invoice generated. Delete the existing invoice first.`);
     err.statusCode = 400;
     throw err;
   }
