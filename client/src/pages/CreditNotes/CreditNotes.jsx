@@ -137,7 +137,12 @@ const CreditNotes = () => {
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{cn.clientId?.name || '—'}</td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{cn.projectId?.name || '—'}</td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{periodStr}</td>
-                      <td style={{ padding: '11px 14px', fontSize: 12 }}>{noteTypeLabels[cn.noteType] || cn.noteType}</td>
+                      <td style={{ padding: '11px 14px', fontSize: 12 }}>{(() => {
+                        const types = [...new Set((cn.lineItems || []).map(l => l.noteType).filter(Boolean))];
+                        if (types.length === 0) return '—';
+                        if (types.length === 1) return noteTypeLabels[types[0]] || types[0];
+                        return <span title={types.map(t => noteTypeLabels[t] || t).join(', ')}>Mixed ({types.length})</span>;
+                      })()}</td>
                       <td style={{ padding: '11px 14px' }}>
                         <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{formatCurrencyFull(cn.totalAmount)}</span>
                       </td>
@@ -262,7 +267,6 @@ const CreditNoteDetail = ({ cnId, onClose }) => {
       <div style={{ padding: 24, overflowY: 'auto', flex: 1 }}>
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 24 }}>
           <InfoRow label="Status" value={<Badge variant={st.variant}>{st.label}</Badge>} />
-          <InfoRow label="Type" value={noteTypeLabels[cn.noteType] || cn.noteType} />
           <InfoRow label="Amount" value={<span style={{ fontSize: 18, fontWeight: 600 }}>{formatCurrencyFull(cn.totalAmount)}</span>} />
           <InfoRow label="Description" value={cn.description} />
           {cn.linkedInvoiceId && (
@@ -297,7 +301,7 @@ const CreditNoteDetail = ({ cnId, onClose }) => {
             <table style={{ width: '100%', fontSize: 12 }}>
               <thead>
                 <tr>
-                  {['Driver', 'EMP ID', 'Ref/Plate', 'Amount', 'VAT', 'Total', 'Salary status'].map((h) => (
+                  {['Driver', 'Type', 'EMP ID', 'Ref/Plate', 'Amount', 'VAT', 'Total', 'Salary status'].map((h) => (
                     <th key={h} style={{ padding: '6px 8px', fontSize: 10, color: 'var(--text3)', fontWeight: 500, textAlign: 'left', background: 'var(--surface2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
                   ))}
                 </tr>
@@ -318,6 +322,7 @@ const CreditNoteDetail = ({ cnId, onClose }) => {
                         <div>{line.driverName}</div>
                         {line.clientUserId && <div style={{ fontSize: 10, color: 'var(--text3)' }}>{line.clientUserId}</div>}
                       </td>
+                      <td style={{ padding: '8px 8px', fontSize: 11 }}>{noteTypeLabels[line.noteType] || line.noteType || '—'}</td>
                       <td style={{ padding: '8px 8px', fontFamily: 'var(--mono)', fontSize: 11 }}>{line.employeeCode || '—'}</td>
                       <td style={{ padding: '8px 8px' }}>{line.referenceNo || '—'}</td>
                       <td style={{ padding: '8px 8px', fontFamily: 'var(--mono)' }}>{formatCurrencyFull(line.amount)}</td>
@@ -498,13 +503,12 @@ const CreateCreditNoteModal = ({ onClose }) => {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [description, setDescription] = useState('');
-  const [noteType, setNoteType] = useState('traffic_fine');
-  const [lineItems, setLineItems] = useState([{ driverId: '', driverSearch: '', referenceNo: '', amount: '', vatRate: '0' }]);
+  const [lineItems, setLineItems] = useState([{ driverId: '', driverSearch: '', noteType: 'traffic_fine', referenceNo: '', amount: '', vatRate: '0' }]);
   const [driverResults, setDriverResults] = useState({});
   const [searchingDriver, setSearchingDriver] = useState({});
   const qc = useQueryClient();
 
-  const addLine = () => setLineItems([...lineItems, { driverId: '', driverSearch: '', referenceNo: '', amount: '', vatRate: '0' }]);
+  const addLine = () => setLineItems([...lineItems, { driverId: '', driverSearch: '', noteType: 'traffic_fine', referenceNo: '', amount: '', vatRate: '0' }]);
   const removeLine = (idx) => setLineItems(lineItems.filter((_, i) => i !== idx));
   const updateLine = (idx, field, value) => {
     setLineItems((prev) => {
@@ -573,9 +577,9 @@ const CreateCreditNoteModal = ({ onClose }) => {
       year: Number(year),
       month: Number(month),
       description,
-      noteType,
       lineItems: validLines.map((l) => ({
         driverId: l.driverId,
+        noteType: l.noteType,
         referenceNo: l.referenceNo,
         amount: parseFloat(l.amount),
         vatRate: parseFloat(l.vatRate) || 0,
@@ -586,7 +590,7 @@ const CreateCreditNoteModal = ({ onClose }) => {
   const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 4 };
 
   return (
-    <Modal title="Create credit note" onClose={onClose} width={620}>
+    <Modal title="Create credit note" onClose={onClose} width={720}>
       <form onSubmit={handleSubmit}>
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 14 }}>
           <div>
@@ -598,7 +602,7 @@ const CreateCreditNoteModal = ({ onClose }) => {
             <ProjectSelect value={projectId} onChange={setProjectId} clientId={clientId} />
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Year *</label>
             <input type="number" value={year} onChange={(e) => setYear(e.target.value)} />
@@ -607,12 +611,6 @@ const CreateCreditNoteModal = ({ onClose }) => {
             <label style={labelStyle}>Month *</label>
             <select value={month} onChange={(e) => setMonth(e.target.value)} style={{ width: '100%' }}>
               {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>Type *</label>
-            <select value={noteType} onChange={(e) => setNoteType(e.target.value)} style={{ width: '100%' }}>
-              {Object.entries(noteTypeLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </div>
         </div>
@@ -629,7 +627,7 @@ const CreateCreditNoteModal = ({ onClose }) => {
           </div>
           <div style={{ minHeight: 120, border: '1px solid var(--border)', borderRadius: 8, padding: 8, paddingBottom: 16 }}>
             {lineItems.map((line, idx) => (
-              <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: 6, marginBottom: 8, alignItems: 'end' }}>
+              <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1fr 1fr 1fr auto', gap: 6, marginBottom: 8, alignItems: 'end' }}>
                 <div style={{ position: 'relative' }}>
                   {idx === 0 && <label style={{ fontSize: 10, color: 'var(--text3)' }}>Driver</label>}
                   <input
@@ -657,6 +655,12 @@ const CreateCreditNoteModal = ({ onClose }) => {
                       ))}
                     </div>
                   )}
+                </div>
+                <div>
+                  {idx === 0 && <label style={{ fontSize: 10, color: 'var(--text3)' }}>Type</label>}
+                  <select value={line.noteType} onChange={(e) => updateLine(idx, 'noteType', e.target.value)} style={{ width: '100%', fontSize: 11 }}>
+                    {Object.entries(noteTypeLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
                 </div>
                 <div>
                   {idx === 0 && <label style={{ fontSize: 10, color: 'var(--text3)' }}>Ref/Plate</label>}

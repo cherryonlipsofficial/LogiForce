@@ -1036,8 +1036,6 @@ const generateCreditNotePDF = (creditNote, client, project, companySettings) => 
     let sumVat = 0;
     let sumTotal = 0;
 
-    const noteTypeLabel = (creditNote.noteType || '').replace(/_/g, ' ');
-
     for (let i = 0; i < totalRows; i++) {
       // Page overflow check
       if (y + dataRowH > availableHeight && i < lineItems.length) {
@@ -1056,6 +1054,7 @@ const generateCreditNotePDF = (creditNote, client, project, companySettings) => 
       if (i < lineItems.length) {
         const item = lineItems[i];
         const daName = item.driverName || '';
+        const lineTypeLabel = (item.noteType || '').replace(/_/g, ' ');
 
         sumAmount += item.amount || 0;
         sumVat += item.vatAmount || 0;
@@ -1063,7 +1062,7 @@ const generateCreditNotePDF = (creditNote, client, project, companySettings) => 
 
         drawCNRow(doc, y, dataRowH, [
           String(i + 1),
-          noteTypeLabel,
+          lineTypeLabel,
           daName,
           item.employeeCode || '',
           item.referenceNo || '',
