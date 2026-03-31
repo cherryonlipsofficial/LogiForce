@@ -91,6 +91,11 @@ module.exports = {
     'credit_notes.delete':      { label: 'Delete credit notes',     module: 'Credit Notes', description: 'Delete draft credit notes' },
     'credit_notes.download':    { label: 'Download CN PDF',         module: 'Credit Notes', description: 'Generate and download credit note PDFs' },
 
+    // ── DRIVER RECEIVABLES ──
+    'receivables.view':          { label: 'View receivables',          module: 'Receivables', description: 'View driver receivables from credit notes' },
+    'receivables.recover':       { label: 'Record recovery',           module: 'Receivables', description: 'Record cash/bank recovery against driver receivables' },
+    'receivables.write_off':     { label: 'Write off receivables',     module: 'Receivables', description: 'Write off unrecoverable driver receivable balances' },
+
     // ── ADVANCES ──
     'advances.view':           { label: 'View advances',           module: 'Advances',   description: 'View driver advance requests and history' },
     'advances.request':        { label: 'Request advance',         module: 'Advances',   description: 'Submit advance requests for drivers (Sales and Operations)' },
