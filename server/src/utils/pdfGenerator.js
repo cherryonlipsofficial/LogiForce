@@ -360,9 +360,11 @@ const generateInvoicePDF = (invoice, client, project, companySettings) => {
         sumVatAmount += vatAmt;
         sumTotal += rowTotal;
 
+        const driverLabel = `${item.driverName || ''}${(item.driverId?.clientUserId) ? '_' + item.driverId.clientUserId : ''}`;
+
         drawRow(doc, y, dataRowH, [
           String(i + 1),
-          item.driverName || '',
+          driverLabel,
           days.toFixed(2),
           formatCurrency(rate),
           formatCurrency(amt),

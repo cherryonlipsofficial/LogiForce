@@ -134,7 +134,7 @@ router.get('/:id/pdf', requirePermission('invoices.download'), async (req, res) 
   const invoice = await Invoice.findById(req.params.id)
     .populate('clientId')
     .populate('projectId', 'name projectCode ratePerDriver')
-    .populate('lineItems.driverId', 'fullName employeeCode')
+    .populate('lineItems.driverId', 'fullName employeeCode clientUserId')
     .populate('creditNotes.driverId', 'fullName employeeCode');
 
   if (!invoice) return sendError(res, 'Invoice not found', 404);
