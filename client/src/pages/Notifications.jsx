@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getNotifications, markAsRead, markAllAsRead } from '../api/notificationsApi';
+import { getNotifications, markAsRead, markAllAsRead, getPendingApprovals } from '../api/notificationsApi';
 
 const typeColors = {
   attendance_uploaded: '#3b82f6',
@@ -87,6 +87,14 @@ const Notifications = () => {
     queryFn: () => getNotifications(page).then(r => r.data),
   });
 
+  const { data: pendingApprovalsData } = useQuery({
+    queryKey: ['pending-approvals'],
+    queryFn: () => getPendingApprovals().then(r => r.data?.data || r.data || {}),
+    refetchInterval: 60 * 1000,
+  });
+  const pendingItems = pendingApprovalsData?.items || [];
+  const pendingTotal = pendingApprovalsData?.total || 0;
+
   const allNotifications = data?.notifications || [];
   const total = data?.total || 0;
 
@@ -170,6 +178,62 @@ const Notifications = () => {
           </button>
         ))}
       </div>
+
+      {/* Pending Approvals */}
+      {pendingTotal > 0 && (
+        <div style={{
+          background: 'rgba(245,158,11,0.06)',
+          border: '1px solid rgba(245,158,11,0.25)',
+          borderRadius: 12,
+          padding: '14px 20px',
+          marginBottom: 16,
+        }}>
+          <div style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#d97706',
+            marginBottom: 8,
+          }}>
+            {pendingTotal} pending approval{pendingTotal !== 1 ? 's' : ''}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {pendingItems.map((item) => (
+              <div
+                key={item.type}
+                onClick={() => navigate(item.path)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  fontSize: 12,
+                  color: 'var(--text2)',
+                  cursor: 'pointer',
+                  transition: 'background .1s',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(245,158,11,0.10)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                <span>{item.label}</span>
+                <span style={{
+                  background: '#f59e0b',
+                  color: '#78350f',
+                  borderRadius: 10,
+                  fontSize: 10,
+                  padding: '1px 6px',
+                  lineHeight: '16px',
+                  fontWeight: 600,
+                  minWidth: 18,
+                  textAlign: 'center',
+                }}>
+                  {item.count}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* List */}
       <div style={{
