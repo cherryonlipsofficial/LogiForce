@@ -1,4 +1,4 @@
-const { CreditNote, Driver, Client, Project, Invoice, DriverLedger } = require('../models');
+const { CreditNote, Driver, Client, Project, Invoice, DriverLedger, SalaryRun } = require('../models');
 const { amountToWords } = require('../utils/numberToWords');
 
 /**
@@ -114,6 +114,9 @@ const sendCreditNote = async (creditNoteId, userId) => {
   cn.sentAt = new Date();
   cn.sentBy = userId;
   await cn.save();
+
+  // Auto-adjust: add credit note deductions to existing draft salary runs
+  await adjustDraftSalaryRuns(cn);
 
   try {
     const { notifyByPermission } = require('./notification.service');
@@ -402,6 +405,56 @@ const getStatementOfAccounts = async (projectId, year) => {
       outstandingBalance: Math.round((yearlyNetReceivable - yearlyTotalReceived) * 100) / 100,
     },
   };
+};
+
+/**
+ * When a credit note is sent, find any draft salary runs for the affected
+ * drivers in the same period and inject the credit note deductions so they
+ * are visible before the salary run progresses through approvals.
+ */
+const adjustDraftSalaryRuns = async (creditNote) => {
+  const { year, month } = creditNote.period;
+
+  for (const line of creditNote.lineItems) {
+    if (line.salaryDeducted || line.manuallyResolved) continue;
+
+    const draftRun = await SalaryRun.findOne({
+      driverId: line.driverId,
+      'period.year': year,
+      'period.month': month,
+      status: 'draft',
+      isDeleted: { $ne: true },
+    });
+
+    if (!draftRun) continue;
+
+    // Check if this credit note line is already included as a deduction
+    const refId = String(creditNote._id) + ':' + String(line._id);
+    const alreadyAdded = draftRun.deductions.some(
+      (d) => d.type === 'credit_note' && d.referenceId === refId
+    );
+    if (alreadyAdded) continue;
+
+    const deductionAmount = Math.round(line.totalWithVat * 100) / 100;
+
+    draftRun.deductions.push({
+      type: 'credit_note',
+      referenceId: refId,
+      amount: deductionAmount,
+      description: `Credit note ${creditNote.creditNoteNo} - ${creditNote.description || line.noteType}`,
+      status: 'applied',
+    });
+
+    draftRun.totalDeductions = Math.round(
+      draftRun.deductions.filter((d) => d.amount > 0).reduce((sum, d) => sum + d.amount, 0) * 100
+    ) / 100;
+    draftRun.netSalary = Math.max(
+      0,
+      Math.round((draftRun.grossSalary - draftRun.totalDeductions) * 100) / 100
+    );
+
+    await draftRun.save();
+  }
 };
 
 module.exports = {
