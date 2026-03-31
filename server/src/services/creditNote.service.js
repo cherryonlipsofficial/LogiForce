@@ -325,21 +325,23 @@ const recordInvoicePayment = async (invoiceId, data, userId) => {
 const getStatementOfAccounts = async (projectId, year) => {
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-  // Fetch invoices for the project/year
+  // Fetch invoices for the project/year (exclude drafts)
   const invoices = await Invoice.find({
     projectId,
     'period.year': year,
     isDeleted: { $ne: true },
+    status: { $ne: 'draft' },
   })
     .select('invoiceNo period total adjustedTotal amountReceived status linkedCreditNotes')
     .sort({ 'period.month': 1 })
     .lean();
 
-  // Fetch credit notes for the project/year
+  // Fetch credit notes for the project/year (exclude drafts)
   const creditNotes = await CreditNote.find({
     projectId,
     'period.year': year,
     isDeleted: { $ne: true },
+    status: { $ne: 'draft' },
   })
     .select('creditNoteNo period totalAmount status linkedInvoiceId')
     .populate('linkedInvoiceId', 'invoiceNo')
