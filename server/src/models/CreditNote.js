@@ -57,6 +57,14 @@ const creditNoteSchema = new Schema(
         salaryDeductedAt: { type: Date },
         salaryRunId: { type: Schema.Types.ObjectId, ref: 'SalaryRun' },
 
+        // When no draft salary exists but driver is active — will auto-deduct in next payroll
+        pendingNextSalary: { type: Boolean, default: false },
+        pendingNextSalaryAt: { type: Date },
+
+        // When a DriverReceivable was created (resigned/offboarded, no salary to adjust)
+        receivableCreated: { type: Boolean, default: false },
+        receivableId: { type: Schema.Types.ObjectId, ref: 'DriverReceivable' },
+
         // For resigned/offboarded drivers where salary deduction isn't possible
         manuallyResolved: { type: Boolean, default: false },
         manualResolutionNote: { type: String },

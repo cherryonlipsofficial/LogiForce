@@ -239,7 +239,7 @@ const checkAndSettleCreditNote = async (creditNoteId) => {
   // Client side must be adjusted
   if (!cn.linkedInvoiceId) return cn;
 
-  // All lines must be settled
+  // All lines must be settled (salary deducted, manually resolved, or receivable created & resolved)
   const allSettled = cn.lineItems.every(
     (line) => line.salaryDeducted || line.manuallyResolved
   );
@@ -281,12 +281,20 @@ const getSettlementStatus = async (creditNoteId) => {
   const driverLinesPending = cn.lineItems.filter(
     (l) => !l.salaryDeducted && !l.manuallyResolved
   ).length;
+  const driverLinesPendingNextSalary = cn.lineItems.filter(
+    (l) => l.pendingNextSalary && !l.salaryDeducted && !l.manuallyResolved
+  ).length;
+  const driverLinesWithReceivable = cn.lineItems.filter(
+    (l) => l.receivableCreated && !l.manuallyResolved
+  ).length;
 
   return {
     clientSettled: !!cn.linkedInvoiceId,
     driverLinesTotal,
     driverLinesSettled,
     driverLinesPending,
+    driverLinesPendingNextSalary,
+    driverLinesWithReceivable,
   };
 };
 
@@ -410,53 +418,158 @@ const getStatementOfAccounts = async (projectId, year) => {
 };
 
 /**
- * When a credit note is sent, find any draft salary runs for the affected
- * drivers in the same period and inject the credit note deductions so they
- * are visible before the salary run progresses through approvals.
+ * When a credit note is sent, find the first available draft salary run
+ * for each affected driver (any period, not just same period) and inject
+ * the credit note deduction.
+ *
+ * Decision tree when no draft salary exists:
+ * 1. Driver is active → mark line as pendingNextSalary (auto-picked up by next payroll)
+ * 2. Driver is resigned/offboarded → create a DriverReceivable
  */
 const adjustDraftSalaryRuns = async (creditNote) => {
-  const { year, month } = creditNote.period;
+  const DriverReceivable = require('../models/DriverReceivable');
+
+  const adjustmentSummary = {
+    adjustedInSalary: [],
+    pendingNextSalary: [],
+    receivablesCreated: [],
+  };
 
   for (const line of creditNote.lineItems) {
     if (line.salaryDeducted || line.manuallyResolved) continue;
 
-    const draftRun = await SalaryRun.findOne({
-      driverId: line.driverId,
-      'period.year': year,
-      'period.month': month,
-      status: 'draft',
-      isDeleted: { $ne: true },
-    });
-
-    if (!draftRun) continue;
-
-    // Check if this credit note line is already included as a deduction
     const refId = String(creditNote._id) + ':' + String(line._id);
-    const alreadyAdded = draftRun.deductions.some(
-      (d) => d.type === 'credit_note' && d.referenceId === refId
-    );
-    if (alreadyAdded) continue;
-
     const deductionAmount = Math.round(line.totalWithVat * 100) / 100;
 
-    draftRun.deductions.push({
-      type: 'credit_note',
-      referenceId: refId,
-      amount: deductionAmount,
-      description: `Credit note ${creditNote.creditNoteNo} - ${creditNote.description || line.noteType}`,
-      status: 'applied',
-    });
+    // Find the FIRST available draft salary run for this driver (any period)
+    const draftRun = await SalaryRun.findOne({
+      driverId: line.driverId,
+      status: 'draft',
+      isDeleted: { $ne: true },
+    }).sort({ 'period.year': 1, 'period.month': 1 });
 
-    draftRun.totalDeductions = Math.round(
-      draftRun.deductions.filter((d) => d.amount > 0).reduce((sum, d) => sum + d.amount, 0) * 100
-    ) / 100;
-    draftRun.netSalary = Math.max(
-      0,
-      Math.round((draftRun.grossSalary - draftRun.totalDeductions) * 100) / 100
-    );
+    if (draftRun) {
+      // Check if already added
+      const alreadyAdded = draftRun.deductions.some(
+        (d) => d.type === 'credit_note' && d.referenceId === refId
+      );
+      if (alreadyAdded) continue;
 
-    await draftRun.save();
+      draftRun.deductions.push({
+        type: 'credit_note',
+        referenceId: refId,
+        amount: deductionAmount,
+        description: `Credit note ${creditNote.creditNoteNo} - ${creditNote.description || line.noteType}`,
+        status: 'applied',
+      });
+
+      draftRun.totalDeductions = Math.round(
+        draftRun.deductions.filter((d) => d.amount > 0).reduce((sum, d) => sum + d.amount, 0) * 100
+      ) / 100;
+      draftRun.netSalary = Math.max(
+        0,
+        Math.round((draftRun.grossSalary - draftRun.totalDeductions) * 100) / 100
+      );
+
+      await draftRun.save();
+      adjustmentSummary.adjustedInSalary.push({
+        driverId: line.driverId,
+        driverName: line.driverName,
+        salaryRunId: draftRun.runId,
+        period: draftRun.period,
+      });
+      continue;
+    }
+
+    // No draft salary found — check driver status
+    const driver = await Driver.findById(line.driverId);
+    if (!driver) continue;
+
+    const isInactive = ['resigned', 'offboarded'].includes(driver.status);
+
+    if (!isInactive) {
+      // Driver is active — mark as pending, will be picked up by next payroll run
+      line.pendingNextSalary = true;
+      line.pendingNextSalaryAt = new Date();
+      adjustmentSummary.pendingNextSalary.push({
+        driverId: line.driverId,
+        driverName: line.driverName,
+      });
+    } else {
+      // Driver is resigned/offboarded — create a DriverReceivable
+      const receivable = await DriverReceivable.create({
+        driverId: driver._id,
+        driverName: driver.fullName,
+        employeeCode: driver.employeeCode,
+        creditNoteId: creditNote._id,
+        creditNoteNo: creditNote.creditNoteNo,
+        lineItemId: line._id,
+        amount: deductionAmount,
+        reason: driver.status === 'resigned' ? 'driver_resigned' : 'driver_offboarded',
+        clientId: creditNote.clientId,
+        projectId: creditNote.projectId,
+        createdBy: creditNote.sentBy,
+      });
+
+      line.receivableCreated = true;
+      line.receivableId = receivable._id;
+
+      // Post ledger entry for visibility
+      await DriverLedger.create({
+        driverId: driver._id,
+        entryType: 'credit_note_debit',
+        debit: deductionAmount,
+        credit: 0,
+        description: `Receivable created — Credit note ${creditNote.creditNoteNo} - ${line.noteType} (driver ${driver.status})`,
+        referenceId: String(receivable._id),
+        period: creditNote.period,
+        createdBy: creditNote.sentBy,
+      });
+
+      adjustmentSummary.receivablesCreated.push({
+        driverId: line.driverId,
+        driverName: line.driverName,
+        receivableNo: receivable.receivableNo,
+        amount: deductionAmount,
+      });
+    }
   }
+
+  // Save updated line items (pendingNextSalary / receivableCreated flags)
+  await creditNote.save();
+
+  // Send notifications for items that couldn't be auto-adjusted
+  try {
+    const { notifyByPermission } = require('./notification.service');
+
+    if (adjustmentSummary.pendingNextSalary.length > 0) {
+      const driverNames = adjustmentSummary.pendingNextSalary.map((d) => d.driverName).join(', ');
+      await notifyByPermission('salary.approve_accounts', {
+        type: 'credit_note_pending_salary',
+        title: 'Credit note pending salary adjustment',
+        message: `Credit note ${creditNote.creditNoteNo}: No draft salary found for ${driverNames}. Deduction will be auto-applied in next payroll run.`,
+        referenceModel: 'CreditNote',
+        referenceId: creditNote._id,
+        triggeredBy: creditNote.sentBy,
+      });
+    }
+
+    if (adjustmentSummary.receivablesCreated.length > 0) {
+      const totalReceivable = adjustmentSummary.receivablesCreated.reduce((s, r) => s + r.amount, 0);
+      await notifyByPermission('receivables.view', {
+        type: 'driver_receivable_created',
+        title: 'Driver receivable created from credit note',
+        message: `Credit note ${creditNote.creditNoteNo}: ${adjustmentSummary.receivablesCreated.length} receivable(s) created totalling ${totalReceivable} AED for resigned/offboarded drivers.`,
+        referenceModel: 'CreditNote',
+        referenceId: creditNote._id,
+        triggeredBy: creditNote.sentBy,
+      });
+    }
+  } catch (_) {
+    // Non-critical — don't fail the send
+  }
+
+  return adjustmentSummary;
 };
 
 module.exports = {

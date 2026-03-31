@@ -23,6 +23,7 @@ const driverLedgerSchema = new mongoose.Schema(
         'penalty',
         'credit_note',
         'credit_note_debit',
+        'receivable_recovery',
       ],
       required: true,
     },

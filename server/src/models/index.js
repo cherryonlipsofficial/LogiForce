@@ -23,6 +23,7 @@ const AppNotification = require('./AppNotification');
 const DriverAdvance = require('./DriverAdvance');
 const CompanySettings = require('./CompanySettings');
 const CreditNote = require('./CreditNote');
+const DriverReceivable = require('./DriverReceivable');
 
 module.exports = {
   User,
@@ -50,4 +51,5 @@ module.exports = {
   DriverAdvance,
   CompanySettings,
   CreditNote,
+  DriverReceivable,
 };
