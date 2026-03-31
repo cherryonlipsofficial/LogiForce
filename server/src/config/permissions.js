@@ -58,6 +58,7 @@ module.exports = {
     'attendance.dispute':      { label: 'Raise attendance dispute', module: 'Attendance', description: 'Raise a dispute on an uploaded attendance batch' },
     'attendance.respond_dispute': { label: 'Respond to dispute',   module: 'Attendance', description: 'Respond to disputes raised on attendance (Accounts)' },
     'attendance.override':     { label: 'Override attendance',     module: 'Attendance', description: 'Override flagged attendance records' },
+    'attendance.delete':       { label: 'Delete attendance batch', module: 'Attendance', description: 'Delete attendance batches and their records' },
 
     // ── SALARY ──
     'salary.view':             { label: 'View salary runs',        module: 'Salary',     description: 'See salary calculations and breakdowns' },

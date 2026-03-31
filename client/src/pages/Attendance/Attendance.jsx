@@ -490,7 +490,7 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
           </div>
         )}
 
-        {hasPermission('attendance.override') && batch.status !== 'approved' && batch.status !== 'processed' && batch.status !== 'fully_approved' && batch.status !== 'invoiced' && (
+        {hasPermission('attendance.delete') && batch.status !== 'approved' && batch.status !== 'processed' && batch.status !== 'fully_approved' && batch.status !== 'invoiced' && (
           <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
             {!confirmDelete ? (
               <Btn variant="danger" onClick={() => setConfirmDelete(true)}>
