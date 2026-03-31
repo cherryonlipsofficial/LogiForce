@@ -25,14 +25,15 @@ function formatDate(date) {
 // Column layout for line items table
 const TABLE_LEFT = PAGE_MARGIN;
 const cols = {
-  sr:      { x: TABLE_LEFT,       w: 25  },
-  name:    { x: TABLE_LEFT + 25,  w: 190 },
-  days:    { x: TABLE_LEFT + 215, w: 55  },
-  rate:    { x: TABLE_LEFT + 270, w: 55  },
-  amount:  { x: TABLE_LEFT + 325, w: 70  },
-  vatRate: { x: TABLE_LEFT + 395, w: 40  },
-  vatAmt:  { x: TABLE_LEFT + 435, w: 55  },
-  total:   { x: TABLE_LEFT + 490, w: 45  },
+  sr:           { x: TABLE_LEFT,       w: 25  },
+  name:         { x: TABLE_LEFT + 25,  w: 145 },
+  clientUserId: { x: TABLE_LEFT + 170, w: 60  },
+  days:         { x: TABLE_LEFT + 230, w: 50  },
+  rate:         { x: TABLE_LEFT + 280, w: 50  },
+  amount:       { x: TABLE_LEFT + 330, w: 65  },
+  vatRate:      { x: TABLE_LEFT + 395, w: 38  },
+  vatAmt:       { x: TABLE_LEFT + 433, w: 55  },
+  total:        { x: TABLE_LEFT + 488, w: 47  },
 };
 const TABLE_WIDTH = cols.total.x + cols.total.w - TABLE_LEFT;
 const TABLE_RIGHT = TABLE_LEFT + TABLE_WIDTH;
@@ -84,8 +85,8 @@ function drawRow(doc, y, rowHeight, values, options = {}) {
     ...options,
   };
 
-  const colKeys = ['sr', 'name', 'days', 'rate', 'amount', 'vatRate', 'vatAmt', 'total'];
-  const aligns  = ['center', 'left', 'center', 'right', 'right', 'center', 'right', 'right'];
+  const colKeys = ['sr', 'name', 'clientUserId', 'days', 'rate', 'amount', 'vatRate', 'vatAmt', 'total'];
+  const aligns  = ['center', 'left', 'left', 'center', 'right', 'right', 'center', 'right', 'right'];
 
   colKeys.forEach((key, i) => {
     drawCell(doc, cols[key].x, y, cols[key].w, rowHeight, {
@@ -254,9 +255,16 @@ const generateInvoicePDF = (invoice, client, project, companySettings) => {
     const subHeaderRowH = 22;
     const dataRowH = 14;
 
+    // Determine pay structure from line items to choose column header
+    const lineItems = invoice.lineItems || [];
+    const invoiceRateBasis = lineItems.length > 0 ? (lineItems[0].rateBasis || 'monthly_fixed') : 'monthly_fixed';
+    const isPerOrder = invoiceRateBasis === 'per_order';
+    const daysColumnHeader = isPerOrder ? 'Total Orders' : 'Payable Days';
+    const rateColumnHeader = isPerOrder ? 'Rate/Order' : 'Rate/Day';
+
     // --- Spanning header row ---
-    // "DESCRIPTION" spans sr + name + days + rate + amount (5 cols)
-    const descSpanW = cols.sr.w + cols.name.w + cols.days.w + cols.rate.w + cols.amount.w;
+    // "DESCRIPTION" spans sr + name + clientUserId + days + rate + amount (6 cols)
+    const descSpanW = cols.sr.w + cols.name.w + cols.clientUserId.w + cols.days.w + cols.rate.w + cols.amount.w;
     drawCell(doc, cols.sr.x, y, descSpanW, headerRowH, {
       fill: BLUE,
       text: 'DESCRIPTION',
@@ -287,10 +295,10 @@ const generateInvoicePDF = (invoice, client, project, companySettings) => {
     y += headerRowH;
 
     // --- Sub-header row ---
-    const subHeaders = ['Sr.', 'Name of Employee / Driver', 'Payable Days', 'Rate/Day', 'Amount', 'Rate', 'Amount', 'Total (In AED)'];
-    const subFontSizes = [6, 6.5, 6, 6, 6, 6, 6, 5.5];
-    const subAligns = ['center', 'center', 'center', 'center', 'center', 'center', 'center', 'center'];
-    const colKeys = ['sr', 'name', 'days', 'rate', 'amount', 'vatRate', 'vatAmt', 'total'];
+    const subHeaders = ['Sr.', 'Name of Employee / Driver', 'Client User ID', daysColumnHeader, rateColumnHeader, 'Amount', 'Rate', 'Amount', 'Total (In AED)'];
+    const subFontSizes = [6, 6.5, 5.5, 6, 6, 6, 6, 6, 5.5];
+    const subAligns = ['center', 'center', 'center', 'center', 'center', 'center', 'center', 'center', 'center'];
+    const colKeys = ['sr', 'name', 'clientUserId', 'days', 'rate', 'amount', 'vatRate', 'vatAmt', 'total'];
 
     colKeys.forEach((key, i) => {
       drawCell(doc, cols[key].x, y, cols[key].w, subHeaderRowH, {
@@ -306,11 +314,10 @@ const generateInvoicePDF = (invoice, client, project, companySettings) => {
     y += subHeaderRowH;
 
     // --- Data rows ---
-    const lineItems = invoice.lineItems || [];
     const MIN_ROWS = 20;
     const totalRows = Math.max(lineItems.length, MIN_ROWS);
 
-    let sumDays = 0;
+    let sumDaysOrOrders = 0;
     let sumAmount = 0;
     let sumVatAmount = 0;
     let sumTotal = 0;
@@ -349,23 +356,27 @@ const generateInvoicePDF = (invoice, client, project, companySettings) => {
       if (i < lineItems.length) {
         const item = lineItems[i];
         const days = item.workingDays || 0;
+        const orders = item.totalOrders || 0;
+        const daysOrOrders = isPerOrder ? orders : days;
         const rate = item.ratePerDriver || project?.ratePerDriver || item.ratePerDay || item.dailyRate || 0;
         const amt = item.amount || 0;
         const vatPct = (item.vatRate || 0.05) * 100;
         const vatAmt = item.vatAmount != null ? item.vatAmount : parseFloat((amt * 0.05).toFixed(2));
         const rowTotal = item.totalWithVat != null ? item.totalWithVat : parseFloat((amt + vatAmt).toFixed(2));
 
-        sumDays += days;
+        sumDaysOrOrders += daysOrOrders;
         sumAmount += amt;
         sumVatAmount += vatAmt;
         sumTotal += rowTotal;
 
-        const driverLabel = `${item.driverName || ''}${(item.driverId?.clientUserId) ? '_' + item.driverId.clientUserId : ''}`;
+        const driverLabel = item.driverName || '';
+        const clientUserIdVal = item.driverId?.clientUserId || '';
 
         drawRow(doc, y, dataRowH, [
           String(i + 1),
           driverLabel,
-          days.toFixed(2),
+          clientUserIdVal,
+          isPerOrder ? String(daysOrOrders) : daysOrOrders.toFixed(2),
           formatCurrency(rate),
           formatCurrency(amt),
           `${vatPct}%`,
@@ -374,7 +385,7 @@ const generateInvoicePDF = (invoice, client, project, companySettings) => {
         ]);
       } else {
         // Empty row — still draw bordered cells for formal ledger look
-        drawRow(doc, y, dataRowH, ['', '', '', '', '', '', '', '']);
+        drawRow(doc, y, dataRowH, ['', '', '', '', '', '', '', '', '']);
       }
 
       y += dataRowH;
@@ -385,7 +396,8 @@ const generateInvoicePDF = (invoice, client, project, companySettings) => {
     drawRow(doc, y, totalsRowH, [
       '',
       'Total',
-      sumDays.toFixed(2),
+      '',
+      isPerOrder ? String(sumDaysOrOrders) : sumDaysOrOrders.toFixed(2),
       '',
       formatCurrency(sumAmount),
       '',
@@ -1043,7 +1055,7 @@ const generateCreditNotePDF = (creditNote, client, project, companySettings) => 
 
       if (i < lineItems.length) {
         const item = lineItems[i];
-        const daName = `${item.driverName || ''}${item.clientUserId ? '_' + item.clientUserId : ''}`;
+        const daName = item.driverName || '';
 
         sumAmount += item.amount || 0;
         sumVat += item.vatAmount || 0;

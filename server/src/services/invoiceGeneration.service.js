@@ -113,6 +113,7 @@ async function generateInvoice(batchId, accountsUserId) {
       ratePerDriver,
       rateBasis,
       dailyRate,
+      totalOrders:  record.totalOrders || 0,
       amount,
       vatRate:      0.05,
       vatAmount:    vatAmount_item,
