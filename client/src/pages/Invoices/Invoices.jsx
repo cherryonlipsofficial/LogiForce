@@ -168,6 +168,7 @@ const Invoices = () => {
 
 const InvoiceDetail = ({ invoice, onClose }) => {
   const { isMobile } = useBreakpoint();
+  const { formatCurrencyFull } = useFormatters();
   const qc = useQueryClient();
   const [showCreditNote, setShowCreditNote] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
@@ -413,6 +414,7 @@ const CreditNoteModal = ({ invoiceId, onClose }) => {
 };
 
 const PaymentModal = ({ invoice, onClose }) => {
+  const { formatCurrencyFull } = useFormatters();
   const [amountReceived, setAmountReceived] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
