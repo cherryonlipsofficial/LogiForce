@@ -7,7 +7,7 @@ const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelp
 const { generateInvoicePDF } = require('../utils/pdfGenerator');
 const { PAGINATION } = require('../config/constants');
 const validate = require('../middleware/validate');
-const { generateInvoiceValidation, updateInvoiceStatusValidation, creditNoteValidation } = require('../middleware/validators/invoice.validators');
+const { generateInvoiceValidation, updateInvoiceStatusValidation } = require('../middleware/validators/invoice.validators');
 
 // All routes are protected
 router.use(protect);
@@ -92,7 +92,7 @@ router.get('/:id', requirePermission('invoices.view'), async (req, res) => {
     .populate('clientId')
     .populate('createdBy', 'name')
     .populate('lineItems.driverId', 'fullName employeeCode clientUserId')
-    .populate('creditNotes.driverId', 'fullName employeeCode');
+
 
   if (!invoice) return sendError(res, 'Invoice not found', 404);
   sendSuccess(res, invoice);
@@ -116,26 +116,12 @@ router.put('/:id/status', requirePermission('invoices.edit'), validate(updateInv
   sendSuccess(res, invoice, `Invoice status updated to ${status}`);
 });
 
-// POST /api/invoices/:id/credit-note — add credit note
-router.post('/:id/credit-note', requirePermission('invoices.credit_note'), validate(creditNoteValidation), async (req, res) => {
-  const { driverId, amount, reason } = req.body;
-
-  const invoice = await invoiceService.addCreditNote(
-    req.params.id,
-    { driverId, amount: parseFloat(amount), reason },
-    req.user._id
-  );
-
-  sendSuccess(res, invoice, 'Credit note added successfully');
-});
-
 // GET /api/invoices/:id/pdf — generate PDF
 router.get('/:id/pdf', requirePermission('invoices.download'), async (req, res) => {
   const invoice = await Invoice.findById(req.params.id)
     .populate('clientId')
     .populate('projectId', 'name projectCode ratePerDriver')
-    .populate('lineItems.driverId', 'fullName employeeCode clientUserId')
-    .populate('creditNotes.driverId', 'fullName employeeCode');
+    .populate('lineItems.driverId', 'fullName employeeCode clientUserId');
 
   if (!invoice) return sendError(res, 'Invoice not found', 404);
 

@@ -62,7 +62,6 @@ module.exports = {
     // ── SALARY ──
     'salary.view':             { label: 'View salary runs',        module: 'Salary',     description: 'See salary calculations and breakdowns' },
     'salary.run':              { label: 'Run payroll',             module: 'Salary',     description: 'Trigger salary processing for a period' },
-    'salary.approve':          { label: 'Approve salary (legacy)', module: 'Salary',     description: '@deprecated — use stage-specific permissions below' },
     'salary.approve_ops':      { label: 'Approve salary (stage 1)', module: 'Salary',    description: 'First-stage approval of salary runs — add deductions and approve' },
     'salary.approve_compliance': { label: 'Approve salary (stage 2)', module: 'Salary',  description: 'Second-stage approval — verify driver document validity' },
     'salary.approve_accounts': { label: 'Approve salary (stage 3)', module: 'Salary',    description: 'Third-stage approval — final deduction review' },
@@ -79,7 +78,6 @@ module.exports = {
     'invoices.view':           { label: 'View invoices',           module: 'Invoices',   description: 'See invoice list and details' },
     'invoices.generate':       { label: 'Generate invoices',       module: 'Invoices',   description: 'Create invoices for clients' },
     'invoices.edit':           { label: 'Edit invoices',           module: 'Invoices',   description: 'Update invoice status and details' },
-    'invoices.credit_note':    { label: 'Issue credit notes',      module: 'Invoices',   description: 'Create and link credit notes' },
     'invoices.delete':         { label: 'Delete invoices',         module: 'Invoices',   description: 'Permanently delete invoices' },
     'invoices.download':       { label: 'Download invoice PDF',    module: 'Invoices',   description: 'Export invoices as PDF' },
 

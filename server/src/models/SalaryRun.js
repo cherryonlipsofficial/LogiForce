@@ -93,14 +93,14 @@ const salaryRunSchema = new Schema(
     ],
     status: {
       type: String,
-      enum: ['draft', 'pending_approval', 'approved', 'ops_approved', 'compliance_approved', 'accounts_approved', 'processed', 'paid', 'disputed'],
+      enum: ['draft', 'ops_approved', 'compliance_approved', 'accounts_approved', 'processed', 'paid', 'disputed'],
       default: 'draft',
     },
     // Multi-stage approval tracking
     approvals: [{
       stage: {
         type: String,
-        enum: ['ops', 'compliance', 'accounts', 'salary.approve_ops', 'salary.approve_compliance', 'salary.approve_accounts'],
+        enum: ['salary.approve_ops', 'salary.approve_compliance', 'salary.approve_accounts'],
         required: true,
       },
       approvedBy: {
@@ -119,15 +119,6 @@ const salaryRunSchema = new Schema(
       ref: 'User',
     },
     processedAt: { type: Date },
-    // @deprecated — use approvals[] array instead. Kept for backward compatibility.
-    approvedBy: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
-    },
-    // @deprecated — use approvals[] array instead.
-    approvedAt: {
-      type: Date,
-    },
     paidAt: {
       type: Date,
     },

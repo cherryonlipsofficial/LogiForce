@@ -409,55 +409,6 @@ const generateFromAttendanceBatches = async (client, year, month, createdBy, pro
   return invoice;
 };
 
-const addCreditNote = async (invoiceId, { driverId, amount, reason }, createdBy) => {
-  // 1. Fetch invoice, verify status
-  const invoice = await Invoice.findById(invoiceId);
-  if (!invoice) {
-    const err = new Error('Invoice not found');
-    err.statusCode = 404;
-    throw err;
-  }
-  if (invoice.status === 'cancelled') {
-    const err = new Error('Cannot add credit note to a cancelled invoice');
-    err.statusCode = 400;
-    throw err;
-  }
-
-  // 2. Push credit note
-  invoice.creditNotes.push({
-    driverId,
-    amount,
-    reason,
-    createdAt: new Date(),
-  });
-
-  // 3. Compute adjusted total (preserve original total for display)
-  const totalCreditNotes = invoice.creditNotes.reduce((sum, cn) => sum + (cn.amount || 0), 0);
-  invoice.adjustedTotal = Math.round((invoice.subtotal + invoice.vatAmount - totalCreditNotes) * 100) / 100;
-
-  // 4. Post credit_note entry to DriverLedger
-  const lastEntry = await DriverLedger.findOne({ driverId })
-    .sort({ createdAt: -1 });
-  const previousBalance = lastEntry?.runningBalance || 0;
-
-  await DriverLedger.create({
-    driverId,
-    entryType: 'credit_note',
-    credit: amount,
-    debit: 0,
-    runningBalance: previousBalance + amount,
-    description: `Credit note: ${reason}`,
-    referenceId: invoice.invoiceNo,
-    period: invoice.period,
-    createdBy,
-  });
-
-  // 5. Save and return
-  await invoice.save();
-  return invoice;
-};
-
 module.exports = {
   generateInvoice,
-  addCreditNote,
 };

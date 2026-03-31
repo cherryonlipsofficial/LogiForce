@@ -107,16 +107,6 @@ const invoiceSchema = new Schema(
     paidDate: {
       type: Date,
     },
-    // Legacy embedded credit notes (kept for backward compat with old data)
-    creditNotes: [
-      {
-        amount: { type: Number },
-        reason: { type: String },
-        driverId: { type: Schema.Types.ObjectId, ref: 'Driver' },
-        createdAt: { type: Date, default: Date.now },
-      },
-    ],
-
     // Credit notes linked to this invoice (for reconciliation with standalone CreditNote model)
     linkedCreditNotes: [
       {

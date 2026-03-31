@@ -56,7 +56,7 @@ async function getPendingApprovalsSummary(user) {
     let salaryFilter;
 
     if (permSet.has('salary.approve_ops') && !permSet.has('salary.approve_compliance') && !permSet.has('salary.approve_accounts') && !isSystemAdmin) {
-      salaryFilter = { status: { $in: ['draft', 'pending_approval'] }, isDeleted: { $ne: true } };
+      salaryFilter = { status: 'draft', isDeleted: { $ne: true } };
     } else if (permSet.has('salary.approve_compliance') && !permSet.has('salary.approve_ops') && !permSet.has('salary.approve_accounts') && !isSystemAdmin) {
       salaryFilter = { status: 'ops_approved', isDeleted: { $ne: true } };
     } else if (permSet.has('salary.approve_accounts') && !permSet.has('salary.approve_ops') && !permSet.has('salary.approve_compliance') && !isSystemAdmin) {
@@ -64,7 +64,7 @@ async function getPendingApprovalsSummary(user) {
     } else {
       // Admin or user with multiple permissions — show all pending at any stage
       salaryFilter = {
-        status: { $in: ['draft', 'pending_approval', 'ops_approved', 'compliance_approved'] },
+        status: { $in: ['draft', 'ops_approved', 'compliance_approved'] },
         isDeleted: { $ne: true },
       };
     }

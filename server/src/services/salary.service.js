@@ -692,11 +692,10 @@ const processSalaryRun = async (runId, userId) => {
     throw err;
   }
 
-  // Verify all 3 approvals exist (support both legacy and new stage names)
+  // Verify all 3 approvals exist
   const stages = salaryRun.approvals.map(a => a.stage);
   for (const required of ['salary.approve_ops', 'salary.approve_compliance', 'salary.approve_accounts']) {
-    const legacyName = required.replace('salary.approve_', '');
-    if (!stages.includes(required) && !stages.includes(legacyName)) {
+    if (!stages.includes(required)) {
       const err = new Error(`Missing '${required}' approval — cannot process salary run`);
       err.statusCode = 400;
       throw err;
@@ -768,38 +767,6 @@ const processSalaryRun = async (runId, userId) => {
   });
 
   return salaryRun;
-};
-
-/**
- * Approve a salary run (legacy backward-compatible wrapper).
- * Routes to the appropriate stage function based on current status.
- * @deprecated Use stage-specific approveByOps/approveByCompliance/approveByAccounts/processSalaryRun instead.
- */
-const approveSalaryRun = async (runId, approvedBy) => {
-  const salaryRun = await SalaryRun.findById(runId);
-  if (!salaryRun) {
-    const err = new Error('Salary run not found');
-    err.statusCode = 404;
-    throw err;
-  }
-
-  // Route to appropriate stage based on current status
-  switch (salaryRun.status) {
-    case 'draft':
-    case 'pending_approval':
-      return approveByOps(runId, approvedBy);
-    case 'ops_approved':
-      return approveByCompliance(runId, approvedBy);
-    case 'compliance_approved':
-      return approveByAccounts(runId, approvedBy);
-    case 'accounts_approved':
-      return processSalaryRun(runId, approvedBy);
-    default: {
-      const err = new Error(`Cannot approve salary run in '${salaryRun.status}' status`);
-      err.statusCode = 400;
-      throw err;
-    }
-  }
 };
 
 /**
@@ -1004,7 +971,6 @@ module.exports = {
   calculateDeductions,
   runPayroll,
   postLedgerEntries,
-  approveSalaryRun,
   approveByOps,
   approveByCompliance,
   approveByAccounts,

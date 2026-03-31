@@ -9,9 +9,6 @@ export const runPayroll = (data) =>
 export const getRun = (id) =>
   axiosInstance.get(`/salary/runs/${id}`).then(r => r.data);
 
-export const approveRun = (id) =>
-  axiosInstance.put(`/salary/runs/${id}/approve`).then(r => r.data);
-
 export const getWpsFile = (params) =>
   axiosInstance.get('/salary/wps-file', { params, responseType: 'blob' }).then(r => r.data);
 
