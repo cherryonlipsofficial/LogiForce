@@ -91,7 +91,7 @@ router.get('/:id', requirePermission('invoices.view'), async (req, res) => {
   const invoice = await Invoice.findOne({ _id: req.params.id, isDeleted: { $ne: true } })
     .populate('clientId')
     .populate('createdBy', 'name')
-    .populate('lineItems.driverId', 'fullName employeeCode')
+    .populate('lineItems.driverId', 'fullName employeeCode clientUserId')
     .populate('creditNotes.driverId', 'fullName employeeCode');
 
   if (!invoice) return sendError(res, 'Invoice not found', 404);
@@ -134,7 +134,7 @@ router.get('/:id/pdf', requirePermission('invoices.download'), async (req, res) 
   const invoice = await Invoice.findById(req.params.id)
     .populate('clientId')
     .populate('projectId', 'name projectCode ratePerDriver')
-    .populate('lineItems.driverId', 'fullName employeeCode')
+    .populate('lineItems.driverId', 'fullName employeeCode clientUserId')
     .populate('creditNotes.driverId', 'fullName employeeCode');
 
   if (!invoice) return sendError(res, 'Invoice not found', 404);
