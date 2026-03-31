@@ -1,5 +1,5 @@
 const { Invoice, SalaryRun, Client, Driver, DriverLedger, Project, AttendanceBatch, AttendanceRecord, DriverProjectAssignment } = require('../models');
-const { computeLineAmount, STANDARD_DAYS } = require('../utils/rateCalculator');
+const { computeLineAmount } = require('../utils/rateCalculator');
 
 const VAT_RATE = 0.05;
 
@@ -122,7 +122,9 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
     const rateBasis = proj.rateBasis || 'monthly_fixed';
     const drivers = runs.map((run) => {
       const rate = run.projectRatePerDriver || proj.ratePerDriver || fallbackRate;
-      const { dailyRate, amount } = computeLineAmount(rate, rateBasis, run.workingDays);
+      const { dailyRate, amount } = computeLineAmount(rate, rateBasis, run.workingDays, {
+        year, month, totalOrders: run.totalOrders || 0,
+      });
       return {
         driverId: run.driverId._id,
         employeeCode: run.driverId.employeeCode,
@@ -151,7 +153,9 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
 
   if (unassignedRuns.length > 0) {
     const drivers = unassignedRuns.map((run) => {
-      const { dailyRate, amount } = computeLineAmount(fallbackRate, 'monthly_fixed', run.workingDays);
+      const { dailyRate, amount } = computeLineAmount(fallbackRate, 'monthly_fixed', run.workingDays, {
+        year, month,
+      });
       return {
         driverId: run.driverId._id,
         employeeCode: run.driverId.employeeCode,
@@ -320,7 +324,9 @@ const generateFromAttendanceBatches = async (client, year, month, createdBy, pro
     }
 
     const rateBasis = project.rateBasis || 'monthly_fixed';
-    const { dailyRate, amount } = computeLineAmount(ratePerDriver, rateBasis, record.workingDays);
+    const { dailyRate, amount } = computeLineAmount(ratePerDriver, rateBasis, record.workingDays, {
+      year, month, totalOrders: record.totalOrders || 0,
+    });
 
     projectMap[projKey].ratePerDriver = ratePerDriver;
     projectMap[projKey].dailyRate = parseFloat(dailyRate.toFixed(4));
