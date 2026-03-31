@@ -124,8 +124,9 @@ module.exports = {
 
 // Legacy permission keys that were renamed — map old → new
 module.exports.LEGACY_KEY_MAP = {
-  'advances.issue':   'advances.approve',
-  'advances.recover': 'advances.manage_recovery',
+  'advances.issue':        'advances.approve',
+  'advances.recover':      'advances.manage_recovery',
+  'invoices.credit_note':  'credit_notes.view',
 };
 
 // Standalone helpers — safe to destructure (no `this` dependency)
