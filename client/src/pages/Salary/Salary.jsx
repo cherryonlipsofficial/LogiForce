@@ -18,15 +18,7 @@ import { formatDate } from '../../utils/formatters';
 import { useFormatters } from '../../hooks/useFormatters';
 import Pagination from '../../components/ui/Pagination';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
-
-const fallbackRuns = [
-  { _id: 'SAL-001', projectId: { name: 'Amazon Prime Now' }, driverId: { fullName: 'Ahmed Khan' }, period: 'Mar 2026', status: 'draft', grossSalary: 2500, totalDeductions: 350, netSalary: 2150, createdAt: '2026-03-21T08:00:00Z', approvedBy: null },
-  { _id: 'SAL-002', projectId: { name: 'Noon Express' }, driverId: { fullName: 'Omar Ali' }, period: 'Mar 2026', status: 'ops_approved', grossSalary: 2800, totalDeductions: 420, netSalary: 2380, createdAt: '2026-03-20T14:00:00Z' },
-  { _id: 'SAL-003', projectId: { name: 'Talabat Delivery' }, driverId: { fullName: 'Rashed Mohammed' }, period: 'Mar 2026', status: 'compliance_approved', grossSalary: 2400, totalDeductions: 310, netSalary: 2090, createdAt: '2026-03-19T10:30:00Z' },
-  { _id: 'SAL-004', projectId: { name: 'Amazon Prime Now' }, driverId: { fullName: 'Faisal Hassan' }, period: 'Feb 2026', status: 'paid', grossSalary: 2600, totalDeductions: 380, netSalary: 2220, createdAt: '2026-02-20T08:00:00Z' },
-  { _id: 'SAL-005', projectId: { name: 'Noon Express' }, driverId: { fullName: 'Saeed Ibrahim' }, period: 'Feb 2026', status: 'processed', grossSalary: 2700, totalDeductions: 400, netSalary: 2300, createdAt: '2026-02-19T09:00:00Z' },
-  { _id: 'SAL-006', projectId: { name: 'NoonFood Riders' }, driverId: { fullName: 'Fayyaz Memon' }, period: 'Mar 2026', status: 'accounts_approved', grossSalary: 2742.09, totalDeductions: 100, netSalary: 2642.09, createdAt: '2026-03-21T10:00:00Z' },
-];
+import { downloadBlob } from '../../utils/downloadBlob';
 
 const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -147,8 +139,8 @@ const ApprovalHistory = ({ approvals }) => {
   return (
     <div style={{ marginBottom: 20 }}>
       <SectionHeader>Approval History</SectionHeader>
-      {approvals.map((a, i) => (
-        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+      {approvals.map((a) => (
+        <div key={a._id || a.role} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
           <div>
             <div style={{ fontWeight: 500, color: '#4ade80' }}>{stageLabels[a.stage] || a.stage} Approval</div>
             <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
@@ -305,12 +297,7 @@ const RunDetail = ({ run, onClose }) => {
       const year = run.period?.year || new Date().getFullYear();
       const month = run.period?.month || (new Date().getMonth() + 1);
       const blob = await getWpsFile({ year, month, clientId: run.clientId });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `WPS_${run.projectId?.name || 'export'}_${year}_${month}.sif`;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, `WPS_${run.projectId?.name || 'export'}_${year}_${month}.sif`);
       toast.success('WPS file downloaded');
     } catch {
       toast.error('Failed to download WPS file');
@@ -336,14 +323,9 @@ const RunDetail = ({ run, onClose }) => {
     setDownloadingPdf(true);
     try {
       const blob = await getPayslipPdf(run._id);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
       const driverName = (detail.driverId?.fullName || 'driver').replace(/\s+/g, '_');
       const period = detail.period ? `${detail.period.year}_${String(detail.period.month).padStart(2, '0')}` : '';
-      a.download = `Payslip_${driverName}_${period}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, `Payslip_${driverName}_${period}.pdf`);
       toast.success('Payslip downloaded');
     } catch {
       toast.error('Failed to download payslip');
@@ -394,9 +376,9 @@ const RunDetail = ({ run, onClose }) => {
           {(detail.overtimePay > 0) && (
             <BreakdownRow label="Overtime Pay" value={formatCurrencyFull(detail.overtimePay)} sub={`${detail.overtimeHours ?? 0} hours @ 1.25x rate`} />
           )}
-          {(detail.allowances || []).map((a, i) => (
+          {(detail.allowances || []).map((a) => (
             <BreakdownRow
-              key={i}
+              key={a.type || a.label}
               label={`${(a.type || 'Allowance').replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())} Allowance`}
               value={formatCurrencyFull(a.amount)}
             />
@@ -409,8 +391,8 @@ const RunDetail = ({ run, onClose }) => {
           <SectionHeader color="#f87171">Deductions</SectionHeader>
           {(detail.deductions && detail.deductions.length > 0) ? (
             <>
-              {detail.deductions.filter(d => d.amount > 0).map((ded, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+              {detail.deductions.filter(d => d.amount > 0).map((ded) => (
+                <div key={ded.type || ded.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
                   <div>
                     <div style={{ color: 'var(--text)' }}>{ded.description || ded.type?.replace(/_/g, ' ')}</div>
                     {ded.type === 'vehicle_rental' && run.vehiclePlate && (
@@ -768,7 +750,7 @@ const Salary = () => {
     retry: 1,
   });
 
-  const runs = data?.data || fallbackRuns;
+  const runs = data?.data || [];
   const pagination = data?.pagination;
   const filtered = driverSearch.trim()
     ? runs.filter((r) => (r.driverId?.fullName || '').toLowerCase().includes(driverSearch.trim().toLowerCase()))

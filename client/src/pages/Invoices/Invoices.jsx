@@ -18,15 +18,7 @@ import { formatDate } from '../../utils/formatters';
 import { useFormatters } from '../../hooks/useFormatters';
 import Pagination from '../../components/ui/Pagination';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
-
-const fallbackInvoices = [
-  { _id: 'INV-2026-001', client: 'Amazon UAE', period: 'Mar 2026', amount: 892400, status: 'draft', issueDate: '2026-03-21T00:00:00Z', dueDate: '2026-04-20T00:00:00Z', driverCount: 342, creditNotes: [] },
-  { _id: 'INV-2026-002', client: 'Noon', period: 'Mar 2026', amount: 558700, status: 'sent', issueDate: '2026-03-20T00:00:00Z', dueDate: '2026-04-19T00:00:00Z', driverCount: 218, creditNotes: [] },
-  { _id: 'INV-2026-003', client: 'Talabat', period: 'Mar 2026', amount: 389200, status: 'sent', issueDate: '2026-03-19T00:00:00Z', dueDate: '2026-04-18T00:00:00Z', driverCount: 156, creditNotes: [{ amount: 4500, reason: 'Attendance correction' }] },
-  { _id: 'INV-2026-004', client: 'Amazon UAE', period: 'Feb 2026', amount: 884100, status: 'paid', issueDate: '2026-02-20T00:00:00Z', dueDate: '2026-03-22T00:00:00Z', driverCount: 340, paidAt: '2026-03-18T00:00:00Z', creditNotes: [] },
-  { _id: 'INV-2026-005', client: 'Noon', period: 'Feb 2026', amount: 549300, status: 'paid', issueDate: '2026-02-19T00:00:00Z', dueDate: '2026-03-21T00:00:00Z', driverCount: 215, paidAt: '2026-03-15T00:00:00Z', creditNotes: [] },
-  { _id: 'INV-2026-006', client: 'Talabat', period: 'Feb 2026', amount: 378900, status: 'overdue', issueDate: '2026-02-18T00:00:00Z', dueDate: '2026-03-20T00:00:00Z', driverCount: 154, creditNotes: [] },
-];
+import { downloadBlob } from '../../utils/downloadBlob';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -65,7 +57,7 @@ const Invoices = () => {
     retry: 1,
   });
 
-  const invoices = (data?.data || fallbackInvoices).map(normalizeInvoice);
+  const invoices = (data?.data || []).map(normalizeInvoice);
   const pagination = data?.pagination;
   const filtered = invoices;
 
@@ -225,12 +217,7 @@ const InvoiceDetail = ({ invoice, onClose }) => {
     setDownloadingPdf(true);
     try {
       const blob = await downloadPdf(invoice._id);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${invoice.invoiceNo || invoice._id}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, `${invoice.invoiceNo || invoice._id}.pdf`);
     } catch {
       toast.error('Failed to download PDF');
     } finally {
@@ -279,8 +266,8 @@ const InvoiceDetail = ({ invoice, onClose }) => {
         {invoice.linkedCreditNotes?.length > 0 && (
           <div style={{ marginBottom: 24 }}>
             <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>Linked credit notes</div>
-            {invoice.linkedCreditNotes.map((lcn, i) => (
-              <div key={i} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '10px 14px', marginBottom: 6, fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {invoice.linkedCreditNotes.map((lcn) => (
+              <div key={lcn._id || lcn.creditNoteNo} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '10px 14px', marginBottom: 6, fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: '#a78bfa' }}>{lcn.creditNoteNo}</span>
                 <span style={{ fontWeight: 500 }}>{formatCurrencyFull(lcn.amount)}</span>
               </div>

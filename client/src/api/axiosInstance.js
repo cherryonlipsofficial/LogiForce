@@ -5,6 +5,7 @@ const axiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 30000,
 });
 
 axiosInstance.interceptors.request.use((config) => {
@@ -21,7 +22,19 @@ axiosInstance.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       window.location.href = '/login';
+      return Promise.reject(error);
     }
+
+    // Network error (no response received)
+    if (!error.response) {
+      error.message = 'Network error — please check your connection';
+    }
+
+    // Timeout
+    if (error.code === 'ECONNABORTED') {
+      error.message = 'Request timed out — please try again';
+    }
+
     return Promise.reject(error);
   }
 );

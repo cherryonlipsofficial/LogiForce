@@ -24,7 +24,7 @@ router.post('/run', requirePermission('salary.run'), validate(runSalaryValidatio
     'period.year': parseInt(year),
     'period.month': parseInt(month),
     isDeleted: { $ne: true },
-  });
+  }).lean();
 
   if (existingRuns.length > 0) {
     return sendError(
@@ -70,7 +70,8 @@ router.get('/runs', requirePermission('salary.view'), async (req, res) => {
       .populate('approvals.approvedBy', 'name')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit),
+      .limit(limit)
+      .lean(),
     SalaryRun.countDocuments(query),
   ]);
 
@@ -85,7 +86,8 @@ router.get('/runs/:id', requirePermission('salary.view'), async (req, res) => {
     .populate('projectId', 'name salaryReleaseDay')
     .populate('attendanceRecordId')
     .populate('processedBy', 'name')
-    .populate('approvals.approvedBy', 'name');
+    .populate('approvals.approvedBy', 'name')
+    .lean();
 
   if (!run) return sendError(res, 'Salary run not found', 404);
 
@@ -323,14 +325,15 @@ router.get('/runs/:id/payslip', requirePermission('salary.view'), async (req, re
   const run = await SalaryRun.findById(req.params.id)
     .populate('driverId', 'fullName fullNameArabic employeeCode bankName iban payStructure baseSalary')
     .populate('clientId', 'name')
-    .populate('projectId', 'name projectCode');
+    .populate('projectId', 'name projectCode')
+    .lean();
 
   if (!run) return sendError(res, 'Salary run not found', 404);
 
   const companySettings = await CompanySettings.getSettings();
 
   const pdfBuffer = await generatePayslipPDF(
-    run.toObject(),
+    run,
     run.driverId,
     run.projectId,
     run.clientId,

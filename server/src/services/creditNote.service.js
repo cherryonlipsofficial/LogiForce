@@ -1,5 +1,6 @@
 const { CreditNote, Driver, Client, Project, Invoice, DriverLedger, SalaryRun } = require('../models');
 const { amountToWords } = require('../utils/numberToWords');
+const logger = require('../utils/logger');
 
 /**
  * Create a new credit note with multiple driver line items.
@@ -86,8 +87,8 @@ const createCreditNote = async (data, createdBy) => {
       referenceId: creditNote._id,
       triggeredBy: createdBy,
     });
-  } catch (_) {
-    // Non-critical — don't fail the creation
+  } catch (err) {
+    logger.warn('Non-critical operation failed', { error: err.message });
   }
 
   return creditNote;
@@ -128,7 +129,9 @@ const sendCreditNote = async (creditNoteId, userId) => {
       referenceId: cn._id,
       triggeredBy: userId,
     });
-  } catch (_) {}
+  } catch (err) {
+    logger.warn('Non-critical operation failed', { error: err.message });
+  }
 
   return cn;
 };
@@ -194,7 +197,9 @@ const adjustCreditNote = async (creditNoteId, invoiceId, userId) => {
       referenceId: cn._id,
       triggeredBy: userId,
     });
-  } catch (_) {}
+  } catch (err) {
+    logger.warn('Non-critical operation failed', { error: err.message });
+  }
 
   return cn;
 };
@@ -257,7 +262,9 @@ const checkAndSettleCreditNote = async (creditNoteId) => {
         referenceModel: 'CreditNote',
         referenceId: cn._id,
       });
-    } catch (_) {}
+    } catch (err) {
+      logger.warn('Non-critical operation failed', { error: err.message });
+    }
   }
 
   return cn;
@@ -569,8 +576,8 @@ const adjustDraftSalaryRuns = async (creditNote) => {
         triggeredBy: creditNote.sentBy,
       });
     }
-  } catch (_) {
-    // Non-critical — don't fail the send
+  } catch (err) {
+    logger.warn('Non-critical operation failed', { error: err.message });
   }
 
   return adjustmentSummary;

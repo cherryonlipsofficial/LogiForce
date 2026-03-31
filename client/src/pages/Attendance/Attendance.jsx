@@ -22,14 +22,7 @@ import DisputeResponseModal from '../../components/attendance/DisputeResponseMod
 import InvoicePreviewModal from '../../components/attendance/InvoicePreviewModal';
 import OverrideModal from '../../components/attendance/OverrideModal';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
-
-const fallbackBatches = [
-  { _id: 'ATT-001', client: 'Amazon UAE', project: 'Last Mile Delivery', projectCode: 'PRJ-00001', period: 'Mar 2026', uploadedBy: 'Sara Ali', uploadedAt: '2026-03-20T10:30:00Z', status: 'pending_review', totalRecords: 342, validRecords: 338, errors: 4, fileName: 'amazon_mar2026.csv' },
-  { _id: 'ATT-002', client: 'Noon', project: 'Express Delivery', projectCode: 'PRJ-00002', period: 'Mar 2026', uploadedBy: 'Sara Ali', uploadedAt: '2026-03-19T14:15:00Z', status: 'approved', totalRecords: 218, validRecords: 218, errors: 0, fileName: 'noon_mar2026.xlsx' },
-  { _id: 'ATT-003', client: 'Talabat', project: 'Food Delivery', projectCode: 'PRJ-00003', period: 'Mar 2026', uploadedBy: 'Omar K.', uploadedAt: '2026-03-18T09:00:00Z', status: 'approved', totalRecords: 156, validRecords: 154, errors: 2, fileName: 'talabat_mar2026.csv' },
-  { _id: 'ATT-004', client: 'Amazon UAE', project: 'Last Mile Delivery', projectCode: 'PRJ-00001', period: 'Feb 2026', uploadedBy: 'Sara Ali', uploadedAt: '2026-02-20T11:00:00Z', status: 'approved', totalRecords: 340, validRecords: 340, errors: 0, fileName: 'amazon_feb2026.csv' },
-  { _id: 'ATT-005', client: 'Noon', project: 'Express Delivery', projectCode: 'PRJ-00002', period: 'Feb 2026', uploadedBy: 'Omar K.', uploadedAt: '2026-02-19T08:45:00Z', status: 'approved', totalRecords: 215, validRecords: 212, errors: 3, fileName: 'noon_feb2026.xlsx' },
-];
+import { downloadBlob } from '../../utils/downloadBlob';
 
 const statusMap = {
   uploaded: { label: 'Uploaded', variant: 'default' },
@@ -105,7 +98,7 @@ const Attendance = () => {
     retry: 1,
   });
 
-  const batches = (data?.data || fallbackBatches).map(normalizeBatch);
+  const batches = (data?.data || []).map(normalizeBatch);
   const pagination = data?.pagination;
 
   const filtered = batches;
@@ -541,12 +534,7 @@ const downloadTemplate = () => {
   const rows = TEMPLATE_SAMPLE_ROWS.map((r) => r.join(','));
   const csv = [header, ...rows].join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'attendance_template.csv';
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadBlob(blob, 'attendance_template.csv');
 };
 
 const UploadModal = ({ onClose }) => {

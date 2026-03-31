@@ -66,7 +66,8 @@ router.get('/', requirePermission('credit_notes.view'), async (req, res) => {
       .populate('createdBy', 'name')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit),
+      .limit(limit)
+      .lean(),
     CreditNote.countDocuments(query),
   ]);
 
@@ -81,7 +82,8 @@ router.get('/:id', requirePermission('credit_notes.view'), async (req, res) => {
     .populate('lineItems.driverId', 'fullName employeeCode clientUserId status')
     .populate('linkedInvoiceId', 'invoiceNo total')
     .populate('createdBy', 'name')
-    .populate('sentBy', 'name');
+    .populate('sentBy', 'name')
+    .lean();
 
   if (!cn) return sendError(res, 'Credit note not found', 404);
   sendSuccess(res, cn);
@@ -136,7 +138,8 @@ router.delete('/:id', requirePermission('credit_notes.delete'), async (req, res)
 router.get('/:id/pdf', requirePermission('credit_notes.download'), async (req, res) => {
   const cn = await CreditNote.findById(req.params.id)
     .populate('clientId')
-    .populate('projectId', 'name projectCode');
+    .populate('projectId', 'name projectCode')
+    .lean();
 
   if (!cn) return sendError(res, 'Credit note not found', 404);
 

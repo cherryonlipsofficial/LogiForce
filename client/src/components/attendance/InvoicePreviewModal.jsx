@@ -115,8 +115,8 @@ const InvoicePreviewModal = ({ batch, onClose, onSuccess }) => {
               </tr>
             </thead>
             <tbody>
-              {projectGroups.map((g, i) => (
-                <tr key={i}>
+              {projectGroups.map((g) => (
+                <tr key={g.projectId || g.projectName}>
                   <td style={tdStyle}>
                     <div style={{ fontWeight: 500 }}>{g.name}</div>
                     {g.code && <div style={{ fontSize: 10, color: 'var(--text3)' }}>{g.code}</div>}

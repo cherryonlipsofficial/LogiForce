@@ -36,7 +36,7 @@ router.get('/', async (req, res) => {
   }
 
   const [clients, total] = await Promise.all([
-    Client.find(query).select('-contractFile.data').sort({ name: 1 }).skip(skip).limit(limit),
+    Client.find(query).select('-contractFile.data').sort({ name: 1 }).skip(skip).limit(limit).lean(),
     Client.countDocuments(query),
   ]);
 
@@ -51,11 +51,11 @@ router.post('/', requirePermission('clients.create'), validate(createClientValid
 
 // GET /api/clients/:id — get with driver count (exclude binary data)
 router.get('/:id', async (req, res) => {
-  const client = await Client.findById(req.params.id).select('-contractFile.data');
+  const client = await Client.findById(req.params.id).select('-contractFile.data').lean();
   if (!client) return sendError(res, 'Client not found', 404);
 
   const driverCount = await Driver.countDocuments({ clientId: req.params.id });
-  const result = client.toObject();
+  const result = { ...client };
   result.driverCount = driverCount;
 
   sendSuccess(res, result);
@@ -103,7 +103,7 @@ router.post('/:id/contract', requirePermission('clients.edit'), memUpload.single
 
 // GET /api/clients/:id/contract — download/view contract PDF (all authenticated users)
 router.get('/:id/contract', async (req, res) => {
-  const client = await Client.findById(req.params.id).select('contractFile');
+  const client = await Client.findById(req.params.id).select('contractFile').lean();
   if (!client) return sendError(res, 'Client not found', 404);
   if (!client.contractFile?.data) return sendError(res, 'No contract file found', 404);
 
@@ -136,7 +136,8 @@ router.get('/:id/drivers', async (req, res) => {
     Driver.find({ clientId: req.params.id })
       .sort({ fullName: 1 })
       .skip(skip)
-      .limit(limit),
+      .limit(limit)
+      .lean(),
     Driver.countDocuments({ clientId: req.params.id }),
   ]);
 

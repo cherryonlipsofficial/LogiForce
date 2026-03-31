@@ -5,6 +5,7 @@ const { User, Role } = require('../models');
 const { PERMISSIONS } = require('../config/permissions');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
+const logger = require('../utils/logger');
 
 // All routes require authentication
 router.use(protect);
@@ -67,7 +68,7 @@ router.post('/', requirePermission('users.create'), async (req, res) => {
   });
   await user.populate('roleId', 'name displayName');
 
-  console.log(`New user created (inactive): ${user.email} by ${req.user.email}`);
+  logger.info('New user created (inactive)', { email: user.email, createdBy: req.user.email });
 
   sendSuccess(res, user.toJSON(), 'User created', 201);
 });
@@ -77,7 +78,8 @@ router.get('/inactive', requirePermission('users.view'), async (req, res) => {
   const users = await User.find({ isActive: false })
     .populate('roleId', 'name displayName')
     .select('-password')
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1 })
+    .lean();
 
   res.json({ success: true, data: users, count: users.length });
 });

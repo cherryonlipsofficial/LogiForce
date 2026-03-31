@@ -17,13 +17,7 @@ import { formatDate } from '../../utils/formatters';
 import { useFormatters } from '../../hooks/useFormatters';
 import Pagination from '../../components/ui/Pagination';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
-
-const fallbackClients = [
-  { _id: 'CLI-001', name: 'Amazon UAE', contactName: 'Ahmad Hassan', contactEmail: 'ahmad@amazon.ae', contactPhone: '+971 4 123 4567', isActive: true, driverCount: 342, monthlyBilling: 892400, contractStart: '2024-01-01', contractEnd: '2026-12-31', paymentTerms: 'Net 30', vatNo: 'TRN-100234567890003', billingCurrency: 'AED' },
-  { _id: 'CLI-002', name: 'Noon', contactName: 'Fatima Al Zahra', contactEmail: 'fatima@noon.com', contactPhone: '+971 4 234 5678', isActive: true, driverCount: 218, monthlyBilling: 558700, contractStart: '2024-06-01', contractEnd: '2026-05-31', paymentTerms: 'Net 30', vatNo: 'TRN-100345678901234', billingCurrency: 'AED' },
-  { _id: 'CLI-003', name: 'Talabat', contactName: 'Khalid Mustafa', contactEmail: 'khalid@talabat.com', contactPhone: '+971 4 345 6789', isActive: true, driverCount: 156, monthlyBilling: 389200, contractStart: '2025-01-01', contractEnd: '2027-12-31', paymentTerms: 'Net 45', vatNo: 'TRN-100456789012345', billingCurrency: 'AED' },
-  { _id: 'CLI-004', name: 'Careem', contactName: 'Layla Ibrahim', contactEmail: 'layla@careem.com', contactPhone: '+971 4 456 7890', isActive: false, driverCount: 0, monthlyBilling: 0, contractStart: '2023-01-01', contractEnd: '2025-12-31', paymentTerms: 'Net 30', vatNo: 'TRN-100567890123456', billingCurrency: 'AED' },
-];
+import { downloadBlob } from '../../utils/downloadBlob';
 
 const isClientActive = (c) => c.isActive !== undefined ? c.isActive : c.status === 'active';
 
@@ -69,7 +63,7 @@ const Clients = () => {
     onError: () => toast.error('Failed to delete client'),
   });
 
-  const clients = data?.data || fallbackClients;
+  const clients = data?.data || [];
   const pagination = data?.pagination;
   const filtered = clients;
 
@@ -251,14 +245,7 @@ const ClientDetail = ({ client, onClose, onEdit, onDelete, hasPermission }) => {
         return res.blob();
       })
       .then(blob => {
-        const blobUrl = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        a.download = client.contractFile?.originalName || 'contract.pdf';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(blobUrl);
+        downloadBlob(blob, client.contractFile?.originalName || 'contract.pdf');
       })
       .catch(() => toast.error('Failed to download contract'));
   };

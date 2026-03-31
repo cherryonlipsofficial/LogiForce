@@ -26,14 +26,15 @@ router.get('/approved-batches', async (req, res) => {
       .populate('projectId', 'name projectCode')
       .select('batchId clientId projectId period totalRows matchedRows status createdAt invoiceId')
       .sort({ 'period.year': -1, 'period.month': -1, createdAt: -1 })
-      .limit(100);
+      .limit(100)
+      .lean();
 
     // Filter out batches that have an active (non-deleted) invoice
     const batchesWithInvoice = batches.filter((b) => b.invoiceId);
     let activeInvoiceIds = new Set();
     if (batchesWithInvoice.length > 0) {
       const invoiceIds = [...new Set(batchesWithInvoice.map((b) => b.invoiceId.toString()))];
-      const existing = await Invoice.find({ _id: { $in: invoiceIds }, isDeleted: { $ne: true } }).select('_id');
+      const existing = await Invoice.find({ _id: { $in: invoiceIds }, isDeleted: { $ne: true } }).select('_id').lean();
       activeInvoiceIds = new Set(existing.map((inv) => inv._id.toString()));
     }
 
@@ -79,7 +80,8 @@ router.get('/', requirePermission('invoices.view'), async (req, res) => {
       .populate('createdBy', 'name')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit),
+      .limit(limit)
+      .lean(),
     Invoice.countDocuments(query),
   ]);
 
@@ -92,7 +94,7 @@ router.get('/:id', requirePermission('invoices.view'), async (req, res) => {
     .populate('clientId')
     .populate('createdBy', 'name')
     .populate('lineItems.driverId', 'fullName employeeCode clientUserId')
-
+    .lean();
 
   if (!invoice) return sendError(res, 'Invoice not found', 404);
   sendSuccess(res, invoice);
@@ -128,7 +130,8 @@ router.get('/:id/pdf', requirePermission('invoices.download'), async (req, res) 
   const invoice = await Invoice.findById(req.params.id)
     .populate('clientId')
     .populate('projectId', 'name projectCode ratePerDriver')
-    .populate('lineItems.driverId', 'fullName employeeCode clientUserId');
+    .populate('lineItems.driverId', 'fullName employeeCode clientUserId')
+    .lean();
 
   if (!invoice) return sendError(res, 'Invoice not found', 404);
 

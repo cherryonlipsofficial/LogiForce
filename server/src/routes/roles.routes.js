@@ -58,7 +58,7 @@ router.post('/', requirePermission('roles.manage'), async (req, res) => {
   }
 
   // Check uniqueness
-  const existing = await Role.findOne({ name });
+  const existing = await Role.findOne({ name }).lean();
   if (existing) {
     return sendError(res, `Role "${name}" already exists`, 409);
   }
@@ -159,7 +159,7 @@ router.delete('/:id', requirePermission('roles.manage'), async (req, res) => {
 
 // POST /api/roles/:id/duplicate — duplicate a role
 router.post('/:id/duplicate', requirePermission('roles.manage'), async (req, res) => {
-  const source = await Role.findById(req.params.id);
+  const source = await Role.findById(req.params.id).lean();
   if (!source) return sendError(res, 'Source role not found', 404);
 
   const { newName, newDisplayName } = req.body;
@@ -172,7 +172,7 @@ router.post('/:id/duplicate', requirePermission('roles.manage'), async (req, res
     return sendError(res, 'newName must be lowercase alphanumeric with underscores, starting with a letter');
   }
 
-  const existing = await Role.findOne({ name: newName });
+  const existing = await Role.findOne({ name: newName }).lean();
   if (existing) {
     return sendError(res, `Role "${newName}" already exists`, 409);
   }

@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 const ensureAdminRole = async () => {
   const Role = require('../models/Role');
@@ -29,7 +30,7 @@ const migrateAttendanceBatchIndexes = async () => {
   // Drop the stale unique index that lacks the version field
   try {
     await collection.dropIndex('projectId_1_period.year_1_period.month_1');
-    console.log('Dropped stale attendancebatches index (without version)');
+    logger.info('Dropped stale attendancebatches index (without version)');
   } catch {
     // Index already dropped or doesn't exist — nothing to do
   }
@@ -67,7 +68,7 @@ const ensureRolePermissions = async () => {
     if (missing.length > 0) {
       role.permissions = [...new Set([...role.permissions, ...missing])];
       await role.save();
-      console.log(`Role '${role.name}': added missing permissions ${missing.join(', ')}`);
+      logger.info(`Role '${role.name}': added missing permissions ${missing.join(', ')}`);
     }
   }
 };
@@ -78,12 +79,26 @@ const connectDB = async () => {
       tls: true,
       tlsAllowInvalidCertificates: false,
     });
-    console.log(`MongoDB connected: ${conn.connection.host}`);
+    logger.info(`MongoDB connected: ${conn.connection.host}`);
+
+    // Connection event handlers
+    mongoose.connection.on('error', (err) => {
+      logger.error('MongoDB connection error', { error: err.message });
+    });
+
+    mongoose.connection.on('disconnected', () => {
+      logger.warn('MongoDB disconnected. Attempting reconnect...');
+    });
+
+    mongoose.connection.on('reconnected', () => {
+      logger.info('MongoDB reconnected');
+    });
+
     await ensureAdminRole();
     await ensureRolePermissions();
     await migrateAttendanceBatchIndexes();
   } catch (error) {
-    console.error(`MongoDB connection error: ${error.message}`);
+    logger.error(`MongoDB connection error: ${error.message}`);
     process.exit(1);
   }
 };

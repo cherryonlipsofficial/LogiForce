@@ -26,7 +26,7 @@ router.post('/', requirePermission('advances.approve'), validate(issueAdvanceVal
   });
 
   // Post ledger entry
-  const lastEntry = await DriverLedger.findOne({ driverId }).sort({ createdAt: -1 });
+  const lastEntry = await DriverLedger.findOne({ driverId }).sort({ createdAt: -1 }).lean();
   const previousBalance = lastEntry?.runningBalance || 0;
 
   await DriverLedger.create({
@@ -62,7 +62,8 @@ router.get('/', requirePermission('advances.view'), async (req, res) => {
       .populate('approvedBy', 'name')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit),
+      .limit(limit)
+      .lean(),
     Advance.countDocuments(query),
   ]);
 
@@ -102,7 +103,8 @@ router.put('/:id/recover', requirePermission('advances.manage_recovery'), valida
 
   // Post ledger entry
   const lastEntry = await DriverLedger.findOne({ driverId: advance.driverId })
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1 })
+    .lean();
   const previousBalance = lastEntry?.runningBalance || 0;
 
   await DriverLedger.create({
@@ -157,7 +159,8 @@ router.get('/driver', requirePermission('advances.view'), async (req, res) => {
       .populate('requestedBy', 'name')
       .sort({ requestedAt: -1 })
       .skip(skip)
-      .limit(limit),
+      .limit(limit)
+      .lean(),
     DriverAdvance.countDocuments(filter),
     DriverAdvance.aggregate([
       {
@@ -192,7 +195,8 @@ router.get('/driver/:id', requirePermission('advances.view'), async (req, res) =
     .populate('driverId', 'fullName employeeCode clientUserId baseSalary')
     .populate('projectId', 'name')
     .populate('requestedBy', 'name')
-    .populate('reviewedBy', 'name');
+    .populate('reviewedBy', 'name')
+    .lean();
   if (!advance) return sendError(res, 'Advance not found', 404);
   res.json({ success: true, data: advance });
 });
@@ -226,7 +230,8 @@ router.get('/by-driver/:id', requirePermission('advances.view'), async (req, res
   const advances = await DriverAdvance.find({ driverId: req.params.id })
     .populate('requestedBy', 'name')
     .populate('reviewedBy', 'name')
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1 })
+    .lean();
   res.json({ success: true, data: advances });
 });
 

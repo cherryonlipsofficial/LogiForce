@@ -108,7 +108,7 @@ router.get('/invoice-aging', requirePermission('reports.financial'), async (req,
 
   const invoices = await Invoice.find({
     status: { $in: ['sent', 'overdue'] },
-  }).populate('clientId', 'name');
+  }).populate('clientId', 'name').lean();
 
   const buckets = {
     'current_0_30': [],
@@ -222,7 +222,8 @@ router.get('/cost-per-driver', requirePermission('reports.financial'), async (re
 router.get('/advance-outstanding', requirePermission('reports.financial'), async (req, res) => {
   const advances = await Advance.find({ status: 'active' })
     .populate('driverId', 'fullName employeeCode clientId')
-    .populate('approvedBy', 'name');
+    .populate('approvedBy', 'name')
+    .lean();
 
   const result = advances
     .filter((a) => a.amountIssued - a.amountRecovered > 0)
@@ -253,7 +254,8 @@ router.get('/document-expiry', requirePermission('reports.view'), async (req, re
     status: { $ne: 'expired' },
   })
     .populate('driverId', 'fullName employeeCode clientId status')
-    .sort({ expiryDate: 1 });
+    .sort({ expiryDate: 1 })
+    .lean();
 
   const result = documents.map((doc) => ({
     documentId: doc._id,
@@ -303,7 +305,7 @@ router.get('/fleet-utilisation', requirePermission('reports.view'), async (req, 
     // By vehicle type
     const allDriversWithVehicle = await Driver.find({
       vehiclePlate: { $ne: null, $exists: true },
-    }).lean();
+    }).select('status vehicleType vehiclePlate').lean();
     const typeMap = {};
     for (const d of allDriversWithVehicle) {
       const type = d.vehicleType || 'Unknown';
