@@ -501,9 +501,11 @@ const CreateCreditNoteModal = ({ onClose }) => {
   const addLine = () => setLineItems([...lineItems, { driverId: '', driverSearch: '', referenceNo: '', amount: '', vatRate: '0' }]);
   const removeLine = (idx) => setLineItems(lineItems.filter((_, i) => i !== idx));
   const updateLine = (idx, field, value) => {
-    const items = [...lineItems];
-    items[idx] = { ...items[idx], [field]: value };
-    setLineItems(items);
+    setLineItems((prev) => {
+      const items = [...prev];
+      items[idx] = { ...items[idx], [field]: value };
+      return items;
+    });
   };
 
   const searchDrivers = async (idx, query) => {
