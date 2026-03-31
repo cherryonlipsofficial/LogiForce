@@ -22,7 +22,7 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
   // Auto-discover approved attendance batches for this client/period
   const batchQuery = {
     clientId,
-    status: 'fully_approved',
+    status: { $in: ['fully_approved', 'processed'] },
     invoiceId: null,
     'period.year': year,
     'period.month': month,
@@ -207,11 +207,11 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
  * Generate invoice from selected attendance batches.
  */
 const generateFromAttendanceBatches = async (client, year, month, createdBy, projectId, attendanceBatchIds) => {
-  // Validate all batches exist and are fully_approved
+  // Validate all batches exist and are approved (fully_approved or processed)
   const batches = await AttendanceBatch.find({
     _id: { $in: attendanceBatchIds },
     clientId: client._id,
-    status: 'fully_approved',
+    status: { $in: ['fully_approved', 'processed'] },
     invoiceId: null,
   });
 

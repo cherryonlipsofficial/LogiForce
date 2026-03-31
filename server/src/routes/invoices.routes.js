@@ -14,7 +14,7 @@ router.use(protect);
 
 // GET /api/invoices/approved-batches — get fully approved attendance batches for invoice generation
 router.get('/approved-batches', async (req, res) => {
-  const query = { status: 'fully_approved', invoiceId: null };
+  const query = { status: { $in: ['fully_approved', 'processed'] }, invoiceId: null };
   if (req.query.clientId) query.clientId = req.query.clientId;
   if (req.query.projectId) query.projectId = req.query.projectId;
   if (req.query.year) query['period.year'] = parseInt(req.query.year);
