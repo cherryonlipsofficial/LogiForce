@@ -110,7 +110,14 @@ router.put('/:id/status', requirePermission('invoices.edit'), validate(updateInv
   }
 
   invoice.status = status;
-  if (status === 'paid') invoice.paidDate = new Date();
+  if (status === 'paid') {
+    invoice.paidDate = new Date();
+    // Set amountReceived to adjusted total (after credit note deduction) or full total
+    const expectedAmount = invoice.adjustedTotal != null ? invoice.adjustedTotal : invoice.total;
+    invoice.amountReceived = Math.round(expectedAmount * 100) / 100;
+    invoice.paymentDate = invoice.paidDate;
+    invoice.paymentVariance = 0;
+  }
   await invoice.save();
 
   sendSuccess(res, invoice, `Invoice status updated to ${status}`);

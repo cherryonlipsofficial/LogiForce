@@ -436,7 +436,8 @@ const InfoRow = ({ label, value }) => (
 
 const PaymentModal = ({ invoice, onClose }) => {
   const { formatCurrencyFull } = useFormatters();
-  const [amountReceived, setAmountReceived] = useState('');
+  const defaultAmount = invoice.adjustedTotal != null ? invoice.adjustedTotal : (invoice.total ?? invoice.amount);
+  const [amountReceived, setAmountReceived] = useState(defaultAmount ? String(defaultAmount) : '');
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const qc = useQueryClient();
