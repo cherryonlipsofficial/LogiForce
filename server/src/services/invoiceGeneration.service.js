@@ -96,10 +96,14 @@ async function generateInvoice(batchId, accountsUserId) {
     if (!driver) continue
 
     const workingDays = record.workingDays || 0
-    if (workingDays <= 0) continue   // skip zero-day records — they add nothing to the invoice
+    const totalOrders = record.totalOrders || 0
+
+    // Skip records that contribute nothing: for per_order, check totalOrders; otherwise check workingDays
+    if (rateBasis === 'per_order' && totalOrders <= 0) continue
+    if (rateBasis !== 'per_order' && workingDays <= 0) continue
 
     const { dailyRate, amount } = computeLineAmount(ratePerDriver, rateBasis, workingDays, {
-      year: batch.period.year, month: batch.period.month, totalOrders: record.totalOrders || 0,
+      year: batch.period.year, month: batch.period.month, totalOrders,
     })
 
     const vatAmount_item = parseFloat((amount * 0.05).toFixed(2))
@@ -110,7 +114,7 @@ async function generateInvoice(batchId, accountsUserId) {
       driverName:   driver.fullName,
       employeeCode: driver.employeeCode,
       workingDays,
-      totalOrders:  record.totalOrders || 0,
+      totalOrders,
       ratePerDriver,
       rateBasis,
       dailyRate,

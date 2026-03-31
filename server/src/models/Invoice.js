@@ -64,6 +64,7 @@ const invoiceSchema = new Schema(
             driverName: { type: String },
             employeeCode: { type: String },
             workingDays: { type: Number },
+            totalOrders: { type: Number, default: 0 },
             overtimeHours: { type: Number, default: 0 },
             ratePerDay: { type: Number },
             rateBasis: { type: String, enum: ['monthly_fixed', 'daily_rate', 'per_order'] },

@@ -254,6 +254,10 @@ const InvoiceDetail = ({ invoice, onClose }) => {
           <InfoRow label="Issue date" value={formatDate(invoice.issueDate)} />
           <InfoRow label="Due date" value={formatDate(invoice.dueDate)} />
           <InfoRow label="Drivers" value={invoice.driverCount} />
+          {fullInvoice?.lineItems?.length > 0 && (() => {
+            const totalOrders = fullInvoice.lineItems.reduce((sum, item) => sum + (item.totalOrders || 0), 0);
+            return totalOrders > 0 ? <InfoRow label="Total Orders" value={totalOrders.toLocaleString()} /> : null;
+          })()}
           {invoice.paidAt && <InfoRow label="Paid on" value={formatDate(invoice.paidAt)} />}
         </div>
 
@@ -301,6 +305,7 @@ const InvoiceDetail = ({ invoice, onClose }) => {
           <div style={{ textAlign: 'center', padding: '16px 0', fontSize: 12, color: 'var(--text3)' }}>Loading invoice details...</div>
         ) : fullInvoice?.lineItems?.length > 0 ? (() => {
           const isPerOrder = fullInvoice.lineItems.some((item) => item.rateBasis === 'per_order');
+          const hasOrders = fullInvoice.lineItems.some((item) => (item.totalOrders || 0) > 0);
           const qtyLabel = isPerOrder ? 'Total Orders' : 'Payable Days';
           const thStyle = (align = 'right') => ({ padding: '7px 8px', fontSize: 10, color: 'var(--text3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: align, background: 'var(--surface2)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' });
           const tdMono = { padding: '6px 8px', fontSize: 11, textAlign: 'right', fontFamily: 'var(--mono)' };
@@ -315,6 +320,7 @@ const InvoiceDetail = ({ invoice, onClose }) => {
                       <th style={thStyle('center')}>#</th>
                       <th style={thStyle('left')}>Driver</th>
                       <th style={thStyle('right')}>{qtyLabel}</th>
+                      {!isPerOrder && hasOrders && <th style={thStyle('right')}>Orders</th>}
                       <th style={thStyle('right')}>Amount</th>
                       <th style={thStyle('right')}>VAT Amount</th>
                       <th style={thStyle('right')}>Total Amount</th>
@@ -334,6 +340,7 @@ const InvoiceDetail = ({ invoice, onClose }) => {
                           </div>
                         </td>
                         <td style={tdMono}>{qtyValue}</td>
+                        {!isPerOrder && hasOrders && <td style={tdMono}>{item.totalOrders || 0}</td>}
                         <td style={tdMono}>{formatCurrencyFull(item.amount)}</td>
                         <td style={tdMono}>{formatCurrencyFull(item.vatAmount || 0)}</td>
                         <td style={{ ...tdMono, fontWeight: 500 }}>{formatCurrencyFull(item.totalWithVat || (item.amount + (item.vatAmount || 0)))}</td>
