@@ -11,6 +11,7 @@ async function getPendingApprovalsSummary(user) {
 
   const summary = {
     attendance: 0,
+    attendanceDisputes: 0,
     salary: 0,
     advances: 0,
     guaranteeExtensions: 0,
@@ -47,6 +48,15 @@ async function getPendingApprovalsSummary(user) {
     promises.push(
       AttendanceBatch.countDocuments(attendanceFilter).then(count => {
         summary.attendance = count;
+      })
+    );
+  }
+
+  // 1b. Disputed attendance batches — for users who can respond to disputes
+  if (isSystemAdmin || permSet.has('attendance.respond_dispute')) {
+    promises.push(
+      AttendanceBatch.countDocuments({ status: 'disputed' }).then(count => {
+        summary.attendanceDisputes = count;
       })
     );
   }
@@ -105,6 +115,14 @@ async function getPendingApprovalsSummary(user) {
       path: '/attendance',
     });
   }
+  if (summary.attendanceDisputes > 0) {
+    summary.items.push({
+      type: 'attendanceDisputes',
+      label: 'Attendance disputes',
+      count: summary.attendanceDisputes,
+      path: '/attendance',
+    });
+  }
   if (summary.salary > 0) {
     summary.items.push({
       type: 'salary',
@@ -130,7 +148,7 @@ async function getPendingApprovalsSummary(user) {
     });
   }
 
-  summary.total = summary.attendance + summary.salary + summary.advances + summary.guaranteeExtensions;
+  summary.total = summary.attendance + summary.attendanceDisputes + summary.salary + summary.advances + summary.guaranteeExtensions;
 
   return summary;
 }
