@@ -13,7 +13,7 @@ import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
 import ProjectSelect from '../../components/ui/ProjectSelect';
 import { useNavigate } from 'react-router-dom';
-import { getRuns, runPayroll, approveRun, getWpsFile, getPayslipPdf, getRun, addDeduction, deleteRun, markAsPaid, disputeRun, approveByOps, approveByCompliance, approveByAccounts, processRun, bulkApproveByOps, bulkApproveByCompliance, bulkApproveByAccounts, bulkProcess, bulkMarkAsPaid } from '../../api/salaryApi';
+import { getRuns, runPayroll, getWpsFile, getPayslipPdf, getRun, addDeduction, deleteRun, markAsPaid, disputeRun, approveByOps, approveByCompliance, approveByAccounts, processRun, bulkApproveByOps, bulkApproveByCompliance, bulkApproveByAccounts, bulkProcess, bulkMarkAsPaid } from '../../api/salaryApi';
 import { formatDate } from '../../utils/formatters';
 import { useFormatters } from '../../hooks/useFormatters';
 import Pagination from '../../components/ui/Pagination';
@@ -214,7 +214,7 @@ const RunDetail = ({ run, onClose }) => {
   const st = statusMap[currentStatus] || statusMap.draft;
   // Determine which stages this user's role can act on
   // If the role is explicitly mapped, restrict to those stages; otherwise fall back to all stages
-  // so that custom roles with salary.approve permission can still act
+  // so that custom roles with salary approval permissions can still act
   const allowedStages = isAdmin
     ? ROLE_STAGE_MAP.admin
     : (ROLE_STAGE_MAP[role] || ROLE_STAGE_MAP.admin);
@@ -266,16 +266,6 @@ const RunDetail = ({ run, onClose }) => {
       onClose();
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to dispute salary run'),
-  });
-
-  const { mutate: approve, isPending: approving } = useMutation({
-    mutationFn: () => approveRun(run._id),
-    onSuccess: () => {
-      toast.success('Payroll run approved');
-      qc.invalidateQueries(['salary-runs']);
-      onClose();
-    },
-    onError: () => toast.error('Failed to approve run'),
   });
 
   const invalidateAll = () => {
@@ -557,25 +547,31 @@ const RunDetail = ({ run, onClose }) => {
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {/* Stage-specific approval buttons — gated by salary.approve permission + user role */}
+          {/* Stage-specific approval buttons */}
           {canActOnCurrentStage && (
-            <PermissionGate permission="salary.approve">
+            <>
               {currentStatus === 'draft' && (
-                <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Operations)', action: opsApprove })} disabled={stageApproving}>
-                  Approve (Operations)
-                </Btn>
+                <PermissionGate permission="salary.approve_ops">
+                  <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Operations)', action: opsApprove })} disabled={stageApproving}>
+                    Approve (Operations)
+                  </Btn>
+                </PermissionGate>
               )}
               {currentStatus === 'ops_approved' && (
-                <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Compliance)', action: complianceApprove })} disabled={stageApproving}>
-                  Approve (Compliance)
-                </Btn>
+                <PermissionGate permission="salary.approve_compliance">
+                  <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Compliance)', action: complianceApprove })} disabled={stageApproving}>
+                    Approve (Compliance)
+                  </Btn>
+                </PermissionGate>
               )}
               {currentStatus === 'compliance_approved' && (
-                <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Accounts)', action: accountsApprove })} disabled={stageApproving}>
-                  Approve (Accounts)
-                </Btn>
+                <PermissionGate permission="salary.approve_accounts">
+                  <Btn variant="primary" onClick={() => setShowApprovalConfirm({ title: 'Approve (Accounts)', action: accountsApprove })} disabled={stageApproving}>
+                    Approve (Accounts)
+                  </Btn>
+                </PermissionGate>
               )}
-            </PermissionGate>
+            </>
           )}
           {currentStatus === 'accounts_approved' && canActOnCurrentStage && (
             <PermissionGate permission="salary.process">

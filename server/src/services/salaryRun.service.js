@@ -198,16 +198,6 @@ async function runSalaryForBatch(batchId, processedByUserId) {
 }
 
 /**
- * Approve a salary run.
- * @deprecated Use stage-specific functions in salary.service.js instead.
- * Kept for backward compatibility — delegates to the main salary service.
- */
-async function approveSalaryRun(salaryRunId, approvedByUserId) {
-  const salaryService = require('./salary.service');
-  return salaryService.approveSalaryRun(salaryRunId, approvedByUserId);
-}
-
-/**
  * Get all salary runs for a given attendance batch.
  */
 async function getSalaryRunsByBatch(batchId) {
@@ -218,4 +208,4 @@ async function getSalaryRunsByBatch(batchId) {
     .lean();
 }
 
-module.exports = { runSalaryForBatch, approveSalaryRun, getSalaryRunsByBatch };
+module.exports = { runSalaryForBatch, getSalaryRunsByBatch };

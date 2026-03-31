@@ -186,33 +186,6 @@ router.put('/bulk-pay', requirePermission('salary.pay'), validate(bulkApprovalVa
   sendSuccess(res, results, msg);
 });
 
-// PUT /api/salary/runs/:id/approve — legacy backward-compatible approve (routes to appropriate stage)
-router.put('/runs/:id/approve', requirePermission('salary.approve'), async (req, res) => {
-  const run = await SalaryRun.findById(req.params.id);
-  if (!run) return sendError(res, 'Salary run not found', 404);
-
-  const STATUS_TO_PERMISSION = {
-    draft: 'salary.approve_ops',
-    pending_approval: 'salary.approve_ops',
-    ops_approved: 'salary.approve_compliance',
-    compliance_approved: 'salary.approve_accounts',
-  };
-
-  const requiredPerm = STATUS_TO_PERMISSION[run.status];
-  if (!requiredPerm) return sendError(res, `Cannot approve run in ${run.status} status`, 400);
-
-  // Check if user has the specific stage permission
-  const userPerms = new Set(req.userPermissions || []);
-  const isSystemAdmin = req.user.roleId?.isSystemRole === true;
-  if (!isSystemAdmin && !userPerms.has(requiredPerm)) {
-    return sendError(res, `You need the "${requiredPerm}" permission to approve at this stage`, 403);
-  }
-
-  const result = await salaryService.approveSalaryRun(req.params.id, req.user._id);
-  await auditLogger.logChange('SalaryRun', req.params.id, 'status', 'unknown', result.status, req.user._id, 'salary_approval');
-  sendSuccess(res, result, 'Salary run approved');
-});
-
 // PUT /api/salary/runs/:id/adjust — add manual adjustment with reason
 router.put('/runs/:id/adjust', requirePermission('salary.adjust'), validate(adjustSalaryValidation), async (req, res) => {
   const { type, amount, reason } = req.body;

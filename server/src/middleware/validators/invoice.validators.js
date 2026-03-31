@@ -27,17 +27,4 @@ const updateInvoiceStatusValidation = [
     .isIn(['sent', 'paid', 'cancelled']).withMessage('Status must be sent, paid, or cancelled'),
 ];
 
-const creditNoteValidation = [
-  body('driverId')
-    .notEmpty().withMessage('driverId is required')
-    .isMongoId().withMessage('driverId must be a valid ID'),
-  body('amount')
-    .notEmpty().withMessage('Amount is required')
-    .isFloat({ min: 0.01 }).withMessage('Amount must be a positive number'),
-  body('reason')
-    .trim()
-    .notEmpty().withMessage('Reason is required')
-    .isLength({ min: 3, max: 500 }).withMessage('Reason must be 3-500 characters'),
-];
-
-module.exports = { generateInvoiceValidation, updateInvoiceStatusValidation, creditNoteValidation };
+module.exports = { generateInvoiceValidation, updateInvoiceStatusValidation };

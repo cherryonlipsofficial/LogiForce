@@ -10,8 +10,8 @@ async function migrate() {
     accountant: [
       'attendance.view', 'attendance.upload', 'attendance.respond_dispute',
       'invoices.view', 'invoices.generate', 'invoices.edit',
-      'invoices.credit_note', 'invoices.download',
-      'salary.view', 'salary.run', 'salary.approve',
+      'invoices.download',
+      'salary.view', 'salary.run',
       'salary.adjust', 'salary.export_wps',
       'advances.view', 'advances.approve', 'advances.manage_recovery',
       'notifications.view',

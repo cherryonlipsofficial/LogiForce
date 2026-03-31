@@ -12,7 +12,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
 import ProjectSelect from '../../components/ui/ProjectSelect';
-import { getInvoices, getInvoice, generateInvoice, updateStatus, addCreditNote, downloadPdf, deleteInvoice, getApprovedBatches } from '../../api/invoicesApi';
+import { getInvoices, getInvoice, generateInvoice, updateStatus, downloadPdf, deleteInvoice, getApprovedBatches } from '../../api/invoicesApi';
 import { recordInvoicePayment } from '../../api/creditNotesApi';
 import { formatDate } from '../../utils/formatters';
 import { useFormatters } from '../../hooks/useFormatters';
@@ -170,7 +170,6 @@ const InvoiceDetail = ({ invoice, onClose }) => {
   const { isMobile } = useBreakpoint();
   const { formatCurrencyFull } = useFormatters();
   const qc = useQueryClient();
-  const [showCreditNote, setShowCreditNote] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteRemark, setDeleteRemark] = useState('');
@@ -282,19 +281,6 @@ const InvoiceDetail = ({ invoice, onClose }) => {
           </div>
         )}
 
-        {/* Legacy credit notes */}
-        {invoice.creditNotes?.length > 0 && (
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>Credit notes (legacy)</div>
-            {invoice.creditNotes.map((cn, i) => (
-              <div key={i} style={{ background: 'var(--surface2)', borderRadius: 8, padding: '10px 14px', marginBottom: 6, fontSize: 12 }}>
-                <span style={{ color: '#a78bfa', fontWeight: 500 }}>{formatCurrencyFull(cn.amount)}</span>
-                <span style={{ color: 'var(--text3)', marginLeft: 8 }}>{cn.reason}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
         {/* Payment info */}
         {invoice.amountReceived > 0 && (
           <div style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12 }}>
@@ -401,9 +387,6 @@ const InvoiceDetail = ({ invoice, onClose }) => {
               {downloadingPdf ? 'Downloading...' : 'Download PDF'}
             </Btn>
           </PermissionGate>
-          <PermissionGate permission="invoices.credit_note">
-            <Btn variant="ghost" onClick={() => setShowCreditNote(true)}>Add credit note (legacy)</Btn>
-          </PermissionGate>
           <PermissionGate permission="invoices.delete">
             {!confirmDelete ? (
               <Btn variant="danger" onClick={() => setConfirmDelete(true)}>Delete invoice</Btn>
@@ -432,7 +415,6 @@ const InvoiceDetail = ({ invoice, onClose }) => {
         </div>
       </div>
 
-      {showCreditNote && <CreditNoteModal invoiceId={invoice._id} onClose={() => { setShowCreditNote(false); onClose(); }} />}
       {showPayment && <PaymentModal invoice={invoice} onClose={() => { setShowPayment(false); onClose(); }} />}
     </SidePanel>
   );
@@ -444,54 +426,6 @@ const InfoRow = ({ label, value }) => (
     <div style={{ fontSize: 13 }}>{value}</div>
   </div>
 );
-
-const CreditNoteModal = ({ invoiceId, onClose }) => {
-  const [amount, setAmount] = useState('');
-  const [reason, setReason] = useState('');
-  const [driverId, setDriverId] = useState('');
-  const qc = useQueryClient();
-
-  const { mutate: add, isPending: isLoading } = useMutation({
-    mutationFn: (data) => addCreditNote(invoiceId, data),
-    onSuccess: () => {
-      toast.success('Credit note added');
-      qc.invalidateQueries(['invoices']);
-      onClose();
-    },
-    onError: (err) => toast.error(err.response?.data?.message || 'Failed to add credit note'),
-  });
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!amount || !reason || !driverId) { toast.error('Please fill all fields'); return; }
-    add({ driverId, amount: Number(amount), reason });
-  };
-
-  const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 4 };
-
-  return (
-    <Modal title="Add credit note" onClose={onClose} width={400}>
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>Driver ID *</label>
-          <input value={driverId} onChange={(e) => setDriverId(e.target.value)} placeholder="Driver ObjectId" />
-        </div>
-        <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>Amount (AED) *</label>
-          <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="4500" />
-        </div>
-        <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>Reason *</label>
-          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Attendance correction" />
-        </div>
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
-          <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-          <Btn variant="primary" type="submit" disabled={isLoading}>{isLoading ? 'Adding...' : 'Add credit note'}</Btn>
-        </div>
-      </form>
-    </Modal>
-  );
-};
 
 const PaymentModal = ({ invoice, onClose }) => {
   const { formatCurrencyFull } = useFormatters();

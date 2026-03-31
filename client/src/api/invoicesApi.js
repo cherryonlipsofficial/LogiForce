@@ -12,9 +12,6 @@ export const getInvoice = (id) =>
 export const updateStatus = (id, data) =>
   axiosInstance.put(`/invoices/${id}/status`, data).then(r => r.data);
 
-export const addCreditNote = (id, data) =>
-  axiosInstance.post(`/invoices/${id}/credit-note`, data).then(r => r.data);
-
 export const downloadPdf = (id) =>
   axiosInstance.get(`/invoices/${id}/pdf`, { responseType: 'blob' }).then(r => r.data);
 
