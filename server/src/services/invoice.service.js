@@ -219,13 +219,34 @@ const generateFromAttendanceBatches = async (client, year, month, createdBy, pro
     throw err;
   }
 
-  // Check if any batch already has an invoice linked
-  const alreadyInvoiced = batches.filter((b) => b.invoiceId);
-  if (alreadyInvoiced.length > 0) {
-    const ids = alreadyInvoiced.map((b) => b.batchId).join(', ');
-    const err = new Error(`Batch(es) ${ids} already have an invoice generated. Delete the existing invoice first.`);
-    err.statusCode = 400;
-    throw err;
+  // Check if any batch has a stale invoiceId (invoice was deleted but invoiceId not cleared)
+  const batchesWithInvoiceId = batches.filter((b) => b.invoiceId);
+  if (batchesWithInvoiceId.length > 0) {
+    const invoiceIds = [...new Set(batchesWithInvoiceId.map((b) => b.invoiceId.toString()))];
+    const existingInvoices = await Invoice.find({
+      _id: { $in: invoiceIds },
+      isDeleted: { $ne: true },
+    }).select('_id');
+    const activeInvoiceIds = new Set(existingInvoices.map((inv) => inv._id.toString()));
+
+    const trulyInvoiced = batchesWithInvoiceId.filter((b) => activeInvoiceIds.has(b.invoiceId.toString()));
+    if (trulyInvoiced.length > 0) {
+      const ids = trulyInvoiced.map((b) => b.batchId).join(', ');
+      const err = new Error(`Batch(es) ${ids} already have an invoice generated. Delete the existing invoice first.`);
+      err.statusCode = 400;
+      throw err;
+    }
+
+    // Clear stale invoiceId references from batches whose invoice was deleted
+    const staleBatchIds = batchesWithInvoiceId
+      .filter((b) => !activeInvoiceIds.has(b.invoiceId.toString()))
+      .map((b) => b._id);
+    if (staleBatchIds.length > 0) {
+      await AttendanceBatch.updateMany(
+        { _id: { $in: staleBatchIds } },
+        { $set: { invoiceId: null, invoicedAt: null, invoicedBy: null } }
+      );
+    }
   }
 
   // Fetch attendance records from selected batches
