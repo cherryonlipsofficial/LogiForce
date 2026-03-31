@@ -17,15 +17,15 @@ const createCreditNoteValidation = [
     .trim()
     .notEmpty().withMessage('Description is required')
     .isLength({ min: 3, max: 500 }).withMessage('Description must be 3-500 characters'),
-  body('noteType')
-    .notEmpty().withMessage('Note type is required')
-    .isIn(['traffic_fine', 'penalty', 'damage', 'client_chargeback', 'attendance_correction', 'excess_insurance', 'salik', 'tots', 'accident_report', 'misuse', 'cod', 'other'])
-    .withMessage('Invalid note type'),
   body('lineItems')
     .isArray({ min: 1 }).withMessage('At least one line item is required'),
   body('lineItems.*.driverId')
     .notEmpty().withMessage('Driver ID is required')
     .isMongoId().withMessage('Driver ID must be a valid ID'),
+  body('lineItems.*.noteType')
+    .notEmpty().withMessage('Note type is required for each line item')
+    .isIn(['traffic_fine', 'penalty', 'damage', 'client_chargeback', 'attendance_correction', 'excess_insurance', 'salik', 'tots', 'accident_report', 'misuse', 'cod', 'other'])
+    .withMessage('Invalid note type'),
   body('lineItems.*.amount')
     .notEmpty().withMessage('Amount is required')
     .isFloat({ min: 0.01 }).withMessage('Amount must be a positive number'),

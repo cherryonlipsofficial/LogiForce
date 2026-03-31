@@ -30,14 +30,7 @@ const creditNoteSchema = new Schema(
     // Description — e.g. "Credit Note - Traffic Fine"
     description: { type: String, required: true },
 
-    // The credit note type
-    noteType: {
-      type: String,
-      enum: ['traffic_fine', 'penalty', 'damage', 'client_chargeback', 'attendance_correction', 'excess_insurance', 'salik', 'tots', 'accident_report', 'misuse', 'cod', 'other'],
-      required: true,
-    },
-
-    // Multi-driver line items — one row per driver
+    // Multi-driver line items — one row per driver (each can have a different type)
     lineItems: [
       {
         driverId: {
@@ -46,6 +39,11 @@ const creditNoteSchema = new Schema(
           required: true,
         },
         driverName: { type: String, required: true },
+        noteType: {
+          type: String,
+          enum: ['traffic_fine', 'penalty', 'damage', 'client_chargeback', 'attendance_correction', 'excess_insurance', 'salik', 'tots', 'accident_report', 'misuse', 'cod', 'other'],
+          required: true,
+        },
         clientUserId: { type: String },
         employeeCode: { type: String },
         referenceNo: { type: String },

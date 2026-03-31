@@ -5,7 +5,7 @@ const { amountToWords } = require('../utils/numberToWords');
  * Create a new credit note with multiple driver line items.
  */
 const createCreditNote = async (data, createdBy) => {
-  const { clientId, projectId, year, month, description, noteType, lineItems } = data;
+  const { clientId, projectId, year, month, description, lineItems } = data;
 
   // Validate client and project exist
   const client = await Client.findById(clientId);
@@ -43,6 +43,7 @@ const createCreditNote = async (data, createdBy) => {
     processedItems.push({
       driverId: driver._id,
       driverName: driver.fullName,
+      noteType: item.noteType,
       clientUserId: driver.clientUserId || '',
       employeeCode: driver.employeeCode || '',
       referenceNo: item.referenceNo || '',
@@ -65,7 +66,6 @@ const createCreditNote = async (data, createdBy) => {
     projectId,
     period: { year, month },
     description,
-    noteType,
     lineItems: processedItems,
     subtotal,
     totalVat,
