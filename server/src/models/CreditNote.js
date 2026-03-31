@@ -33,7 +33,7 @@ const creditNoteSchema = new Schema(
     // The credit note type
     noteType: {
       type: String,
-      enum: ['traffic_fine', 'penalty', 'damage', 'client_chargeback', 'attendance_correction', 'other'],
+      enum: ['traffic_fine', 'penalty', 'damage', 'client_chargeback', 'attendance_correction', 'excess_insurance', 'salik', 'tots', 'accident_report', 'misuse', 'cod', 'other'],
       required: true,
     },
 

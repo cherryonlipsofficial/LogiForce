@@ -45,6 +45,12 @@ const noteTypeLabels = {
   damage: 'Damage',
   client_chargeback: 'Client Chargeback',
   attendance_correction: 'Attendance Correction',
+  excess_insurance: 'Excess Insurance',
+  salik: 'Salik',
+  tots: 'TOTS',
+  accident_report: 'Accident Report',
+  misuse: 'Misuse',
+  cod: 'COD',
   other: 'Other',
 };
 

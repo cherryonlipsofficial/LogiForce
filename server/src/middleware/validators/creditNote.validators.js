@@ -19,7 +19,7 @@ const createCreditNoteValidation = [
     .isLength({ min: 3, max: 500 }).withMessage('Description must be 3-500 characters'),
   body('noteType')
     .notEmpty().withMessage('Note type is required')
-    .isIn(['traffic_fine', 'penalty', 'damage', 'client_chargeback', 'attendance_correction', 'other'])
+    .isIn(['traffic_fine', 'penalty', 'damage', 'client_chargeback', 'attendance_correction', 'excess_insurance', 'salik', 'tots', 'accident_report', 'misuse', 'cod', 'other'])
     .withMessage('Invalid note type'),
   body('lineItems')
     .isArray({ min: 1 }).withMessage('At least one line item is required'),
