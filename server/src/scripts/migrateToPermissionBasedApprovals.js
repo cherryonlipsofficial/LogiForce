@@ -74,6 +74,30 @@ async function run() {
     }
   }
 
+  // 2b. Ensure known role names have their expected salary approval permissions
+  //     (handles roles created without the legacy 'salary.approve' key)
+  const ROLE_NAME_PERMS = {
+    ops:              ['salary.approve_ops'],
+    operations:       ['salary.approve_ops'],
+    compliance:       ['salary.approve_compliance'],
+    accounts:         ['salary.approve_accounts'],
+    junior_accountant:['salary.approve_accounts'],
+    accountant:       ['salary.approve_ops', 'salary.approve_compliance', 'salary.approve_accounts'],
+  };
+
+  for (const [roleName, expectedPerms] of Object.entries(ROLE_NAME_PERMS)) {
+    const role = await Role.findOne({ name: roleName, isSystemRole: { $ne: true } });
+    if (!role) continue;
+
+    const current = new Set(role.permissions);
+    const toAdd = expectedPerms.filter(p => !current.has(p));
+    if (toAdd.length > 0) {
+      role.permissions = [...new Set([...role.permissions, ...toAdd])];
+      await role.save();
+      console.log(`  Role '${role.name}': Ensured ${toAdd.join(', ')}`);
+    }
+  }
+
   // 3. Update roles with old attendance.approve → add granular permissions
   const rolesWithAttendanceApprove = await Role.find({
     permissions: 'attendance.approve',
