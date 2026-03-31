@@ -323,13 +323,11 @@ const InvoiceDetail = ({ invoice, onClose }) => {
             <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>Driver details ({fullInvoice.lineItems.length})</div>
             <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 680 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
                   <thead>
                     <tr>
                       <th style={thStyle('center')}>#</th>
-                      <th style={thStyle('left')}>Driver Name</th>
-                      <th style={thStyle('left')}>Driver Code</th>
-                      <th style={thStyle('left')}>Client User ID</th>
+                      <th style={thStyle('left')}>Driver</th>
                       <th style={thStyle('right')}>{qtyLabel}</th>
                       <th style={thStyle('right')}>Amount</th>
                       <th style={thStyle('right')}>VAT Amount</th>
@@ -342,9 +340,13 @@ const InvoiceDetail = ({ invoice, onClose }) => {
                       return (
                       <tr key={item._id || idx} style={{ borderBottom: '1px solid var(--border)' }}>
                         <td style={{ padding: '6px 8px', fontSize: 11, color: 'var(--text3)', textAlign: 'center' }}>{idx + 1}</td>
-                        <td style={{ padding: '6px 8px', fontSize: 12, textAlign: 'left' }}>{item.driverId?.fullName || item.driverName || '—'}</td>
-                        <td style={{ padding: '6px 8px', fontSize: 11, textAlign: 'left', fontFamily: 'var(--mono)', color: 'var(--text3)' }}>{item.driverId?.employeeCode || item.employeeCode || '—'}</td>
-                        <td style={{ padding: '6px 8px', fontSize: 11, textAlign: 'left', fontFamily: 'var(--mono)', color: 'var(--text3)' }}>{item.driverId?.clientUserId || '—'}</td>
+                        <td style={{ padding: '6px 8px', fontSize: 12, textAlign: 'left' }}>
+                          <div>{item.driverId?.fullName || item.driverName || '—'}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>
+                            {item.driverId?.employeeCode || item.employeeCode || ''}
+                            {item.driverId?.clientUserId ? ` · ${item.driverId.clientUserId}` : ''}
+                          </div>
+                        </td>
                         <td style={tdMono}>{qtyValue}</td>
                         <td style={tdMono}>{formatCurrencyFull(item.amount)}</td>
                         <td style={tdMono}>{formatCurrencyFull(item.vatAmount || 0)}</td>
