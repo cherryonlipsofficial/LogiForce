@@ -334,7 +334,10 @@ const InvoiceDetail = ({ invoice, onClose }) => {
                         <td style={{ padding: '6px 10px', fontSize: 11, color: 'var(--text3)', textAlign: 'right' }}>{idx + 1}</td>
                         <td style={{ padding: '6px 10px', fontSize: 12, textAlign: 'left' }}>
                           <div>{item.driverId?.fullName || item.driverName || '—'}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>{item.driverId?.employeeCode || item.employeeCode || ''}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>
+                            {item.driverId?.employeeCode || item.employeeCode || ''}
+                            {item.driverId?.clientUserId ? ` · ${item.driverId.clientUserId}` : ''}
+                          </div>
                         </td>
                         <td style={{ padding: '6px 10px', fontSize: 12, textAlign: 'right', fontFamily: 'var(--mono)' }}>{item.workingDays}</td>
                         <td style={{ padding: '6px 10px', fontSize: 12, textAlign: 'right', fontFamily: 'var(--mono)' }}>{formatCurrencyFull(item.dailyRate || item.ratePerDay || 0)}</td>
