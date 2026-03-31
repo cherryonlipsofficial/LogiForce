@@ -1,11 +1,7 @@
 module.exports = {
-  ROLES: {
-    ADMIN: 'admin',
-    ACCOUNTANT: 'accountant',
-    OPS: 'ops',
-    COMPLIANCE: 'compliance',
-    SALES: 'sales',
-  },
+  // ROLES constant removed — role names are dynamic.
+  // All access control uses permission keys from config/permissions.js.
+  // Use isSystemRole flag for admin bypass, never a role name.
   PAGINATION: {
     DEFAULT_PAGE: 1,
     DEFAULT_LIMIT: 20,

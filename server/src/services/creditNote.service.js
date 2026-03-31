@@ -77,8 +77,8 @@ const createCreditNote = async (data, createdBy) => {
 
   // Notify accounts team
   try {
-    const { notifyByRole } = require('./notification.service');
-    await notifyByRole(['accountant'], {
+    const { notifyByPermission } = require('./notification.service');
+    await notifyByPermission('credit_notes.adjust', {
       type: 'credit_note_created',
       title: 'New credit note created',
       message: `Credit note ${creditNote.creditNoteNo} created for ${client.name} — ${totalAmount} AED`,
@@ -116,8 +116,8 @@ const sendCreditNote = async (creditNoteId, userId) => {
   await cn.save();
 
   try {
-    const { notifyByRole } = require('./notification.service');
-    await notifyByRole(['accountant'], {
+    const { notifyByPermission } = require('./notification.service');
+    await notifyByPermission('credit_notes.adjust', {
       type: 'credit_note_sent',
       title: 'Credit note sent to client',
       message: `Credit note ${cn.creditNoteNo} has been sent to the client.`,
@@ -182,8 +182,8 @@ const adjustCreditNote = async (creditNoteId, invoiceId, userId) => {
   await invoice.save();
 
   try {
-    const { notifyByRole } = require('./notification.service');
-    await notifyByRole(['accountant'], {
+    const { notifyByPermission } = require('./notification.service');
+    await notifyByPermission('credit_notes.adjust', {
       type: 'credit_note_adjusted',
       title: 'Credit note linked to invoice',
       message: `Credit note ${cn.creditNoteNo} linked to invoice ${invoice.invoiceNo}.`,
@@ -246,8 +246,8 @@ const checkAndSettleCreditNote = async (creditNoteId) => {
     await cn.save();
 
     try {
-      const { notifyByRole } = require('./notification.service');
-      await notifyByRole(['accountant'], {
+      const { notifyByPermission } = require('./notification.service');
+      await notifyByPermission('credit_notes.adjust', {
         type: 'credit_note_settled',
         title: 'Credit note fully settled',
         message: `Credit note ${cn.creditNoteNo} is fully settled (all driver lines resolved + client adjusted).`,

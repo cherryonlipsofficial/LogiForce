@@ -27,7 +27,7 @@ router.post('/register', validate(registerValidation), async (req, res) => {
       await new Promise((resolve, reject) => {
         protect(req, res, (err) => (err ? reject(err) : resolve()));
       });
-      if (req.user.roleId?.name !== 'admin') {
+      if (!req.user.roleId?.isSystemRole) {
         return sendError(res, 'Only admins can register users', 403);
       }
     } catch {

@@ -148,7 +148,7 @@ async function changeStatusManual(driverId, newStatus, reason, userId) {
   }
 
   const currentStatus = driver.status;
-  const isAdmin = user.roleId && user.roleId.isSystemRole && user.roleId.name === 'admin';
+  const isAdmin = user.roleId?.isSystemRole === true;
   let description;
 
   if (isAdmin) {

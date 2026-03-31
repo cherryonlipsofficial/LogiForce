@@ -80,8 +80,8 @@ const dotColor = (approval) => {
 };
 
 const ApprovalDots = ({ batch }) => {
-  const sales = batch.approvals?.find(a => a.role === 'sales');
-  const ops = batch.approvals?.find(a => a.role === 'ops');
+  const sales = batch.salesApproval;
+  const ops = batch.opsApproval;
   return (
     <span style={{ display: 'inline-flex', gap: 3, marginLeft: 2 }} title="Sales / Ops approval">
       <span style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor(sales), display: 'inline-block', opacity: 0.9 }} />
@@ -233,7 +233,7 @@ const ISSUE_LABELS = {
 
 const BatchDetail = ({ batch, onClose, hasPermission }) => {
   const { isMobile } = useBreakpoint();
-  const { user, role } = useAuth();
+  const { user } = useAuth();
   const qc = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [approveModal, setApproveModal] = useState(null);
@@ -283,7 +283,6 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
   const attendanceRecords = batchDetail?.records || [];
   const detailBatch = batchDetail?.batch || null;
   const activeBatch = approvalData || detailBatch || batch;
-  const currentUserRole = role || user?.roleId?.name || '';
   const st = statusMap[activeBatch.status || batch.status] || statusMap.pending_review;
   const displayId = batch.batchId || batch._id;
   const validationErrors = batch.validationErrors || [];
@@ -303,7 +302,6 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
       <div style={{ padding: 24, overflowY: 'auto', flex: 1 }}>
         <ApprovalStatusCard
           batch={activeBatch}
-          currentUserRole={currentUserRole}
           onApprove={() => setApproveModal(batch)}
           onDispute={() => setDisputeModal(batch)}
           onRespondDispute={openDisputes.length > 0 ? () => setRespondModal(openDisputes[0]) : undefined}

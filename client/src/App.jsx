@@ -41,9 +41,9 @@ const ProtectedPage = ({ children, permission }) => (
 );
 
 const DashboardSwitch = () => {
-  const { role } = useAuth();
-  if (role === 'compliance') return <ComplianceDashboard />;
-  if (role === 'sales') return <SalesDashboard />;
+  const { hasPermission } = useAuth();
+  if (hasPermission('dashboard.compliance')) return <ComplianceDashboard />;
+  if (hasPermission('dashboard.sales')) return <SalesDashboard />;
   return <Dashboard />;
 };
 

@@ -307,18 +307,19 @@ const CreateRoleModal = ({ onClose, onCreate, allPerms, roles }) => {
           <textarea style={{ ...inputStyle, minHeight: 50, resize: 'vertical' }} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
         </div>
 
-        {/* Template presets */}
+        {/* Template presets — dynamically loaded from existing roles */}
         <div style={{ marginBottom: 16 }}>
           <label style={labelStyle}>Start from a template</label>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {['blank', 'accountant', 'ops', 'compliance', 'sales', 'viewer'].map((t) => (
+            <Btn small onClick={() => applyTemplate('blank')}>Blank</Btn>
+            {(roles || []).filter(r => !r.isSystemRole).map((r) => (
               <Btn
-                key={t}
+                key={r.name}
                 small
-                onClick={() => applyTemplate(t)}
+                onClick={() => applyTemplate(r.name)}
                 style={{ textTransform: 'capitalize' }}
               >
-                {t === 'blank' ? 'Blank' : `Copy from ${t.charAt(0).toUpperCase() + t.slice(1)}`}
+                Copy from {r.displayName || r.name}
               </Btn>
             ))}
           </div>
@@ -626,7 +627,7 @@ const RolesPanel = () => {
                     allPerms={allPerms}
                     activePerms={localPerms || []}
                     onChange={setLocalPerms}
-                    disabled={detail.name === 'admin' && detail.isSystemRole}
+                    disabled={detail.isSystemRole}
                   />
                 )}
               </div>

@@ -112,7 +112,7 @@ router.put('/:id', requirePermission('roles.manage'), async (req, res) => {
   }
 
   // Cannot change permissions of the admin system role
-  if (role.isSystemRole && role.name === 'admin' && permissions) {
+  if (role.isSystemRole && permissions) {
     return sendError(res, 'Cannot modify permissions of the admin system role. Admin always has all permissions.');
   }
 

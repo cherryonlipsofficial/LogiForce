@@ -51,7 +51,9 @@ module.exports = {
     // ── ATTENDANCE ──
     'attendance.view':         { label: 'View attendance',         module: 'Attendance', description: 'See attendance batches and records' },
     'attendance.upload':       { label: 'Upload attendance',       module: 'Attendance', description: 'Upload CSV/Excel attendance files' },
-    'attendance.approve':      { label: 'Approve attendance',      module: 'Attendance', description: 'Approve attendance batches (Sales and Ops teams)' },
+    'attendance.approve':      { label: 'Approve attendance (legacy)', module: 'Attendance', description: '@deprecated — use attendance.approve_sales / attendance.approve_ops instead' },
+    'attendance.approve_sales': { label: 'Approve attendance (sales)', module: 'Attendance', description: 'Sales team attendance approval' },
+    'attendance.approve_ops':  { label: 'Approve attendance (ops)', module: 'Attendance', description: 'Operations team attendance approval' },
     'attendance.reject':       { label: 'Reject attendance',       module: 'Attendance', description: 'Reject attendance batches' },
     'attendance.dispute':      { label: 'Raise attendance dispute', module: 'Attendance', description: 'Raise a dispute on an uploaded attendance batch' },
     'attendance.respond_dispute': { label: 'Respond to dispute',   module: 'Attendance', description: 'Respond to disputes raised on attendance (Accounts)' },
@@ -60,13 +62,16 @@ module.exports = {
     // ── SALARY ──
     'salary.view':             { label: 'View salary runs',        module: 'Salary',     description: 'See salary calculations and breakdowns' },
     'salary.run':              { label: 'Run payroll',             module: 'Salary',     description: 'Trigger salary processing for a period' },
-    'salary.approve':          { label: 'Approve salary',          module: 'Salary',     description: 'Approve salary runs at any applicable stage (Operations, Compliance, or Accounts)' },
-    'salary.process':            { label: 'Process salary',              module: 'Salary', description: 'Senior accountant — process salary after all 3 approvals' },
+    'salary.approve':          { label: 'Approve salary (legacy)', module: 'Salary',     description: '@deprecated — use stage-specific permissions below' },
+    'salary.approve_ops':      { label: 'Approve salary (stage 1)', module: 'Salary',    description: 'First-stage approval of salary runs — add deductions and approve' },
+    'salary.approve_compliance': { label: 'Approve salary (stage 2)', module: 'Salary',  description: 'Second-stage approval — verify driver document validity' },
+    'salary.approve_accounts': { label: 'Approve salary (stage 3)', module: 'Salary',    description: 'Third-stage approval — final deduction review' },
+    'salary.process':          { label: 'Process salary',          module: 'Salary',     description: 'Process salary after all approvals received' },
     'salary.adjust':           { label: 'Make salary adjustments', module: 'Salary',     description: 'Add manual adjustments to salary runs' },
     'salary.export_wps':       { label: 'Export WPS file',         module: 'Salary',     description: 'Download WPS salary transfer file' },
     'salary.view_payslip':     { label: 'View & download payslips', module: 'Salary',    description: 'Generate, view and download payslip PDFs' },
-    'salary.delete':            { label: 'Delete salary runs',      module: 'Salary',     description: 'Delete salary runs in draft or approved status' },
-    'salary.manage_deductions': { label: 'Manage deductions',       module: 'Salary',     description: 'Manually add or edit salary deductions (telecom, vehicle, salik, advance, penalty, carryover, other)' },
+    'salary.delete':           { label: 'Delete salary runs',      module: 'Salary',     description: 'Delete salary runs in draft or approved status' },
+    'salary.manage_deductions': { label: 'Manage deductions',      module: 'Salary',     description: 'Manually add or edit salary deductions (telecom, vehicle, salik, advance, penalty, carryover, other)' },
     'salary.pay':              { label: 'Mark salary as paid',     module: 'Salary',     description: 'Mark approved salary runs as paid' },
     'salary.dispute':          { label: 'Dispute salary',          module: 'Salary',     description: 'Raise a dispute on a salary run' },
 
@@ -101,6 +106,11 @@ module.exports = {
     'reports.export':          { label: 'Export reports',          module: 'Reports',    description: 'Download reports as XLSX or PDF' },
     'reports.financial':       { label: 'Financial reports',       module: 'Reports',    description: 'Access P&L, cost and revenue reports' },
     'reports.statement_of_accounts': { label: 'Statement of accounts', module: 'Reports', description: 'View statement of accounts per project with invoices, credit notes, and payments' },
+
+    // ── DASHBOARD ──
+    'dashboard.default':       { label: 'Default dashboard',       module: 'Dashboard',  description: 'Access the default admin/ops dashboard view' },
+    'dashboard.compliance':    { label: 'Compliance dashboard',    module: 'Dashboard',  description: 'Access the compliance-focused dashboard view' },
+    'dashboard.sales':         { label: 'Sales dashboard',         module: 'Dashboard',  description: 'Access the sales-focused dashboard view' },
 
     // ── SETTINGS ──
     'settings.view':           { label: 'View settings',           module: 'Settings',   description: 'Access system settings' },

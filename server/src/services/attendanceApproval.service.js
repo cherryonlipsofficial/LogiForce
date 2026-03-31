@@ -1,7 +1,7 @@
 const {
   AttendanceBatch, AttendanceDispute, Project, User,
 } = require('../models');
-const { notifyByRole, notifyUsers } = require('./notification.service');
+const { notifyByPermission, notifyUsers } = require('./notification.service');
 
 function getMonthName(year, month) {
   return new Date(year, month - 1).toLocaleString('en', { month: 'long' });
@@ -15,7 +15,7 @@ async function sendUploadNotification(batchId, uploadedByUserId) {
   const monthName = getMonthName(batch.period.year, batch.period.month);
   const projectLabel = `${batch.projectId.name} (${batch.clientId.name})`;
 
-  const count = await notifyByRole(['sales', 'ops'], {
+  const count1 = await notifyByPermission('attendance.approve_sales', {
     type: 'attendance_uploaded',
     title: 'Attendance uploaded — review required',
     message: `Attendance for ${projectLabel} — ${monthName} ${batch.period.year} has been uploaded and needs your review. Please approve or raise a dispute.`,
@@ -24,6 +24,16 @@ async function sendUploadNotification(batchId, uploadedByUserId) {
     triggeredBy: uploadedByUserId,
     triggeredByName: batch.uploadedByName,
   });
+  const count2 = await notifyByPermission('attendance.approve_ops', {
+    type: 'attendance_uploaded',
+    title: 'Attendance uploaded — review required',
+    message: `Attendance for ${projectLabel} — ${monthName} ${batch.period.year} has been uploaded and needs your review. Please approve or raise a dispute.`,
+    referenceModel: 'AttendanceBatch',
+    referenceId: batchId,
+    triggeredBy: uploadedByUserId,
+    triggeredByName: batch.uploadedByName,
+  });
+  const count = count1 + count2;
 
   batch.status = 'pending_review';
   batch.notificationSentAt = new Date();
@@ -52,18 +62,38 @@ async function approveAttendance(batchId, userId, notes) {
     );
   }
 
-  const roleName = user.roleId?.name?.toLowerCase();
-  const isSales = roleName === 'sales';
-  const isOps = roleName === 'ops' || roleName === 'operations';
+  const userPerms = await user.getPermissions();
+  const permSet = new Set(userPerms);
+  const canApproveSales = permSet.has('attendance.approve_sales');
+  const canApproveOps = permSet.has('attendance.approve_ops');
+  const isSystemAdmin = user.roleId?.isSystemRole === true;
 
-  if (!isSales && !isOps) {
+  if (!canApproveSales && !canApproveOps && !isSystemAdmin) {
     throw Object.assign(
-      new Error('Only Sales or Operations users can approve attendance'),
+      new Error('You do not have attendance approval permission'),
       { statusCode: 403 }
     );
   }
 
-  if (isSales) {
+  // Determine the approval side:
+  // - If user has sales permission (and sales not yet approved), do sales
+  // - If user has ops permission (and ops not yet approved), do ops
+  // - Admin: approve whichever side still needs it (sales first)
+  const salesNeeded = batch.salesApproval?.status !== 'approved';
+  const opsNeeded = batch.opsApproval?.status !== 'approved';
+
+  let doSalesApproval;
+  if (isSystemAdmin) {
+    doSalesApproval = salesNeeded;
+  } else if (canApproveSales && salesNeeded) {
+    doSalesApproval = true;
+  } else if (canApproveOps && opsNeeded) {
+    doSalesApproval = false;
+  } else {
+    doSalesApproval = canApproveSales;
+  }
+
+  if (doSalesApproval) {
     if (batch.salesApproval.status === 'approved') {
       throw Object.assign(
         new Error('Sales team has already approved this batch'),
@@ -147,7 +177,8 @@ async function raiseDispute(batchId, userId, data) {
     );
   }
 
-  const roleName = user.roleId?.name?.toLowerCase();
+  const userPerms = await user.getPermissions();
+  const isSalesApprover = userPerms.includes('attendance.approve_sales');
 
   const dispute = await AttendanceDispute.create({
     batchId,
@@ -155,7 +186,7 @@ async function raiseDispute(batchId, userId, data) {
     clientId: batch.clientId._id,
     raisedBy: userId,
     raisedByName: user.name,
-    raisedByRole: roleName,
+    raisedByRole: isSalesApprover ? 'sales_approver' : 'ops_approver',
     disputeType: data.disputeType,
     reason: data.reason,
     disputedDriverIds: data.disputedDriverIds || [],
@@ -163,7 +194,7 @@ async function raiseDispute(batchId, userId, data) {
     status: 'open',
   });
 
-  if (roleName === 'sales') {
+  if (isSalesApprover) {
     batch.salesApproval.status = 'disputed';
     batch.salesApproval.disputedBy = userId;
     batch.salesApproval.disputedByName = user.name;
@@ -217,7 +248,7 @@ async function respondToDispute(disputeId, userId, message) {
   const batch = dispute.batchId;
   batch.status = 'dispute_responded';
 
-  if (dispute.raisedByRole === 'sales') {
+  if (dispute.raisedByRole === 'sales' || dispute.raisedByRole === 'sales_approver') {
     batch.salesApproval.status = 'pending';
   } else {
     batch.opsApproval.status = 'pending';

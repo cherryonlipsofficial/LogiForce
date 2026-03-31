@@ -100,7 +100,7 @@ const salaryRunSchema = new Schema(
     approvals: [{
       stage: {
         type: String,
-        enum: ['ops', 'compliance', 'accounts'],
+        enum: ['ops', 'compliance', 'accounts', 'salary.approve_ops', 'salary.approve_compliance', 'salary.approve_accounts'],
         required: true,
       },
       approvedBy: {
