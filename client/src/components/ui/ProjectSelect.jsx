@@ -5,7 +5,7 @@ const ProjectSelect = ({ value, onChange, clientId, showAll, disabled, style = {
   const { data } = useQuery({
     queryKey: ['projects-list', clientId],
     queryFn: () => getProjects({ clientId, status: 'active' }),
-    enabled: showAll || !!clientId,
+    enabled: showAll || clientId === undefined || !!clientId,
     staleTime: 5 * 60 * 1000,
   });
 
