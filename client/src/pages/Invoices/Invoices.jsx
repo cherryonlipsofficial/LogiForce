@@ -260,6 +260,7 @@ const InvoiceDetail = ({ invoice, onClose }) => {
             const totalOrders = fullInvoice.lineItems.reduce((sum, item) => sum + (item.totalOrders || 0), 0);
             return totalOrders > 0 ? <InfoRow label="Total Orders" value={totalOrders.toLocaleString()} /> : null;
           })()}
+          <InfoRow label="Collected Amount" value={<span style={{ color: invoice.amountReceived > 0 ? '#4ade80' : 'var(--text3)' }}>{formatCurrencyFull(invoice.amountReceived || 0)}</span>} />
           {invoice.paidAt && <InfoRow label="Paid on" value={formatDate(invoice.paidAt)} />}
         </div>
 
