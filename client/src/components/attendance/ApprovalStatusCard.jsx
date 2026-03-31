@@ -19,6 +19,8 @@ const statusSummary = {
   disputed:           { color: '#ef4444', bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.2)',   text: 'Dispute raised — Accounts coordinating with client' },
   dispute_responded:  { color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.2)',  text: 'Revised attendance uploaded — please re-review' },
   invoiced:           { color: '#a855f7', bg: 'rgba(168,85,247,0.08)',  border: 'rgba(168,85,247,0.2)',  text: 'Invoice generated' },
+  processed:          { color: '#22c55e', bg: 'rgba(34,197,94,0.08)',   border: 'rgba(34,197,94,0.2)',   text: 'Processed — salary run completed' },
+  rejected:           { color: '#ef4444', bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.2)',   text: 'Batch rejected' },
 };
 
 const ApprovalRow = ({ label, approval }) => {
