@@ -139,7 +139,10 @@ const ApprovalTracker = ({ detail }) => {
 const ApprovalHistory = ({ approvals }) => {
   if (!approvals || approvals.length === 0) return null;
 
-  const stageLabels = { ops: 'Operations', compliance: 'Compliance', accounts: 'Accounts' };
+  const stageLabels = {
+    ops: 'Operations', compliance: 'Compliance', accounts: 'Accounts',
+    'salary.approve_ops': 'Operations', 'salary.approve_compliance': 'Compliance', 'salary.approve_accounts': 'Accounts',
+  };
 
   return (
     <div style={{ marginBottom: 20 }}>
