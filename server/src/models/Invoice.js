@@ -42,6 +42,7 @@ const invoiceSchema = new Schema(
         ratePerDriver: { type: Number }, // from project contract
         rateBasis: { type: String, enum: ['monthly_fixed', 'daily_rate', 'per_order'] },
         dailyRate: { type: Number }, // computed from ratePerDriver based on rateBasis
+        totalOrders: { type: Number }, // for per_order rateBasis
         amount: { type: Number }, // dailyRate * workingDays
         vatRate: { type: Number, default: 0.05 },
         vatAmount: { type: Number },
