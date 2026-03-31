@@ -141,6 +141,11 @@ router.put('/runs/:id/process', requirePermission('salary.process'), async (req,
 
 // PUT /api/salary/bulk-approve/ops — Bulk operations approval
 router.put('/bulk-approve/ops', requirePermission('salary.approve'), validate(bulkApprovalValidation), async (req, res) => {
+  const userRole = req.user.roleId?.name;
+  const isAdmin = req.user.roleId?.isSystemRole === true && userRole === 'admin';
+  if (!isAdmin && userRole !== 'ops') {
+    return res.status(403).json({ success: false, message: 'Only Operations users can approve at this stage' });
+  }
   const { runIds, remarks } = req.body;
   const results = await salaryService.bulkApproveByOps(runIds, req.user._id, remarks);
 
@@ -154,6 +159,11 @@ router.put('/bulk-approve/ops', requirePermission('salary.approve'), validate(bu
 
 // PUT /api/salary/bulk-approve/compliance — Bulk compliance approval
 router.put('/bulk-approve/compliance', requirePermission('salary.approve'), validate(bulkApprovalValidation), async (req, res) => {
+  const userRole = req.user.roleId?.name;
+  const isAdmin = req.user.roleId?.isSystemRole === true && userRole === 'admin';
+  if (!isAdmin && userRole !== 'compliance') {
+    return res.status(403).json({ success: false, message: 'Only Compliance users can approve at this stage' });
+  }
   const { runIds, remarks } = req.body;
   const results = await salaryService.bulkApproveByCompliance(runIds, req.user._id, remarks);
 
@@ -167,6 +177,11 @@ router.put('/bulk-approve/compliance', requirePermission('salary.approve'), vali
 
 // PUT /api/salary/bulk-approve/accounts — Bulk accounts approval
 router.put('/bulk-approve/accounts', requirePermission('salary.approve'), validate(bulkApprovalValidation), async (req, res) => {
+  const userRole = req.user.roleId?.name;
+  const isAdmin = req.user.roleId?.isSystemRole === true && userRole === 'admin';
+  if (!isAdmin && userRole !== 'accountant' && userRole !== 'accounts') {
+    return res.status(403).json({ success: false, message: 'Only Accounts users can approve at this stage' });
+  }
   const { runIds, remarks } = req.body;
   const results = await salaryService.bulkApproveByAccounts(runIds, req.user._id, remarks);
 
@@ -206,6 +221,25 @@ router.put('/bulk-pay', requirePermission('salary.pay'), validate(bulkApprovalVa
 
 // PUT /api/salary/runs/:id/approve — legacy backward-compatible approve (routes to appropriate stage)
 router.put('/runs/:id/approve', requirePermission('salary.approve'), async (req, res) => {
+  // Enforce role checks even on the legacy endpoint to prevent cross-role approvals
+  const userRole = req.user.roleId?.name;
+  const isAdmin = req.user.roleId?.isSystemRole === true && userRole === 'admin';
+  if (!isAdmin) {
+    // Look up the salary run's current status to determine the required role
+    const salaryRun = await SalaryRun.findById(req.params.id);
+    if (!salaryRun) return sendError(res, 'Salary run not found', 404);
+
+    const statusRoleMap = {
+      draft: 'ops',
+      pending_approval: 'ops',
+      ops_approved: 'compliance',
+      compliance_approved: 'accountant',
+    };
+    const requiredRole = statusRoleMap[salaryRun.status];
+    if (requiredRole && userRole !== requiredRole && !(requiredRole === 'accountant' && userRole === 'accounts')) {
+      return res.status(403).json({ success: false, message: `Your role '${userRole}' cannot approve at the '${salaryRun.status}' stage` });
+    }
+  }
   const run = await salaryService.approveSalaryRun(req.params.id, req.user._id);
   await auditLogger.logChange('SalaryRun', req.params.id, 'status', 'unknown', run.status, req.user._id, 'salary_approval');
   sendSuccess(res, run, 'Salary run approved');
