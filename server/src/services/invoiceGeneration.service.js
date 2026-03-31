@@ -19,7 +19,7 @@ async function generateInvoice(batchId, accountsUserId) {
 
   if (!batch) throw Object.assign(new Error('Batch not found'), { statusCode: 404 })
 
-  if (batch.status !== 'fully_approved' && batch.status !== 'processed') {
+  if (batch.status !== 'fully_approved' && batch.status !== 'processed' && batch.status !== 'invoiced') {
     throw Object.assign(
       new Error(
         `Cannot generate invoice. Batch status is "${batch.status}".
@@ -29,7 +29,7 @@ async function generateInvoice(batchId, accountsUserId) {
     )
   }
 
-  if (batch.invoiceId) {
+  if (batch.invoiceId || batch.status === 'invoiced') {
     // Check if the linked invoice still exists and is not deleted
     const existingInvoice = await Invoice.findOne({ _id: batch.invoiceId, isDeleted: { $ne: true } }).select('_id')
     if (existingInvoice) {

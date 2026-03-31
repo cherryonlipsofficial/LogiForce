@@ -14,7 +14,7 @@ router.use(protect);
 
 // GET /api/invoices/approved-batches — get fully approved attendance batches for invoice generation
 router.get('/approved-batches', async (req, res) => {
-  const query = { status: { $in: ['fully_approved', 'processed'] } };
+  const query = { status: { $in: ['fully_approved', 'processed', 'invoiced'] } };
   if (req.query.clientId) query.clientId = req.query.clientId;
   if (req.query.projectId) query.projectId = req.query.projectId;
   if (req.query.year) query['period.year'] = parseInt(req.query.year);
@@ -190,6 +190,14 @@ router.delete('/:id', requirePermission('invoices.delete'), async (req, res) => 
     invoice.deletedBy = req.user._id;
     invoice.deleteRemark = remark.trim();
     await invoice.save();
+
+    // Reset attendance batches so they can be re-invoiced
+    if (invoice.attendanceBatchId) {
+      await AttendanceBatch.updateMany(
+        { invoiceId: invoice._id },
+        { $set: { status: 'fully_approved', invoiceId: null, invoicedAt: null, invoicedBy: null } }
+      );
+    }
 
     return sendSuccess(res, null, 'Paid invoice soft-deleted successfully');
   }

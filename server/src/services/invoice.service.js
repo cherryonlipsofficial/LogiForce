@@ -22,7 +22,7 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
   // Auto-discover approved attendance batches for this client/period
   const batchQuery = {
     clientId,
-    status: { $in: ['fully_approved', 'processed'] },
+    status: { $in: ['fully_approved', 'processed', 'invoiced'] },
     'period.year': year,
     'period.month': month,
   };
@@ -30,11 +30,23 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
     batchQuery.projectId = projectId;
   }
 
-  const approvedBatches = await AttendanceBatch.find(batchQuery).select('_id');
+  const approvedBatches = await AttendanceBatch.find(batchQuery).select('_id invoiceId');
 
   if (approvedBatches.length > 0) {
-    const batchIds = approvedBatches.map((b) => b._id);
-    return generateFromAttendanceBatches(client, year, month, createdBy, projectId, batchIds);
+    // Filter out batches that still have an active (non-deleted) invoice
+    const batchesWithInvoice = approvedBatches.filter((b) => b.invoiceId);
+    let activeInvoiceIds = new Set();
+    if (batchesWithInvoice.length > 0) {
+      const invoiceIds = [...new Set(batchesWithInvoice.map((b) => b.invoiceId.toString()))];
+      const existing = await Invoice.find({ _id: { $in: invoiceIds }, isDeleted: { $ne: true } }).select('_id');
+      activeInvoiceIds = new Set(existing.map((inv) => inv._id.toString()));
+    }
+    const availableBatches = approvedBatches.filter((b) => !b.invoiceId || !activeInvoiceIds.has(b.invoiceId.toString()));
+
+    if (availableBatches.length > 0) {
+      const batchIds = availableBatches.map((b) => b._id);
+      return generateFromAttendanceBatches(client, year, month, createdBy, projectId, batchIds);
+    }
   }
 
   // Legacy flow: generate from salary runs
@@ -206,11 +218,11 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
  * Generate invoice from selected attendance batches.
  */
 const generateFromAttendanceBatches = async (client, year, month, createdBy, projectId, attendanceBatchIds) => {
-  // Validate all batches exist and are approved (fully_approved or processed)
+  // Validate all batches exist and are approved (fully_approved, processed, or invoiced with deleted invoice)
   const batches = await AttendanceBatch.find({
     _id: { $in: attendanceBatchIds },
     clientId: client._id,
-    status: { $in: ['fully_approved', 'processed'] },
+    status: { $in: ['fully_approved', 'processed', 'invoiced'] },
   });
 
   if (batches.length !== attendanceBatchIds.length) {
