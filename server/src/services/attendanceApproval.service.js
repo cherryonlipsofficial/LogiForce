@@ -222,6 +222,17 @@ async function raiseDispute(batchId, userId, data) {
     });
   }
 
+  // Notify users who can respond to disputes (Accounts team)
+  await notifyByPermission('attendance.respond_dispute', {
+    type: 'attendance_disputed',
+    title: 'Attendance dispute — action required',
+    message: `${user.name} (${isSalesApprover ? 'Sales' : 'Operations'}) raised a ${data.disputeType.replace(/_/g, ' ')} dispute on ${label} attendance for ${monthName} ${batch.period.year}. Please review and respond. Reason: ${data.reason.substring(0, 100)}`,
+    referenceModel: 'AttendanceBatch',
+    referenceId: batchId,
+    triggeredBy: userId,
+    triggeredByName: user.name,
+  });
+
   return { batch, dispute };
 }
 
