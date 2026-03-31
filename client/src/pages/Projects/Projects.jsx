@@ -176,6 +176,7 @@ const Projects = () => {
 
 const ProjectDetail = ({ project, onClose, onEdit, onDelete, hasPermission }) => {
   const { isMobile } = useBreakpoint();
+  const { formatCurrencyFull } = useFormatters();
   const qc = useQueryClient();
   const [showAssign, setShowAssign] = useState(false);
 
