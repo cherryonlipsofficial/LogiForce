@@ -186,7 +186,7 @@ router.put('/batches/:id/reject', requirePermission('attendance.reject'), async 
 });
 
 // DELETE /api/attendance/batches/:id — delete batch and its records (admin only)
-router.delete('/batches/:id', requirePermission('attendance.approve'), async (req, res) => {
+router.delete('/batches/:id', requirePermission('attendance.delete'), async (req, res) => {
   const batch = await AttendanceBatch.findById(req.params.id);
   if (!batch) return sendError(res, 'Batch not found', 404);
 
