@@ -45,6 +45,33 @@ const migrateAttendanceBatchIndexes = async () => {
   await AttendanceBatch.syncIndexes();
 };
 
+const ensureRolePermissions = async () => {
+  const Role = require('../models/Role');
+
+  // Map of role names to permissions they must have for salary approval flow
+  const REQUIRED_PERMS = {
+    ops:              ['salary.approve_ops'],
+    operations:       ['salary.approve_ops'],
+    compliance:       ['salary.approve_compliance'],
+    accounts:         ['salary.approve_accounts'],
+    junior_accountant:['salary.approve_accounts'],
+    accountant:       ['salary.approve_ops', 'salary.approve_compliance', 'salary.approve_accounts'],
+  };
+
+  for (const [roleName, expectedPerms] of Object.entries(REQUIRED_PERMS)) {
+    const role = await Role.findOne({ name: roleName, isSystemRole: { $ne: true } });
+    if (!role) continue;
+
+    const current = new Set(role.permissions);
+    const missing = expectedPerms.filter(p => !current.has(p));
+    if (missing.length > 0) {
+      role.permissions = [...new Set([...role.permissions, ...missing])];
+      await role.save();
+      console.log(`Role '${role.name}': added missing permissions ${missing.join(', ')}`);
+    }
+  }
+};
+
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGODB_URI, {
@@ -53,6 +80,7 @@ const connectDB = async () => {
     });
     console.log(`MongoDB connected: ${conn.connection.host}`);
     await ensureAdminRole();
+    await ensureRolePermissions();
     await migrateAttendanceBatchIndexes();
   } catch (error) {
     console.error(`MongoDB connection error: ${error.message}`);
