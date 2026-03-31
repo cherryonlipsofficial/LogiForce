@@ -12,7 +12,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
 import ProjectSelect from '../../components/ui/ProjectSelect';
-import { getInvoices, generateInvoice, updateStatus, addCreditNote, downloadPdf, deleteInvoice, getApprovedBatches } from '../../api/invoicesApi';
+import { getInvoices, getInvoice, generateInvoice, updateStatus, addCreditNote, downloadPdf, deleteInvoice, getApprovedBatches } from '../../api/invoicesApi';
 import { recordInvoicePayment } from '../../api/creditNotesApi';
 import { formatDate } from '../../utils/formatters';
 import { useFormatters } from '../../hooks/useFormatters';
@@ -178,6 +178,15 @@ const InvoiceDetail = ({ invoice, onClose }) => {
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const st = statusMap[invoice.status] || statusMap.draft;
 
+  // Fetch full invoice details with lineItems and driver data
+  const { data: fullInvoiceData, isLoading: detailLoading } = useQuery({
+    queryKey: ['invoice-detail', invoice._id],
+    queryFn: () => getInvoice(invoice._id),
+    enabled: !!invoice._id,
+    retry: 1,
+  });
+  const fullInvoice = fullInvoiceData?.data || null;
+
   const { mutate: changeStatus, isPending: changing } = useMutation({
     mutationFn: ({ status }) => updateStatus(invoice._id, { status }),
     onSuccess: () => {
@@ -300,6 +309,65 @@ const InvoiceDetail = ({ invoice, onClose }) => {
             </div>
           </div>
         )}
+
+        {/* Invoice line items — driver details */}
+        {detailLoading ? (
+          <div style={{ textAlign: 'center', padding: '16px 0', fontSize: 12, color: 'var(--text3)' }}>Loading invoice details...</div>
+        ) : fullInvoice?.lineItems?.length > 0 ? (
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>Driver details ({fullInvoice.lineItems.length})</div>
+            <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
+                  <thead>
+                    <tr>
+                      {['#', 'Driver', 'Days', 'Rate/Day', 'Amount', 'VAT', 'Total'].map((h) => (
+                        <th key={h} style={{ padding: '7px 10px', fontSize: 10, color: 'var(--text3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: h === 'Driver' ? 'left' : 'right', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fullInvoice.lineItems.map((item, idx) => (
+                      <tr key={item._id || idx} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '6px 10px', fontSize: 11, color: 'var(--text3)', textAlign: 'right' }}>{idx + 1}</td>
+                        <td style={{ padding: '6px 10px', fontSize: 12, textAlign: 'left' }}>
+                          <div>{item.driverId?.fullName || item.driverName || '—'}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>{item.driverId?.employeeCode || item.employeeCode || ''}</div>
+                        </td>
+                        <td style={{ padding: '6px 10px', fontSize: 12, textAlign: 'right', fontFamily: 'var(--mono)' }}>{item.workingDays}</td>
+                        <td style={{ padding: '6px 10px', fontSize: 12, textAlign: 'right', fontFamily: 'var(--mono)' }}>{formatCurrencyFull(item.dailyRate || item.ratePerDay || 0)}</td>
+                        <td style={{ padding: '6px 10px', fontSize: 12, textAlign: 'right', fontFamily: 'var(--mono)' }}>{formatCurrencyFull(item.amount)}</td>
+                        <td style={{ padding: '6px 10px', fontSize: 12, textAlign: 'right', fontFamily: 'var(--mono)' }}>{formatCurrencyFull(item.vatAmount || 0)}</td>
+                        <td style={{ padding: '6px 10px', fontSize: 12, textAlign: 'right', fontFamily: 'var(--mono)', fontWeight: 500 }}>{formatCurrencyFull(item.totalWithVat || (item.amount + (item.vatAmount || 0)))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {/* Totals summary */}
+              <div style={{ background: 'var(--surface2)', padding: '10px 14px', borderTop: '1px solid var(--border)', fontSize: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ color: 'var(--text3)' }}>Subtotal</span>
+                  <span style={{ fontFamily: 'var(--mono)' }}>{formatCurrencyFull(fullInvoice.subtotal)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ color: 'var(--text3)' }}>VAT ({((fullInvoice.vatRate || 0.05) * 100).toFixed(0)}%)</span>
+                  <span style={{ fontFamily: 'var(--mono)' }}>{formatCurrencyFull(fullInvoice.vatAmount)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, paddingTop: 4, borderTop: '1px solid var(--border)' }}>
+                  <span>Total</span>
+                  <span style={{ fontFamily: 'var(--mono)' }}>{formatCurrencyFull(fullInvoice.total)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : fullInvoice && !fullInvoice.lineItems?.length ? (
+          <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 24, padding: '10px 14px', background: 'var(--surface2)', borderRadius: 8 }}>
+            No driver line items found for this invoice.
+          </div>
+        ) : null}
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <PermissionGate permission="invoices.edit">
