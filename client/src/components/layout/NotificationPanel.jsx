@@ -56,7 +56,7 @@ const SkeletonRow = () => (
   </div>
 );
 
-const NotificationPanel = ({ notifications, isLoading, unreadCount, onClose, onMarkAllRead, onMarkRead, isMobile }) => {
+const NotificationPanel = ({ notifications, isLoading, unreadCount, pendingItems = [], pendingTotal = 0, onClose, onMarkAllRead, onMarkRead, isMobile }) => {
   const navigate = useNavigate();
 
   const panelStyle = isMobile
@@ -139,6 +139,60 @@ const NotificationPanel = ({ notifications, isLoading, unreadCount, onClose, onM
           )}
         </div>
       </div>
+
+      {/* Pending Approvals */}
+      {pendingTotal > 0 && (
+        <div style={{
+          padding: '10px 16px',
+          borderBottom: '1px solid var(--border)',
+          background: 'rgba(245,158,11,0.06)',
+        }}>
+          <div style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: '#d97706',
+            marginBottom: 6,
+          }}>
+            {pendingTotal} pending approval{pendingTotal !== 1 ? 's' : ''}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {pendingItems.map((item) => (
+              <div
+                key={item.type}
+                onClick={() => { navigate(item.path); onClose(); }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '4px 8px',
+                  borderRadius: 5,
+                  fontSize: 11,
+                  color: 'var(--text2)',
+                  cursor: 'pointer',
+                  transition: 'background .1s',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(245,158,11,0.10)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                <span>{item.label}</span>
+                <span style={{
+                  background: '#f59e0b',
+                  color: '#78350f',
+                  borderRadius: 10,
+                  fontSize: 10,
+                  padding: '1px 6px',
+                  lineHeight: '16px',
+                  fontWeight: 600,
+                  minWidth: 18,
+                  textAlign: 'center',
+                }}>
+                  {item.count}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Body */}
       <div style={{ overflowY: 'auto', maxHeight: isMobile ? 'calc(100vh - var(--topbar-h) - 100px)' : 380 }}>
