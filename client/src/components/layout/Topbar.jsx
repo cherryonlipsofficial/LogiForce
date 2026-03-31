@@ -428,35 +428,6 @@ const Topbar = ({ page, onMenuToggle, showMenuButton }) => {
             </span>
           )}
 
-          {/* Pending approvals button - hidden on mobile */}
-          {!isMobile && pendingApprovalCount > 0 && (
-            <button
-              onClick={() => {
-                // Navigate to the first pending approval type
-                if (pendingItems.length > 0) navigate(pendingItems[0].path);
-              }}
-              title={pendingItems.map(i => `${i.count} ${i.label}`).join(', ')}
-              style={{
-                background: 'rgba(245,158,11,0.12)',
-                color: '#d97706',
-                border: '1px solid rgba(245,158,11,0.25)',
-                borderRadius: 8,
-                padding: '6px 14px',
-                fontSize: 12,
-                fontWeight: 500,
-                cursor: 'pointer',
-                minHeight: 'auto',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                animation: pendingApprovalCount > 0 ? 'pendingPulse 2s ease-in-out infinite' : 'none',
-              }}
-            >
-              <span style={{ fontSize: 13 }}>⚡</span>
-              {pendingApprovalCount} pending
-            </button>
-          )}
-
           {/* Alert button - hidden on mobile */}
           {!isMobile && (
             <button
@@ -544,6 +515,8 @@ const Topbar = ({ page, onMenuToggle, showMenuButton }) => {
                 notifications={notifications}
                 isLoading={notifLoading}
                 unreadCount={unreadCount}
+                pendingItems={pendingItems}
+                pendingTotal={pendingApprovalCount}
                 onClose={() => setNotifOpen(false)}
                 isMobile={isMobile}
                 onMarkAllRead={async () => {
