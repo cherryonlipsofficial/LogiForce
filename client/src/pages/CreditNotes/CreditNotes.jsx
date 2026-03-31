@@ -621,7 +621,7 @@ const CreateCreditNoteModal = ({ onClose }) => {
             <label style={{ ...labelStyle, marginBottom: 0 }}>Line items *</label>
             <button type="button" onClick={addLine} style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 12, cursor: 'pointer' }}>+ Add driver line</button>
           </div>
-          <div style={{ maxHeight: 250, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: 8 }}>
+          <div style={{ minHeight: 120, border: '1px solid var(--border)', borderRadius: 8, padding: 8, paddingBottom: 16 }}>
             {lineItems.map((line, idx) => (
               <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: 6, marginBottom: 8, alignItems: 'end' }}>
                 <div style={{ position: 'relative' }}>
@@ -637,7 +637,7 @@ const CreateCreditNoteModal = ({ onClose }) => {
                     style={{ fontSize: 11 }}
                   />
                   {(driverResults[idx]?.length > 0) && (
-                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, zIndex: 10, maxHeight: 150, overflowY: 'auto' }}>
+                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, zIndex: 20, maxHeight: 200, overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
                       {driverResults[idx].map((d) => (
                         <div
                           key={d._id}

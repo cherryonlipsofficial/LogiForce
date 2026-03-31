@@ -49,7 +49,7 @@ const Modal = ({ children, onClose, title, width = 480 }) => {
           borderRadius: 'var(--radius-lg)',
           width,
           maxWidth: '90vw',
-          maxHeight: '85vh',
+          maxHeight: '90vh',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
