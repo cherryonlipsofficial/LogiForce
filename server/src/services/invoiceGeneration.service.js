@@ -19,7 +19,7 @@ async function generateInvoice(batchId, accountsUserId) {
 
   if (!batch) throw Object.assign(new Error('Batch not found'), { statusCode: 404 })
 
-  if (batch.status !== 'fully_approved') {
+  if (batch.status !== 'fully_approved' && batch.status !== 'processed') {
     throw Object.assign(
       new Error(
         `Cannot generate invoice. Batch status is "${batch.status}".
