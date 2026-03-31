@@ -87,4 +87,50 @@ const attachPermissions = async (req, res, next) => {
   next();
 };
 
-module.exports = { protect, requirePermission, attachPermissions };
+/**
+ * Middleware factory. Checks that the authenticated user has at least one of the given permissions.
+ * Usage: router.post('/route', protect, requireAnyPermission(['perm.a', 'perm.b']), handler)
+ */
+const requireAnyPermission = (permissionKeys) => {
+  return async (req, res, next) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ success: false, message: 'Not authenticated' });
+      }
+
+      const user = await User.findById(req.user._id)
+        .populate('roleId', 'permissions name isSystemRole');
+
+      if (!user) {
+        return res.status(401).json({ success: false, message: 'User not found' });
+      }
+
+      if (user.roleId?.isSystemRole === true) {
+        req.userPermissions = ['*'];
+        return next();
+      }
+
+      const rolePerms = new Set(user.roleId?.permissions || []);
+      for (const override of user.permissionOverrides || []) {
+        if (override.granted) rolePerms.add(override.key);
+        else rolePerms.delete(override.key);
+      }
+
+      const hasAny = permissionKeys.some((key) => rolePerms.has(key));
+      if (!hasAny) {
+        return res.status(403).json({
+          success: false,
+          message: `Access denied. Requires one of: ${permissionKeys.join(', ')}`,
+          requiredPermissions: permissionKeys,
+        });
+      }
+
+      req.userPermissions = [...rolePerms];
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+};
+
+module.exports = { protect, requirePermission, requireAnyPermission, attachPermissions };

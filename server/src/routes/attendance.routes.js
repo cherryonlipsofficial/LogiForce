@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect, requirePermission } = require('../middleware/auth');
+const { protect, requirePermission, requireAnyPermission } = require('../middleware/auth');
 const { attendanceUpload } = require('../middleware/upload');
 const attendanceService = require('../services/attendance.service');
 const {
@@ -219,7 +219,7 @@ router.put('/records/:id/override', requirePermission('attendance.override'), va
 });
 
 // POST /api/attendance/batches/:id/approve — Sales or Ops approves a batch
-router.post('/batches/:id/approve', requirePermission('attendance.approve'), async (req, res) => {
+router.post('/batches/:id/approve', requireAnyPermission(['attendance.approve', 'attendance.approve_sales', 'attendance.approve_ops']), async (req, res) => {
   const result = await approveAttendance(
     req.params.id,
     req.user._id,
