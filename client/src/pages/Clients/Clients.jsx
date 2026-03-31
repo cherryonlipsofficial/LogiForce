@@ -13,7 +13,8 @@ import { useAuth } from '../../context/AuthContext';
 import PermissionGate from '../../components/ui/PermissionGate';
 import { getClients, createClient, updateClient, deleteClient, uploadContract, deleteContract } from '../../api/clientsApi';
 import { getProjects } from '../../api/projectsApi';
-import { formatDate, formatCurrencyFull } from '../../utils/formatters';
+import { formatDate } from '../../utils/formatters';
+import { useFormatters } from '../../hooks/useFormatters';
 import Pagination from '../../components/ui/Pagination';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 
@@ -37,6 +38,7 @@ const toDateInput = (val) => {
 
 const Clients = () => {
   const { isMobile, isTablet } = useBreakpoint();
+  const { formatCurrencyFull } = useFormatters();
   const [search, setSearch] = useState('');
   const [selectedClientId, setSelectedClientId] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);

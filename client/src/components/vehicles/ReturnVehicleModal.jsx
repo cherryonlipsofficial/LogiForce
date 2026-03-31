@@ -6,6 +6,7 @@ import Btn from '../ui/Btn';
 import Avatar from '../ui/Avatar';
 import { returnVehicle } from '../../api/vehiclesApi';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
+import { useFormatters } from '../../hooks/useFormatters';
 
 const getInitials = (name) =>
   (name || '')
@@ -24,6 +25,7 @@ const conditionOptions = [
 
 const ReturnVehicleModal = ({ assignment, vehicle, onClose, onSuccess }) => {
   const { isMobile } = useBreakpoint();
+  const { n } = useFormatters();
   const queryClient = useQueryClient();
 
   const {
@@ -112,7 +114,7 @@ const ReturnVehicleModal = ({ assignment, vehicle, onClose, onSuccess }) => {
             <span>Assigned since: {formatDate(assignedDate)}</span>
             {daysSince != null && <span>Duration: {daysSince} days</span>}
             {monthlyDeduction != null && (
-              <span>Monthly deduction: AED {Number(monthlyDeduction).toLocaleString()}</span>
+              <span>Monthly deduction: AED {n(Number(monthlyDeduction).toLocaleString())}</span>
             )}
           </div>
         </div>

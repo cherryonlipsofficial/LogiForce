@@ -14,7 +14,8 @@ import ClientSelect from '../../components/ui/ClientSelect';
 import ProjectSelect from '../../components/ui/ProjectSelect';
 import { useNavigate } from 'react-router-dom';
 import { getRuns, runPayroll, approveRun, getWpsFile, getPayslipPdf, getRun, addDeduction, deleteRun, markAsPaid, disputeRun, approveByOps, approveByCompliance, approveByAccounts, processRun, bulkApproveByOps, bulkApproveByCompliance, bulkApproveByAccounts, bulkProcess, bulkMarkAsPaid } from '../../api/salaryApi';
-import { formatDate, formatCurrencyFull } from '../../utils/formatters';
+import { formatDate } from '../../utils/formatters';
+import { useFormatters } from '../../hooks/useFormatters';
 import Pagination from '../../components/ui/Pagination';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 
@@ -178,6 +179,7 @@ const ROLE_STAGE_MAP = {
 
 const RunDetail = ({ run, onClose }) => {
   const { isMobile } = useBreakpoint();
+  const { formatCurrencyFull } = useFormatters();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { role, isAdmin, hasPermission } = useAuth();
@@ -749,6 +751,7 @@ const getBulkActionForStatus = (status) => {
 
 const Salary = () => {
   const { isMobile, isTablet } = useBreakpoint();
+  const { formatCurrencyFull } = useFormatters();
   const [showRunModal, setShowRunModal] = useState(false);
   const [selectedRun, setSelectedRun] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');

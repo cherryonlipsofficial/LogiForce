@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import Badge from '../ui/Badge';
 import Avatar from '../ui/Avatar';
 import { getVehicleAssignmentHistory } from '../../api/vehiclesApi';
+import { useFormatters } from '../../hooks/useFormatters';
 
 const getInitials = (name) =>
   (name || '')
@@ -32,6 +33,7 @@ const conditionVariant = {
 };
 
 const VehicleAssignmentHistory = ({ vehicleId }) => {
+  const { n } = useFormatters();
   const [page, setPage] = useState(1);
 
   const { data, isLoading } = useQuery({
@@ -172,7 +174,7 @@ const VehicleAssignmentHistory = ({ vehicleId }) => {
                 )}
                 {h.damagePenaltyAmount > 0 && (
                   <span style={{ color: '#f87171', fontFamily: 'var(--mono)', fontWeight: 500 }}>
-                    Penalty: AED {Number(h.damagePenaltyAmount).toLocaleString()}
+                    Penalty: AED {n(Number(h.damagePenaltyAmount).toLocaleString())}
                   </span>
                 )}
               </div>

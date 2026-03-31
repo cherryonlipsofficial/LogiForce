@@ -8,7 +8,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { getPayrollSummary, getInvoiceAging, getCostPerDriver, getFleetUtilisation } from '../../api/reportsApi';
 import { getClients } from '../../api/clientsApi';
 import { getProjects } from '../../api/projectsApi';
-import { formatCurrencyFull, formatCurrency } from '../../utils/formatters';
+import { useFormatters } from '../../hooks/useFormatters';
 import { useNavigate } from 'react-router-dom';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 
@@ -69,6 +69,7 @@ const periodOptions = [
 
 const Reports = () => {
   const { isMobile, isTablet } = useBreakpoint();
+  const { formatCurrencyFull, formatCurrency } = useFormatters();
   const navigate = useNavigate();
   const [periodIdx, setPeriodIdx] = useState(0);
   const [selectedClientId, setSelectedClientId] = useState('');

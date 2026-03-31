@@ -7,6 +7,7 @@ import Btn from '../ui/Btn';
 import Avatar from '../ui/Avatar';
 import { assignVehicle } from '../../api/vehiclesApi';
 import { getDrivers } from '../../api/driversApi';
+import { useFormatters } from '../../hooks/useFormatters';
 
 const getInitials = (name) =>
   (name || '')
@@ -17,6 +18,7 @@ const getInitials = (name) =>
     .slice(0, 2);
 
 const AssignVehicleModal = ({ vehicle, onClose, onSuccess }) => {
+  const { n } = useFormatters();
   const qc = useQueryClient();
   const { register, handleSubmit } = useForm({
     defaultValues: {
@@ -172,7 +174,7 @@ const AssignVehicleModal = ({ vehicle, onClose, onSuccess }) => {
           <div style={{ color: 'var(--text3)', display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 12 }}>
             {vehicle.supplierName && <span>Supplier: {vehicle.supplierName}</span>}
             {contract?.monthlyRate != null && (
-              <span>Monthly rate: AED {contract.monthlyRate.toLocaleString()}</span>
+              <span>Monthly rate: AED {n(contract.monthlyRate.toLocaleString())}</span>
             )}
           </div>
         </div>

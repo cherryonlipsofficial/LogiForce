@@ -14,7 +14,8 @@ import ClientSelect from '../../components/ui/ClientSelect';
 import ProjectSelect from '../../components/ui/ProjectSelect';
 import { getInvoices, generateInvoice, updateStatus, addCreditNote, downloadPdf, deleteInvoice, getApprovedBatches } from '../../api/invoicesApi';
 import { recordInvoicePayment } from '../../api/creditNotesApi';
-import { formatDate, formatCurrencyFull } from '../../utils/formatters';
+import { formatDate } from '../../utils/formatters';
+import { useFormatters } from '../../hooks/useFormatters';
 import Pagination from '../../components/ui/Pagination';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 
@@ -52,6 +53,7 @@ const statusMap = {
 
 const Invoices = () => {
   const { isMobile, isTablet } = useBreakpoint();
+  const { formatCurrencyFull } = useFormatters();
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showGenerate, setShowGenerate] = useState(false);

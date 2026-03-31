@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import Modal from '../../components/ui/Modal';
 import Btn from '../../components/ui/Btn';
 import { reviewAdvance } from '../../api/advancesApi';
+import { useFormatters } from '../../hooks/useFormatters';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
@@ -17,6 +18,7 @@ const AdvanceReviewModal = ({ advance, decision, onClose, onSuccess }) => {
   const [notes, setNotes] = useState('');
   const [schedule, setSchedule] = useState([{ ...getNextMonth(0), amount: advance.amount || 0 }]);
   const [error, setError] = useState('');
+  const { n } = useFormatters();
   const qc = useQueryClient();
 
   const isApprove = decision === 'approved';
@@ -48,7 +50,7 @@ const AdvanceReviewModal = ({ advance, decision, onClose, onSuccess }) => {
       return;
     }
     if (isApprove && Math.abs(scheduleSum - amount) > 0.01) {
-      setError(`Recovery schedule total (AED ${scheduleSum.toLocaleString()}) must equal advance amount (AED ${amount.toLocaleString()})`);
+      setError(`Recovery schedule total (AED ${n(scheduleSum.toLocaleString())}) must equal advance amount (AED ${n(amount.toLocaleString())})`);
       return;
     }
     setError('');
@@ -95,7 +97,7 @@ const AdvanceReviewModal = ({ advance, decision, onClose, onSuccess }) => {
           <div style={{ fontSize: 11, color: 'var(--text3)' }}>{driverCode}</div>
         </div>
         <div style={{ fontSize: 18, fontWeight: 700, color: isApprove ? '#4ade80' : '#f87171', fontFamily: 'var(--mono)' }}>
-          AED {amount.toLocaleString()}
+          AED {n(amount.toLocaleString())}
         </div>
       </div>
 
@@ -127,12 +129,12 @@ const AdvanceReviewModal = ({ advance, decision, onClose, onSuccess }) => {
               color: Math.abs(scheduleSum - amount) < 0.01 ? '#4ade80' : '#f59e0b',
               fontFamily: 'var(--mono)',
             }}>
-              AED {scheduleSum.toLocaleString()} of AED {amount.toLocaleString()}
+              AED {n(scheduleSum.toLocaleString())} of AED {n(amount.toLocaleString())}
             </span>
           </div>
 
           <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 8 }}>
-            Total must equal AED {amount.toLocaleString()}
+            Total must equal AED {n(amount.toLocaleString())}
           </div>
 
           {/* Quick fill buttons */}

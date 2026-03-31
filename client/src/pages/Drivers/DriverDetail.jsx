@@ -23,6 +23,7 @@ import DriverHistoryTab from '../../components/drivers/DriverHistoryTab';
 import { useAuth } from '../../context/AuthContext';
 import { usePermission } from '../../hooks/usePermission';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
+import { useFormatters } from '../../hooks/useFormatters';
 
 const DOC_TYPES = [
   { value: 'emirates_id', label: 'Emirates ID' },
@@ -62,6 +63,7 @@ const EyeIcon = () => (
 
 const DriverDetail = ({ driver, onClose }) => {
   const { isMobile, isTablet } = useBreakpoint();
+  const { n } = useFormatters();
   const { isAdmin } = useAuth();
   const canEditActive = usePermission('drivers.edit_active');
   const [tab, setTab] = useState('profile');
@@ -261,7 +263,7 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
               March 2026 net pay
             </div>
             <div style={{ fontSize: 22, fontWeight: 600, color: '#4ade80', letterSpacing: '-0.5px' }}>
-              AED {netSalary.toLocaleString()}
+              AED {n(netSalary.toLocaleString())}
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
@@ -331,7 +333,7 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
                 ? `${currentVehicle.plateNumber || currentVehicle.plate} — ${currentVehicle.make || ''} ${currentVehicle.model || ''}`
                 : d.ownVehicle ? 'Own vehicle' : 'No vehicle assigned'],
               ['Pay structure', d.payStructure || '—'],
-              ['Base salary', `AED ${(d.baseSalary || 0).toLocaleString()}`],
+              ['Base salary', `AED ${n((d.baseSalary || 0).toLocaleString())}`],
               ['Join date', formatDate(d.joinDate)],
               ['Passport number', d.passportNumber || '—'],
               ['Passport expiry', formatDate(d.passportExpiry)],
@@ -410,7 +412,7 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
                 </div>
                 {currentVehicle.monthlyDeductionAmount != null && (
                   <div style={{ fontSize: 11, color: '#f87171' }}>
-                    Monthly deduction: AED {currentVehicle.monthlyDeductionAmount?.toLocaleString()}
+                    Monthly deduction: AED {n(currentVehicle.monthlyDeductionAmount?.toLocaleString())}
                   </div>
                 )}
                 <div style={{ marginTop: 8 }}>
@@ -435,11 +437,11 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 16 }}>
               <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '12px 14px' }}>
                 <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Gross salary</div>
-                <div style={{ fontSize: 18, fontWeight: 600, color: '#4ade80' }}>AED {grossSalary.toLocaleString()}</div>
+                <div style={{ fontSize: 18, fontWeight: 600, color: '#4ade80' }}>AED {n(grossSalary.toLocaleString())}</div>
               </div>
               <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '12px 14px' }}>
                 <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Deductions</div>
-                <div style={{ fontSize: 18, fontWeight: 600, color: '#f87171' }}>AED {deductionsAmt.toLocaleString()}</div>
+                <div style={{ fontSize: 18, fontWeight: 600, color: '#f87171' }}>AED {n(deductionsAmt.toLocaleString())}</div>
               </div>
               {advanceBalance > 0 && (
                 <div
@@ -452,7 +454,7 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
                   }}
                 >
                   <div style={{ fontSize: 10, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Advance outstanding</div>
-                  <div style={{ fontSize: 18, fontWeight: 600, color: '#fbbf24' }}>AED {advanceBalance.toLocaleString()}</div>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: '#fbbf24' }}>AED {n(advanceBalance.toLocaleString())}</div>
                 </div>
               )}
             </div>
@@ -528,7 +530,7 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
                         fontWeight: 500,
                       }}
                     >
-                      {amount < 0 ? '−' : '+'} AED {Math.abs(amount).toLocaleString()}
+                      {amount < 0 ? '−' : '+'} AED {n(Math.abs(amount).toLocaleString())}
                     </span>
                   </div>
                 );
