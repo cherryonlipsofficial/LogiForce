@@ -67,7 +67,7 @@ router.get('/runs', requirePermission('salary.view'), async (req, res) => {
       .populate('clientId', 'name')
       .populate('projectId', 'name')
       .populate('processedBy', 'name')
-      .populate('approvedBy', 'name')
+      .populate('approvals.approvedBy', 'name')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),
@@ -85,7 +85,6 @@ router.get('/runs/:id', requirePermission('salary.view'), async (req, res) => {
     .populate('projectId', 'name salaryReleaseDay')
     .populate('attendanceRecordId')
     .populate('processedBy', 'name')
-    .populate('approvedBy', 'name')
     .populate('approvals.approvedBy', 'name');
 
   if (!run) return sendError(res, 'Salary run not found', 404);
