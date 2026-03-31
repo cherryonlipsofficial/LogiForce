@@ -24,11 +24,22 @@ router.get('/approved-batches', async (req, res) => {
     const batches = await AttendanceBatch.find(query)
       .populate('clientId', 'name')
       .populate('projectId', 'name projectCode')
-      .select('batchId clientId projectId period totalRows matchedRows status createdAt')
+      .select('batchId clientId projectId period totalRows matchedRows status createdAt invoiceId')
       .sort({ 'period.year': -1, 'period.month': -1, createdAt: -1 })
       .limit(100);
 
-    sendSuccess(res, batches);
+    // Filter out batches that have an active (non-deleted) invoice
+    const batchesWithInvoice = batches.filter((b) => b.invoiceId);
+    let activeInvoiceIds = new Set();
+    if (batchesWithInvoice.length > 0) {
+      const invoiceIds = [...new Set(batchesWithInvoice.map((b) => b.invoiceId.toString()))];
+      const existing = await Invoice.find({ _id: { $in: invoiceIds }, isDeleted: { $ne: true } }).select('_id');
+      activeInvoiceIds = new Set(existing.map((inv) => inv._id.toString()));
+    }
+
+    const available = batches.filter((b) => !b.invoiceId || !activeInvoiceIds.has(b.invoiceId.toString()));
+
+    sendSuccess(res, available);
   } catch (err) {
     sendError(res, err.message || 'Failed to fetch approved batches', 500);
   }

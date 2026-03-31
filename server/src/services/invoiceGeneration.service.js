@@ -30,10 +30,19 @@ async function generateInvoice(batchId, accountsUserId) {
   }
 
   if (batch.invoiceId) {
-    throw Object.assign(
-      new Error('An invoice has already been generated for this batch.'),
-      { statusCode: 400 }
-    )
+    // Check if the linked invoice still exists and is not deleted
+    const existingInvoice = await Invoice.findOne({ _id: batch.invoiceId, isDeleted: { $ne: true } }).select('_id')
+    if (existingInvoice) {
+      throw Object.assign(
+        new Error('An invoice has already been generated for this batch.'),
+        { statusCode: 400 }
+      )
+    }
+    // Clear stale reference — invoice was deleted
+    batch.invoiceId = null
+    batch.invoicedAt = null
+    batch.invoicedBy = null
+    await batch.save()
   }
 
   // STEP 2 — Fetch attendance records for this batch
