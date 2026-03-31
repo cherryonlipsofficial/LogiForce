@@ -361,7 +361,11 @@ const getStatementOfAccounts = async (projectId, year) => {
     const totalInvoiced = monthInvoices.reduce((s, inv) => s + (inv.total || 0), 0);
     const totalCN = monthCNs.reduce((s, cn) => s + (cn.totalAmount || 0), 0);
     const netReceivable = Math.round((totalInvoiced - totalCN) * 100) / 100;
-    const totalReceived = monthInvoices.reduce((s, inv) => s + (inv.amountReceived || 0), 0);
+    const totalReceived = monthInvoices.reduce((s, inv) => {
+      if (inv.amountReceived > 0) return s + inv.amountReceived;
+      if (inv.status === 'paid') return s + (inv.adjustedTotal != null ? inv.adjustedTotal : (inv.total || 0));
+      return s;
+    }, 0);
     const outstandingBalance = Math.round((netReceivable - totalReceived) * 100) / 100;
 
     yearlyTotalInvoiced += totalInvoiced;
@@ -376,7 +380,7 @@ const getStatementOfAccounts = async (projectId, year) => {
         invoiceNo: inv.invoiceNo,
         total: inv.total,
         adjustedTotal: inv.adjustedTotal,
-        amountReceived: inv.amountReceived || 0,
+        amountReceived: inv.amountReceived > 0 ? inv.amountReceived : (inv.status === 'paid' ? (inv.adjustedTotal != null ? inv.adjustedTotal : (inv.total || 0)) : 0),
         status: inv.status,
       })),
       creditNotes: monthCNs.map((cn) => ({
