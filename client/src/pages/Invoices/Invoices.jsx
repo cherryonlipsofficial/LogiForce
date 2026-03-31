@@ -69,16 +69,18 @@ const Invoices = () => {
   const pagination = data?.pagination;
   const filtered = invoices;
 
+  const totalInvoicedAmount = invoices.reduce((s, i) => s + i.amount, 0);
   const totalOutstanding = invoices.filter((i) => i.status === 'sent' || i.status === 'overdue').reduce((s, i) => s + i.amount, 0);
-  const totalPaid = invoices.filter((i) => i.status === 'paid').reduce((s, i) => s + i.amount, 0);
+  const totalCollected = invoices.filter((i) => i.status === 'paid').reduce((s, i) => s + (i.amountReceived || (i.adjustedTotal != null ? i.adjustedTotal : i.amount)), 0);
   const overdueCount = invoices.filter((i) => i.status === 'overdue').length;
 
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : isTablet ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : isTablet ? 'repeat(3,1fr)' : 'repeat(5,1fr)', gap: 12 }}>
         <KpiCard label="Total invoices" value={invoices.length} />
+        <KpiCard label="Invoiced amount" value={formatCurrencyFull(totalInvoicedAmount)} color="#818cf8" />
         <KpiCard label="Outstanding" value={formatCurrencyFull(totalOutstanding)} color="#fbbf24" />
-        <KpiCard label="Collected" value={formatCurrencyFull(totalPaid)} color="#4ade80" />
+        <KpiCard label="Collected" value={formatCurrencyFull(totalCollected)} color="#4ade80" />
         <KpiCard label="Overdue" value={overdueCount} color={overdueCount > 0 ? '#f87171' : '#4ade80'} />
       </div>
 
@@ -137,8 +139,8 @@ const Invoices = () => {
                       <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--text3)' }}>{formatDate(inv.issueDate)}</td>
                       <td style={{ padding: '11px 14px', fontSize: 11, color: inv.status === 'overdue' ? '#f87171' : 'var(--text3)' }}>{formatDate(inv.dueDate)}</td>
                       <td style={{ padding: '11px 14px' }}>
-                        {inv.creditNotes?.length > 0 ? (
-                          <Badge variant="purple">{inv.creditNotes.length}</Badge>
+                        {inv.linkedCreditNotes?.length > 0 ? (
+                          <Badge variant="purple">{inv.linkedCreditNotes.length}</Badge>
                         ) : (
                           <span style={{ color: 'var(--text3)', fontSize: 12 }}>—</span>
                         )}
