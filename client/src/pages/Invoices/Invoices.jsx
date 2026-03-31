@@ -313,39 +313,45 @@ const InvoiceDetail = ({ invoice, onClose }) => {
         {/* Invoice line items — driver details */}
         {detailLoading ? (
           <div style={{ textAlign: 'center', padding: '16px 0', fontSize: 12, color: 'var(--text3)' }}>Loading invoice details...</div>
-        ) : fullInvoice?.lineItems?.length > 0 ? (
+        ) : fullInvoice?.lineItems?.length > 0 ? (() => {
+          const isPerOrder = fullInvoice.lineItems.some((item) => item.rateBasis === 'per_order');
+          const qtyLabel = isPerOrder ? 'Total Orders' : 'Payable Days';
+          const thStyle = (align = 'right') => ({ padding: '7px 8px', fontSize: 10, color: 'var(--text3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: align, background: 'var(--surface2)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' });
+          const tdMono = { padding: '6px 8px', fontSize: 11, textAlign: 'right', fontFamily: 'var(--mono)' };
+          return (
           <div style={{ marginBottom: 24 }}>
             <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>Driver details ({fullInvoice.lineItems.length})</div>
             <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 680 }}>
                   <thead>
                     <tr>
-                      {['#', 'Driver', 'Days', 'Rate/Day', 'Amount', 'VAT', 'Total'].map((h) => (
-                        <th key={h} style={{ padding: '7px 10px', fontSize: 10, color: 'var(--text3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: h === 'Driver' ? 'left' : 'right', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>
-                          {h}
-                        </th>
-                      ))}
+                      <th style={thStyle('center')}>#</th>
+                      <th style={thStyle('left')}>Driver Name</th>
+                      <th style={thStyle('left')}>Driver Code</th>
+                      <th style={thStyle('left')}>Client User ID</th>
+                      <th style={thStyle('right')}>{qtyLabel}</th>
+                      <th style={thStyle('right')}>Amount</th>
+                      <th style={thStyle('right')}>VAT Amount</th>
+                      <th style={thStyle('right')}>Total Amount</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {fullInvoice.lineItems.map((item, idx) => (
+                    {fullInvoice.lineItems.map((item, idx) => {
+                      const qtyValue = item.rateBasis === 'per_order' ? (item.totalOrders || 0) : (item.workingDays || 0);
+                      return (
                       <tr key={item._id || idx} style={{ borderBottom: '1px solid var(--border)' }}>
-                        <td style={{ padding: '6px 10px', fontSize: 11, color: 'var(--text3)', textAlign: 'right' }}>{idx + 1}</td>
-                        <td style={{ padding: '6px 10px', fontSize: 12, textAlign: 'left' }}>
-                          <div>{item.driverId?.fullName || item.driverName || '—'}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>
-                            {item.driverId?.employeeCode || item.employeeCode || ''}
-                            {item.driverId?.clientUserId ? ` · ${item.driverId.clientUserId}` : ''}
-                          </div>
-                        </td>
-                        <td style={{ padding: '6px 10px', fontSize: 12, textAlign: 'right', fontFamily: 'var(--mono)' }}>{item.workingDays}</td>
-                        <td style={{ padding: '6px 10px', fontSize: 12, textAlign: 'right', fontFamily: 'var(--mono)' }}>{formatCurrencyFull(item.dailyRate || item.ratePerDay || 0)}</td>
-                        <td style={{ padding: '6px 10px', fontSize: 12, textAlign: 'right', fontFamily: 'var(--mono)' }}>{formatCurrencyFull(item.amount)}</td>
-                        <td style={{ padding: '6px 10px', fontSize: 12, textAlign: 'right', fontFamily: 'var(--mono)' }}>{formatCurrencyFull(item.vatAmount || 0)}</td>
-                        <td style={{ padding: '6px 10px', fontSize: 12, textAlign: 'right', fontFamily: 'var(--mono)', fontWeight: 500 }}>{formatCurrencyFull(item.totalWithVat || (item.amount + (item.vatAmount || 0)))}</td>
+                        <td style={{ padding: '6px 8px', fontSize: 11, color: 'var(--text3)', textAlign: 'center' }}>{idx + 1}</td>
+                        <td style={{ padding: '6px 8px', fontSize: 12, textAlign: 'left' }}>{item.driverId?.fullName || item.driverName || '—'}</td>
+                        <td style={{ padding: '6px 8px', fontSize: 11, textAlign: 'left', fontFamily: 'var(--mono)', color: 'var(--text3)' }}>{item.driverId?.employeeCode || item.employeeCode || '—'}</td>
+                        <td style={{ padding: '6px 8px', fontSize: 11, textAlign: 'left', fontFamily: 'var(--mono)', color: 'var(--text3)' }}>{item.driverId?.clientUserId || '—'}</td>
+                        <td style={tdMono}>{qtyValue}</td>
+                        <td style={tdMono}>{formatCurrencyFull(item.amount)}</td>
+                        <td style={tdMono}>{formatCurrencyFull(item.vatAmount || 0)}</td>
+                        <td style={{ ...tdMono, fontWeight: 500 }}>{formatCurrencyFull(item.totalWithVat || (item.amount + (item.vatAmount || 0)))}</td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -366,7 +372,8 @@ const InvoiceDetail = ({ invoice, onClose }) => {
               </div>
             </div>
           </div>
-        ) : fullInvoice && !fullInvoice.lineItems?.length ? (
+          );
+        })() : fullInvoice && !fullInvoice.lineItems?.length ? (
           <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 24, padding: '10px 14px', background: 'var(--surface2)', borderRadius: 8 }}>
             No driver line items found for this invoice.
           </div>
