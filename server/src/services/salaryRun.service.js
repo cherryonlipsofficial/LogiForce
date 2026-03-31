@@ -4,6 +4,7 @@ const {
   SalaryRun,
   Driver,
   DriverAdvance,
+  DriverLedger,
   Project,
   User,
 } = require('../models');
@@ -127,13 +128,40 @@ async function runSalaryForBatch(batchId, processedByUserId) {
         totalAdvanceDeduction += installment.amountToRecover;
       }
 
-      // STEP 5 — Calculate net salary
-      const totalDeductions = parseFloat(totalAdvanceDeduction.toFixed(2));
-      const netSalary = parseFloat(
-        Math.max(0, grossSalary - totalDeductions).toFixed(2)
-      );
+      // STEP 5 — Retrieve previous month's deduction carryover
+      const deductions = [];
+      const carryover = await getDeductionCarryover(driver._id, batchYear, batchMonth);
+      if (carryover > 0) {
+        deductions.push({
+          type: 'deduction_carryover',
+          referenceId: null,
+          amount: carryover,
+          description: 'Deduction carryover from previous month',
+          status: 'applied',
+        });
+      }
 
-      // STEP 6 — Create salary run
+      // STEP 6 — Calculate net salary (cap at 0, carry over excess)
+      const totalDeductions = parseFloat(
+        (totalAdvanceDeduction + carryover).toFixed(2)
+      );
+      let netSalary = parseFloat((grossSalary - totalDeductions).toFixed(2));
+      let deductionCarryover = 0;
+
+      if (netSalary < 0) {
+        deductionCarryover = Math.abs(netSalary);
+        netSalary = 0;
+
+        deductions.push({
+          type: 'deduction_carryover',
+          referenceId: null,
+          amount: -deductionCarryover,
+          description: `Excess deductions of ${deductionCarryover} AED carried to next month`,
+          status: 'pending',
+        });
+      }
+
+      // STEP 7 — Create salary run
       const salaryRun = await SalaryRun.create({
         driverId: driver._id,
         projectId: batch.projectId._id,
@@ -145,14 +173,23 @@ async function runSalaryForBatch(batchId, processedByUserId) {
         totalOrders,
         baseSalary,
         grossSalary,
+        deductions: deductions.filter((d) => d.amount > 0),
         advanceDeductions,
         totalDeductions,
         netSalary,
         status: 'draft',
         processedBy: processedByUserId,
+        notes: deductionCarryover > 0
+          ? `Deduction carryover of ${deductionCarryover} AED to next month`
+          : undefined,
       });
 
-      // STEP 7 — Mark advance installments as recovered
+      // STEP 8 — Store carryover for next month if needed
+      if (deductionCarryover > 0) {
+        await storeDeductionCarryover(driver._id, batchYear, batchMonth, deductionCarryover);
+      }
+
+      // STEP 9 — Mark advance installments as recovered
       for (const deduction of advanceDeductions) {
         await DriverAdvance.findOneAndUpdate(
           {
@@ -206,6 +243,43 @@ async function getSalaryRunsByBatch(batchId) {
     .populate('advanceDeductions.advanceId', 'amount reason')
     .sort({ createdAt: -1 })
     .lean();
+}
+
+/**
+ * Store deduction carryover for the next month via DriverLedger.
+ */
+async function storeDeductionCarryover(driverId, year, month, amount) {
+  let nextMonth = month + 1;
+  let nextYear = year;
+  if (nextMonth > 12) {
+    nextMonth = 1;
+    nextYear = year + 1;
+  }
+
+  await DriverLedger.create({
+    driverId,
+    entryType: 'manual_debit',
+    debit: amount,
+    credit: 0,
+    description: `Deduction carryover from ${year}-${String(month).padStart(2, '0')}`,
+    referenceId: `carryover_${year}_${month}`,
+    period: { year: nextYear, month: nextMonth },
+  });
+}
+
+/**
+ * Get deduction carryover from a previous month.
+ */
+async function getDeductionCarryover(driverId, year, month) {
+  const carryoverEntry = await DriverLedger.findOne({
+    driverId,
+    referenceId: new RegExp(`^carryover_`),
+    'period.year': year,
+    'period.month': month,
+    entryType: 'manual_debit',
+  });
+
+  return carryoverEntry ? carryoverEntry.debit : 0;
 }
 
 module.exports = { runSalaryForBatch, getSalaryRunsByBatch };
