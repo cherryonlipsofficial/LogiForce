@@ -587,13 +587,13 @@ const approveByOps = async (runId, userId, remarks) => {
     throw err;
   }
 
-  salaryRun.approvals.push({ stage: 'ops', approvedBy: userId, approvedAt: new Date(), remarks });
+  salaryRun.approvals.push({ stage: 'salary.approve_ops', approvedBy: userId, approvedAt: new Date(), remarks });
   salaryRun.status = 'ops_approved';
   await salaryRun.save();
 
-  // Notify compliance team
-  const { notifyByRole } = require('./notification.service');
-  await notifyByRole(['compliance'], {
+  // Notify users with compliance approval permission
+  const { notifyByPermission } = require('./notification.service');
+  await notifyByPermission('salary.approve_compliance', {
     type: 'salary_ops_approved',
     title: 'Salary run ready for compliance review',
     message: `Salary run ${salaryRun.runId} has been approved by Operations and is awaiting compliance review.`,
@@ -622,13 +622,13 @@ const approveByCompliance = async (runId, userId, remarks) => {
     throw err;
   }
 
-  salaryRun.approvals.push({ stage: 'compliance', approvedBy: userId, approvedAt: new Date(), remarks });
+  salaryRun.approvals.push({ stage: 'salary.approve_compliance', approvedBy: userId, approvedAt: new Date(), remarks });
   salaryRun.status = 'compliance_approved';
   await salaryRun.save();
 
-  // Notify junior accounts team
-  const { notifyByRole } = require('./notification.service');
-  await notifyByRole(['accountant'], {
+  // Notify users with accounts approval permission
+  const { notifyByPermission } = require('./notification.service');
+  await notifyByPermission('salary.approve_accounts', {
     type: 'salary_compliance_approved',
     title: 'Salary run ready for accounts review',
     message: `Salary run ${salaryRun.runId} has been approved by Compliance and is awaiting accounts review.`,
@@ -657,13 +657,13 @@ const approveByAccounts = async (runId, userId, remarks) => {
     throw err;
   }
 
-  salaryRun.approvals.push({ stage: 'accounts', approvedBy: userId, approvedAt: new Date(), remarks });
+  salaryRun.approvals.push({ stage: 'salary.approve_accounts', approvedBy: userId, approvedAt: new Date(), remarks });
   salaryRun.status = 'accounts_approved';
   await salaryRun.save();
 
-  // Notify senior accountant
-  const { notifyByRole } = require('./notification.service');
-  await notifyByRole(['accountant'], {
+  // Notify users with salary.process permission
+  const { notifyByPermission } = require('./notification.service');
+  await notifyByPermission('salary.process', {
     type: 'salary_accounts_approved',
     title: 'Salary run ready for processing',
     message: `Salary run ${salaryRun.runId} has received all approvals and is ready to be processed.`,
@@ -692,10 +692,11 @@ const processSalaryRun = async (runId, userId) => {
     throw err;
   }
 
-  // Verify all 3 approvals exist
+  // Verify all 3 approvals exist (support both legacy and new stage names)
   const stages = salaryRun.approvals.map(a => a.stage);
-  for (const required of ['ops', 'compliance', 'accounts']) {
-    if (!stages.includes(required)) {
+  for (const required of ['salary.approve_ops', 'salary.approve_compliance', 'salary.approve_accounts']) {
+    const legacyName = required.replace('salary.approve_', '');
+    if (!stages.includes(required) && !stages.includes(legacyName)) {
       const err = new Error(`Missing '${required}' approval — cannot process salary run`);
       err.statusCode = 400;
       throw err;
@@ -755,9 +756,9 @@ const processSalaryRun = async (runId, userId) => {
     await checkAndSettleCreditNote(cnId);
   }
 
-  // Notify relevant users
-  const { notifyByRole } = require('./notification.service');
-  await notifyByRole(['accountant'], {
+  // Notify users with salary.pay permission
+  const { notifyByPermission } = require('./notification.service');
+  await notifyByPermission('salary.pay', {
     type: 'salary_processed',
     title: 'Salary run processed',
     message: `Salary run ${salaryRun.runId} has been processed and is ready for payment.`,

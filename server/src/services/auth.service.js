@@ -47,8 +47,7 @@ const buildAuthResponse = async (user) => {
     await user.populate('roleId');
   }
 
-  const isAdmin = user.roleId?.isSystemRole === true
-                  && user.roleId?.name === 'admin';
+  const isAdmin = user.roleId?.isSystemRole === true;
 
   if (isAdmin) {
     const { getAllKeys } = require('../config/permissions');

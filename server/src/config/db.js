@@ -6,15 +6,15 @@ const ensureAdminRole = async () => {
   const allKeys = Object.keys(PERMISSIONS);
 
   await Role.findOneAndUpdate(
-    { name: 'admin' },
+    { isSystemRole: true },
     {
       $set: {
-        isSystemRole: true,
         displayName: 'Administrator',
         permissions: allKeys,
       },
       $setOnInsert: {
         name: 'admin',
+        isSystemRole: true,
         description: 'Full access to all modules',
       },
     },

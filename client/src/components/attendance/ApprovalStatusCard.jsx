@@ -1,6 +1,7 @@
 import Badge from '../ui/Badge';
 import Btn from '../ui/Btn';
 import PermissionGate from '../ui/PermissionGate';
+import { useAuth } from '../../context/AuthContext';
 import { formatDate } from '../../utils/formatters';
 
 const approvalIcon = (status) => {
@@ -63,7 +64,8 @@ const deriveApproval = (subdoc, isApprovedByStatus) => {
   return subdoc || null;
 };
 
-const ApprovalStatusCard = ({ batch, currentUserRole, onApprove, onDispute, onRespondDispute, onGenerateInvoice, onRunSalary }) => {
+const ApprovalStatusCard = ({ batch, onApprove, onDispute, onRespondDispute, onGenerateInvoice, onRunSalary }) => {
+  const { hasPermission } = useAuth();
   const status = batch?.status;
 
   const salesApprovedByStatus = ['sales_approved', 'fully_approved', 'invoiced'].includes(status);
@@ -71,13 +73,12 @@ const ApprovalStatusCard = ({ batch, currentUserRole, onApprove, onDispute, onRe
 
   const salesApproval = deriveApproval(batch?.salesApproval, salesApprovedByStatus);
   const opsApproval = deriveApproval(batch?.opsApproval, opsApprovedByStatus);
-  const roleName = currentUserRole?.toLowerCase();
 
   const canAct = ['pending_review', 'sales_approved', 'ops_approved', 'dispute_responded'].includes(status);
-  const isSales = roleName === 'sales';
-  const isOps = roleName === 'ops' || roleName === 'operations';
+  const canApproveSales = hasPermission('attendance.approve_sales');
+  const canApproveOps = hasPermission('attendance.approve_ops');
 
-  const ownApproval = isSales ? salesApproval : isOps ? opsApproval : null;
+  const ownApproval = canApproveSales ? salesApproval : canApproveOps ? opsApproval : null;
   const hasApproved = ownApproval?.status === 'approved';
 
   const showApproveActions = canAct && !hasApproved;

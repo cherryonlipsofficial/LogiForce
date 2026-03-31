@@ -41,7 +41,7 @@ const requirePermission = (permissionKey) => {
 
       // ── ADMIN BYPASS ──
       // System admin always passes all permission checks
-      if (user.roleId?.isSystemRole === true && user.roleId?.name === 'admin') {
+      if (user.roleId?.isSystemRole === true) {
         req.userPermissions = ['*'];
         return next();
       }

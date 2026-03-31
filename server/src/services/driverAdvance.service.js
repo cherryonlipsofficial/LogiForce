@@ -1,5 +1,5 @@
 const { DriverAdvance, Driver, User, DriverLedger } = require('../models');
-const { notifyByRole, notifyUsers } = require('./notification.service');
+const { notifyByPermission, notifyUsers } = require('./notification.service');
 
 /**
  * Request a salary advance for a driver.
@@ -51,7 +51,7 @@ async function requestAdvance(data, requestedByUserId) {
   });
 
   // Notify Accounts users
-  await notifyByRole(['accountant'], {
+  await notifyByPermission('advances.approve', {
     type: 'advance_requested',
     title: 'Driver advance request',
     message: `${requestingUser.name} requested AED ${data.amount} advance for driver ${driver.fullName}. Reason: ${data.reason}`,

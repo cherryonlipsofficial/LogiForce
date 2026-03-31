@@ -169,10 +169,10 @@ const DriverHistoryTab = ({ driverId }) => {
           const dotColor = isVehicle ? '#a78bfa' : (DOT_COLORS[entry.eventType] || 'var(--text3)');
           const icon = isVehicle ? '\u2B21' : (DOT_ICONS[entry.eventType] || '');
           const isLast = i === allEntries.length - 1;
-          const isAdmin =
-            entry.performedByRole &&
-            (entry.performedByRole.toLowerCase().includes('admin') ||
-              entry.performedByRole.toLowerCase().includes('administrator'));
+          const isAdmin = entry.performedByIsSystemRole ||
+            (entry.performedByRole &&
+              (entry.performedByRole.toLowerCase().includes('admin') ||
+                entry.performedByRole.toLowerCase().includes('administrator')));
 
           return (
             <div

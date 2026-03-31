@@ -3,7 +3,7 @@ const {
   Driver, Project, ProjectContract, DriverProjectAssignment,
   User,
 } = require('../models')
-const { notifyByRole } = require('./notification.service')
+const { notifyByPermission } = require('./notification.service')
 const { computeLineAmount } = require('../utils/rateCalculator')
 
 /**
@@ -170,7 +170,7 @@ async function generateInvoice(batchId, accountsUserId) {
   const monthName    = new Date(batch.period.year, batch.period.month - 1)
     .toLocaleString('en', { month: 'long' })
 
-  await notifyByRole(['sales', 'ops'], {
+  const invoicePayload = {
     type:    'invoice_generated',
     title:   'Invoice generated',
     message: `Invoice ${invoiceNo} generated for ${batch.projectId.name}
@@ -180,7 +180,9 @@ async function generateInvoice(batchId, accountsUserId) {
     referenceId:    invoice._id,
     triggeredBy:    accountsUserId,
     triggeredByName: accountsUser.name,
-  })
+  }
+  await notifyByPermission('attendance.approve_sales', invoicePayload)
+  await notifyByPermission('attendance.approve_ops', invoicePayload)
 
   // STEP 10 — Return
   return {

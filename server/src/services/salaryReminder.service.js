@@ -1,12 +1,12 @@
 const { SalaryRun, Project, AppNotification } = require('../models');
-const { notifyByRole } = require('./notification.service');
+const { notifyByPermission } = require('./notification.service');
 
-// Map salary run status → which role should be notified
-const STATUS_TO_ROLE = {
-  draft: ['ops'],
-  ops_approved: ['compliance'],
-  compliance_approved: ['accountant'],
-  accounts_approved: ['accountant'],
+// Map salary run status → which permission should be notified
+const STATUS_TO_PERMISSION = {
+  draft: 'salary.approve_ops',
+  ops_approved: 'salary.approve_compliance',
+  compliance_approved: 'salary.approve_accounts',
+  accounts_approved: 'salary.process',
 };
 
 /**
@@ -73,8 +73,8 @@ async function checkAndSendReminders() {
     }
 
     for (const [status, statusRuns] of Object.entries(byStatus)) {
-      const targetRoles = STATUS_TO_ROLE[status];
-      if (!targetRoles) continue;
+      const targetPermission = STATUS_TO_PERMISSION[status];
+      if (!targetPermission) continue;
 
       // Check if we already sent a reminder today for this project/status
       const startOfDay = new Date(currentYear, currentMonth - 1, today);
@@ -98,7 +98,7 @@ async function checkAndSendReminders() {
         ? `URGENT: ${count} salary run(s) for project ${projectName} need your approval. Salary release date is ${salaryReleaseDay}th. Only ${Math.max(0, daysLeft)} day(s) remaining!`
         : `Reminder: ${count} salary run(s) for project ${projectName} are pending your action. Salary release deadline in ${daysLeft} day(s).`;
 
-      const sent = await notifyByRole(targetRoles, {
+      const sent = await notifyByPermission(targetPermission, {
         type: 'salary_approval_reminder',
         title,
         message,
