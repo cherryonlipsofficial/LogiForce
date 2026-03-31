@@ -1,4 +1,4 @@
-const { DriverAdvance, Driver, User, DriverLedger } = require('../models');
+const { DriverAdvance, Driver, User, DriverLedger, SalaryRun } = require('../models');
 const { notifyByPermission, notifyUsers } = require('./notification.service');
 
 /**
@@ -163,6 +163,55 @@ async function reviewAdvance(advanceId, decision, reviewData, reviewerUserId) {
     referenceId: advance._id.toString(),
     createdBy: reviewerUserId,
   });
+
+  // Update any existing unprocessed salary runs for this driver/period
+  for (const installment of schedule) {
+    const salaryRun = await SalaryRun.findOne({
+      driverId: advance.driverId._id || advance.driverId,
+      'period.year': installment.period.year,
+      'period.month': installment.period.month,
+      status: { $in: ['draft', 'ops_approved', 'compliance_approved', 'accounts_approved'] },
+      isDeleted: { $ne: true },
+    });
+
+    if (salaryRun) {
+      // Reload advance to get the saved installment _id
+      const savedAdvance = await DriverAdvance.findById(advance._id);
+      const savedInstallment = savedAdvance.recoverySchedule.find(
+        (s) =>
+          parseInt(s.period.year) === installment.period.year &&
+          parseInt(s.period.month) === installment.period.month &&
+          s.installmentNo === installment.installmentNo
+      );
+
+      const deductionEntry = {
+        advanceId: advance._id,
+        scheduleId: savedInstallment._id,
+        amount: installment.amountToRecover,
+        description: `Advance recovery — installment ${installment.installmentNo}`,
+      };
+
+      salaryRun.advanceDeductions.push(deductionEntry);
+
+      // Also add to the deductions array so it shows in breakdown
+      salaryRun.deductions.push({
+        type: 'advance_recovery',
+        referenceId: String(advance._id),
+        amount: installment.amountToRecover,
+        description: `Advance recovery installment #${installment.installmentNo} (${advance.reason || 'advance'})`,
+        status: 'applied',
+      });
+
+      salaryRun.totalDeductions = Math.round(
+        (salaryRun.totalDeductions + installment.amountToRecover) * 100
+      ) / 100;
+      salaryRun.netSalary = Math.round(
+        Math.max(0, salaryRun.grossSalary - salaryRun.totalDeductions) * 100
+      ) / 100;
+
+      await salaryRun.save();
+    }
+  }
 
   // Notify requester
   await notifyUsers([advance.requestedBy], {
