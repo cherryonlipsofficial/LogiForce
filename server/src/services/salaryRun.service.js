@@ -248,6 +248,7 @@ async function getSalaryRunsByBatch(batchId) {
 
 /**
  * Store deduction carryover for the next month via DriverLedger.
+ * Idempotent: removes any existing carryover for the same source period before creating.
  */
 async function storeDeductionCarryover(driverId, year, month, amount) {
   let nextMonth = month + 1;
@@ -256,6 +257,13 @@ async function storeDeductionCarryover(driverId, year, month, amount) {
     nextMonth = 1;
     nextYear = year + 1;
   }
+
+  // Remove any existing carryover from this same source period to avoid duplicates
+  await DriverLedger.deleteMany({
+    driverId,
+    referenceId: `carryover_${year}_${month}`,
+    entryType: 'manual_debit',
+  });
 
   await DriverLedger.create({
     driverId,
@@ -270,17 +278,23 @@ async function storeDeductionCarryover(driverId, year, month, amount) {
 
 /**
  * Get deduction carryover from a previous month.
+ * Sums all matching carryover entries and excludes deleted entries.
  */
 async function getDeductionCarryover(driverId, year, month) {
-  const carryoverEntry = await DriverLedger.findOne({
+  const carryoverEntries = await DriverLedger.find({
     driverId,
     referenceId: new RegExp(`^carryover_`),
     'period.year': year,
     'period.month': month,
     entryType: 'manual_debit',
+    isDeleted: { $ne: true },
   });
 
-  return carryoverEntry ? carryoverEntry.debit : 0;
+  if (carryoverEntries.length === 0) return 0;
+
+  return Math.round(
+    carryoverEntries.reduce((sum, entry) => sum + (entry.debit || 0), 0) * 100
+  ) / 100;
 }
 
 module.exports = { runSalaryForBatch, getSalaryRunsByBatch };
