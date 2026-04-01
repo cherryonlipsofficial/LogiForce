@@ -337,6 +337,7 @@ router.get('/vehicle-cost-per-driver', requirePermission('reports.financial'), a
       'period.month': parseInt(month),
       status: { $in: ['draft', 'approved', 'paid'] },
       'deductions.type': 'vehicle_rental',
+      isDeleted: { $ne: true },
     })
       .populate('driverId', 'fullName employeeCode vehiclePlate vehicleType')
       .populate('clientId', 'name')

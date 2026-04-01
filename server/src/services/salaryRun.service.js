@@ -239,7 +239,7 @@ async function runSalaryForBatch(batchId, processedByUserId) {
  * Get all salary runs for a given attendance batch.
  */
 async function getSalaryRunsByBatch(batchId) {
-  return SalaryRun.find({ attendanceBatchId: batchId })
+  return SalaryRun.find({ attendanceBatchId: batchId, isDeleted: { $ne: true } })
     .populate('driverId', 'fullName employeeCode')
     .populate('advanceDeductions.advanceId', 'amount reason')
     .sort({ createdAt: -1 })
@@ -293,6 +293,7 @@ async function getDeductionCarryover(driverId, year, month) {
     'period.year': year,
     'period.month': month,
     entryType: 'manual_debit',
+    isDeleted: { $ne: true },
   });
 
   if (!carryoverEntries.length) return 0;
