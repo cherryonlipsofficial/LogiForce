@@ -28,7 +28,7 @@ const creditNoteSchema = new Schema(
     },
 
     // Description — e.g. "Credit Note - Traffic Fine"
-    description: { type: String, required: true },
+    description: { type: String },
 
     // Multi-driver line items — one row per driver (each can have a different type)
     lineItems: [
