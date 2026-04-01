@@ -360,22 +360,30 @@ const storeDeductionCarryover = async (driverId, year, month, amount) => {
     nextYear = year + 1;
   }
 
-  // Remove any existing carryover from this same source period to avoid duplicates
-  await DriverLedger.deleteMany({
-    driverId,
-    referenceId: `carryover_${year}_${month}`,
-    entryType: 'manual_debit',
-  });
-
-  await DriverLedger.create({
-    driverId,
-    entryType: 'manual_debit',
-    debit: amount,
-    credit: 0,
-    description: `Deduction carryover from ${year}-${String(month).padStart(2, '0')}`,
-    referenceId: `carryover_${year}_${month}`,
-    period: { year: nextYear, month: nextMonth },
-  });
+  // Upsert to avoid duplicate carryover entries for the same source period
+  await DriverLedger.findOneAndUpdate(
+    {
+      driverId,
+      referenceId: `carryover_${year}_${month}`,
+      'period.year': nextYear,
+      'period.month': nextMonth,
+      entryType: 'manual_debit',
+    },
+    {
+      $set: {
+        debit: amount,
+        credit: 0,
+        description: `Deduction carryover from ${year}-${String(month).padStart(2, '0')}`,
+      },
+      $setOnInsert: {
+        driverId,
+        entryType: 'manual_debit',
+        referenceId: `carryover_${year}_${month}`,
+        period: { year: nextYear, month: nextMonth },
+      },
+    },
+    { upsert: true, new: true }
+  );
 };
 
 /**
@@ -403,7 +411,7 @@ const getDeductionCarryover = async (driverId, year, month) => {
     isDeleted: { $ne: true },
   });
 
-  if (carryoverEntries.length === 0) return 0;
+  if (!carryoverEntries.length) return 0;
 
   return Math.round(
     carryoverEntries.reduce((sum, entry) => sum + (entry.debit || 0), 0) * 100
@@ -669,10 +677,51 @@ const syncCreditNoteDeductions = async (salaryRun) => {
     salaryRun.totalDeductions = Math.round(
       salaryRun.deductions.filter((d) => d.amount > 0).reduce((sum, d) => sum + d.amount, 0) * 100
     ) / 100;
-    salaryRun.netSalary = Math.max(
-      0,
-      Math.round((salaryRun.grossSalary - salaryRun.totalDeductions) * 100) / 100
-    );
+    const rawNet = Math.round((salaryRun.grossSalary - salaryRun.totalDeductions) * 100) / 100;
+
+    if (rawNet < 0) {
+      const carryoverAmount = Math.abs(rawNet);
+      salaryRun.netSalary = 0;
+      salaryRun.deductionCarryover = carryoverAmount;
+      salaryRun.notes = `Deduction carryover of ${carryoverAmount} AED to next month`;
+
+      // Remove any existing carryover ledger entry and store updated one
+      const { year, month } = salaryRun.period;
+      let nextMonth = month + 1;
+      let nextYear = year;
+      if (nextMonth > 12) { nextMonth = 1; nextYear = year + 1; }
+
+      await DriverLedger.deleteMany({
+        driverId: salaryRun.driverId,
+        referenceId: `carryover_${year}_${month}`,
+        'period.year': nextYear,
+        'period.month': nextMonth,
+        entryType: 'manual_debit',
+      });
+
+      await storeDeductionCarryover(salaryRun.driverId, year, month, carryoverAmount);
+    } else {
+      salaryRun.netSalary = rawNet;
+      salaryRun.deductionCarryover = 0;
+
+      // Clear any previously stored carryover if net is now positive
+      const { year, month } = salaryRun.period;
+      let nextMonth = month + 1;
+      let nextYear = year;
+      if (nextMonth > 12) { nextMonth = 1; nextYear = year + 1; }
+
+      await DriverLedger.deleteMany({
+        driverId: salaryRun.driverId,
+        referenceId: `carryover_${year}_${month}`,
+        'period.year': nextYear,
+        'period.month': nextMonth,
+        entryType: 'manual_debit',
+      });
+
+      if (salaryRun.notes && salaryRun.notes.startsWith('Deduction carryover')) {
+        salaryRun.notes = undefined;
+      }
+    }
   }
 
   return changed;

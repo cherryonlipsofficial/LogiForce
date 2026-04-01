@@ -45,6 +45,9 @@ export const getDocumentDirectUrl = (fileUrl, fileKey) => {
   return `${base}/drivers/uploads/${fileKey}`;
 };
 
+export const getDriverFinancialSummary = (id) =>
+  axiosInstance.get(`/drivers/${id}/financial-summary`).then(r => r.data);
+
 export const getDriverStatusCounts = () =>
   axiosInstance.get('/drivers/status-counts').then(r => r.data);
 

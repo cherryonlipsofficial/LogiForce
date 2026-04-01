@@ -79,15 +79,43 @@ async function getUnreadCount(userId) {
   return AppNotification.countDocuments({ recipientId: userId, isRead: false });
 }
 
-async function getUserNotifications(userId, page = 1, limit = 20) {
+async function getUserNotifications(userId, page = 1, limit = 20, { filter, type } = {}) {
   const skip = (page - 1) * limit;
+  const query = { recipientId: userId };
+
+  // Apply read-status filter
+  if (filter === 'unread') {
+    query.isRead = false;
+  }
+
+  // Apply type-category filter
+  const typeMap = {
+    attendance: [
+      'attendance_uploaded', 'attendance_approved',
+      'attendance_fully_approved', 'attendance_disputed', 'dispute_responded',
+    ],
+    invoices: ['invoice_generated'],
+    salary: [
+      'salary_run_ready', 'salary_ops_approved', 'salary_compliance_approved',
+      'salary_accounts_approved', 'salary_processed', 'salary_approval_reminder',
+    ],
+    advances: ['advance_requested', 'advance_approved', 'advance_rejected'],
+    credit_notes: [
+      'credit_note_created', 'credit_note_sent',
+      'credit_note_adjusted', 'credit_note_settled',
+    ],
+  };
+  if (type && typeMap[type]) {
+    query.type = { $in: typeMap[type] };
+  }
+
   const [notifications, total, unreadCount] = await Promise.all([
-    AppNotification.find({ recipientId: userId })
+    AppNotification.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .lean(),
-    AppNotification.countDocuments({ recipientId: userId }),
+    AppNotification.countDocuments(query),
     AppNotification.countDocuments({ recipientId: userId, isRead: false }),
   ]);
   return { notifications, total, unreadCount, page, limit };

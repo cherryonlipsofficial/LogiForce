@@ -12,7 +12,7 @@ import Btn from '../../components/ui/Btn';
 import Modal from '../../components/ui/Modal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useNavigate } from 'react-router-dom';
-import { getDriver, getDriverLedger, exportDriverLedger, updateDriver, getDriverDocuments, uploadDriverDocument, fetchDocumentFile, getDocumentDirectUrl, getStatusSummary, getDriverHistory, activateDriver, deleteDriver, getActiveGuarantee } from '../../api/driversApi';
+import { getDriver, getDriverLedger, exportDriverLedger, updateDriver, getDriverDocuments, uploadDriverDocument, fetchDocumentFile, getDocumentDirectUrl, getStatusSummary, getDriverHistory, activateDriver, deleteDriver, getActiveGuarantee, getDriverFinancialSummary } from '../../api/driversApi';
 import PassportSubmissionField from '../../components/drivers/PassportSubmissionField';
 import GuaranteePassportCard from '../../components/drivers/GuaranteePassportCard';
 import { getProjects } from '../../api/projectsApi';
@@ -129,6 +129,13 @@ const DriverDetail = ({ driver, onClose }) => {
     enabled: tab === 'financial',
   });
 
+  const { data: financialSummaryData } = useQuery({
+    queryKey: ['driverFinancialSummary', driverId],
+    queryFn: () => getDriverFinancialSummary(driverId),
+    enabled: tab === 'financial',
+  });
+  const financialSummary = financialSummaryData?.data || null;
+
   const { data: docsData, isLoading: docsLoading } = useQuery({
     queryKey: ['driverDocuments', driverId],
     queryFn: () => getDriverDocuments(driverId),
@@ -163,9 +170,9 @@ const { data: statusSummaryData } = useQuery({
 
   const ledger = ledgerData?.data || [];
 
-const grossSalary = d.grossSalary || d.baseSalary || 0;
-  const deductionsAmt = d.deductions || 0;
-  const netSalary = d.netSalary || grossSalary - deductionsAmt;
+const grossSalary = financialSummary?.grossSalary || d.baseSalary || 0;
+  const deductionsAmt = financialSummary?.totalDeductions || 0;
+  const netSalary = financialSummary?.netSalary || grossSalary - deductionsAmt;
   const workingDays = d.workingDays ?? 0;
   const advanceBalance = d.advanceBalance || 0;
 
@@ -435,6 +442,11 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
               </div>
             ) : null}
 
+            {financialSummary?.period && (
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 8 }}>
+                Latest salary run: {['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][financialSummary.period.month]} {financialSummary.period.year}
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 16 }}>
               <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '12px 14px' }}>
                 <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Gross salary</div>
@@ -443,6 +455,20 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
               <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '12px 14px' }}>
                 <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Deductions</div>
                 <div style={{ fontSize: 18, fontWeight: 600, color: '#f87171' }}>AED {n(deductionsAmt.toLocaleString())}</div>
+                {financialSummary?.deductions?.length > 0 && (
+                  <div style={{ marginTop: 6 }}>
+                    {financialSummary.deductions.filter(dd => dd.amount > 0).map((dd, idx) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>
+                        <span>{dd.description || dd.type}</span>
+                        <span style={{ fontFamily: 'var(--mono)' }}>{n(dd.amount.toLocaleString())}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '12px 14px' }}>
+                <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Net salary</div>
+                <div style={{ fontSize: 18, fontWeight: 600 }}>AED {n(netSalary.toLocaleString())}</div>
               </div>
               {advanceBalance > 0 && (
                 <div
@@ -451,7 +477,6 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
                     border: '1px solid rgba(245,158,11,0.2)',
                     borderRadius: 10,
                     padding: '12px 14px',
-                    gridColumn: '1/-1',
                   }}
                 >
                   <div style={{ fontSize: 10, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Advance outstanding</div>
@@ -480,7 +505,11 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
             {ledgerLoading ? (
               <LoadingSpinner />
             ) : (
-              ledger.map((e, i) => {
+              ledger.length === 0 ? (
+                <div style={{ color: 'var(--text3)', fontSize: 12, padding: '16px 0', textAlign: 'center' }}>
+                  No ledger entries yet
+                </div>
+              ) : ledger.map((e, i) => {
                 const amount = (e.credit || 0) - (e.debit || 0);
                 const isVehicleRental = e.description?.toLowerCase().includes('vehicle rental') || e.entryType === 'vehicle_rental';
                 const vehiclePlate = isVehicleRental ? (d.vehiclePlate || d.vehicle) : null;
@@ -496,9 +525,14 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
                       fontSize: 12,
                     }}
                   >
-                    <div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ color: 'var(--text)', marginBottom: 2 }}>{e.description}</div>
-                      <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>{e.referenceId}</div>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 10, color: 'var(--text3)' }}>{formatDate(e.createdAt)}</span>
+                        {e.referenceId && (
+                          <span style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>{e.referenceId}</span>
+                        )}
+                      </div>
                       {vehiclePlate && (
                         <div
                           onClick={() => navigate(`/vehicles?plate=${encodeURIComponent(vehiclePlate)}`)}
@@ -517,16 +551,23 @@ const grossSalary = d.grossSalary || d.baseSalary || 0;
                         </div>
                       )}
                     </div>
-                    <span
-                      style={{
-                        fontFamily: 'var(--mono)',
-                        fontSize: 12,
-                        color: amount < 0 ? '#f87171' : '#4ade80',
-                        fontWeight: 500,
-                      }}
-                    >
-                      {amount < 0 ? '−' : '+'} AED {n(Math.abs(amount).toLocaleString())}
-                    </span>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div
+                        style={{
+                          fontFamily: 'var(--mono)',
+                          fontSize: 12,
+                          color: amount < 0 ? '#f87171' : '#4ade80',
+                          fontWeight: 500,
+                        }}
+                      >
+                        {amount < 0 ? '−' : '+'} AED {n(Math.abs(amount).toLocaleString())}
+                      </div>
+                      {e.runningBalance != null && (
+                        <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)', marginTop: 2 }}>
+                          Bal: AED {n(e.runningBalance.toLocaleString())}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })

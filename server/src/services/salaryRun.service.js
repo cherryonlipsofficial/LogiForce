@@ -258,22 +258,30 @@ async function storeDeductionCarryover(driverId, year, month, amount) {
     nextYear = year + 1;
   }
 
-  // Remove any existing carryover from this same source period to avoid duplicates
-  await DriverLedger.deleteMany({
-    driverId,
-    referenceId: `carryover_${year}_${month}`,
-    entryType: 'manual_debit',
-  });
-
-  await DriverLedger.create({
-    driverId,
-    entryType: 'manual_debit',
-    debit: amount,
-    credit: 0,
-    description: `Deduction carryover from ${year}-${String(month).padStart(2, '0')}`,
-    referenceId: `carryover_${year}_${month}`,
-    period: { year: nextYear, month: nextMonth },
-  });
+  // Upsert to avoid duplicate carryover entries for the same source period
+  await DriverLedger.findOneAndUpdate(
+    {
+      driverId,
+      referenceId: `carryover_${year}_${month}`,
+      'period.year': nextYear,
+      'period.month': nextMonth,
+      entryType: 'manual_debit',
+    },
+    {
+      $set: {
+        debit: amount,
+        credit: 0,
+        description: `Deduction carryover from ${year}-${String(month).padStart(2, '0')}`,
+      },
+      $setOnInsert: {
+        driverId,
+        entryType: 'manual_debit',
+        referenceId: `carryover_${year}_${month}`,
+        period: { year: nextYear, month: nextMonth },
+      },
+    },
+    { upsert: true, new: true }
+  );
 }
 
 /**
@@ -290,7 +298,7 @@ async function getDeductionCarryover(driverId, year, month) {
     isDeleted: { $ne: true },
   });
 
-  if (carryoverEntries.length === 0) return 0;
+  if (!carryoverEntries.length) return 0;
 
   return Math.round(
     carryoverEntries.reduce((sum, entry) => sum + (entry.debit || 0), 0) * 100

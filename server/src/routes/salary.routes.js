@@ -310,7 +310,7 @@ router.delete('/runs/:id', requirePermission('salary.delete'), async (req, res) 
     );
 
     // Soft-delete carryover ledger entry for next month (stored without salaryRunId)
-    if (run.period && run.period.year && run.period.month) {
+    if (run.deductionCarryover > 0 && run.period) {
       await DriverLedger.updateMany(
         {
           driverId: run.driverId,
@@ -330,7 +330,7 @@ router.delete('/runs/:id', requirePermission('salary.delete'), async (req, res) 
   await DriverLedger.deleteMany({ salaryRunId: run._id });
 
   // Clean up carryover ledger entry for next month (stored without salaryRunId)
-  if (run.period && run.period.year && run.period.month) {
+  if (run.deductionCarryover > 0 && run.period) {
     await DriverLedger.deleteMany({
       driverId: run.driverId,
       referenceId: `carryover_${run.period.year}_${run.period.month}`,

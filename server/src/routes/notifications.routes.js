@@ -12,7 +12,8 @@ router.use(protect);
 // GET /api/notifications
 router.get('/', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
-  const result = await getUserNotifications(req.user._id, page);
+  const { filter, type } = req.query;
+  const result = await getUserNotifications(req.user._id, page, 20, { filter, type });
   res.json({ success: true, data: result });
 });
 
