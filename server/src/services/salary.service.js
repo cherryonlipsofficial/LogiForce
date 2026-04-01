@@ -289,6 +289,7 @@ const calculateDeductions = async (driverId, year, month, grossSalary) => {
   }
 
   // g) Credit note deductions — unsettled CN line items for this driver
+  //    Excludes lines where a DriverReceivable was already created (resigned/offboarded)
   const CreditNote = require('../models/CreditNote');
 
   const unsettledCNLines = await CreditNote.find({
@@ -297,6 +298,7 @@ const calculateDeductions = async (driverId, year, month, grossSalary) => {
         driverId: driverId,
         salaryDeducted: false,
         manuallyResolved: false,
+        receivableCreated: { $ne: true },
       },
     },
     status: { $in: ['sent', 'adjusted'] },
@@ -308,7 +310,8 @@ const calculateDeductions = async (driverId, year, month, grossSalary) => {
       if (
         line.driverId.toString() === driverId.toString() &&
         !line.salaryDeducted &&
-        !line.manuallyResolved
+        !line.manuallyResolved &&
+        !line.receivableCreated
       ) {
         deductions.push({
           type: 'credit_note',
@@ -317,6 +320,12 @@ const calculateDeductions = async (driverId, year, month, grossSalary) => {
           description: `Credit note ${cn.creditNoteNo} - ${cn.description || line.noteType}`,
           status: 'applied',
         });
+
+        // Clear pendingNextSalary flag since it's now being included in this salary run
+        if (line.pendingNextSalary) {
+          line.pendingNextSalary = false;
+          await cn.save();
+        }
       }
     }
   }

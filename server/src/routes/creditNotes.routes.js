@@ -89,9 +89,9 @@ router.get('/:id', requirePermission('credit_notes.view'), async (req, res) => {
 
 // PUT /api/credit-notes/:id/send — mark as sent to client
 router.put('/:id/send', requirePermission('credit_notes.send'), async (req, res) => {
-  const cn = await creditNoteService.sendCreditNote(req.params.id, req.user._id);
+  const { creditNote, adjustmentSummary } = await creditNoteService.sendCreditNote(req.params.id, req.user._id);
   await auditLogger.logChange('CreditNote', req.params.id, 'status', 'draft', 'sent', req.user._id, 'credit_note_sent');
-  sendSuccess(res, cn, 'Credit note sent to client');
+  sendSuccess(res, { creditNote, adjustmentSummary }, 'Credit note sent to client');
 });
 
 // PUT /api/credit-notes/:id/adjust — link to invoice
