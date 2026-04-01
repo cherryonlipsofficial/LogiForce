@@ -68,6 +68,7 @@ const DEDUCTION_TYPE_LABELS = {
   advance_recovery: 'Advance Recovery',
   penalty: 'Penalty',
   deduction_carryover: 'Carryover',
+  credit_note: 'Credit Note',
   other: 'Other',
 };
 
@@ -417,21 +418,52 @@ const RunDetail = ({ run, onClose }) => {
         </div>
 
         {/* Net Salary Highlight */}
-        <div style={{
-          background: 'linear-gradient(135deg, rgba(74,222,128,0.1), rgba(74,222,128,0.05))',
-          border: '1px solid rgba(74,222,128,0.3)',
-          borderRadius: 10,
-          padding: '14px 18px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 20,
-        }}>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>Net Salary</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80', fontFamily: 'var(--mono)' }}>
-            {formatCurrencyFull(detail.netSalary)}
-          </div>
-        </div>
+        {(() => {
+          const hasNegativeBalance = detail.deductionCarryover > 0 || (detail.netSalary === 0 && detail.totalDeductions > detail.grossSalary);
+          const accentColor = hasNegativeBalance ? '#f87171' : '#4ade80';
+          return (
+            <>
+              <div style={{
+                background: hasNegativeBalance
+                  ? 'linear-gradient(135deg, rgba(248,113,113,0.1), rgba(248,113,113,0.05))'
+                  : 'linear-gradient(135deg, rgba(74,222,128,0.1), rgba(74,222,128,0.05))',
+                border: `1px solid ${hasNegativeBalance ? 'rgba(248,113,113,0.3)' : 'rgba(74,222,128,0.3)'}`,
+                borderRadius: 10,
+                padding: '14px 18px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: hasNegativeBalance ? 10 : 20,
+              }}>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>Net Salary</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: accentColor, fontFamily: 'var(--mono)' }}>
+                  {formatCurrencyFull(detail.netSalary)}
+                </div>
+              </div>
+              {hasNegativeBalance && (
+                <div style={{
+                  background: 'rgba(248,113,113,0.08)',
+                  border: '1px solid rgba(248,113,113,0.25)',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  marginBottom: 20,
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                }}>
+                  <span style={{ fontSize: 16, lineHeight: 1 }}>&#9888;</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#f87171', marginBottom: 2 }}>Negative Balance</div>
+                    <div style={{ fontSize: 12, color: 'var(--text2)' }}>
+                      Deductions exceed gross salary by <strong style={{ color: '#f87171', fontFamily: 'var(--mono)' }}>{formatCurrencyFull(detail.deductionCarryover || (detail.totalDeductions - detail.grossSalary))}</strong>.
+                      This amount will be auto-adjusted in the next month's draft salary.
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         {/* Notes */}
         {detail.notes && (
@@ -946,7 +978,14 @@ const Salary = () => {
                         <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#f87171' }}>{formatCurrencyFull(r.totalDeductions)}</span>
                       </td>
                       <td style={{ padding: '11px 14px' }}>
-                        <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#4ade80' }}>{formatCurrencyFull(r.netSalary)}</span>
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: (r.deductionCarryover > 0 || (r.netSalary === 0 && r.totalDeductions > 0)) ? '#f87171' : '#4ade80' }}>
+                          {formatCurrencyFull(r.netSalary)}
+                          {(r.deductionCarryover > 0) && (
+                            <span title={`Negative balance: ${formatCurrencyFull(r.deductionCarryover)} carried to next month`} style={{ marginLeft: 4, fontSize: 10, background: 'rgba(248,113,113,0.15)', color: '#f87171', padding: '1px 5px', borderRadius: 4, fontFamily: 'inherit', fontWeight: 600 }}>
+                              -{formatCurrencyFull(r.deductionCarryover)}
+                            </span>
+                          )}
+                        </span>
                       </td>
                       <td style={{ padding: '11px 14px' }}><Badge variant={st.variant}>{st.label}</Badge></td>
                       <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--text3)' }}>{formatDate(r.createdAt)}</td>

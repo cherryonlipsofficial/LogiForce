@@ -131,6 +131,7 @@ const calculateDriverSalary = async (driverId, year, month, processedBy, { clien
     deductions: deductions.filter((d) => d.amount > 0),
     totalDeductions,
     netSalary,
+    deductionCarryover,
     status: 'draft',
     processedBy,
     notes: deductionCarryover > 0
@@ -967,7 +968,54 @@ const addManualDeduction = async (runId, { type, amount, description }, addedBy)
   salaryRun.totalDeductions = Math.round(
     salaryRun.deductions.filter((d) => d.amount > 0).reduce((sum, d) => sum + d.amount, 0) * 100
   ) / 100;
-  salaryRun.netSalary = Math.max(0, Math.round((salaryRun.grossSalary - salaryRun.totalDeductions) * 100) / 100);
+
+  const rawNet = Math.round((salaryRun.grossSalary - salaryRun.totalDeductions) * 100) / 100;
+
+  // Handle negative balance: cap at 0 and store carryover for next month
+  if (rawNet < 0) {
+    const carryoverAmount = Math.abs(rawNet);
+    salaryRun.netSalary = 0;
+    salaryRun.deductionCarryover = carryoverAmount;
+    salaryRun.notes = `Deduction carryover of ${carryoverAmount} AED to next month`;
+
+    // Remove any existing carryover ledger entry for next month from this salary run's period
+    const { year, month } = salaryRun.period;
+    let nextMonth = month + 1;
+    let nextYear = year;
+    if (nextMonth > 12) { nextMonth = 1; nextYear = year + 1; }
+
+    await DriverLedger.deleteMany({
+      driverId: salaryRun.driverId,
+      referenceId: `carryover_${year}_${month}`,
+      'period.year': nextYear,
+      'period.month': nextMonth,
+      entryType: 'manual_debit',
+    });
+
+    // Store updated carryover for next month
+    await storeDeductionCarryover(salaryRun.driverId, year, month, carryoverAmount);
+  } else {
+    salaryRun.netSalary = rawNet;
+    salaryRun.deductionCarryover = 0;
+
+    // Clear any previously stored carryover if net is now positive
+    const { year, month } = salaryRun.period;
+    let nextMonth = month + 1;
+    let nextYear = year;
+    if (nextMonth > 12) { nextMonth = 1; nextYear = year + 1; }
+
+    await DriverLedger.deleteMany({
+      driverId: salaryRun.driverId,
+      referenceId: `carryover_${year}_${month}`,
+      'period.year': nextYear,
+      'period.month': nextMonth,
+      entryType: 'manual_debit',
+    });
+
+    if (salaryRun.notes && salaryRun.notes.startsWith('Deduction carryover')) {
+      salaryRun.notes = undefined;
+    }
+  }
 
   await salaryRun.save();
   return salaryRun;
