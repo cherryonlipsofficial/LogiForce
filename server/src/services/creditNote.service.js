@@ -586,6 +586,34 @@ const adjustDraftSalaryRuns = async (creditNote) => {
   return adjustmentSummary;
 };
 
+/**
+ * Re-trigger salary adjustment for an already-sent credit note.
+ * Useful when the CN was sent before the adjustment logic was deployed,
+ * or when a new draft salary run was created after the CN was sent.
+ */
+const retriggerSalaryAdjustment = async (creditNoteId, userId) => {
+  const cn = await CreditNote.findById(creditNoteId);
+  if (!cn) {
+    const err = new Error('Credit note not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (!['sent', 'adjusted'].includes(cn.status)) {
+    const err = new Error(`Cannot re-trigger adjustment — credit note must be in 'sent' or 'adjusted' status (current: '${cn.status}')`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Override sentBy for audit if not set
+  if (!cn.sentBy) {
+    cn.sentBy = userId;
+  }
+
+  const adjustmentSummary = await adjustDraftSalaryRuns(cn);
+  return { creditNote: cn, adjustmentSummary };
+};
+
 module.exports = {
   createCreditNote,
   sendCreditNote,
@@ -595,4 +623,6 @@ module.exports = {
   getSettlementStatus,
   recordInvoicePayment,
   getStatementOfAccounts,
+  adjustDraftSalaryRuns,
+  retriggerSalaryAdjustment,
 };

@@ -580,6 +580,79 @@ const updateAdvanceRecoveries = async (salaryRun) => {
 };
 
 /**
+ * Sync credit note deductions into an existing salary run.
+ * Picks up any unsettled CN lines that were sent AFTER the salary run was created.
+ * Called before ops approval to ensure all deductions are current.
+ */
+const syncCreditNoteDeductions = async (salaryRun) => {
+  const CreditNote = require('../models/CreditNote');
+  const driverId = salaryRun.driverId;
+  let changed = false;
+
+  const unsettledCNs = await CreditNote.find({
+    'lineItems': {
+      $elemMatch: {
+        driverId: driverId,
+        salaryDeducted: false,
+        manuallyResolved: false,
+        receivableCreated: { $ne: true },
+      },
+    },
+    status: { $in: ['sent', 'adjusted'] },
+    isDeleted: { $ne: true },
+  });
+
+  for (const cn of unsettledCNs) {
+    for (const line of cn.lineItems) {
+      if (
+        line.driverId.toString() !== driverId.toString() ||
+        line.salaryDeducted ||
+        line.manuallyResolved ||
+        line.receivableCreated
+      ) continue;
+
+      const refId = String(cn._id) + ':' + String(line._id);
+
+      // Skip if already present in this salary run
+      const alreadyAdded = salaryRun.deductions.some(
+        (d) => d.type === 'credit_note' && d.referenceId === refId
+      );
+      if (alreadyAdded) continue;
+
+      const deductionAmount = Math.round(line.totalWithVat * 100) / 100;
+
+      salaryRun.deductions.push({
+        type: 'credit_note',
+        referenceId: refId,
+        amount: deductionAmount,
+        description: `Credit note ${cn.creditNoteNo} - ${cn.description || line.noteType}`,
+        status: 'applied',
+      });
+
+      // Clear pendingNextSalary flag
+      if (line.pendingNextSalary) {
+        line.pendingNextSalary = false;
+        await cn.save();
+      }
+
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    salaryRun.totalDeductions = Math.round(
+      salaryRun.deductions.filter((d) => d.amount > 0).reduce((sum, d) => sum + d.amount, 0) * 100
+    ) / 100;
+    salaryRun.netSalary = Math.max(
+      0,
+      Math.round((salaryRun.grossSalary - salaryRun.totalDeductions) * 100) / 100
+    );
+  }
+
+  return changed;
+};
+
+/**
  * Operations approval — draft → ops_approved
  */
 const approveByOps = async (runId, userId, remarks) => {
@@ -595,6 +668,9 @@ const approveByOps = async (runId, userId, remarks) => {
     err.statusCode = 400;
     throw err;
   }
+
+  // Sync any credit note deductions that were sent after this salary run was created
+  await syncCreditNoteDeductions(salaryRun);
 
   salaryRun.approvals.push({ stage: 'salary.approve_ops', approvedBy: userId, approvedAt: new Date(), remarks });
   salaryRun.status = 'ops_approved';
@@ -978,6 +1054,7 @@ const bulkMarkAsPaid = async (runIds, userId) => {
 module.exports = {
   calculateDriverSalary,
   calculateDeductions,
+  syncCreditNoteDeductions,
   runPayroll,
   postLedgerEntries,
   approveByOps,
