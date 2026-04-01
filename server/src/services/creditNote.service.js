@@ -473,7 +473,7 @@ const adjustDraftSalaryRuns = async (creditNote) => {
         type: 'credit_note',
         referenceId: refId,
         amount: deductionAmount,
-        description: `Credit note ${creditNote.creditNoteNo} - ${creditNote.description || line.noteType}`,
+        description: `${creditNote.creditNoteNo} - ${(line.noteType || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}${line.referenceNo ? ' - ' + line.referenceNo : ''}`,
         status: 'applied',
       });
 
