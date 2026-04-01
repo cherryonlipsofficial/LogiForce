@@ -82,6 +82,11 @@ const salaryRunSchema = new Schema(
     netSalary: {
       type: Number,
     },
+    // Amount of excess deductions carried forward to next month's salary
+    deductionCarryover: {
+      type: Number,
+      default: 0,
+    },
     // Advance deductions applied in this run
     advanceDeductions: [
       {

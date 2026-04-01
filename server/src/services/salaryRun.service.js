@@ -177,6 +177,7 @@ async function runSalaryForBatch(batchId, processedByUserId) {
         advanceDeductions,
         totalDeductions,
         netSalary,
+        deductionCarryover,
         status: 'draft',
         processedBy: processedByUserId,
         notes: deductionCarryover > 0
