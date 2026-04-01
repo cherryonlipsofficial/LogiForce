@@ -2,13 +2,55 @@ const express = require('express');
 const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
 const salaryService = require('../services/salary.service');
-const { SalaryRun, CompanySettings, Client, DriverLedger } = require('../models');
+const { SalaryRun, CompanySettings, Client, DriverLedger, CreditNote } = require('../models');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
 const validate = require('../middleware/validate');
 const { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation, manualDeductionValidation, approvalRemarksValidation, bulkApprovalValidation } = require('../middleware/validators/salary.validators');
 const auditLogger = require('../utils/auditLogger');
 const { generatePayslipPDF } = require('../utils/pdfGenerator');
+
+/**
+ * Revert credit note line items that were deducted in a salary run being deleted.
+ * Resets salaryDeducted/salaryDeductedAt/salaryRunId so they can be picked up
+ * by the next salary run. Also reverts CN status from 'settled' back to 'adjusted'
+ * (or 'sent' if not yet client-adjusted).
+ */
+const revertCreditNoteDeductions = async (salaryRun) => {
+  const creditNoteDeductions = (salaryRun.deductions || []).filter(d => d.type === 'credit_note');
+  if (creditNoteDeductions.length === 0) return;
+
+  const affectedCreditNoteIds = new Set();
+
+  for (const ded of creditNoteDeductions) {
+    if (!ded.referenceId) continue;
+    const [cnId, lineId] = ded.referenceId.split(':');
+    if (!cnId || !lineId) continue;
+
+    affectedCreditNoteIds.add(cnId);
+
+    await CreditNote.findOneAndUpdate(
+      { _id: cnId, 'lineItems._id': lineId },
+      {
+        $set: {
+          'lineItems.$.salaryDeducted': false,
+          'lineItems.$.salaryDeductedAt': null,
+          'lineItems.$.salaryRunId': null,
+        },
+      }
+    );
+  }
+
+  // Revert any credit notes that were marked as 'settled' back to their prior status
+  for (const cnId of affectedCreditNoteIds) {
+    const cn = await CreditNote.findById(cnId);
+    if (!cn || cn.status !== 'settled') continue;
+
+    // If client-side adjustment exists, revert to 'adjusted'; otherwise 'sent'
+    cn.status = cn.linkedInvoiceId ? 'adjusted' : 'sent';
+    await cn.save();
+  }
+};
 
 // All routes are protected
 router.use(protect);
@@ -321,6 +363,9 @@ router.delete('/runs/:id', requirePermission('salary.delete'), async (req, res) 
       );
     }
 
+    // Revert credit note line items that were deducted in this salary run
+    await revertCreditNoteDeductions(run);
+
     await auditLogger.logChange('SalaryRun', req.params.id, 'soft_delete', run.status, `Remark: ${remark.trim()}`, req.user._id, 'salary_run_soft_deletion');
 
     return sendSuccess(res, null, 'Paid salary run soft-deleted successfully');
@@ -337,6 +382,9 @@ router.delete('/runs/:id', requirePermission('salary.delete'), async (req, res) 
       entryType: 'manual_debit',
     });
   }
+
+  // Revert credit note line items that were deducted in this salary run
+  await revertCreditNoteDeductions(run);
 
   await SalaryRun.findByIdAndDelete(req.params.id);
 
