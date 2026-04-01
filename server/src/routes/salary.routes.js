@@ -266,6 +266,22 @@ router.delete('/runs/:id', requirePermission('salary.delete'), async (req, res) 
       { $set: { isDeleted: true } }
     );
 
+    // Also remove carryover ledger entries created by this salary run
+    if (run.deductionCarryover > 0) {
+      const { year, month } = run.period;
+      let nextMonth = month + 1;
+      let nextYear = year;
+      if (nextMonth > 12) { nextMonth = 1; nextYear = year + 1; }
+
+      await DriverLedger.deleteMany({
+        driverId: run.driverId,
+        referenceId: `carryover_${year}_${month}`,
+        'period.year': nextYear,
+        'period.month': nextMonth,
+        entryType: 'manual_debit',
+      });
+    }
+
     await auditLogger.logChange('SalaryRun', req.params.id, 'soft_delete', run.status, `Remark: ${remark.trim()}`, req.user._id, 'salary_run_soft_deletion');
 
     return sendSuccess(res, null, 'Paid salary run soft-deleted successfully');
@@ -273,6 +289,23 @@ router.delete('/runs/:id', requirePermission('salary.delete'), async (req, res) 
 
   // Non-paid runs: hard delete — also remove ledger entries
   await DriverLedger.deleteMany({ salaryRunId: run._id });
+
+  // Also remove carryover ledger entries created by this salary run
+  if (run.deductionCarryover > 0) {
+    const { year, month } = run.period;
+    let nextMonth = month + 1;
+    let nextYear = year;
+    if (nextMonth > 12) { nextMonth = 1; nextYear = year + 1; }
+
+    await DriverLedger.deleteMany({
+      driverId: run.driverId,
+      referenceId: `carryover_${year}_${month}`,
+      'period.year': nextYear,
+      'period.month': nextMonth,
+      entryType: 'manual_debit',
+    });
+  }
+
   await SalaryRun.findByIdAndDelete(req.params.id);
 
   await auditLogger.logChange('SalaryRun', req.params.id, 'delete', run.status, null, req.user._id, 'salary_run_deletion');
