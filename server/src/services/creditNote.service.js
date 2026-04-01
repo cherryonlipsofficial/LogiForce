@@ -117,7 +117,7 @@ const sendCreditNote = async (creditNoteId, userId) => {
   await cn.save();
 
   // Auto-adjust: add credit note deductions to existing draft salary runs
-  await adjustDraftSalaryRuns(cn);
+  const adjustmentSummary = await adjustDraftSalaryRuns(cn);
 
   try {
     const { notifyByPermission } = require('./notification.service');
@@ -133,7 +133,10 @@ const sendCreditNote = async (creditNoteId, userId) => {
     logger.warn('Non-critical operation failed', { error: err.message });
   }
 
-  return cn;
+  // Re-fetch to get the latest state (with pendingNextSalary / receivableCreated flags)
+  const updatedCn = await CreditNote.findById(creditNoteId);
+
+  return { creditNote: updatedCn, adjustmentSummary };
 };
 
 /**
