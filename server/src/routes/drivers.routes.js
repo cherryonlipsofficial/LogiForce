@@ -452,6 +452,38 @@ router.get('/:id/ledger/export', async (req, res) => {
   res.send(csv);
 });
 
+// GET /api/drivers/:id/financial-summary — latest salary figures for the financial tab
+router.get('/:id/financial-summary', async (req, res) => {
+  const driverId = req.params.id;
+
+  // Get the latest completed salary run (paid or processed) for this driver
+  const latestRun = await SalaryRun.findOne({
+    driverId,
+    isDeleted: { $ne: true },
+    status: { $in: ['paid', 'processed', 'approved_accounts', 'approved_compliance', 'approved_ops', 'draft'] },
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  // Get the last ledger entry for running balance
+  const { DriverLedger } = require('../models');
+  const lastLedgerEntry = await DriverLedger.findOne({ driverId, isDeleted: { $ne: true } })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const driver = await Driver.findById(driverId).select('baseSalary').lean();
+
+  sendSuccess(res, {
+    grossSalary: latestRun?.grossSalary || driver?.baseSalary || 0,
+    totalDeductions: latestRun?.totalDeductions || 0,
+    netSalary: latestRun?.netSalary || driver?.baseSalary || 0,
+    deductions: latestRun?.deductions || [],
+    period: latestRun?.period || null,
+    runningBalance: lastLedgerEntry?.runningBalance ?? 0,
+    salaryRunStatus: latestRun?.status || null,
+  });
+});
+
 // GET /api/drivers/:id/salary-runs — list salary runs for driver
 router.get('/:id/salary-runs', async (req, res) => {
   const runs = await SalaryRun.find({ driverId: req.params.id })
