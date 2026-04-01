@@ -558,7 +558,7 @@ const CreateCreditNoteModal = ({ onClose }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!clientId || !projectId || !description) {
+    if (!clientId || !projectId) {
       toast.error('Please fill all required fields');
       return;
     }

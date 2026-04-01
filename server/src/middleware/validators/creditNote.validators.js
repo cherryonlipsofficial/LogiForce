@@ -14,8 +14,8 @@ const createCreditNoteValidation = [
     .notEmpty().withMessage('Month is required')
     .isInt({ min: 1, max: 12 }).withMessage('Month must be between 1 and 12'),
   body('description')
+    .optional({ values: 'falsy' })
     .trim()
-    .notEmpty().withMessage('Description is required')
     .isLength({ min: 3, max: 500 }).withMessage('Description must be 3-500 characters'),
   body('lineItems')
     .isArray({ min: 1 }).withMessage('At least one line item is required'),

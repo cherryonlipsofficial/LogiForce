@@ -317,7 +317,7 @@ const calculateDeductions = async (driverId, year, month, grossSalary) => {
           type: 'credit_note',
           referenceId: String(cn._id) + ':' + String(line._id),
           amount: Math.round(line.totalWithVat * 100) / 100,
-          description: `Credit note ${cn.creditNoteNo} - ${cn.description || line.noteType}`,
+          description: `${cn.creditNoteNo} - ${(line.noteType || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}${line.referenceNo ? ' - ' + line.referenceNo : ''}`,
           status: 'applied',
         });
 
@@ -625,7 +625,7 @@ const syncCreditNoteDeductions = async (salaryRun) => {
         type: 'credit_note',
         referenceId: refId,
         amount: deductionAmount,
-        description: `Credit note ${cn.creditNoteNo} - ${cn.description || line.noteType}`,
+        description: `${cn.creditNoteNo} - ${(line.noteType || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}${line.referenceNo ? ' - ' + line.referenceNo : ''}`,
         status: 'applied',
       });
 
