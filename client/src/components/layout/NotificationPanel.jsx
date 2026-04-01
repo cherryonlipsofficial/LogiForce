@@ -2,10 +2,12 @@ import { useNavigate } from 'react-router-dom';
 
 const typeColors = {
   attendance_uploaded: '#3b82f6',
+  attendance_approved: '#3b82f6',
   attendance_fully_approved: '#22c55e',
   attendance_disputed: '#ef4444',
   dispute_responded: '#f59e0b',
   invoice_generated: '#a855f7',
+  salary_run_ready: '#3b82f6',
   advance_requested: '#f59e0b',
   advance_approved: '#22c55e',
   advance_rejected: '#ef4444',
@@ -14,6 +16,10 @@ const typeColors = {
   salary_accounts_approved: '#22c55e',
   salary_processed: '#22c55e',
   salary_approval_reminder: '#f59e0b',
+  credit_note_created: '#a855f7',
+  credit_note_sent: '#3b82f6',
+  credit_note_adjusted: '#f59e0b',
+  credit_note_settled: '#22c55e',
 };
 
 function formatRelativeTime(dateStr) {
@@ -41,6 +47,9 @@ function getNavigationPath(notification) {
   }
   if (referenceModel === 'SalaryRun' || referenceModel === 'Project') {
     return '/salary';
+  }
+  if (referenceModel === 'CreditNote') {
+    return '/credit-notes';
   }
   return null;
 }

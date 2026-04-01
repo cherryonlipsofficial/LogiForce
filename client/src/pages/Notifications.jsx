@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getNotifications, markAsRead, markAllAsRead, getPendingApprovals } from '../api/notificationsApi';
 
 const typeColors = {
   attendance_uploaded: '#3b82f6',
+  attendance_approved: '#3b82f6',
   attendance_fully_approved: '#22c55e',
   attendance_disputed: '#ef4444',
   dispute_responded: '#f59e0b',
   invoice_generated: '#a855f7',
+  salary_run_ready: '#3b82f6',
   advance_requested: '#f59e0b',
   advance_approved: '#22c55e',
   advance_rejected: '#ef4444',
@@ -17,23 +19,10 @@ const typeColors = {
   salary_accounts_approved: '#22c55e',
   salary_processed: '#22c55e',
   salary_approval_reminder: '#f59e0b',
-};
-
-const typeLabels = {
-  attendance_uploaded: 'Attendance',
-  attendance_approved: 'Attendance',
-  attendance_fully_approved: 'Attendance',
-  attendance_disputed: 'Attendance',
-  dispute_responded: 'Attendance',
-  invoice_generated: 'Invoices',
-  advance_requested: 'Advances',
-  advance_approved: 'Advances',
-  advance_rejected: 'Advances',
-  salary_ops_approved: 'Salary',
-  salary_compliance_approved: 'Salary',
-  salary_accounts_approved: 'Salary',
-  salary_processed: 'Salary',
-  salary_approval_reminder: 'Salary',
+  credit_note_created: '#a855f7',
+  credit_note_sent: '#3b82f6',
+  credit_note_adjusted: '#f59e0b',
+  credit_note_settled: '#22c55e',
 };
 
 const filters = [
@@ -43,6 +32,7 @@ const filters = [
   { key: 'invoices', label: 'Invoices' },
   { key: 'salary', label: 'Salary' },
   { key: 'advances', label: 'Advances' },
+  { key: 'credit_notes', label: 'Credit Notes' },
 ];
 
 function formatRelativeTime(dateStr) {
@@ -71,7 +61,16 @@ function getNavigationPath(notification) {
   if (referenceModel === 'Advance') {
     return '/advances';
   }
+  if (referenceModel === 'CreditNote') {
+    return '/credit-notes';
+  }
   return null;
+}
+
+function getFilterParams(filter) {
+  if (filter === 'unread') return { filter: 'unread' };
+  if (filter === 'all') return {};
+  return { type: filter };
 }
 
 const Notifications = () => {
@@ -81,11 +80,35 @@ const Notifications = () => {
   const [filter, setFilter] = useState('all');
   const [markingAll, setMarkingAll] = useState(false);
   const [markingId, setMarkingId] = useState(null);
+  const [allNotifications, setAllNotifications] = useState([]);
+
+  const filterParams = getFilterParams(filter);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['notifications-page', page],
-    queryFn: () => getNotifications(page).then(r => r.data),
+    queryKey: ['notifications-page', page, filter],
+    queryFn: () => getNotifications(page, filterParams).then(r => r.data),
   });
+
+  // Accumulate notifications across pages; reset when filter changes
+  useEffect(() => {
+    if (!data?.notifications) return;
+    if (page === 1) {
+      setAllNotifications(data.notifications);
+    } else {
+      setAllNotifications(prev => {
+        const existingIds = new Set(prev.map(n => n._id));
+        const newItems = data.notifications.filter(n => !existingIds.has(n._id));
+        return [...prev, ...newItems];
+      });
+    }
+  }, [data, page]);
+
+  // Reset to page 1 when filter changes
+  const handleFilterChange = useCallback((key) => {
+    setFilter(key);
+    setPage(1);
+    setAllNotifications([]);
+  }, []);
 
   const { data: pendingApprovalsData } = useQuery({
     queryKey: ['pending-approvals'],
@@ -95,23 +118,14 @@ const Notifications = () => {
   const pendingItems = pendingApprovalsData?.items || [];
   const pendingTotal = pendingApprovalsData?.total || 0;
 
-  const allNotifications = data?.notifications || [];
   const total = data?.total || 0;
-
-  const filtered = allNotifications.filter((n) => {
-    if (filter === 'unread') return !n.isRead;
-    if (filter === 'attendance') return (typeLabels[n.type] || '') === 'Attendance';
-    if (filter === 'invoices') return (typeLabels[n.type] || '') === 'Invoices';
-    if (filter === 'salary') return (typeLabels[n.type] || '') === 'Salary';
-    if (filter === 'advances') return (typeLabels[n.type] || '') === 'Advances';
-    return true;
-  });
 
   const handleMarkRead = async (id) => {
     if (markingId) return;
     setMarkingId(id);
     try {
       await markAsRead(id);
+      setAllNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true, readAt: new Date().toISOString() } : n));
       queryClient.invalidateQueries({ queryKey: ['notifications-page'] });
       queryClient.invalidateQueries({ queryKey: ['notif-unread-count'] });
     } finally {
@@ -124,6 +138,7 @@ const Notifications = () => {
     setMarkingAll(true);
     try {
       await markAllAsRead();
+      setAllNotifications(prev => prev.map(n => ({ ...n, isRead: true, readAt: new Date().toISOString() })));
       queryClient.invalidateQueries({ queryKey: ['notifications-page'] });
       queryClient.invalidateQueries({ queryKey: ['notif-unread-count'] });
     } finally {
@@ -171,9 +186,9 @@ const Notifications = () => {
       </div>
 
       {/* Filter pills */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         {filters.map((f) => (
-          <button key={f.key} onClick={() => setFilter(f.key)} style={pillStyle(filter === f.key)}>
+          <button key={f.key} onClick={() => handleFilterChange(f.key)} style={pillStyle(filter === f.key)}>
             {f.label}
           </button>
         ))}
@@ -242,16 +257,16 @@ const Notifications = () => {
         borderRadius: 12,
         overflow: 'hidden',
       }}>
-        {isLoading ? (
+        {isLoading && page === 1 ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
             Loading...
           </div>
-        ) : filtered.length === 0 ? (
+        ) : allNotifications.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
             No notifications
           </div>
         ) : (
-          filtered.map((n) => {
+          allNotifications.map((n) => {
             const dotColor = typeColors[n.type] || '#6b7280';
             const isUnread = !n.isRead;
 
@@ -345,6 +360,7 @@ const Notifications = () => {
         <div style={{ textAlign: 'center', marginTop: 16 }}>
           <button
             onClick={() => setPage(p => p + 1)}
+            disabled={isLoading}
             style={{
               background: 'none',
               border: '1px solid var(--border2)',
@@ -352,10 +368,11 @@ const Notifications = () => {
               padding: '8px 24px',
               fontSize: 12,
               color: 'var(--accent)',
-              cursor: 'pointer',
+              cursor: isLoading ? 'not-allowed' : 'pointer',
+              opacity: isLoading ? 0.5 : 1,
             }}
           >
-            Load more
+            {isLoading ? 'Loading...' : 'Load more'}
           </button>
         </div>
       )}
