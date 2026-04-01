@@ -611,7 +611,7 @@ const CreateCreditNoteModal = ({ onClose }) => {
           </div>
         </div>
         <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>Description *</label>
+          <label style={labelStyle}>Description</label>
           <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Credit Note - Traffic Fine" />
         </div>
 
