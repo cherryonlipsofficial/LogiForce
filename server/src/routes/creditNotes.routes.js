@@ -96,6 +96,13 @@ router.put('/:id/send', requirePermission('credit_notes.send'), async (req, res)
   sendSuccess(res, { creditNote, adjustmentSummary }, 'Credit note sent to client');
 });
 
+// PUT /api/credit-notes/:id/retrigger-adjustment — re-trigger salary adjustment for already-sent CN
+router.put('/:id/retrigger-adjustment', requirePermission('credit_notes.settle'), async (req, res) => {
+  const { creditNote, adjustmentSummary } = await creditNoteService.retriggerSalaryAdjustment(req.params.id, req.user._id);
+  await auditLogger.logChange('CreditNote', req.params.id, 'retrigger_adjustment', null, JSON.stringify(adjustmentSummary), req.user._id, 'credit_note_retrigger');
+  sendSuccess(res, { creditNote, adjustmentSummary }, 'Salary adjustment re-triggered');
+});
+
 // PUT /api/credit-notes/:id/adjust — link to invoice
 router.put('/:id/adjust', requirePermission('credit_notes.adjust'), validate(adjustCreditNoteValidation), async (req, res) => {
   const cn = await creditNoteService.adjustCreditNote(req.params.id, req.body.invoiceId, req.user._id);
