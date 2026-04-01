@@ -206,6 +206,7 @@ const calculateDeductions = async (driverId, year, month, grossSalary) => {
     description: /salik|toll/i,
     'period.year': year,
     'period.month': month,
+    isDeleted: { $ne: true },
   });
 
   for (const entry of salikEntries) {
@@ -277,6 +278,7 @@ const calculateDeductions = async (driverId, year, month, grossSalary) => {
     entryType: 'penalty',
     'period.year': year,
     'period.month': month,
+    isDeleted: { $ne: true },
   });
 
   for (const penalty of penaltyEntries) {
@@ -516,7 +518,7 @@ const postLedgerEntries = async (salaryRun, createdBy) => {
   const { driverId, period } = salaryRun;
 
   // Get the last running balance for this driver
-  const lastEntry = await DriverLedger.findOne({ driverId })
+  const lastEntry = await DriverLedger.findOne({ driverId, isDeleted: { $ne: true } })
     .sort({ createdAt: -1 })
     .limit(1);
   let runningBalance = lastEntry ? lastEntry.runningBalance : 0;
@@ -893,7 +895,7 @@ const processSalaryRun = async (runId, userId) => {
     );
 
     // Post debit entry to DriverLedger
-    const lastEntry = await DriverLedger.findOne({ driverId: salaryRun.driverId })
+    const lastEntry = await DriverLedger.findOne({ driverId: salaryRun.driverId, isDeleted: { $ne: true } })
       .sort({ createdAt: -1 });
     const previousBalance = lastEntry?.runningBalance || 0;
 

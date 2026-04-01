@@ -55,7 +55,7 @@ const recordRecovery = async (receivableId, { method, amount, reference, note },
   await receivable.save();
 
   // Post credit entry to driver ledger
-  const lastEntry = await DriverLedger.findOne({ driverId: receivable.driverId })
+  const lastEntry = await DriverLedger.findOne({ driverId: receivable.driverId, isDeleted: { $ne: true } })
     .sort({ createdAt: -1 });
   const previousBalance = lastEntry?.runningBalance || 0;
 

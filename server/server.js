@@ -109,6 +109,12 @@ const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, '0.0.0.0', () => {
   logger.info(`Server running on port ${PORT}`);
 
+  // Clean up orphaned ledger entries on startup
+  const { cleanupOrphanedLedgerEntries } = require('./src/utils/ledgerCleanup');
+  cleanupOrphanedLedgerEntries().catch((err) => {
+    logger.error('Startup ledger cleanup failed', { error: err.message, stack: err.stack });
+  });
+
   // Nightly guarantee passport expiry check at 01:00 AM
   const cron = require('node-cron');
   const { runExpiryCheck } = require('./src/services/guaranteePassport.service');
@@ -120,6 +126,17 @@ const server = app.listen(PORT, '0.0.0.0', () => {
       logger.info(`Expiry check complete: ${result.expiredCount} expired`);
     } catch (err) {
       logger.error('Expiry check failed', { error: err.message, stack: err.stack });
+    }
+  });
+
+  // Daily ledger cleanup at 02:00 AM — remove orphaned entries from manual DB deletions
+  cron.schedule('0 2 * * *', async () => {
+    logger.info('Running daily ledger cleanup...');
+    try {
+      const result = await cleanupOrphanedLedgerEntries();
+      logger.info(`Ledger cleanup complete: ${result.hardDeleted} removed, ${result.softDeleted} soft-deleted`);
+    } catch (err) {
+      logger.error('Ledger cleanup failed', { error: err.message, stack: err.stack });
     }
   });
 

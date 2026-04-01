@@ -149,7 +149,7 @@ async function reviewAdvance(advanceId, decision, reviewData, reviewerUserId) {
   await advance.save();
 
   // Post ledger entry for the approved advance
-  const lastEntry = await DriverLedger.findOne({ driverId: advance.driverId._id || advance.driverId })
+  const lastEntry = await DriverLedger.findOne({ driverId: advance.driverId._id || advance.driverId, isDeleted: { $ne: true } })
     .sort({ createdAt: -1 });
   const previousBalance = lastEntry?.runningBalance || 0;
 

@@ -486,7 +486,7 @@ router.get('/:id/financial-summary', async (req, res) => {
 
 // GET /api/drivers/:id/salary-runs — list salary runs for driver
 router.get('/:id/salary-runs', async (req, res) => {
-  const runs = await SalaryRun.find({ driverId: req.params.id })
+  const runs = await SalaryRun.find({ driverId: req.params.id, isDeleted: { $ne: true } })
     .sort({ createdAt: -1 })
     .populate('clientId', 'name')
     .lean();

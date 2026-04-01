@@ -26,7 +26,7 @@ router.post('/', requirePermission('advances.approve'), validate(issueAdvanceVal
   });
 
   // Post ledger entry
-  const lastEntry = await DriverLedger.findOne({ driverId }).sort({ createdAt: -1 }).lean();
+  const lastEntry = await DriverLedger.findOne({ driverId, isDeleted: { $ne: true } }).sort({ createdAt: -1 }).lean();
   const previousBalance = lastEntry?.runningBalance || 0;
 
   await DriverLedger.create({
@@ -102,7 +102,7 @@ router.put('/:id/recover', requirePermission('advances.manage_recovery'), valida
   await advance.save();
 
   // Post ledger entry
-  const lastEntry = await DriverLedger.findOne({ driverId: advance.driverId })
+  const lastEntry = await DriverLedger.findOne({ driverId: advance.driverId, isDeleted: { $ne: true } })
     .sort({ createdAt: -1 })
     .lean();
   const previousBalance = lastEntry?.runningBalance || 0;
