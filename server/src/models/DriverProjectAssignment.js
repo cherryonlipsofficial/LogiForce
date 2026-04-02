@@ -62,4 +62,6 @@ driverProjectAssignmentSchema.index({ driverId: 1, status: 1 });
 // All active drivers on a project
 driverProjectAssignmentSchema.index({ projectId: 1, status: 1 });
 
-module.exports = mongoose.model('DriverProjectAssignment', driverProjectAssignmentSchema);
+const DriverProjectAssignment = mongoose.model('DriverProjectAssignment', driverProjectAssignmentSchema);
+module.exports = DriverProjectAssignment;
+module.exports.schema = driverProjectAssignmentSchema;

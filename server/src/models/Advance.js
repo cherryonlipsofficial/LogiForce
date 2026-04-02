@@ -52,4 +52,6 @@ advanceSchema.virtual('outstandingBalance').get(function () {
   return this.amountIssued - this.amountRecovered;
 });
 
-module.exports = mongoose.model('Advance', advanceSchema);
+const Advance = mongoose.model('Advance', advanceSchema);
+module.exports = Advance;
+module.exports.schema = advanceSchema;

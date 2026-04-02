@@ -1,9 +1,10 @@
-const { Driver, DriverLedger, DriverDocument, DriverHistory, VehicleAssignment, DriverProjectAssignment, Advance, AttendanceRecord, SalaryRun, Client, Supplier, Project } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { PAGINATION } = require('../config/constants');
 const { evaluateAndTransition } = require('./driverStatusEngine.service');
 const { logEvent } = require('./driverHistory.service');
 
-const findAll = async (filters = {}, pagination = {}) => {
+const findAll = async (req, filters = {}, pagination = {}) => {
+  const Driver = getModel(req, 'Driver');
   const page = parseInt(pagination.page) || PAGINATION.DEFAULT_PAGE;
   const limit = parseInt(pagination.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (page - 1) * limit;
@@ -60,7 +61,9 @@ const findAll = async (filters = {}, pagination = {}) => {
   return { drivers, total, page, limit };
 };
 
-const findById = async (id) => {
+const findById = async (req, id) => {
+  const Driver = getModel(req, 'Driver');
+
   const driver = await Driver.findById(id)
     .populate('clientId')
     .populate('supplierId')
@@ -75,7 +78,9 @@ const findById = async (id) => {
   return driver;
 };
 
-const create = async (data, userId) => {
+const create = async (req, data, userId) => {
+  const Driver = getModel(req, 'Driver');
+
   if (data.phoneUae) {
     const existing = await Driver.findOne({ phoneUae: data.phoneUae });
     if (existing) {
@@ -91,12 +96,12 @@ const create = async (data, userId) => {
   data.createdBy = userId;
   const driver = await Driver.create(data);
 
-  await logEvent(driver._id, 'driver_created', {
+  await logEvent(req, driver._id, 'driver_created', {
     description: `Driver profile created — ${driver.fullName || 'unnamed'}`,
   }, userId);
 
   // Evaluate auto-transition: draft → pending_kyc if all required fields present
-  await evaluateAndTransition(driver._id, userId);
+  await evaluateAndTransition(req, driver._id, userId);
 
   return Driver.findById(driver._id);
 };
@@ -142,7 +147,13 @@ const formatFieldValue = (value) => {
   return String(value);
 };
 
-const update = async (id, data, userId, { isAdmin = false, canEditActive = false } = {}) => {
+const update = async (req, id, data, userId, { isAdmin = false, canEditActive = false } = {}) => {
+  const Driver = getModel(req, 'Driver');
+  const Client = getModel(req, 'Client');
+  const Supplier = getModel(req, 'Supplier');
+  const Project = getModel(req, 'Project');
+  const DriverDocument = getModel(req, 'DriverDocument');
+
   const existing = await Driver.findById(id)
     .populate('clientId', 'name')
     .populate('supplierId', 'name')
@@ -214,7 +225,7 @@ const update = async (id, data, userId, { isAdmin = false, canEditActive = false
   // Log each field change to history
   for (const change of changedFields) {
     const label = FIELD_LABELS[change.field] || change.field;
-    await logEvent(id, 'field_updated', {
+    await logEvent(req, id, 'field_updated', {
       fieldName: change.field,
       oldValue: change.oldValue,
       newValue: change.newValue,
@@ -239,12 +250,22 @@ const update = async (id, data, userId, { isAdmin = false, canEditActive = false
     }
   }
 
-  await evaluateAndTransition(id, userId);
+  await evaluateAndTransition(req, id, userId);
 
   return driver;
 };
 
-const hardDelete = async (id) => {
+const hardDelete = async (req, id) => {
+  const Driver = getModel(req, 'Driver');
+  const DriverLedger = getModel(req, 'DriverLedger');
+  const DriverHistory = getModel(req, 'DriverHistory');
+  const DriverDocument = getModel(req, 'DriverDocument');
+  const VehicleAssignment = getModel(req, 'VehicleAssignment');
+  const DriverProjectAssignment = getModel(req, 'DriverProjectAssignment');
+  const Advance = getModel(req, 'Advance');
+  const AttendanceRecord = getModel(req, 'AttendanceRecord');
+  const SalaryRun = getModel(req, 'SalaryRun');
+
   const existing = await Driver.findById(id);
   if (!existing) {
     const err = new Error('Driver not found');
@@ -268,7 +289,8 @@ const hardDelete = async (id) => {
   return { _id: id };
 };
 
-const getLedger = async (driverId, pagination = {}) => {
+const getLedger = async (req, driverId, pagination = {}) => {
+  const DriverLedger = getModel(req, 'DriverLedger');
   const page = parseInt(pagination.page) || PAGINATION.DEFAULT_PAGE;
   const limit = parseInt(pagination.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (page - 1) * limit;
@@ -286,13 +308,16 @@ const getLedger = async (driverId, pagination = {}) => {
   return { entries, total, page, limit };
 };
 
-const getAllLedger = async (driverId) => {
+const getAllLedger = async (req, driverId) => {
+  const DriverLedger = getModel(req, 'DriverLedger');
+
   return DriverLedger.find({ driverId, isDeleted: { $ne: true } })
     .sort({ createdAt: -1 })
     .populate('createdBy', 'name');
 };
 
-const getExpiringDocuments = async (days = 30) => {
+const getExpiringDocuments = async (req, days = 30) => {
+  const DriverDocument = getModel(req, 'DriverDocument');
   const now = new Date();
   const threshold = new Date();
   threshold.setDate(threshold.getDate() + days);
@@ -305,7 +330,9 @@ const getExpiringDocuments = async (days = 30) => {
   return docs;
 };
 
-const getStatusCounts = async () => {
+const getStatusCounts = async (req) => {
+  const Driver = getModel(req, 'Driver');
+
   const [total, active, onLeave, suspended, resigned, pendingClientId] = await Promise.all([
     Driver.countDocuments({}),
     Driver.countDocuments({ status: 'active' }),
@@ -320,9 +347,9 @@ const getStatusCounts = async () => {
   return { total, active, onLeave, suspended, resigned, pendingClientId };
 };
 
-const bulkCreate = async (rows, userId) => {
-  const { Project } = require('../models');
-  const { evaluateAndTransition } = require('./driverStatusEngine.service');
+const bulkCreate = async (req, rows, userId) => {
+  const Driver = getModel(req, 'Driver');
+  const Project = getModel(req, 'Project');
   const results = { created: 0, errors: [] };
 
   // Helper to safely convert any value to trimmed string (XLSX may return numbers)
@@ -425,20 +452,20 @@ const bulkCreate = async (rows, userId) => {
 
       const driver = await Driver.create(driverData);
 
-      await logEvent(driver._id, 'driver_created', {
+      await logEvent(req, driver._id, 'driver_created', {
         description: `Driver profile created via bulk import — ${driver.fullName || 'unnamed'}`,
       }, userId);
 
       // Log passport submission event if applicable
       if (passportSubmissionType === 'own') {
-        await logEvent(driver._id, 'field_updated', {
+        await logEvent(req, driver._id, 'field_updated', {
           description: 'Passport submission confirmed via bulk import (own passport)',
           fieldName: 'isPassportSubmitted',
         }, userId);
       }
 
       // Evaluate auto-transition: draft → pending_kyc if all required fields present
-      await evaluateAndTransition(driver._id, userId);
+      await evaluateAndTransition(req, driver._id, userId);
 
       results.created++;
     } catch (err) {

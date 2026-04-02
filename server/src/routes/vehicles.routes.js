@@ -5,7 +5,7 @@ const XLSX = require('xlsx');
 const csvParser = require('csv-parser');
 const { Readable } = require('stream');
 const { protect, requirePermission } = require('../middleware/auth');
-const { Vehicle, Supplier, Driver, VehicleAssignment } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const {
   assignVehicle,
   returnVehicle,
@@ -29,6 +29,7 @@ router.use(protect);
 // GET /api/vehicles — list with pagination, search, filters
 router.get('/', async (req, res) => {
   try {
+    const Vehicle = getModel(req, 'Vehicle');
     const { page = 1, limit = 50, search, status, supplierId, plate } = req.query;
     const filter = {};
 
@@ -64,6 +65,7 @@ router.get('/', async (req, res) => {
 // GET /api/vehicles/export — export vehicles as CSV
 router.get('/export', async (req, res) => {
   try {
+    const Vehicle = getModel(req, 'Vehicle');
     const { status, supplierId, search } = req.query;
     const filter = {};
 
@@ -133,6 +135,7 @@ router.get('/export', async (req, res) => {
 // GET /api/vehicles/summary — fleet summary stats
 router.get('/summary', async (req, res) => {
   try {
+    const Vehicle = getModel(req, 'Vehicle');
     const [statusCounts, supplierCounts] = await Promise.all([
       Vehicle.aggregate([
         { $group: { _id: '$status', count: { $sum: 1 } } },
@@ -191,6 +194,8 @@ router.get('/bulk-template', (req, res) => {
 // POST /api/vehicles/bulk-upload — bulk upload vehicles from CSV/XLSX
 router.post('/bulk-upload', requirePermission('vehicles.create'), memUpload.single('file'), async (req, res) => {
   try {
+    const Vehicle = getModel(req, 'Vehicle');
+    const Supplier = getModel(req, 'Supplier');
     if (!req.file) return sendError(res, 'No file uploaded', 400);
 
     let rows = [];
@@ -436,6 +441,7 @@ router.post('/assignments/:assignmentId/return', requirePermission('vehicles.ass
 // GET /api/vehicles/:id — single vehicle
 router.get('/:id', async (req, res) => {
   try {
+    const Vehicle = getModel(req, 'Vehicle');
     const vehicle = await Vehicle.findById(req.params.id)
       .populate('supplierId', 'name serviceType monthlyRate contactName')
       .populate('assignedDriverId', 'fullName employeeCode clientId status phoneUae')
@@ -451,6 +457,7 @@ router.get('/:id', async (req, res) => {
 // POST /api/vehicles — create vehicle
 router.post('/', requirePermission('vehicles.create'), async (req, res) => {
   try {
+    const Vehicle = getModel(req, 'Vehicle');
     const vehicle = await Vehicle.create(req.body);
     sendSuccess(res, vehicle, 'Vehicle created', 201);
   } catch (err) {
@@ -464,6 +471,7 @@ router.post('/', requirePermission('vehicles.create'), async (req, res) => {
 // PUT /api/vehicles/:id — update vehicle
 router.put('/:id', requirePermission('vehicles.edit'), async (req, res) => {
   try {
+    const Vehicle = getModel(req, 'Vehicle');
     const vehicle = await Vehicle.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
@@ -481,6 +489,7 @@ router.put('/:id', requirePermission('vehicles.edit'), async (req, res) => {
 // DELETE /api/vehicles/:id — remove vehicle
 router.delete('/:id', requirePermission('vehicles.off_hire'), async (req, res) => {
   try {
+    const Vehicle = getModel(req, 'Vehicle');
     const vehicle = await Vehicle.findByIdAndDelete(req.params.id);
     if (!vehicle) return sendError(res, 'Vehicle not found', 404);
     sendSuccess(res, null, 'Vehicle deleted');
@@ -492,6 +501,8 @@ router.delete('/:id', requirePermission('vehicles.off_hire'), async (req, res) =
 // PUT /api/vehicles/:id/assign — assign vehicle to driver
 router.put('/:id/assign', requirePermission('vehicles.assign'), async (req, res) => {
   try {
+    const Vehicle = getModel(req, 'Vehicle');
+    const Driver = getModel(req, 'Driver');
     const { driverId } = req.body;
     if (!driverId) return sendError(res, 'driverId is required', 400);
 
@@ -515,6 +526,8 @@ router.put('/:id/assign', requirePermission('vehicles.assign'), async (req, res)
 // PUT /api/vehicles/:id/unassign — unassign vehicle from driver
 router.put('/:id/unassign', requirePermission('vehicles.assign'), async (req, res) => {
   try {
+    const Vehicle = getModel(req, 'Vehicle');
+    const Driver = getModel(req, 'Driver');
     const vehicle = await Vehicle.findById(req.params.id);
     if (!vehicle) return sendError(res, 'Vehicle not found', 404);
 
@@ -585,6 +598,7 @@ router.get('/:id/assignment-history', requirePermission('vehicles.view'), async 
 // GET /api/vehicles/:id/current-assignment — active assignment for a vehicle
 router.get('/:id/current-assignment', requirePermission('vehicles.view'), async (req, res) => {
   try {
+    const VehicleAssignment = getModel(req, 'VehicleAssignment');
     const assignment = await VehicleAssignment.findOne({
       vehicleId: req.params.id,
       status: 'active',

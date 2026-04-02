@@ -1,8 +1,9 @@
-const AuditLog = require('../models/AuditLog');
+const { getModel } = require('../config/modelRegistry');
 const logger = require('./logger');
 
-const logChange = async (model, documentId, field, oldValue, newValue, userId, action) => {
+const logChange = async (req, model, documentId, field, oldValue, newValue, userId, action) => {
   try {
+    const AuditLog = getModel(req, 'AuditLog');
     await AuditLog.create({
       model,
       documentId,

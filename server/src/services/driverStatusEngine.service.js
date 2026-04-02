@@ -1,4 +1,4 @@
-const { Driver, DriverDocument, User } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { logStatusChange } = require('./driverHistory.service');
 
 const REQUIRED_KYC_DOCS = ['emirates_id', 'passport', 'driving_licence'];
@@ -33,7 +33,8 @@ function checkProfileAndEmploymentComplete(driver) {
  * Does NOT check expiry here — just presence.
  * Returns { ready: boolean, missing: string[] }
  */
-async function checkKycDocsUploaded(driverId) {
+async function checkKycDocsUploaded(req, driverId) {
+  const DriverDocument = getModel(req, 'DriverDocument');
   const docs = await DriverDocument.find({
     driverId,
     docType: { $in: REQUIRED_KYC_DOCS },
@@ -50,7 +51,8 @@ async function checkKycDocsUploaded(driverId) {
  * Check whether all 3 required KYC documents are valid (not expired).
  * Returns { valid: boolean, issues: [{ docType, issue }] }
  */
-async function checkKycDocsValid(driverId) {
+async function checkKycDocsValid(req, driverId) {
+  const DriverDocument = getModel(req, 'DriverDocument');
   const docs = await DriverDocument.find({
     driverId,
     docType: { $in: REQUIRED_KYC_DOCS },
@@ -92,7 +94,9 @@ async function checkKycDocsValid(driverId) {
  * Auto transitions only move FORWARD in the workflow.
  * They never override manual statuses like on_leave, suspended, etc.
  */
-async function evaluateAndTransition(driverId, triggeredBy) {
+async function evaluateAndTransition(req, driverId, triggeredBy) {
+  const Driver = getModel(req, 'Driver');
+  const User = getModel(req, 'User');
   const driver = await Driver.findById(driverId);
   if (!driver) throw new Error('Driver not found');
 
@@ -118,7 +122,7 @@ async function evaluateAndTransition(driverId, triggeredBy) {
 
   // Level 2: pending_kyc → pending_verification
   // Condition: all 3 required KYC docs are valid (uploaded and not expired)
-  const kycValid = await checkKycDocsValid(driverId);
+  const kycValid = await checkKycDocsValid(req, driverId);
 
   if (kycValid.valid) {
     // Driver qualifies for pending_verification — all docs uploaded and valid

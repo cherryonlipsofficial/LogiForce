@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
 const salaryService = require('../services/salary.service');
-const { SalaryRun, CompanySettings, Client, DriverLedger, CreditNote } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
 const validate = require('../middleware/validate');
@@ -16,7 +16,7 @@ const { generatePayslipPDF } = require('../utils/pdfGenerator');
  * by the next salary run. Also reverts CN status from 'settled' back to 'adjusted'
  * (or 'sent' if not yet client-adjusted).
  */
-const revertCreditNoteDeductions = async (salaryRun) => {
+const revertCreditNoteDeductions = async (salaryRun, CreditNote) => {
   const creditNoteDeductions = (salaryRun.deductions || []).filter(d => d.type === 'credit_note');
   if (creditNoteDeductions.length === 0) return;
 
@@ -57,6 +57,7 @@ router.use(protect);
 
 // POST /api/salary/run — trigger payroll run for client/period
 router.post('/run', requirePermission('salary.run'), validate(runSalaryValidation), async (req, res) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
   const { clientId, projectId, year, month } = req.body;
 
   // Check for existing runs in this period for the same project (duplicate check)
@@ -92,6 +93,7 @@ router.post('/run', requirePermission('salary.run'), validate(runSalaryValidatio
 
 // GET /api/salary/runs — list runs with filters
 router.get('/runs', requirePermission('salary.view'), async (req, res) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
   const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
   const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (page - 1) * limit;
@@ -122,6 +124,7 @@ router.get('/runs', requirePermission('salary.view'), async (req, res) => {
 
 // GET /api/salary/runs/:id — get single run with full breakdown
 router.get('/runs/:id', requirePermission('salary.view'), async (req, res) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
   const run = await SalaryRun.findOne({ _id: req.params.id, isDeleted: { $ne: true } })
     .populate('driverId', 'fullName employeeCode bankName iban payStructure')
     .populate('clientId', 'name')
@@ -231,6 +234,8 @@ router.put('/bulk-pay', requirePermission('salary.pay'), validate(bulkApprovalVa
 
 // PUT /api/salary/runs/:id/adjust — add manual adjustment with reason
 router.put('/runs/:id/adjust', requirePermission('salary.adjust'), validate(adjustSalaryValidation), async (req, res) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
+  const DriverLedger = getModel(req, 'DriverLedger');
   const { type, amount, reason } = req.body;
 
   const run = await SalaryRun.findById(req.params.id);
@@ -330,6 +335,9 @@ router.post('/runs/:id/deduction', requirePermission('salary.manage_deductions')
 
 // DELETE /api/salary/runs/:id — delete a salary run (soft delete if paid, hard delete otherwise)
 router.delete('/runs/:id', requirePermission('salary.delete'), async (req, res) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
+  const DriverLedger = getModel(req, 'DriverLedger');
+  const CreditNote = getModel(req, 'CreditNote');
   const run = await SalaryRun.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
   if (!run) return sendError(res, 'Salary run not found', 404);
 
@@ -364,7 +372,7 @@ router.delete('/runs/:id', requirePermission('salary.delete'), async (req, res) 
     }
 
     // Revert credit note line items that were deducted in this salary run
-    await revertCreditNoteDeductions(run);
+    await revertCreditNoteDeductions(run, CreditNote);
 
     await auditLogger.logChange('SalaryRun', req.params.id, 'soft_delete', run.status, `Remark: ${remark.trim()}`, req.user._id, 'salary_run_soft_deletion');
 
@@ -384,7 +392,7 @@ router.delete('/runs/:id', requirePermission('salary.delete'), async (req, res) 
   }
 
   // Revert credit note line items that were deducted in this salary run
-  await revertCreditNoteDeductions(run);
+  await revertCreditNoteDeductions(run, CreditNote);
 
   await SalaryRun.findByIdAndDelete(req.params.id);
 
@@ -395,6 +403,7 @@ router.delete('/runs/:id', requirePermission('salary.delete'), async (req, res) 
 
 // PUT /api/salary/runs/:id/pay — mark an approved salary run as paid
 router.put('/runs/:id/pay', requirePermission('salary.pay'), async (req, res) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
   const run = await SalaryRun.findById(req.params.id);
   if (!run) return sendError(res, 'Salary run not found', 404);
 
@@ -415,6 +424,7 @@ router.put('/runs/:id/pay', requirePermission('salary.pay'), async (req, res) =>
 
 // POST /api/salary/runs/:id/dispute — raise dispute on a salary run
 router.post('/runs/:id/dispute', requirePermission('salary.dispute'), validate(disputeSalaryValidation), async (req, res) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
   const { reason } = req.body;
 
   const run = await SalaryRun.findById(req.params.id);
@@ -435,6 +445,8 @@ router.post('/runs/:id/dispute', requirePermission('salary.dispute'), validate(d
 
 // GET /api/salary/runs/:id/payslip — generate payslip PDF for a salary run
 router.get('/runs/:id/payslip', requirePermission('salary.view'), async (req, res) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
+  const CompanySettings = getModel(req, 'CompanySettings');
   const run = await SalaryRun.findById(req.params.id)
     .populate('driverId', 'fullName fullNameArabic employeeCode bankName iban payStructure baseSalary')
     .populate('clientId', 'name')

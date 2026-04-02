@@ -1,10 +1,13 @@
-const { DriverHistory, User } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 
 /**
  * Log any driver event to the history collection.
  * performedBy must be a populated User object or userId.
  */
-async function logEvent(driverId, eventType, details, performedBy) {
+async function logEvent(req, driverId, eventType, details, performedBy) {
+  const DriverHistory = getModel(req, 'DriverHistory');
+  const User = getModel(req, 'User');
+
   const user = typeof performedBy === 'object' ? performedBy : await User.findById(performedBy).populate('roleId');
   await DriverHistory.create({
     driverId,
@@ -27,8 +30,8 @@ async function logEvent(driverId, eventType, details, performedBy) {
 /**
  * Convenience: log a status change specifically.
  */
-async function logStatusChange(driverId, from, to, reason, description, performedBy) {
-  await logEvent(driverId, 'status_change', {
+async function logStatusChange(req, driverId, from, to, reason, description, performedBy) {
+  await logEvent(req, driverId, 'status_change', {
     statusFrom:  from,
     statusTo:    to,
     reason:      reason,
@@ -39,7 +42,9 @@ async function logStatusChange(driverId, from, to, reason, description, performe
 /**
  * Get paginated history for a driver.
  */
-async function getHistory(driverId, page = 1, limit = 30) {
+async function getHistory(req, driverId, page = 1, limit = 30) {
+  const DriverHistory = getModel(req, 'DriverHistory');
+
   page = Math.max(1, parseInt(page) || 1);
   limit = Math.min(100, Math.max(1, parseInt(limit) || 30));
   const skip = (page - 1) * limit;

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
-const { User, Role } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { PERMISSIONS } = require('../config/permissions');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
@@ -14,6 +14,7 @@ router.use(protect);
 
 // GET /api/users — list all users
 router.get('/', requirePermission('users.view'), async (req, res) => {
+  const User = getModel(req, 'User');
   const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
   const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (page - 1) * limit;
@@ -44,6 +45,8 @@ router.get('/', requirePermission('users.view'), async (req, res) => {
 
 // POST /api/users — create a new user
 router.post('/', requirePermission('users.create'), async (req, res) => {
+  const User = getModel(req, 'User');
+  const Role = getModel(req, 'Role');
   const { name, email, password, roleId } = req.body;
 
   if (!name || !email || !password || !roleId) {
@@ -75,6 +78,7 @@ router.post('/', requirePermission('users.create'), async (req, res) => {
 
 // GET /api/users/inactive — list all inactive users
 router.get('/inactive', requirePermission('users.view'), async (req, res) => {
+  const User = getModel(req, 'User');
   const users = await User.find({ isActive: false })
     .populate('roleId', 'name displayName')
     .select('-password')
@@ -86,6 +90,7 @@ router.get('/inactive', requirePermission('users.view'), async (req, res) => {
 
 // PUT /api/users/:id/activate — admin activates a user account
 router.put('/:id/activate', requirePermission('users.edit'), async (req, res) => {
+  const User = getModel(req, 'User');
   const user = await User.findById(req.params.id);
   if (!user) return res.status(404).json({ message: 'User not found' });
   if (user.isActive) return res.status(400).json({ message: 'User is already active' });
@@ -104,6 +109,7 @@ router.put('/:id/activate', requirePermission('users.edit'), async (req, res) =>
 
 // PUT /api/users/:id/deactivate — admin deactivates a user account
 router.put('/:id/deactivate', requirePermission('users.edit'), async (req, res) => {
+  const User = getModel(req, 'User');
   const user = await User.findById(req.params.id);
   if (!user) return res.status(404).json({ message: 'User not found' });
 
@@ -123,6 +129,7 @@ router.put('/:id/deactivate', requirePermission('users.edit'), async (req, res) 
 
 // GET /api/users/:id — get user detail with role and overrides
 router.get('/:id', requirePermission('users.view'), async (req, res) => {
+  const User = getModel(req, 'User');
   const user = await User.findById(req.params.id)
     .populate('roleId', 'name displayName permissions isSystemRole')
     .populate('permissionOverrides.grantedBy', 'name');
@@ -134,6 +141,8 @@ router.get('/:id', requirePermission('users.view'), async (req, res) => {
 
 // PUT /api/users/:id — update user fields
 router.put('/:id', requirePermission('users.edit'), async (req, res) => {
+  const User = getModel(req, 'User');
+  const Role = getModel(req, 'Role');
   const user = await User.findById(req.params.id);
   if (!user) return sendError(res, 'User not found', 404);
 
@@ -169,6 +178,7 @@ router.put('/:id', requirePermission('users.edit'), async (req, res) => {
 
 // DELETE /api/users/:id — soft delete (set isActive = false)
 router.delete('/:id', requirePermission('users.delete'), async (req, res) => {
+  const User = getModel(req, 'User');
   if (req.user._id.toString() === req.params.id) {
     return sendError(res, 'Cannot delete your own account');
   }
@@ -186,6 +196,8 @@ router.delete('/:id', requirePermission('users.delete'), async (req, res) => {
 
 // PUT /api/users/:id/role — change a user's role
 router.put('/:id/role', requirePermission('users.edit'), async (req, res) => {
+  const User = getModel(req, 'User');
+  const Role = getModel(req, 'Role');
   if (req.user._id.toString() === req.params.id) {
     return sendError(res, 'Cannot change your own role');
   }
@@ -210,6 +222,7 @@ router.put('/:id/role', requirePermission('users.edit'), async (req, res) => {
 
 // GET /api/users/:id/permissions — get user's effective permissions
 router.get('/:id/permissions', requirePermission('users.view'), async (req, res) => {
+  const User = getModel(req, 'User');
   const user = await User.findById(req.params.id)
     .populate('roleId', 'name displayName permissions')
     .populate('permissionOverrides.grantedBy', 'name');
@@ -229,6 +242,7 @@ router.get('/:id/permissions', requirePermission('users.view'), async (req, res)
 
 // POST /api/users/:id/permissions/override — add or update a permission override
 router.post('/:id/permissions/override', requirePermission('roles.manage'), async (req, res) => {
+  const User = getModel(req, 'User');
   const { key, granted, reason } = req.body;
 
   if (!key || granted === undefined) {
@@ -280,6 +294,7 @@ router.post('/:id/permissions/override', requirePermission('roles.manage'), asyn
 
 // DELETE /api/users/:id/permissions/override/:key — remove a permission override
 router.delete('/:id/permissions/override/:key', requirePermission('roles.manage'), async (req, res) => {
+  const User = getModel(req, 'User');
   const { key } = req.params;
 
   const user = await User.findById(req.params.id);

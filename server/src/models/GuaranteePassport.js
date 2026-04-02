@@ -118,4 +118,6 @@ guaranteePassportSchema.virtual('isValid').get(function () {
 guaranteePassportSchema.index({ driverId: 1, status: 1 });
 guaranteePassportSchema.index({ expiryDate: 1, status: 1 }); // for expiry checks
 
-module.exports = mongoose.model('GuaranteePassport', guaranteePassportSchema);
+const GuaranteePassport = mongoose.model('GuaranteePassport', guaranteePassportSchema);
+module.exports = GuaranteePassport;
+module.exports.schema = guaranteePassportSchema;

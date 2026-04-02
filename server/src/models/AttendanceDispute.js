@@ -73,4 +73,6 @@ const attendanceDisputeSchema = new Schema(
 
 attendanceDisputeSchema.index({ batchId: 1, status: 1 });
 
-module.exports = mongoose.model('AttendanceDispute', attendanceDisputeSchema);
+const AttendanceDispute = mongoose.model('AttendanceDispute', attendanceDisputeSchema);
+module.exports = AttendanceDispute;
+module.exports.schema = attendanceDisputeSchema;

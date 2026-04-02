@@ -7,7 +7,7 @@ const driverService = require('../services/driver.service');
 const { verifyContacts, setClientUserId, activateDriver, changeStatusManual, getDriverStatusSummary } = require('../services/driverWorkflow.service');
 const { getHistory } = require('../services/driverHistory.service');
 const { getDriverVehicleHistory } = require('../services/vehicleAssignment.service');
-const { Driver, DriverDocument, DriverHistory, SalaryRun } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const validate = require('../middleware/validate');
 const { createDriverValidation, updateDriverValidation, changeStatusValidation } = require('../middleware/validators/driver.validators');
@@ -28,6 +28,8 @@ router.get('/expiring-documents', async (req, res) => {
 // GET /api/drivers/expired-documents — drivers with expired documents, filterable by docType
 router.get('/expired-documents', requirePermission('expired_documents.view'), async (req, res) => {
   try {
+    const Driver = getModel(req, 'Driver');
+    const GuaranteePassport = getModel(req, 'GuaranteePassport');
     const docType = req.query.docType || 'all'; // all, emirates_id, passport, visa, labour_card, driving_licence, mulkiya, guarantee_passport
     const now = new Date();
     const results = [];
@@ -75,7 +77,6 @@ router.get('/expired-documents', requirePermission('expired_documents.view'), as
 
     // 2) Check GuaranteePassport model
     if (docType === 'all' || docType === 'guarantee_passport') {
-      const { GuaranteePassport } = require('../models');
       const expiredGuarantees = await GuaranteePassport.find({
         $or: [
           { status: 'expired' },
@@ -131,6 +132,7 @@ router.get('/expired-documents', requirePermission('expired_documents.view'), as
 // GET /api/drivers/uploads/:fileKey — serve file from MongoDB
 router.get('/uploads/:fileKey', async (req, res) => {
   try {
+    const DriverDocument = getModel(req, 'DriverDocument');
     const doc = await DriverDocument.findOne({ fileKey: req.params.fileKey }).lean();
     if (!doc || !doc.fileData) {
       return sendError(res, 'File not found', 404);
@@ -152,6 +154,7 @@ router.get('/status-counts', async (req, res) => {
 // GET /api/drivers/documents/expiring?days=30 — document expiry breakdown by type
 router.get('/documents/expiring', requirePermission('drivers.view'), async (req, res) => {
   try {
+    const DriverDocument = getModel(req, 'DriverDocument');
     const days = parseInt(req.query.days) || 30;
     const now = new Date();
     const threshold = new Date();
@@ -172,6 +175,7 @@ router.get('/documents/expiring', requirePermission('drivers.view'), async (req,
 // GET /api/drivers/history/summary?days=30 — status change summary for last N days
 router.get('/history/summary', requirePermission('drivers.view'), async (req, res) => {
   try {
+    const DriverHistory = getModel(req, 'DriverHistory');
     const days = parseInt(req.query.days) || 30;
     const since = new Date();
     since.setDate(since.getDate() - days);
@@ -454,6 +458,9 @@ router.get('/:id/ledger/export', async (req, res) => {
 
 // GET /api/drivers/:id/financial-summary — latest salary figures for the financial tab
 router.get('/:id/financial-summary', async (req, res) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
+  const DriverLedger = getModel(req, 'DriverLedger');
+  const Driver = getModel(req, 'Driver');
   const driverId = req.params.id;
 
   // Get the latest completed salary run (paid or processed) for this driver
@@ -466,7 +473,6 @@ router.get('/:id/financial-summary', async (req, res) => {
     .lean();
 
   // Get the last ledger entry for running balance
-  const { DriverLedger } = require('../models');
   const lastLedgerEntry = await DriverLedger.findOne({ driverId, isDeleted: { $ne: true } })
     .sort({ createdAt: -1 })
     .lean();
@@ -486,6 +492,7 @@ router.get('/:id/financial-summary', async (req, res) => {
 
 // GET /api/drivers/:id/salary-runs — list salary runs for driver
 router.get('/:id/salary-runs', async (req, res) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
   const runs = await SalaryRun.find({ driverId: req.params.id, isDeleted: { $ne: true } })
     .sort({ createdAt: -1 })
     .populate('clientId', 'name')
@@ -495,6 +502,7 @@ router.get('/:id/salary-runs', async (req, res) => {
 
 // GET /api/drivers/:id/documents — list documents for a driver
 router.get('/:id/documents', async (req, res) => {
+  const DriverDocument = getModel(req, 'DriverDocument');
   const docs = await DriverDocument.find({ driverId: req.params.id })
     .select('-fileData')
     .sort({ createdAt: -1 })
@@ -512,6 +520,8 @@ router.post('/:id/documents', requirePermission('drivers.manage_docs'), (req, re
   });
 }, async (req, res) => {
   try {
+    const Driver = getModel(req, 'Driver');
+    const DriverDocument = getModel(req, 'DriverDocument');
     const driver = await Driver.findById(req.params.id);
     if (!driver) return sendError(res, 'Driver not found', 404);
 
@@ -648,6 +658,7 @@ router.get('/:id/vehicle-history', requirePermission('drivers.view'), async (req
 // GET /api/drivers/:id/current-vehicle — currently assigned vehicle for a driver
 router.get('/:id/current-vehicle', requirePermission('drivers.view'), async (req, res) => {
   try {
+    const Driver = getModel(req, 'Driver');
     const driver = await Driver.findById(req.params.id)
       .select('currentVehicleId currentVehicleAssignmentId')
       .populate('currentVehicleId');

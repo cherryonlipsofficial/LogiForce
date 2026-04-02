@@ -1,10 +1,15 @@
-const { Vehicle, Driver, VehicleAssignment, User } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { logEvent } = require('./driverHistory.service');
 
 /**
  * Assign a vehicle to a driver.
  */
-async function assignVehicle(vehicleId, driverId, data, userId) {
+async function assignVehicle(req, vehicleId, driverId, data, userId) {
+  const Vehicle = getModel(req, 'Vehicle');
+  const Driver = getModel(req, 'Driver');
+  const VehicleAssignment = getModel(req, 'VehicleAssignment');
+  const User = getModel(req, 'User');
+
   // 1. Fetch vehicle
   const vehicle = await Vehicle.findById(vehicleId);
   if (!vehicle) {
@@ -123,7 +128,12 @@ async function assignVehicle(vehicleId, driverId, data, userId) {
 /**
  * Return a vehicle (end an assignment).
  */
-async function returnVehicle(assignmentId, data, userId) {
+async function returnVehicle(req, assignmentId, data, userId) {
+  const Vehicle = getModel(req, 'Vehicle');
+  const Driver = getModel(req, 'Driver');
+  const VehicleAssignment = getModel(req, 'VehicleAssignment');
+  const User = getModel(req, 'User');
+
   // 1. Find assignment
   const assignment = await VehicleAssignment.findById(assignmentId);
   if (!assignment) {
@@ -212,7 +222,9 @@ async function returnVehicle(assignmentId, data, userId) {
 /**
  * Get assignment history for a vehicle (paginated, newest first).
  */
-async function getVehicleHistory(vehicleId, page = 1, limit = 20) {
+async function getVehicleHistory(req, vehicleId, page = 1, limit = 20) {
+  const VehicleAssignment = getModel(req, 'VehicleAssignment');
+
   page = Math.max(1, parseInt(page) || 1);
   limit = Math.min(100, Math.max(1, parseInt(limit) || 20));
   const skip = (page - 1) * limit;
@@ -235,7 +247,9 @@ async function getVehicleHistory(vehicleId, page = 1, limit = 20) {
 /**
  * Get vehicle assignment history for a driver (paginated, newest first).
  */
-async function getDriverVehicleHistory(driverId, page = 1, limit = 20) {
+async function getDriverVehicleHistory(req, driverId, page = 1, limit = 20) {
+  const VehicleAssignment = getModel(req, 'VehicleAssignment');
+
   page = Math.max(1, parseInt(page) || 1);
   limit = Math.min(100, Math.max(1, parseInt(limit) || 20));
   const skip = (page - 1) * limit;
@@ -258,7 +272,9 @@ async function getDriverVehicleHistory(driverId, page = 1, limit = 20) {
 /**
  * Fleet summary: count vehicles by status.
  */
-async function getFleetSummary() {
+async function getFleetSummary(req) {
+  const Vehicle = getModel(req, 'Vehicle');
+
   const [total, available, assigned, maintenance, offHired] = await Promise.all([
     Vehicle.countDocuments({ isActive: true }),
     Vehicle.countDocuments({ status: 'available', isActive: true }),

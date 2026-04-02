@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
 const driverReceivableService = require('../services/driverReceivable.service');
-const DriverReceivable = require('../models/DriverReceivable');
+const { getModel } = require('../config/modelRegistry');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
 const validate = require('../middleware/validate');
@@ -23,6 +23,7 @@ router.get('/summary', requirePermission('receivables.view'), async (req, res) =
 
 // GET /api/receivables — list with filters
 router.get('/', requirePermission('receivables.view'), async (req, res) => {
+  const DriverReceivable = getModel(req, 'DriverReceivable');
   const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
   const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (page - 1) * limit;
@@ -54,6 +55,7 @@ router.get('/', requirePermission('receivables.view'), async (req, res) => {
 
 // GET /api/receivables/:id — get single receivable
 router.get('/:id', requirePermission('receivables.view'), async (req, res) => {
+  const DriverReceivable = getModel(req, 'DriverReceivable');
   const receivable = await DriverReceivable.findOne({ _id: req.params.id, isDeleted: { $ne: true } })
     .populate('driverId', 'fullName employeeCode status phoneUae')
     .populate('creditNoteId', 'creditNoteNo totalAmount period description')

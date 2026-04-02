@@ -1,11 +1,16 @@
-const { CreditNote, Driver, Client, Project, Invoice, DriverLedger, SalaryRun } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { amountToWords } = require('../utils/numberToWords');
 const logger = require('../utils/logger');
 
 /**
  * Create a new credit note with multiple driver line items.
  */
-const createCreditNote = async (data, createdBy) => {
+const createCreditNote = async (req, data, createdBy) => {
+  const CreditNote = getModel(req, 'CreditNote');
+  const Driver = getModel(req, 'Driver');
+  const Client = getModel(req, 'Client');
+  const Project = getModel(req, 'Project');
+
   const { clientId, projectId, year, month, description, lineItems } = data;
 
   // Validate client and project exist
@@ -79,7 +84,7 @@ const createCreditNote = async (data, createdBy) => {
   // Notify accounts team
   try {
     const { notifyByPermission } = require('./notification.service');
-    await notifyByPermission('credit_notes.adjust', {
+    await notifyByPermission(req, 'credit_notes.adjust', {
       type: 'credit_note_created',
       title: 'New credit note created',
       message: `Credit note ${creditNote.creditNoteNo} created for ${client.name} — ${totalAmount} AED`,
@@ -97,7 +102,9 @@ const createCreditNote = async (data, createdBy) => {
 /**
  * Send credit note to client — status: draft → sent
  */
-const sendCreditNote = async (creditNoteId, userId) => {
+const sendCreditNote = async (req, creditNoteId, userId) => {
+  const CreditNote = getModel(req, 'CreditNote');
+
   const cn = await CreditNote.findById(creditNoteId);
   if (!cn) {
     const err = new Error('Credit note not found');
@@ -117,11 +124,11 @@ const sendCreditNote = async (creditNoteId, userId) => {
   await cn.save();
 
   // Auto-adjust: add credit note deductions to existing draft salary runs
-  const adjustmentSummary = await adjustDraftSalaryRuns(cn);
+  const adjustmentSummary = await adjustDraftSalaryRuns(req, cn);
 
   try {
     const { notifyByPermission } = require('./notification.service');
-    await notifyByPermission('credit_notes.adjust', {
+    await notifyByPermission(req, 'credit_notes.adjust', {
       type: 'credit_note_sent',
       title: 'Credit note sent to client',
       message: `Credit note ${cn.creditNoteNo} has been sent to the client.`,
@@ -142,7 +149,10 @@ const sendCreditNote = async (creditNoteId, userId) => {
 /**
  * Link credit note to an invoice (client confirms which invoice they adjusted).
  */
-const adjustCreditNote = async (creditNoteId, invoiceId, userId) => {
+const adjustCreditNote = async (req, creditNoteId, invoiceId, userId) => {
+  const CreditNote = getModel(req, 'CreditNote');
+  const Invoice = getModel(req, 'Invoice');
+
   const cn = await CreditNote.findById(creditNoteId);
   if (!cn) {
     const err = new Error('Credit note not found');
@@ -192,7 +202,7 @@ const adjustCreditNote = async (creditNoteId, invoiceId, userId) => {
 
   try {
     const { notifyByPermission } = require('./notification.service');
-    await notifyByPermission('credit_notes.adjust', {
+    await notifyByPermission(req, 'credit_notes.adjust', {
       type: 'credit_note_adjusted',
       title: 'Credit note linked to invoice',
       message: `Credit note ${cn.creditNoteNo} linked to invoice ${invoice.invoiceNo}.`,
@@ -210,7 +220,9 @@ const adjustCreditNote = async (creditNoteId, invoiceId, userId) => {
 /**
  * Manually resolve a credit note line item (for resigned/offboarded drivers).
  */
-const manuallyResolveLine = async (creditNoteId, lineItemId, note, userId) => {
+const manuallyResolveLine = async (req, creditNoteId, lineItemId, note, userId) => {
+  const CreditNote = getModel(req, 'CreditNote');
+
   const cn = await CreditNote.findById(creditNoteId);
   if (!cn) {
     const err = new Error('Credit note not found');
@@ -232,7 +244,7 @@ const manuallyResolveLine = async (creditNoteId, lineItemId, note, userId) => {
   await cn.save();
 
   // Check if entire CN is now settled
-  await checkAndSettleCreditNote(creditNoteId);
+  await checkAndSettleCreditNote(req, creditNoteId);
 
   return cn;
 };
@@ -240,7 +252,9 @@ const manuallyResolveLine = async (creditNoteId, lineItemId, note, userId) => {
 /**
  * Check if a credit note is fully settled (all lines settled + client side adjusted).
  */
-const checkAndSettleCreditNote = async (creditNoteId) => {
+const checkAndSettleCreditNote = async (req, creditNoteId) => {
+  const CreditNote = getModel(req, 'CreditNote');
+
   const cn = await CreditNote.findById(creditNoteId);
   if (!cn || cn.status === 'settled' || cn.status === 'cancelled') return cn;
 
@@ -258,7 +272,7 @@ const checkAndSettleCreditNote = async (creditNoteId) => {
 
     try {
       const { notifyByPermission } = require('./notification.service');
-      await notifyByPermission('credit_notes.adjust', {
+      await notifyByPermission(req, 'credit_notes.adjust', {
         type: 'credit_note_settled',
         title: 'Credit note fully settled',
         message: `Credit note ${cn.creditNoteNo} is fully settled (all driver lines resolved + client adjusted).`,
@@ -276,7 +290,9 @@ const checkAndSettleCreditNote = async (creditNoteId) => {
 /**
  * Get settlement status summary for a credit note.
  */
-const getSettlementStatus = async (creditNoteId) => {
+const getSettlementStatus = async (req, creditNoteId) => {
+  const CreditNote = getModel(req, 'CreditNote');
+
   const cn = await CreditNote.findById(creditNoteId);
   if (!cn) {
     const err = new Error('Credit note not found');
@@ -311,7 +327,9 @@ const getSettlementStatus = async (creditNoteId) => {
 /**
  * Record invoice payment and reconcile against credit notes.
  */
-const recordInvoicePayment = async (invoiceId, data, userId) => {
+const recordInvoicePayment = async (req, invoiceId, data, userId) => {
+  const Invoice = getModel(req, 'Invoice');
+
   const { amountReceived, paymentReference, paymentDate } = data;
 
   const invoice = await Invoice.findById(invoiceId);
@@ -340,7 +358,10 @@ const recordInvoicePayment = async (invoiceId, data, userId) => {
 /**
  * Generate Statement of Accounts for a project.
  */
-const getStatementOfAccounts = async (projectId, year) => {
+const getStatementOfAccounts = async (req, projectId, year) => {
+  const Invoice = getModel(req, 'Invoice');
+  const CreditNote = getModel(req, 'CreditNote');
+
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   // Fetch invoices for the project/year (exclude drafts)
@@ -440,8 +461,11 @@ const getStatementOfAccounts = async (projectId, year) => {
  * 1. Driver is active → mark line as pendingNextSalary (auto-picked up by next payroll)
  * 2. Driver is resigned/offboarded → create a DriverReceivable
  */
-const adjustDraftSalaryRuns = async (creditNote) => {
-  const DriverReceivable = require('../models/DriverReceivable');
+const adjustDraftSalaryRuns = async (req, creditNote) => {
+  const DriverReceivable = getModel(req, 'DriverReceivable');
+  const Driver = getModel(req, 'Driver');
+  const SalaryRun = getModel(req, 'SalaryRun');
+  const DriverLedger = getModel(req, 'DriverLedger');
 
   const adjustmentSummary = {
     adjustedInSalary: [],
@@ -558,7 +582,7 @@ const adjustDraftSalaryRuns = async (creditNote) => {
 
     if (adjustmentSummary.pendingNextSalary.length > 0) {
       const driverNames = adjustmentSummary.pendingNextSalary.map((d) => d.driverName).join(', ');
-      await notifyByPermission('salary.approve_accounts', {
+      await notifyByPermission(req, 'salary.approve_accounts', {
         type: 'credit_note_pending_salary',
         title: 'Credit note pending salary adjustment',
         message: `Credit note ${creditNote.creditNoteNo}: No draft salary found for ${driverNames}. Deduction will be auto-applied in next payroll run.`,
@@ -570,7 +594,7 @@ const adjustDraftSalaryRuns = async (creditNote) => {
 
     if (adjustmentSummary.receivablesCreated.length > 0) {
       const totalReceivable = adjustmentSummary.receivablesCreated.reduce((s, r) => s + r.amount, 0);
-      await notifyByPermission('receivables.view', {
+      await notifyByPermission(req, 'receivables.view', {
         type: 'driver_receivable_created',
         title: 'Driver receivable created from credit note',
         message: `Credit note ${creditNote.creditNoteNo}: ${adjustmentSummary.receivablesCreated.length} receivable(s) created totalling ${totalReceivable} AED for resigned/offboarded drivers.`,
@@ -591,7 +615,9 @@ const adjustDraftSalaryRuns = async (creditNote) => {
  * Useful when the CN was sent before the adjustment logic was deployed,
  * or when a new draft salary run was created after the CN was sent.
  */
-const retriggerSalaryAdjustment = async (creditNoteId, userId) => {
+const retriggerSalaryAdjustment = async (req, creditNoteId, userId) => {
+  const CreditNote = getModel(req, 'CreditNote');
+
   const cn = await CreditNote.findById(creditNoteId);
   if (!cn) {
     const err = new Error('Credit note not found');
@@ -610,7 +636,7 @@ const retriggerSalaryAdjustment = async (creditNoteId, userId) => {
     cn.sentBy = userId;
   }
 
-  const adjustmentSummary = await adjustDraftSalaryRuns(cn);
+  const adjustmentSummary = await adjustDraftSalaryRuns(req, cn);
   return { creditNote: cn, adjustmentSummary };
 };
 

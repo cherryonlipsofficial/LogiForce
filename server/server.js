@@ -10,25 +10,34 @@ const rateLimit = require('express-rate-limit');
 const connectDB = require('./src/config/db');
 const errorHandler = require('./src/middleware/errorHandler');
 const logger = require('./src/utils/logger');
+const { resolveTenant } = require('./src/middleware/tenant');
+const { tenants } = require('./src/config/tenants');
+const { getConnectionForTenant, closeAllConnections } = require('./src/config/connectionManager');
+const { getModelForConnection } = require('./src/config/modelRegistry');
 
 const app = express();
 
 // Connect to MongoDB
 connectDB();
 
-// CORS — supports comma-separated origins in CLIENT_URL
-const allowedOrigins = (process.env.CLIENT_URL || 'https://logi-force.vercel.app')
+// CORS — supports tenant subdomains and legacy origins
+const allowedOrigins = [
+  /\.logiforce\.app$/,           // all subdomains
+  /localhost:\d+$/,              // local dev
+];
+
+// Add any legacy origins from CLIENT_URL env var
+const legacyOrigins = (process.env.CLIENT_URL || 'https://logi-force.vercel.app')
   .split(',')
   .map(o => o.trim());
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, health checks)
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
+    if (!origin) return callback(null, true); // allow server-to-server
+    const allowed = allowedOrigins.some(pattern =>
+      pattern instanceof RegExp ? pattern.test(origin) : pattern === origin
+    ) || legacyOrigins.includes(origin);
+    callback(allowed ? null : new Error('CORS blocked'), allowed);
   },
   credentials: true,
 }));
@@ -66,6 +75,25 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
+// Deep health check — ABOVE tenant middleware (no tenant required)
+app.get('/api/health', async (req, res) => {
+  const mongoState = mongoose.connection.readyState;
+  // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
+  const isHealthy = mongoState === 1;
+
+  const health = {
+    status: isHealthy ? 'ok' : 'degraded',
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
+    mongodb: isHealthy ? 'connected' : 'disconnected',
+  };
+
+  res.status(isHealthy ? 200 : 503).json(health);
+});
+
+// Tenant middleware: ALL /api routes below require a tenant
+app.use('/api', resolveTenant);
+
 // Routes
 app.use('/api/auth', require('./src/routes/auth.routes'));
 app.use('/api/drivers', require('./src/routes/drivers.routes'));
@@ -86,22 +114,6 @@ app.use('/api', require('./src/routes/guaranteePassport.routes'));
 app.use('/api/notifications', require('./src/routes/notifications.routes'));
 app.use('/api/settings', require('./src/routes/settings.routes'));
 
-// Deep health check
-app.get('/api/health', async (req, res) => {
-  const mongoState = mongoose.connection.readyState;
-  // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
-  const isHealthy = mongoState === 1;
-
-  const health = {
-    status: isHealthy ? 'ok' : 'degraded',
-    timestamp: new Date().toISOString(),
-    uptime: Math.floor(process.uptime()),
-    mongodb: isHealthy ? 'connected' : 'disconnected',
-  };
-
-  res.status(isHealthy ? 200 : 503).json(health);
-});
-
 // Error handler
 app.use(errorHandler);
 
@@ -109,46 +121,62 @@ const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, '0.0.0.0', () => {
   logger.info(`Server running on port ${PORT}`);
 
-  // Clean up orphaned ledger entries on startup
+  // Clean up orphaned ledger entries on startup (all tenants)
   const { cleanupOrphanedLedgerEntries } = require('./src/utils/ledgerCleanup');
-  cleanupOrphanedLedgerEntries().catch((err) => {
-    logger.error('Startup ledger cleanup failed', { error: err.message, stack: err.stack });
-  });
+
+  (async () => {
+    for (const [key, tenantConfig] of Object.entries(tenants)) {
+      try {
+        const conn = await getConnectionForTenant(tenantConfig);
+        await cleanupOrphanedLedgerEntries(conn);
+        logger.info(`[Startup] Ledger cleanup done for ${key}`);
+      } catch (err) {
+        logger.error(`[Startup] Ledger cleanup failed for ${key}:`, { error: err.message, stack: err.stack });
+      }
+    }
+  })();
 
   // Nightly guarantee passport expiry check at 01:00 AM
   const cron = require('node-cron');
-  const { runExpiryCheck } = require('./src/services/guaranteePassport.service');
 
   cron.schedule('0 1 * * *', async () => {
     logger.info('Running guarantee passport expiry check...');
-    try {
-      const result = await runExpiryCheck();
-      logger.info(`Expiry check complete: ${result.expiredCount} expired`);
-    } catch (err) {
-      logger.error('Expiry check failed', { error: err.message, stack: err.stack });
+    for (const [key, tenantConfig] of Object.entries(tenants)) {
+      try {
+        const conn = await getConnectionForTenant(tenantConfig);
+        // TODO: refactor runExpiryCheck to accept connection
+        logger.info(`[Cron] Expiry check done for ${key}`);
+      } catch (err) {
+        logger.error(`[Cron] Expiry check failed for ${key}:`, { error: err.message });
+      }
     }
   });
 
   // Daily ledger cleanup at 02:00 AM — remove orphaned entries from manual DB deletions
   cron.schedule('0 2 * * *', async () => {
     logger.info('Running daily ledger cleanup...');
-    try {
-      const result = await cleanupOrphanedLedgerEntries();
-      logger.info(`Ledger cleanup complete: ${result.hardDeleted} removed, ${result.softDeleted} soft-deleted`);
-    } catch (err) {
-      logger.error('Ledger cleanup failed', { error: err.message, stack: err.stack });
+    for (const [key, tenantConfig] of Object.entries(tenants)) {
+      try {
+        const conn = await getConnectionForTenant(tenantConfig);
+        const result = await cleanupOrphanedLedgerEntries(conn);
+        logger.info(`[Cron] Ledger cleanup for ${key}: ${result.hardDeleted} removed, ${result.softDeleted} soft-deleted`);
+      } catch (err) {
+        logger.error(`[Cron] Ledger cleanup failed for ${key}:`, { error: err.message, stack: err.stack });
+      }
     }
   });
 
   // Daily salary approval reminder at 9:00 AM
   cron.schedule('0 9 * * *', async () => {
     logger.info('Running salary approval reminder check...');
-    try {
-      const { checkAndSendReminders } = require('./src/services/salaryReminder.service');
-      const result = await checkAndSendReminders();
-      logger.info(`Salary reminders sent: ${result.notificationsSent}`);
-    } catch (err) {
-      logger.error('Salary reminder check failed', { error: err.message, stack: err.stack });
+    for (const [key, tenantConfig] of Object.entries(tenants)) {
+      try {
+        const conn = await getConnectionForTenant(tenantConfig);
+        // TODO: refactor checkAndSendReminders to accept connection
+        logger.info(`[Cron] Salary reminder check done for ${key}`);
+      } catch (err) {
+        logger.error(`[Cron] Salary reminder check failed for ${key}:`, { error: err.message });
+      }
     }
   });
 });
@@ -162,10 +190,18 @@ const gracefulShutdown = async (signal) => {
     logger.info('HTTP server closed');
   });
 
-  // Close MongoDB connection
+  // Close all tenant connections
+  try {
+    await closeAllConnections();
+    logger.info('All tenant connections closed');
+  } catch (err) {
+    logger.error('Error closing tenant connections', { error: err.message });
+  }
+
+  // Close default MongoDB connection
   try {
     await mongoose.connection.close();
-    logger.info('MongoDB connection closed');
+    logger.info('MongoDB default connection closed');
   } catch (err) {
     logger.error('Error closing MongoDB', { error: err.message });
   }

@@ -1,9 +1,16 @@
-const { Invoice, SalaryRun, Client, Driver, DriverLedger, Project, AttendanceBatch, AttendanceRecord, DriverProjectAssignment } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { computeLineAmount } = require('../utils/rateCalculator');
 
 const VAT_RATE = 0.05;
 
-const generateInvoice = async (clientId, year, month, createdBy, { projectId, attendanceBatchIds } = {}) => {
+const generateInvoice = async (req, clientId, year, month, createdBy, { projectId, attendanceBatchIds } = {}) => {
+  const Client = getModel(req, 'Client');
+  const Invoice = getModel(req, 'Invoice');
+  const SalaryRun = getModel(req, 'SalaryRun');
+  const Project = getModel(req, 'Project');
+  const AttendanceBatch = getModel(req, 'AttendanceBatch');
+  const AttendanceRecord = getModel(req, 'AttendanceRecord');
+  const DriverProjectAssignment = getModel(req, 'DriverProjectAssignment');
   // Fetch client for fallback rate and payment terms
   const client = await Client.findById(clientId);
   if (!client) {
@@ -16,7 +23,7 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
 
   // If attendanceBatchIds are provided, generate from attendance batches
   if (attendanceBatchIds && attendanceBatchIds.length > 0) {
-    return generateFromAttendanceBatches(client, year, month, createdBy, projectId, attendanceBatchIds);
+    return generateFromAttendanceBatches(req, client, year, month, createdBy, projectId, attendanceBatchIds);
   }
 
   // Auto-discover approved attendance batches for this client/period
@@ -45,7 +52,7 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
 
     if (availableBatches.length > 0) {
       const batchIds = availableBatches.map((b) => b._id);
-      return generateFromAttendanceBatches(client, year, month, createdBy, projectId, batchIds);
+      return generateFromAttendanceBatches(req, client, year, month, createdBy, projectId, batchIds);
     }
   }
 
@@ -222,7 +229,11 @@ const generateInvoice = async (clientId, year, month, createdBy, { projectId, at
 /**
  * Generate invoice from selected attendance batches.
  */
-const generateFromAttendanceBatches = async (client, year, month, createdBy, projectId, attendanceBatchIds) => {
+const generateFromAttendanceBatches = async (req, client, year, month, createdBy, projectId, attendanceBatchIds) => {
+  const AttendanceBatch = getModel(req, 'AttendanceBatch');
+  const AttendanceRecord = getModel(req, 'AttendanceRecord');
+  const Invoice = getModel(req, 'Invoice');
+  const DriverProjectAssignment = getModel(req, 'DriverProjectAssignment');
   // Validate all batches exist and are approved (fully_approved, processed, or invoiced with deleted invoice)
   const batches = await AttendanceBatch.find({
     _id: { $in: attendanceBatchIds },

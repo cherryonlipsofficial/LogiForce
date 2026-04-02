@@ -1,8 +1,4 @@
-const {
-  AttendanceBatch, AttendanceRecord, Invoice,
-  Driver, Project, ProjectContract, DriverProjectAssignment,
-  User,
-} = require('../models')
+const { getModel } = require('../config/modelRegistry');
 const { notifyByPermission } = require('./notification.service')
 const { computeLineAmount } = require('../utils/rateCalculator')
 
@@ -11,7 +7,13 @@ const { computeLineAmount } = require('../utils/rateCalculator')
  * Rate is taken from the project. VAT is 5%.
  * Only accounts users can generate invoices.
  */
-async function generateInvoice(batchId, accountsUserId) {
+async function generateInvoice(req, batchId, accountsUserId) {
+  const AttendanceBatch = getModel(req, 'AttendanceBatch');
+  const AttendanceRecord = getModel(req, 'AttendanceRecord');
+  const Invoice = getModel(req, 'Invoice');
+  const ProjectContract = getModel(req, 'ProjectContract');
+  const DriverProjectAssignment = getModel(req, 'DriverProjectAssignment');
+  const User = getModel(req, 'User');
   // STEP 1 — Validate batch
   const batch = await AttendanceBatch.findById(batchId)
     .populate('projectId', 'name projectCode ratePerDriver rateBasis clientId')
@@ -197,8 +199,8 @@ async function generateInvoice(batchId, accountsUserId) {
     triggeredBy:    accountsUserId,
     triggeredByName: accountsUser.name,
   }
-  await notifyByPermission('attendance.approve_sales', invoicePayload)
-  await notifyByPermission('attendance.approve_ops', invoicePayload)
+  await notifyByPermission(req, 'attendance.approve_sales', invoicePayload)
+  await notifyByPermission(req, 'attendance.approve_ops', invoicePayload)
 
   // STEP 10 — Return
   return {

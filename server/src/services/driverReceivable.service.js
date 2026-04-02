@@ -1,11 +1,12 @@
-const { DriverLedger, Driver } = require('../models');
-const DriverReceivable = require('../models/DriverReceivable');
-const CreditNote = require('../models/CreditNote');
+const { getModel } = require('../config/modelRegistry');
 
 /**
  * Record a recovery against a driver receivable.
  */
-const recordRecovery = async (receivableId, { method, amount, reference, note }, userId) => {
+const recordRecovery = async (req, receivableId, { method, amount, reference, note }, userId) => {
+  const DriverReceivable = getModel(req, 'DriverReceivable');
+  const DriverLedger = getModel(req, 'DriverLedger');
+
   const receivable = await DriverReceivable.findById(receivableId);
   if (!receivable) {
     const err = new Error('Driver receivable not found');
@@ -76,7 +77,7 @@ const recordRecovery = async (receivableId, { method, amount, reference, note },
 
   // If fully recovered, also mark the CN line as manually resolved
   if (receivable.status === 'recovered') {
-    await resolveLinkedCreditNoteLine(receivable, userId);
+    await resolveLinkedCreditNoteLine(req, receivable, userId);
   }
 
   return receivable;
@@ -85,7 +86,9 @@ const recordRecovery = async (receivableId, { method, amount, reference, note },
 /**
  * Write off a driver receivable (requires approval context).
  */
-const writeOff = async (receivableId, { reason }, userId) => {
+const writeOff = async (req, receivableId, { reason }, userId) => {
+  const DriverReceivable = getModel(req, 'DriverReceivable');
+
   const receivable = await DriverReceivable.findById(receivableId);
   if (!receivable) {
     const err = new Error('Driver receivable not found');
@@ -110,7 +113,7 @@ const writeOff = async (receivableId, { reason }, userId) => {
   await receivable.save();
 
   // Mark the CN line as manually resolved with write-off note
-  await resolveLinkedCreditNoteLine(receivable, userId, `Written off: ${reason}`);
+  await resolveLinkedCreditNoteLine(req, receivable, userId, `Written off: ${reason}`);
 
   return receivable;
 };
@@ -118,7 +121,9 @@ const writeOff = async (receivableId, { reason }, userId) => {
 /**
  * Resolve the linked credit note line when a receivable is settled.
  */
-const resolveLinkedCreditNoteLine = async (receivable, userId, note) => {
+const resolveLinkedCreditNoteLine = async (req, receivable, userId, note) => {
+  const CreditNote = getModel(req, 'CreditNote');
+
   const cn = await CreditNote.findById(receivable.creditNoteId);
   if (!cn) return;
 
@@ -133,13 +138,15 @@ const resolveLinkedCreditNoteLine = async (receivable, userId, note) => {
 
   // Check if entire CN is now settled
   const { checkAndSettleCreditNote } = require('./creditNote.service');
-  await checkAndSettleCreditNote(cn._id);
+  await checkAndSettleCreditNote(req, cn._id);
 };
 
 /**
  * Get dashboard summary of driver receivables.
  */
-const getSummary = async () => {
+const getSummary = async (req) => {
+  const DriverReceivable = getModel(req, 'DriverReceivable');
+
   const [total, outstanding, partiallyRecovered, recovered, writtenOff, amountAgg] = await Promise.all([
     DriverReceivable.countDocuments({ isDeleted: { $ne: true } }),
     DriverReceivable.countDocuments({ isDeleted: { $ne: true }, status: 'outstanding' }),

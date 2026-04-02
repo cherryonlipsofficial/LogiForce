@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
-const { SalaryRun, Invoice, Driver, Advance, DriverDocument, Supplier, Project, ProjectContract, GuaranteePassport } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { sendSuccess, sendError } = require('../utils/responseHelper');
 
 // All routes are protected
@@ -10,6 +10,7 @@ router.use(protect);
 // GET /api/reports/payroll-summary — total gross/net/deductions for period, grouped by client
 // Optional: ?projectId=xxx to filter by a specific project
 router.get('/payroll-summary', requirePermission('reports.financial'), async (req, res) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
   const { year, month, projectId } = req.query;
   if (!year || !month) return sendError(res, 'year and month are required', 400);
 
@@ -62,6 +63,9 @@ router.get('/payroll-summary', requirePermission('reports.financial'), async (re
 // GET /api/reports/project-pipeline — 5 most recently active projects with stats
 router.get('/project-pipeline', requirePermission('reports.view'), async (req, res) => {
   try {
+    const Project = getModel(req, 'Project');
+    const Driver = getModel(req, 'Driver');
+    const ProjectContract = getModel(req, 'ProjectContract');
     const mongoose = require('mongoose');
 
     const projects = await Project.find({ status: 'active' })
@@ -75,7 +79,6 @@ router.get('/project-pipeline', requirePermission('reports.view'), async (req, r
       const driverCount = await Driver.countDocuments({ projectId: proj._id, status: 'active' });
 
       // Find the active contract for this project
-      const { ProjectContract } = require('../models');
       const contract = await ProjectContract.findOne({
         projectId: proj._id,
         status: 'active',
@@ -104,6 +107,7 @@ router.get('/project-pipeline', requirePermission('reports.view'), async (req, r
 
 // GET /api/reports/invoice-aging — outstanding invoices grouped by age
 router.get('/invoice-aging', requirePermission('reports.financial'), async (req, res) => {
+  const Invoice = getModel(req, 'Invoice');
   const now = new Date();
 
   const invoices = await Invoice.find({
@@ -170,6 +174,7 @@ router.get('/invoice-aging', requirePermission('reports.financial'), async (req,
 
 // GET /api/reports/cost-per-driver — average cost per driver per client per month
 router.get('/cost-per-driver', requirePermission('reports.financial'), async (req, res) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
   const { year } = req.query;
   const matchStage = { status: { $in: ['approved', 'paid'] } };
   if (year) matchStage['period.year'] = parseInt(year);
@@ -220,6 +225,7 @@ router.get('/cost-per-driver', requirePermission('reports.financial'), async (re
 
 // GET /api/reports/advance-outstanding — all drivers with non-zero advance balance
 router.get('/advance-outstanding', requirePermission('reports.financial'), async (req, res) => {
+  const Advance = getModel(req, 'Advance');
   const advances = await Advance.find({ status: 'active' })
     .populate('driverId', 'fullName employeeCode clientId')
     .populate('approvedBy', 'name')
@@ -244,6 +250,7 @@ router.get('/advance-outstanding', requirePermission('reports.financial'), async
 
 // GET /api/reports/document-expiry — drivers with documents expiring in next 30/60/90 days
 router.get('/document-expiry', requirePermission('reports.view'), async (req, res) => {
+  const DriverDocument = getModel(req, 'DriverDocument');
   const days = parseInt(req.query.days) || 30;
   const now = new Date();
   const cutoff = new Date();
@@ -274,6 +281,8 @@ router.get('/document-expiry', requirePermission('reports.view'), async (req, re
 // GET /api/reports/fleet-utilisation — vehicle fleet stats by supplier
 router.get('/fleet-utilisation', requirePermission('reports.view'), async (req, res) => {
   try {
+    const Supplier = getModel(req, 'Supplier');
+    const Driver = getModel(req, 'Driver');
     const suppliers = await Supplier.find({ isActive: true }).lean();
 
     const bySupplier = [];
@@ -302,7 +311,7 @@ router.get('/fleet-utilisation', requirePermission('reports.view'), async (req, 
       });
     }
 
-    // By vehicle type
+    // By vehicle type (Driver already resolved above)
     const allDriversWithVehicle = await Driver.find({
       vehiclePlate: { $ne: null, $exists: true },
     }).select('status vehicleType vehiclePlate').lean();
@@ -329,6 +338,7 @@ router.get('/fleet-utilisation', requirePermission('reports.view'), async (req, 
 // GET /api/reports/vehicle-cost-per-driver — vehicle rental deductions by driver for a period
 router.get('/vehicle-cost-per-driver', requirePermission('reports.financial'), async (req, res) => {
   try {
+    const SalaryRun = getModel(req, 'SalaryRun');
     const { year, month } = req.query;
     if (!year || !month) return sendError(res, 'year and month are required', 400);
 
@@ -392,6 +402,10 @@ router.get('/statement-of-accounts', requirePermission('reports.statement_of_acc
 // GET /api/reports/alert-count — count actionable alerts for the logged-in user
 router.get('/alert-count', async (req, res) => {
   try {
+    const Invoice = getModel(req, 'Invoice');
+    const DriverDocument = getModel(req, 'DriverDocument');
+    const ProjectContract = getModel(req, 'ProjectContract');
+    const GuaranteePassport = getModel(req, 'GuaranteePassport');
     const now = new Date();
     const in30Days = new Date();
     in30Days.setDate(in30Days.getDate() + 30);

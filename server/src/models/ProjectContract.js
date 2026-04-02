@@ -106,4 +106,6 @@ projectContractSchema.virtual('daysUntilExpiry').get(function () {
 projectContractSchema.index({ projectId: 1, status: 1 });
 projectContractSchema.index({ endDate: 1, status: 1 });
 
-module.exports = mongoose.model('ProjectContract', projectContractSchema);
+const ProjectContract = mongoose.model('ProjectContract', projectContractSchema);
+module.exports = ProjectContract;
+module.exports.schema = projectContractSchema;

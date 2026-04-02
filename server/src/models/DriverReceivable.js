@@ -120,4 +120,6 @@ driverReceivableSchema.pre('save', async function (next) {
   next();
 });
 
-module.exports = mongoose.model('DriverReceivable', driverReceivableSchema);
+const DriverReceivable = mongoose.model('DriverReceivable', driverReceivableSchema);
+module.exports = DriverReceivable;
+module.exports.schema = driverReceivableSchema;

@@ -112,4 +112,6 @@ projectSchema.virtual('driverCount', {
 projectSchema.index({ clientId: 1, status: 1 });
 projectSchema.index({ clientId: 1, name: 1 }, { unique: true });
 
-module.exports = mongoose.model('Project', projectSchema);
+const Project = mongoose.model('Project', projectSchema);
+module.exports = Project;
+module.exports.schema = projectSchema;

@@ -9,7 +9,7 @@ const {
 } = require('../services/attendanceApproval.service');
 const { generateInvoice } = require('../services/invoiceGeneration.service');
 const { runSalaryForBatch, getSalaryRunsByBatch } = require('../services/salaryRun.service');
-const { AttendanceBatch, AttendanceRecord, AttendanceDispute, Project } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
 const validate = require('../middleware/validate');
@@ -20,6 +20,7 @@ router.use(protect);
 
 // GET /api/attendance/batches — list batches with filters
 router.get('/batches', requirePermission('attendance.view'), async (req, res) => {
+  const AttendanceBatch = getModel(req, 'AttendanceBatch');
   const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
   const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (page - 1) * limit;
@@ -50,6 +51,9 @@ router.get('/batches', requirePermission('attendance.view'), async (req, res) =>
 router.post('/upload', requirePermission('attendance.upload'), attendanceUpload.single('file'), validate(uploadAttendanceValidation), async (req, res) => {
   if (!req.file) return sendError(res, 'No file uploaded', 400);
 
+  const AttendanceBatch = getModel(req, 'AttendanceBatch');
+  const AttendanceRecord = getModel(req, 'AttendanceRecord');
+  const Project = getModel(req, 'Project');
   const { projectId, year, month, columnMapping } = req.body;
 
   // Look up project to derive clientId
@@ -155,6 +159,8 @@ router.post('/upload', requirePermission('attendance.upload'), attendanceUpload.
 
 // GET /api/attendance/batches/:id — get batch with validation results
 router.get('/batches/:id', requirePermission('attendance.view'), async (req, res) => {
+  const AttendanceBatch = getModel(req, 'AttendanceBatch');
+  const AttendanceRecord = getModel(req, 'AttendanceRecord');
   const batch = await AttendanceBatch.findById(req.params.id)
     .populate('clientId', 'name')
     .populate('projectId', 'name projectCode')
@@ -173,6 +179,7 @@ router.get('/batches/:id', requirePermission('attendance.view'), async (req, res
 
 // PUT /api/attendance/batches/:id/reject — reject batch
 router.put('/batches/:id/reject', requirePermission('attendance.reject'), async (req, res) => {
+  const AttendanceBatch = getModel(req, 'AttendanceBatch');
   const batch = await AttendanceBatch.findById(req.params.id);
   if (!batch) return sendError(res, 'Batch not found', 404);
 
@@ -190,6 +197,8 @@ router.put('/batches/:id/reject', requirePermission('attendance.reject'), async 
 
 // DELETE /api/attendance/batches/:id — delete batch and its records (admin only)
 router.delete('/batches/:id', requirePermission('attendance.delete'), async (req, res) => {
+  const AttendanceBatch = getModel(req, 'AttendanceBatch');
+  const AttendanceRecord = getModel(req, 'AttendanceRecord');
   const batch = await AttendanceBatch.findById(req.params.id);
   if (!batch) return sendError(res, 'Batch not found', 404);
 
@@ -205,6 +214,7 @@ router.delete('/batches/:id', requirePermission('attendance.delete'), async (req
 
 // PUT /api/attendance/records/:id/override — override a flagged record
 router.put('/records/:id/override', requirePermission('attendance.override'), validate(overrideRecordValidation), async (req, res) => {
+  const AttendanceRecord = getModel(req, 'AttendanceRecord');
   const { reason, workingDays, overtimeHours, totalOrders } = req.body;
 
   const record = await AttendanceRecord.findById(req.params.id);
@@ -289,6 +299,7 @@ router.post('/disputes/:id/respond', requirePermission('attendance.respond_dispu
 
 // GET /api/attendance/batches/:id/approvals — get batch with approval details
 router.get('/batches/:id/approvals', requirePermission('attendance.view'), async (req, res) => {
+  const AttendanceBatch = getModel(req, 'AttendanceBatch');
   const batch = await AttendanceBatch.findById(req.params.id)
     .populate('clientId', 'name')
     .populate('projectId', 'name projectCode')
@@ -312,6 +323,7 @@ router.get('/batches/:id/approvals', requirePermission('attendance.view'), async
 
 // GET /api/attendance/batches/:id/disputes — list disputes for a batch
 router.get('/batches/:id/disputes', requirePermission('attendance.view'), async (req, res) => {
+  const AttendanceDispute = getModel(req, 'AttendanceDispute');
   const disputes = await AttendanceDispute.find({ batchId: req.params.id })
     .populate('raisedBy', 'name')
     .populate('response.respondedBy', 'name')
@@ -350,6 +362,7 @@ router.get('/batches/:id/salary-runs', requirePermission('salary.view'), async (
 // NOTE: This wildcard route must be defined AFTER all /batches/* routes
 // to avoid intercepting them (e.g. /batches/:id/disputes).
 router.get('/:driverId/:year/:month', requirePermission('attendance.view'), async (req, res) => {
+  const AttendanceRecord = getModel(req, 'AttendanceRecord');
   const { driverId, year, month } = req.params;
 
   const record = await AttendanceRecord.findOne({

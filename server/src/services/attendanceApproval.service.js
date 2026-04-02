@@ -1,13 +1,13 @@
-const {
-  AttendanceBatch, AttendanceDispute, Project, User,
-} = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { notifyByPermission, notifyUsers } = require('./notification.service');
 
 function getMonthName(year, month) {
   return new Date(year, month - 1).toLocaleString('en', { month: 'long' });
 }
 
-async function sendUploadNotification(batchId, uploadedByUserId) {
+async function sendUploadNotification(req, batchId, uploadedByUserId) {
+  const AttendanceBatch = getModel(req, 'AttendanceBatch');
+
   const batch = await AttendanceBatch.findById(batchId)
     .populate('projectId', 'name projectCode')
     .populate('clientId', 'name');
@@ -42,7 +42,10 @@ async function sendUploadNotification(batchId, uploadedByUserId) {
   return { notifiedCount: count };
 }
 
-async function approveAttendance(batchId, userId, notes) {
+async function approveAttendance(req, batchId, userId, notes) {
+  const AttendanceBatch = getModel(req, 'AttendanceBatch');
+  const User = getModel(req, 'User');
+
   const [user, batch] = await Promise.all([
     User.findById(userId).populate('roleId', 'name displayName'),
     AttendanceBatch.findById(batchId)
@@ -152,7 +155,11 @@ async function approveAttendance(batchId, userId, notes) {
   return batch;
 }
 
-async function raiseDispute(batchId, userId, data) {
+async function raiseDispute(req, batchId, userId, data) {
+  const AttendanceBatch = getModel(req, 'AttendanceBatch');
+  const AttendanceDispute = getModel(req, 'AttendanceDispute');
+  const User = getModel(req, 'User');
+
   const [user, batch] = await Promise.all([
     User.findById(userId).populate('roleId', 'name'),
     AttendanceBatch.findById(batchId)
@@ -236,7 +243,10 @@ async function raiseDispute(batchId, userId, data) {
   return { batch, dispute };
 }
 
-async function respondToDispute(disputeId, userId, message) {
+async function respondToDispute(req, disputeId, userId, message) {
+  const AttendanceDispute = getModel(req, 'AttendanceDispute');
+  const User = getModel(req, 'User');
+
   const dispute = await AttendanceDispute.findById(disputeId)
     .populate('batchId');
 

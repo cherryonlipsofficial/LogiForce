@@ -1,21 +1,15 @@
-const {
-  Driver,
-  AttendanceRecord,
-  AttendanceBatch,
-  SalaryRun,
-  Advance,
-  DriverAdvance,
-  Supplier,
-  DriverLedger,
-  DriverProjectAssignment,
-  Project,
-} = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { SALARY } = require('../config/constants');
 
 /**
  * Calculate salary for a single driver for a given period.
  */
-const calculateDriverSalary = async (driverId, year, month, processedBy, { clientId: requestClientId, attendanceBatchId } = {}) => {
+const calculateDriverSalary = async (req, driverId, year, month, processedBy, { clientId: requestClientId, attendanceBatchId } = {}) => {
+  const Driver = getModel(req, 'Driver');
+  const AttendanceRecord = getModel(req, 'AttendanceRecord');
+  const SalaryRun = getModel(req, 'SalaryRun');
+  const DriverProjectAssignment = getModel(req, 'DriverProjectAssignment');
+
   // 1. Fetch driver (with project info)
   const driver = await Driver.findById(driverId)
     .populate('supplierId')
@@ -74,7 +68,7 @@ const calculateDriverSalary = async (driverId, year, month, processedBy, { clien
   const grossSalary = Math.round(proratedSalary * 100) / 100;
 
   // 7. Calculate deductions
-  const deductions = await calculateDeductions(driverId, year, month, grossSalary);
+  const deductions = await calculateDeductions(req, driverId, year, month, grossSalary);
   const totalDeductions = Math.round(
     deductions.reduce((sum, d) => sum + d.amount, 0) * 100
   ) / 100;
@@ -141,7 +135,7 @@ const calculateDriverSalary = async (driverId, year, month, processedBy, { clien
 
   // Store carryover for next month if needed
   if (deductionCarryover > 0) {
-    await storeDeductionCarryover(driverId, year, month, deductionCarryover);
+    await storeDeductionCarryover(req, driverId, year, month, deductionCarryover);
   }
 
   return salaryRun;
@@ -150,7 +144,14 @@ const calculateDriverSalary = async (driverId, year, month, processedBy, { clien
 /**
  * Calculate all deductions for a driver in a given period.
  */
-const calculateDeductions = async (driverId, year, month, grossSalary) => {
+const calculateDeductions = async (req, driverId, year, month, grossSalary) => {
+  const Driver = getModel(req, 'Driver');
+  const Supplier = getModel(req, 'Supplier');
+  const DriverLedger = getModel(req, 'DriverLedger');
+  const Advance = getModel(req, 'Advance');
+  const DriverAdvance = getModel(req, 'DriverAdvance');
+  const CreditNote = getModel(req, 'CreditNote');
+
   const deductions = [];
 
   // a) TelecomSim charge
@@ -293,8 +294,6 @@ const calculateDeductions = async (driverId, year, month, grossSalary) => {
 
   // g) Credit note deductions — unsettled CN line items for this driver
   //    Excludes lines where a DriverReceivable was already created (resigned/offboarded)
-  const CreditNote = require('../models/CreditNote');
-
   const unsettledCNLines = await CreditNote.find({
     'lineItems': {
       $elemMatch: {
@@ -334,7 +333,7 @@ const calculateDeductions = async (driverId, year, month, grossSalary) => {
   }
 
   // f) Deduction carryover from previous month
-  const carryover = await getDeductionCarryover(driverId, year, month);
+  const carryover = await getDeductionCarryover(req, driverId, year, month);
   if (carryover > 0) {
     deductions.push({
       type: 'deduction_carryover',
@@ -353,7 +352,9 @@ const calculateDeductions = async (driverId, year, month, grossSalary) => {
  * Uses a SalaryRun note convention; stored as a ledger entry.
  * Idempotent: removes any existing carryover for the same source period before creating.
  */
-const storeDeductionCarryover = async (driverId, year, month, amount) => {
+const storeDeductionCarryover = async (req, driverId, year, month, amount) => {
+  const DriverLedger = getModel(req, 'DriverLedger');
+
   // Calculate next month
   let nextMonth = month + 1;
   let nextYear = year;
@@ -391,7 +392,9 @@ const storeDeductionCarryover = async (driverId, year, month, amount) => {
 /**
  * Clear deduction carryover for a given source period.
  */
-const clearDeductionCarryover = async (driverId, year, month) => {
+const clearDeductionCarryover = async (req, driverId, year, month) => {
+  const DriverLedger = getModel(req, 'DriverLedger');
+
   await DriverLedger.deleteMany({
     driverId,
     referenceId: `carryover_${year}_${month}`,
@@ -403,7 +406,9 @@ const clearDeductionCarryover = async (driverId, year, month) => {
  * Get deduction carryover from the previous month.
  * Sums all matching carryover entries (in case of duplicates) and excludes deleted entries.
  */
-const getDeductionCarryover = async (driverId, year, month) => {
+const getDeductionCarryover = async (req, driverId, year, month) => {
+  const DriverLedger = getModel(req, 'DriverLedger');
+
   const carryoverEntries = await DriverLedger.find({
     driverId,
     referenceId: new RegExp(`^carryover_`),
@@ -423,7 +428,11 @@ const getDeductionCarryover = async (driverId, year, month) => {
 /**
  * Run payroll for all active drivers of a client for a given period.
  */
-const runPayroll = async (clientId, projectId, year, month, processedBy) => {
+const runPayroll = async (req, clientId, projectId, year, month, processedBy) => {
+  const Project = getModel(req, 'Project');
+  const AttendanceRecord = getModel(req, 'AttendanceRecord');
+  const AttendanceBatch = getModel(req, 'AttendanceBatch');
+
   // 1. Resolve clientId from project to ensure consistency with stored records
   if (projectId) {
     const project = await Project.findById(projectId).select('clientId');
@@ -469,6 +478,7 @@ const runPayroll = async (clientId, projectId, year, month, processedBy) => {
   for (const record of approvedRecords) {
     try {
       const salaryRun = await calculateDriverSalary(
+        req,
         record.driverId,
         year,
         month,
@@ -491,7 +501,7 @@ const runPayroll = async (clientId, projectId, year, month, processedBy) => {
 
   // 5. Update advance records
   for (const run of runs) {
-    await updateAdvanceRecoveries(run);
+    await updateAdvanceRecoveries(req, run);
   }
 
   // 6. Mark attendance batch as processed
@@ -514,7 +524,9 @@ const runPayroll = async (clientId, projectId, year, month, processedBy) => {
 /**
  * Post immutable ledger entries after a salary run is created.
  */
-const postLedgerEntries = async (salaryRun, createdBy) => {
+const postLedgerEntries = async (req, salaryRun, createdBy) => {
+  const DriverLedger = getModel(req, 'DriverLedger');
+
   const { driverId, period } = salaryRun;
 
   // Get the last running balance for this driver
@@ -561,7 +573,10 @@ const postLedgerEntries = async (salaryRun, createdBy) => {
 /**
  * Update advance recovery amounts after salary run.
  */
-const updateAdvanceRecoveries = async (salaryRun) => {
+const updateAdvanceRecoveries = async (req, salaryRun) => {
+  const Advance = getModel(req, 'Advance');
+  const DriverAdvance = getModel(req, 'DriverAdvance');
+
   const advanceDeductions = salaryRun.deductions.filter(
     (d) => d.type === 'advance_recovery'
   );
@@ -620,8 +635,10 @@ const updateAdvanceRecoveries = async (salaryRun) => {
  * Picks up any unsettled CN lines that were sent AFTER the salary run was created.
  * Called before ops approval to ensure all deductions are current.
  */
-const syncCreditNoteDeductions = async (salaryRun) => {
-  const CreditNote = require('../models/CreditNote');
+const syncCreditNoteDeductions = async (req, salaryRun) => {
+  const CreditNote = getModel(req, 'CreditNote');
+  const DriverLedger = getModel(req, 'DriverLedger');
+
   const driverId = salaryRun.driverId;
   let changed = false;
 
@@ -701,7 +718,7 @@ const syncCreditNoteDeductions = async (salaryRun) => {
         entryType: 'manual_debit',
       });
 
-      await storeDeductionCarryover(salaryRun.driverId, year, month, carryoverAmount);
+      await storeDeductionCarryover(req, salaryRun.driverId, year, month, carryoverAmount);
     } else {
       salaryRun.netSalary = rawNet;
       salaryRun.deductionCarryover = 0;
@@ -732,7 +749,9 @@ const syncCreditNoteDeductions = async (salaryRun) => {
 /**
  * Operations approval — draft → ops_approved
  */
-const approveByOps = async (runId, userId, remarks) => {
+const approveByOps = async (req, runId, userId, remarks) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
+
   const salaryRun = await SalaryRun.findById(runId);
   if (!salaryRun) {
     const err = new Error('Salary run not found');
@@ -747,7 +766,7 @@ const approveByOps = async (runId, userId, remarks) => {
   }
 
   // Sync any credit note deductions that were sent after this salary run was created
-  await syncCreditNoteDeductions(salaryRun);
+  await syncCreditNoteDeductions(req, salaryRun);
 
   salaryRun.approvals.push({ stage: 'salary.approve_ops', approvedBy: userId, approvedAt: new Date(), remarks });
   salaryRun.status = 'ops_approved';
@@ -770,7 +789,9 @@ const approveByOps = async (runId, userId, remarks) => {
 /**
  * Compliance approval — ops_approved → compliance_approved
  */
-const approveByCompliance = async (runId, userId, remarks) => {
+const approveByCompliance = async (req, runId, userId, remarks) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
+
   const salaryRun = await SalaryRun.findById(runId);
   if (!salaryRun) {
     const err = new Error('Salary run not found');
@@ -805,7 +826,9 @@ const approveByCompliance = async (runId, userId, remarks) => {
 /**
  * Junior Accounts approval — compliance_approved → accounts_approved
  */
-const approveByAccounts = async (runId, userId, remarks) => {
+const approveByAccounts = async (req, runId, userId, remarks) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
+
   const salaryRun = await SalaryRun.findById(runId);
   if (!salaryRun) {
     const err = new Error('Salary run not found');
@@ -840,7 +863,11 @@ const approveByAccounts = async (runId, userId, remarks) => {
 /**
  * Senior Accountant processes — accounts_approved → processed
  */
-const processSalaryRun = async (runId, userId) => {
+const processSalaryRun = async (req, runId, userId) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
+  const DriverLedger = getModel(req, 'DriverLedger');
+  const CreditNote = getModel(req, 'CreditNote');
+
   const salaryRun = await SalaryRun.findById(runId);
   if (!salaryRun) {
     const err = new Error('Salary run not found');
@@ -870,13 +897,12 @@ const processSalaryRun = async (runId, userId) => {
   await salaryRun.save();
 
   // Post ledger entries on processing (moved from old approval step)
-  await postLedgerEntries(salaryRun, userId);
+  await postLedgerEntries(req, salaryRun, userId);
 
   // Update advance recoveries
-  await updateAdvanceRecoveries(salaryRun);
+  await updateAdvanceRecoveries(req, salaryRun);
 
   // Mark credit note lines as salary-deducted
-  const CreditNote = require('../models/CreditNote');
   const creditNoteDeductions = (salaryRun.deductions || []).filter(d => d.type === 'credit_note');
   for (const ded of creditNoteDeductions) {
     if (!ded.referenceId) continue;
@@ -934,7 +960,8 @@ const processSalaryRun = async (runId, userId) => {
 /**
  * Generate WPS (Wages Protection System) SIF file content for a period.
  */
-const generateWpsFile = async (clientId, year, month) => {
+const generateWpsFile = async (req, clientId, year, month) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
   const query = {
     'period.year': year,
     'period.month': month,
@@ -1003,7 +1030,8 @@ const extractBankCode = (iban) => {
  * Add a manual deduction to a salary run (by authorized role).
  * Supported types: telecom_sim, vehicle_rental, salik, advance_recovery, penalty, deduction_carryover
  */
-const addManualDeduction = async (runId, { type, amount, description }, addedBy) => {
+const addManualDeduction = async (req, runId, { type, amount, description }, addedBy) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
   const { DEDUCTION_TYPES } = require('../config/constants');
 
   if (!DEDUCTION_TYPES.includes(type)) {
@@ -1056,13 +1084,13 @@ const addManualDeduction = async (runId, { type, amount, description }, addedBy)
     salaryRun.notes = `Deduction carryover of ${carryoverAmount} AED to next month`;
 
     // storeDeductionCarryover is idempotent — cleans up old entries automatically
-    await storeDeductionCarryover(salaryRun.driverId, year, month, carryoverAmount);
+    await storeDeductionCarryover(req, salaryRun.driverId, year, month, carryoverAmount);
   } else {
     salaryRun.netSalary = rawNet;
     salaryRun.deductionCarryover = 0;
 
     // Clear any previously stored carryover if net is now positive
-    await clearDeductionCarryover(salaryRun.driverId, year, month);
+    await clearDeductionCarryover(req, salaryRun.driverId, year, month);
 
     if (salaryRun.notes && salaryRun.notes.startsWith('Deduction carryover')) {
       salaryRun.notes = undefined;
@@ -1077,11 +1105,11 @@ const addManualDeduction = async (runId, { type, amount, description }, addedBy)
  * Bulk approve salary runs for a given stage.
  * Iterates through each ID, applies the stage-specific approval, and tracks successes/errors.
  */
-const bulkApproveByOps = async (runIds, userId, remarks) => {
+const bulkApproveByOps = async (req, runIds, userId, remarks) => {
   const results = { approved: [], errors: [] };
   for (const runId of runIds) {
     try {
-      const run = await approveByOps(runId, userId, remarks);
+      const run = await approveByOps(req, runId, userId, remarks);
       results.approved.push({ _id: run._id, runId: run.runId, status: run.status });
     } catch (err) {
       results.errors.push({ _id: runId, error: err.message });
@@ -1090,11 +1118,11 @@ const bulkApproveByOps = async (runIds, userId, remarks) => {
   return results;
 };
 
-const bulkApproveByCompliance = async (runIds, userId, remarks) => {
+const bulkApproveByCompliance = async (req, runIds, userId, remarks) => {
   const results = { approved: [], errors: [] };
   for (const runId of runIds) {
     try {
-      const run = await approveByCompliance(runId, userId, remarks);
+      const run = await approveByCompliance(req, runId, userId, remarks);
       results.approved.push({ _id: run._id, runId: run.runId, status: run.status });
     } catch (err) {
       results.errors.push({ _id: runId, error: err.message });
@@ -1103,11 +1131,11 @@ const bulkApproveByCompliance = async (runIds, userId, remarks) => {
   return results;
 };
 
-const bulkApproveByAccounts = async (runIds, userId, remarks) => {
+const bulkApproveByAccounts = async (req, runIds, userId, remarks) => {
   const results = { approved: [], errors: [] };
   for (const runId of runIds) {
     try {
-      const run = await approveByAccounts(runId, userId, remarks);
+      const run = await approveByAccounts(req, runId, userId, remarks);
       results.approved.push({ _id: run._id, runId: run.runId, status: run.status });
     } catch (err) {
       results.errors.push({ _id: runId, error: err.message });
@@ -1116,11 +1144,11 @@ const bulkApproveByAccounts = async (runIds, userId, remarks) => {
   return results;
 };
 
-const bulkProcess = async (runIds, userId) => {
+const bulkProcess = async (req, runIds, userId) => {
   const results = { processed: [], errors: [] };
   for (const runId of runIds) {
     try {
-      const run = await processSalaryRun(runId, userId);
+      const run = await processSalaryRun(req, runId, userId);
       results.processed.push({ _id: run._id, runId: run.runId, status: run.status });
     } catch (err) {
       results.errors.push({ _id: runId, error: err.message });
@@ -1129,7 +1157,9 @@ const bulkProcess = async (runIds, userId) => {
   return results;
 };
 
-const bulkMarkAsPaid = async (runIds, userId) => {
+const bulkMarkAsPaid = async (req, runIds, userId) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
+
   const results = { paid: [], errors: [] };
   for (const runId of runIds) {
     try {

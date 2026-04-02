@@ -1,4 +1,4 @@
-const { SalaryRun, Project, AppNotification } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { notifyByPermission } = require('./notification.service');
 
 // Map salary run status → which permission should be notified
@@ -20,7 +20,10 @@ const STATUS_TO_PERMISSION = {
  * 4. If today >= deadline date, send urgent reminders
  * 5. If today >= deadline - 2 days (i.e., 5 days before release), send early warnings
  */
-async function checkAndSendReminders() {
+async function checkAndSendReminders(req) {
+  const SalaryRun = getModel(req, 'SalaryRun');
+  const AppNotification = getModel(req, 'AppNotification');
+
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
@@ -98,7 +101,7 @@ async function checkAndSendReminders() {
         ? `URGENT: ${count} salary run(s) for project ${projectName} need your approval. Salary release date is ${salaryReleaseDay}th. Only ${Math.max(0, daysLeft)} day(s) remaining!`
         : `Reminder: ${count} salary run(s) for project ${projectName} are pending your action. Salary release deadline in ${daysLeft} day(s).`;
 
-      const sent = await notifyByPermission(targetPermission, {
+      const sent = await notifyByPermission(req, targetPermission, {
         type: 'salary_approval_reminder',
         title,
         message,
