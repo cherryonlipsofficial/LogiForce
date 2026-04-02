@@ -1,7 +1,19 @@
 import axios from 'axios';
 
+// Extract tenant from current subdomain
+// clienta.logiforce.app → "clienta"
+// localhost:5173 → fallback to env variable
+const getTenantId = () => {
+  const hostname = window.location.hostname;
+  const parts = hostname.split('.');
+  if (parts.length >= 3) {
+    return parts[0];
+  }
+  return import.meta.env.VITE_TENANT_ID || 'clienta';
+};
+
 const axiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://logiforce.onrender.com/api',
+  baseURL: import.meta.env.VITE_API_URL || 'https://api.logiforce.app/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -9,6 +21,8 @@ const axiosInstance = axios.create({
 });
 
 axiosInstance.interceptors.request.use((config) => {
+  config.headers['x-tenant-id'] = getTenantId();
+
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
