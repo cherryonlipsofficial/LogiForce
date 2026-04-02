@@ -167,4 +167,6 @@ attendanceBatchSchema.pre('save', async function (next) {
   next();
 });
 
-module.exports = mongoose.model('AttendanceBatch', attendanceBatchSchema);
+const AttendanceBatch = mongoose.model('AttendanceBatch', attendanceBatchSchema);
+module.exports = AttendanceBatch;
+module.exports.schema = attendanceBatchSchema;

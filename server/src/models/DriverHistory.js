@@ -67,4 +67,6 @@ const driverHistorySchema = new Schema({
 // Index for fetching history for a driver in reverse-chronological order
 driverHistorySchema.index({ driverId: 1, createdAt: -1 });
 
-module.exports = mongoose.model('DriverHistory', driverHistorySchema);
+const DriverHistory = mongoose.model('DriverHistory', driverHistorySchema);
+module.exports = DriverHistory;
+module.exports.schema = driverHistorySchema;

@@ -42,4 +42,6 @@ companySettingsSchema.statics.getSettings = async function () {
   return settings;
 };
 
-module.exports = mongoose.model('CompanySettings', companySettingsSchema);
+const CompanySettings = mongoose.model('CompanySettings', companySettingsSchema);
+module.exports = CompanySettings;
+module.exports.schema = companySettingsSchema;

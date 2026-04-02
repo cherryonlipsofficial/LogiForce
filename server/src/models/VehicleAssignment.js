@@ -95,4 +95,6 @@ vehicleAssignmentSchema.index({ vehicleId: 1, assignedDate: -1 });
 // Compound index: history queries (all assignments for a driver)
 vehicleAssignmentSchema.index({ driverId: 1, assignedDate: -1 });
 
-module.exports = mongoose.model('VehicleAssignment', vehicleAssignmentSchema);
+const VehicleAssignment = mongoose.model('VehicleAssignment', vehicleAssignmentSchema);
+module.exports = VehicleAssignment;
+module.exports.schema = vehicleAssignmentSchema;

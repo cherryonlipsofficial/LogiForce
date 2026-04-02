@@ -1,4 +1,4 @@
-const { Driver, User, DriverDocument } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { applyStatusChange, evaluateAndTransition, checkKycDocsUploaded, checkKycDocsValid, checkProfileAndEmploymentComplete, REQUIRED_KYC_DOCS, REQUIRED_PROFILE_FIELDS, REQUIRED_EMPLOYMENT_FIELDS } = require('./driverStatusEngine.service');
 const { logEvent } = require('./driverHistory.service');
 
@@ -11,7 +11,8 @@ const OPERATIONS_ALLOWED = {
   offboarded: ['active', 'resigned'],
 };
 
-async function verifyContacts(driverId, userId) {
+async function verifyContacts(req, driverId, userId) {
+  const Driver = getModel(req, 'Driver');
   const driver = await Driver.findById(driverId);
   if (!driver) {
     const err = new Error('Driver not found');
@@ -34,14 +35,15 @@ async function verifyContacts(driverId, userId) {
     description: 'Contact details verified by Compliance',
   }, userId);
 
-  await evaluateAndTransition(driverId, userId);
+  await evaluateAndTransition(req, driverId, userId);
 
   // Re-fetch to get the latest status after potential auto-transition
   const updated = await Driver.findById(driverId);
   return updated;
 }
 
-async function setClientUserId(driverId, clientUserId, userId) {
+async function setClientUserId(req, driverId, clientUserId, userId) {
+  const Driver = getModel(req, 'Driver');
   const driver = await Driver.findById(driverId);
   if (!driver) {
     const err = new Error('Driver not found');
@@ -79,7 +81,9 @@ async function setClientUserId(driverId, clientUserId, userId) {
   return updated;
 }
 
-async function activateDriver(driverId, userId, { personalVerificationConfirmed } = {}) {
+async function activateDriver(req, driverId, userId, { personalVerificationConfirmed } = {}) {
+  const Driver = getModel(req, 'Driver');
+  const User = getModel(req, 'User');
   const driver = await Driver.findById(driverId);
   if (!driver) {
     const err = new Error('Driver not found');
@@ -114,13 +118,15 @@ async function activateDriver(driverId, userId, { personalVerificationConfirmed 
     description: activatedByLabel,
   }, userId);
 
-  await evaluateAndTransition(driverId, userId);
+  await evaluateAndTransition(req, driverId, userId);
 
   const updated = await Driver.findById(driverId);
   return updated;
 }
 
-async function changeStatusManual(driverId, newStatus, reason, userId) {
+async function changeStatusManual(req, driverId, newStatus, reason, userId) {
+  const Driver = getModel(req, 'Driver');
+  const User = getModel(req, 'User');
   const driver = await Driver.findById(driverId);
   if (!driver) {
     const err = new Error('Driver not found');
@@ -168,7 +174,9 @@ async function changeStatusManual(driverId, newStatus, reason, userId) {
   return updated;
 }
 
-async function getDriverStatusSummary(driverId) {
+async function getDriverStatusSummary(req, driverId) {
+  const Driver = getModel(req, 'Driver');
+  const DriverDocument = getModel(req, 'DriverDocument');
   const driver = await Driver.findById(driverId);
   if (!driver) {
     const err = new Error('Driver not found');
@@ -177,8 +185,8 @@ async function getDriverStatusSummary(driverId) {
   }
 
   const [kycDocsCheck, kycValidCheck, kycDocs] = await Promise.all([
-    checkKycDocsUploaded(driverId),
-    checkKycDocsValid(driverId),
+    checkKycDocsUploaded(req, driverId),
+    checkKycDocsValid(req, driverId),
     DriverDocument.find({
       driverId,
       docType: { $in: REQUIRED_KYC_DOCS },

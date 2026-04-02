@@ -1,10 +1,14 @@
-const { DriverAdvance, Driver, User, DriverLedger, SalaryRun } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { notifyByPermission, notifyUsers } = require('./notification.service');
 
 /**
  * Request a salary advance for a driver.
  */
-async function requestAdvance(data, requestedByUserId) {
+async function requestAdvance(req, data, requestedByUserId) {
+  const DriverAdvance = getModel(req, 'DriverAdvance');
+  const Driver = getModel(req, 'Driver');
+  const User = getModel(req, 'User');
+
   // Validate driver is active
   const driver = await Driver.findById(data.driverId).select(
     'fullName status clientId projectId'
@@ -67,7 +71,12 @@ async function requestAdvance(data, requestedByUserId) {
 /**
  * Approve or reject a pending advance request.
  */
-async function reviewAdvance(advanceId, decision, reviewData, reviewerUserId) {
+async function reviewAdvance(req, advanceId, decision, reviewData, reviewerUserId) {
+  const DriverAdvance = getModel(req, 'DriverAdvance');
+  const User = getModel(req, 'User');
+  const DriverLedger = getModel(req, 'DriverLedger');
+  const SalaryRun = getModel(req, 'SalaryRun');
+
   const advance = await DriverAdvance.findById(advanceId).populate(
     'driverId',
     'fullName'

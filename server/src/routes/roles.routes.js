@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
-const { Role, User } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { PERMISSIONS, getByModule, getAllKeys, migrateLegacyKeys } = require('../config/permissions');
 const { sendSuccess, sendError } = require('../utils/responseHelper');
 
@@ -22,6 +22,8 @@ router.get('/permissions', async (req, res) => {
 
 // GET /api/roles — list all roles with user counts
 router.get('/', requirePermission('roles.manage'), async (req, res) => {
+  const Role = getModel(req, 'Role');
+  const User = getModel(req, 'User');
   const roles = await Role.find()
     .populate('createdBy', 'name')
     .sort({ isSystemRole: -1, name: 1 })
@@ -45,6 +47,7 @@ router.get('/', requirePermission('roles.manage'), async (req, res) => {
 
 // POST /api/roles — create a new role
 router.post('/', requirePermission('roles.manage'), async (req, res) => {
+  const Role = getModel(req, 'Role');
   const { name, displayName, description, permissions } = req.body;
 
   if (!name || !displayName) {
@@ -85,6 +88,8 @@ router.post('/', requirePermission('roles.manage'), async (req, res) => {
 
 // GET /api/roles/:id — get role detail with assigned users
 router.get('/:id', requirePermission('roles.manage'), async (req, res) => {
+  const Role = getModel(req, 'Role');
+  const User = getModel(req, 'User');
   const role = await Role.findById(req.params.id)
     .populate('createdBy', 'name')
     .populate('updatedBy', 'name');
@@ -101,6 +106,7 @@ router.get('/:id', requirePermission('roles.manage'), async (req, res) => {
 
 // PUT /api/roles/:id — update role
 router.put('/:id', requirePermission('roles.manage'), async (req, res) => {
+  const Role = getModel(req, 'Role');
   const role = await Role.findById(req.params.id);
   if (!role) return sendError(res, 'Role not found', 404);
 
@@ -137,6 +143,8 @@ router.put('/:id', requirePermission('roles.manage'), async (req, res) => {
 
 // DELETE /api/roles/:id — delete role
 router.delete('/:id', requirePermission('roles.manage'), async (req, res) => {
+  const Role = getModel(req, 'Role');
+  const User = getModel(req, 'User');
   const role = await Role.findById(req.params.id);
   if (!role) return sendError(res, 'Role not found', 404);
 
@@ -159,6 +167,7 @@ router.delete('/:id', requirePermission('roles.manage'), async (req, res) => {
 
 // POST /api/roles/:id/duplicate — duplicate a role
 router.post('/:id/duplicate', requirePermission('roles.manage'), async (req, res) => {
+  const Role = getModel(req, 'Role');
   const source = await Role.findById(req.params.id).lean();
   if (!source) return sendError(res, 'Source role not found', 404);
 

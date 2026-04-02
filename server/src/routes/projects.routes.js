@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
 const projectService = require('../services/project.service');
-const { Driver } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
 const validate = require('../middleware/validate');
@@ -54,6 +54,8 @@ router.put('/:id', requirePermission('projects.edit'), validate(updateProjectVal
 
 // DELETE /api/projects/:id — soft-delete (admin only)
 router.delete('/:id', requirePermission('projects.delete'), async (req, res) => {
+  const Driver = getModel(req, 'Driver');
+  const Project = getModel(req, 'Project');
   const driverCount = await Driver.countDocuments({
     projectId: req.params.id,
   });
@@ -65,7 +67,6 @@ router.delete('/:id', requirePermission('projects.delete'), async (req, res) => 
     );
   }
 
-  const { Project } = require('../models');
   const project = await Project.findById(req.params.id);
   if (!project) return sendError(res, 'Project not found', 404);
   if (project.status === 'active') {
@@ -85,7 +86,7 @@ router.delete('/:id', requirePermission('projects.delete'), async (req, res) => 
 
 // GET /api/projects/:id/contracts — all contracts for this project
 router.get('/:id/contracts', async (req, res) => {
-  const { ProjectContract } = require('../models');
+  const ProjectContract = getModel(req, 'ProjectContract');
   const contracts = await ProjectContract.find({ projectId: req.params.id })
     .sort({ startDate: -1 })
     .lean();
@@ -157,6 +158,7 @@ router.post('/unassign-driver', requirePermission('projects.assign_drivers'), as
 
 // GET /api/projects/:id/drivers — currently assigned drivers
 router.get('/:id/drivers', async (req, res) => {
+  const Driver = getModel(req, 'Driver');
   const pg = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
   const lim = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (pg - 1) * lim;

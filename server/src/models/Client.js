@@ -64,4 +64,6 @@ const clientSchema = new mongoose.Schema(
   }
 );
 
-module.exports = mongoose.model('Client', clientSchema);
+const Client = mongoose.model('Client', clientSchema);
+module.exports = Client;
+module.exports.schema = clientSchema;

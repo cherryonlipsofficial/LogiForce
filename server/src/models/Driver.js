@@ -268,4 +268,6 @@ driverSchema.pre('save', async function (next) {
 
 driverSchema.index({ clientId: 1 });
 
-module.exports = mongoose.model('Driver', driverSchema);
+const Driver = mongoose.model('Driver', driverSchema);
+module.exports = Driver;
+module.exports.schema = driverSchema;

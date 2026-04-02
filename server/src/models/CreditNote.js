@@ -142,4 +142,6 @@ creditNoteSchema.pre('save', function (next) {
   next();
 });
 
-module.exports = mongoose.model('CreditNote', creditNoteSchema);
+const CreditNote = mongoose.model('CreditNote', creditNoteSchema);
+module.exports = CreditNote;
+module.exports.schema = creditNoteSchema;

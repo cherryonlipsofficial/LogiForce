@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const { getModel } = require('../config/modelRegistry');
 
 const protect = async (req, res, next) => {
   const token = req.header('Authorization')?.replace('Bearer ', '');
@@ -10,6 +10,7 @@ const protect = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const User = getModel(req, 'User');
     const user = await User.findById(decoded.id).populate('roleId', 'permissions name isSystemRole displayName');
     if (!user || !user.isActive) {
       return res.status(401).json({ success: false, message: 'User not found or inactive' });
@@ -32,6 +33,7 @@ const requirePermission = (permissionKey) => {
         return res.status(401).json({ success: false, message: 'Not authenticated' });
       }
 
+      const User = getModel(req, 'User');
       const user = await User.findById(req.user._id)
         .populate('roleId', 'permissions name isSystemRole');
 
@@ -98,6 +100,7 @@ const requireAnyPermission = (permissionKeys) => {
         return res.status(401).json({ success: false, message: 'Not authenticated' });
       }
 
+      const User = getModel(req, 'User');
       const user = await User.findById(req.user._id)
         .populate('roleId', 'permissions name isSystemRole');
 

@@ -1,11 +1,12 @@
-const { Driver, GuaranteePassport, User } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { logEvent } = require('./driverHistory.service');
 const { evaluateAndTransition } = require('./driverStatusEngine.service');
 
 /**
  * Mark driver as having submitted their own passport.
  */
-const submitOwnPassport = async (driverId, userId) => {
+const submitOwnPassport = async (req, driverId, userId) => {
+  const Driver = getModel(req, 'Driver');
   const driver = await Driver.findById(driverId);
   if (!driver) {
     const err = new Error('Driver not found');
@@ -24,7 +25,7 @@ const submitOwnPassport = async (driverId, userId) => {
     fieldName: 'isPassportSubmitted',
   }, userId);
 
-  await evaluateAndTransition(driverId, userId);
+  await evaluateAndTransition(req, driverId, userId);
 
   return driver;
 };
@@ -32,7 +33,9 @@ const submitOwnPassport = async (driverId, userId) => {
 /**
  * Record a guarantee passport for a driver.
  */
-const recordGuaranteePassport = async (driverId, data, userId) => {
+const recordGuaranteePassport = async (req, driverId, data, userId) => {
+  const Driver = getModel(req, 'Driver');
+  const GuaranteePassport = getModel(req, 'GuaranteePassport');
   const driver = await Driver.findById(driverId);
   if (!driver) {
     const err = new Error('Driver not found');
@@ -75,7 +78,7 @@ const recordGuaranteePassport = async (driverId, data, userId) => {
     metadata: { guaranteeId: guarantee._id },
   }, userId);
 
-  await evaluateAndTransition(driverId, userId);
+  await evaluateAndTransition(req, driverId, userId);
 
   return { driver, guarantee };
 };
@@ -83,7 +86,8 @@ const recordGuaranteePassport = async (driverId, data, userId) => {
 /**
  * Request an extension on a guarantee passport.
  */
-const requestExtension = async (guaranteeId, data, userId) => {
+const requestExtension = async (req, guaranteeId, data, userId) => {
+  const GuaranteePassport = getModel(req, 'GuaranteePassport');
   const guarantee = await GuaranteePassport.findById(guaranteeId);
   if (!guarantee) {
     const err = new Error('Guarantee passport not found');
@@ -135,7 +139,9 @@ const requestExtension = async (guaranteeId, data, userId) => {
 /**
  * Admin reviews (approves/rejects) a pending extension request.
  */
-const reviewExtension = async (guaranteeId, decision, reviewNotes, adminUserId) => {
+const reviewExtension = async (req, guaranteeId, decision, reviewNotes, adminUserId) => {
+  const GuaranteePassport = getModel(req, 'GuaranteePassport');
+  const Driver = getModel(req, 'Driver');
   const guarantee = await GuaranteePassport.findById(guaranteeId);
   if (!guarantee || guarantee.extensionRequest?.status !== 'pending') {
     const err = new Error('No pending extension request found.');
@@ -186,7 +192,9 @@ const reviewExtension = async (guaranteeId, decision, reviewNotes, adminUserId) 
 /**
  * Return a guarantee passport (physically returned to guarantor).
  */
-const returnGuarantee = async (guaranteeId, notes, userId) => {
+const returnGuarantee = async (req, guaranteeId, notes, userId) => {
+  const GuaranteePassport = getModel(req, 'GuaranteePassport');
+  const Driver = getModel(req, 'Driver');
   const guarantee = await GuaranteePassport.findById(guaranteeId);
   if (!guarantee) {
     const err = new Error('Guarantee passport not found');
@@ -215,7 +223,7 @@ const returnGuarantee = async (guaranteeId, notes, userId) => {
     metadata: { guaranteeId: guarantee._id },
   }, userId);
 
-  await evaluateAndTransition(guarantee.driverId, userId);
+  await evaluateAndTransition(req, guarantee.driverId, userId);
 
   return { driver, guarantee };
 };
@@ -223,7 +231,9 @@ const returnGuarantee = async (guaranteeId, notes, userId) => {
 /**
  * Nightly cron: expire overdue guarantee passports.
  */
-const runExpiryCheck = async () => {
+const runExpiryCheck = async (req) => {
+  const GuaranteePassport = getModel(req, 'GuaranteePassport');
+  const Driver = getModel(req, 'Driver');
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -255,7 +265,8 @@ const runExpiryCheck = async () => {
 /**
  * Get all guarantee passport records for a driver, newest first.
  */
-const getGuaranteeHistory = async (driverId) => {
+const getGuaranteeHistory = async (req, driverId) => {
+  const GuaranteePassport = getModel(req, 'GuaranteePassport');
   return GuaranteePassport.find({ driverId })
     .sort({ createdAt: -1 })
     .populate('submittedBy', 'name')

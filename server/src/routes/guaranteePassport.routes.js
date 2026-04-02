@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
 const { sendSuccess, sendError } = require('../utils/responseHelper');
-const { GuaranteePassport } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const guaranteePassportService = require('../services/guaranteePassport.service');
 
 router.use(protect);
@@ -52,6 +52,7 @@ router.get(
   '/drivers/:driverId/passport/guarantee',
   requirePermission('drivers.view'),
   async (req, res) => {
+    const GuaranteePassport = getModel(req, 'GuaranteePassport');
     const guarantee = await GuaranteePassport.findOne({
       driverId: req.params.driverId,
       status: { $in: ['active', 'extended'] },
@@ -82,6 +83,7 @@ router.get(
   '/guarantee-passports',
   requirePermission('guarantee_passports.view'),
   async (req, res) => {
+    const GuaranteePassport = getModel(req, 'GuaranteePassport');
     const records = await GuaranteePassport.find()
       .populate('driverId', 'fullName employeeCode')
       .sort({ createdAt: -1 })
@@ -109,6 +111,7 @@ router.get(
   '/guarantee-passports/pending-extensions',
   requirePermission('roles.manage'),
   async (req, res) => {
+    const GuaranteePassport = getModel(req, 'GuaranteePassport');
     const pending = await GuaranteePassport.find({ 'extensionRequest.status': 'pending' })
       .populate('driverId', 'fullName employeeCode clientId projectId')
       .populate('extensionRequest.requestedBy', 'name')
@@ -124,6 +127,7 @@ router.get(
   '/guarantee-passports/expiring',
   requirePermission('drivers.view'),
   async (req, res) => {
+    const GuaranteePassport = getModel(req, 'GuaranteePassport');
     const days = parseInt(req.query.days) || 7;
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() + days);

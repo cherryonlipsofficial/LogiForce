@@ -59,4 +59,6 @@ const driverDocumentSchema = new mongoose.Schema(
   }
 );
 
-module.exports = mongoose.model('DriverDocument', driverDocumentSchema);
+const DriverDocument = mongoose.model('DriverDocument', driverDocumentSchema);
+module.exports = DriverDocument;
+module.exports.schema = driverDocumentSchema;

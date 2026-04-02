@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const { protect, requirePermission } = require('../middleware/auth');
-const { Client, Driver } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
 const validate = require('../middleware/validate');
@@ -23,6 +23,7 @@ router.use(protect);
 
 // GET /api/clients — list clients with pagination (exclude binary data)
 router.get('/', async (req, res) => {
+  const Client = getModel(req, 'Client');
   const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
   const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (page - 1) * limit;
@@ -45,12 +46,15 @@ router.get('/', async (req, res) => {
 
 // POST /api/clients — create (admin, accountant)
 router.post('/', requirePermission('clients.create'), validate(createClientValidation), async (req, res) => {
+  const Client = getModel(req, 'Client');
   const client = await Client.create(req.body);
   sendSuccess(res, client, 'Client created', 201);
 });
 
 // GET /api/clients/:id — get with driver count (exclude binary data)
 router.get('/:id', async (req, res) => {
+  const Client = getModel(req, 'Client');
+  const Driver = getModel(req, 'Driver');
   const client = await Client.findById(req.params.id).select('-contractFile.data').lean();
   if (!client) return sendError(res, 'Client not found', 404);
 
@@ -63,6 +67,7 @@ router.get('/:id', async (req, res) => {
 
 // PUT /api/clients/:id — update (admin, accountant)
 router.put('/:id', requirePermission('clients.edit'), validate(updateClientValidation), async (req, res) => {
+  const Client = getModel(req, 'Client');
   const client = await Client.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
     runValidators: true,
@@ -74,6 +79,7 @@ router.put('/:id', requirePermission('clients.edit'), validate(updateClientValid
 
 // DELETE /api/clients/:id — delete (admin)
 router.delete('/:id', requirePermission('clients.delete'), async (req, res) => {
+  const Client = getModel(req, 'Client');
   const client = await Client.findByIdAndDelete(req.params.id);
   if (!client) return sendError(res, 'Client not found', 404);
   sendSuccess(res, null, 'Client deleted');
@@ -83,6 +89,7 @@ router.delete('/:id', requirePermission('clients.delete'), async (req, res) => {
 router.post('/:id/contract', requirePermission('clients.edit'), memUpload.single('file'), async (req, res) => {
   if (!req.file) return sendError(res, 'No file uploaded');
 
+  const Client = getModel(req, 'Client');
   const client = await Client.findById(req.params.id).select('-contractFile.data');
   if (!client) return sendError(res, 'Client not found', 404);
 
@@ -103,6 +110,7 @@ router.post('/:id/contract', requirePermission('clients.edit'), memUpload.single
 
 // GET /api/clients/:id/contract — download/view contract PDF (all authenticated users)
 router.get('/:id/contract', async (req, res) => {
+  const Client = getModel(req, 'Client');
   const client = await Client.findById(req.params.id).select('contractFile').lean();
   if (!client) return sendError(res, 'Client not found', 404);
   if (!client.contractFile?.data) return sendError(res, 'No contract file found', 404);
@@ -116,6 +124,7 @@ router.get('/:id/contract', async (req, res) => {
 
 // DELETE /api/clients/:id/contract — remove contract file (admin, accountant)
 router.delete('/:id/contract', requirePermission('clients.edit'), async (req, res) => {
+  const Client = getModel(req, 'Client');
   const client = await Client.findById(req.params.id).select('-contractFile.data');
   if (!client) return sendError(res, 'Client not found', 404);
   if (!client.contractFile?.originalName) return sendError(res, 'No contract file found', 404);
@@ -128,6 +137,7 @@ router.delete('/:id/contract', requirePermission('clients.edit'), async (req, re
 
 // GET /api/clients/:id/drivers — list drivers for this client
 router.get('/:id/drivers', async (req, res) => {
+  const Driver = getModel(req, 'Driver');
   const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
   const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (page - 1) * limit;

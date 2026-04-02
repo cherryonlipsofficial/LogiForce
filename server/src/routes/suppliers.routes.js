@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
-const { Supplier, Vehicle } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
 const validate = require('../middleware/validate');
@@ -12,6 +12,8 @@ router.use(protect);
 
 // GET /api/suppliers
 router.get('/', async (req, res) => {
+  const Supplier = getModel(req, 'Supplier');
+  const Vehicle = getModel(req, 'Vehicle');
   const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
   const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (page - 1) * limit;
@@ -46,12 +48,14 @@ router.get('/', async (req, res) => {
 
 // POST /api/suppliers
 router.post('/', requirePermission('suppliers.create'), validate(createSupplierValidation), async (req, res) => {
+  const Supplier = getModel(req, 'Supplier');
   const supplier = await Supplier.create(req.body);
   sendSuccess(res, supplier, 'Supplier created', 201);
 });
 
 // GET /api/suppliers/:id
 router.get('/:id', async (req, res) => {
+  const Supplier = getModel(req, 'Supplier');
   const supplier = await Supplier.findById(req.params.id);
   if (!supplier) return sendError(res, 'Supplier not found', 404);
   sendSuccess(res, supplier);
@@ -59,6 +63,7 @@ router.get('/:id', async (req, res) => {
 
 // PUT /api/suppliers/:id
 router.put('/:id', requirePermission('suppliers.edit'), validate(updateSupplierValidation), async (req, res) => {
+  const Supplier = getModel(req, 'Supplier');
   const supplier = await Supplier.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
     runValidators: true,
@@ -69,6 +74,7 @@ router.put('/:id', requirePermission('suppliers.edit'), validate(updateSupplierV
 
 // DELETE /api/suppliers/:id
 router.delete('/:id', requirePermission('suppliers.delete'), async (req, res) => {
+  const Supplier = getModel(req, 'Supplier');
   const supplier = await Supplier.findByIdAndDelete(req.params.id);
   if (!supplier) return sendError(res, 'Supplier not found', 404);
   sendSuccess(res, null, 'Supplier deleted');

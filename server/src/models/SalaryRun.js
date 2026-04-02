@@ -186,4 +186,6 @@ salaryRunSchema.pre('save', async function (next) {
   next();
 });
 
-module.exports = mongoose.model('SalaryRun', salaryRunSchema);
+const SalaryRun = mongoose.model('SalaryRun', salaryRunSchema);
+module.exports = SalaryRun;
+module.exports.schema = salaryRunSchema;

@@ -1,10 +1,14 @@
-const { AttendanceBatch, SalaryRun, DriverAdvance, GuaranteePassport, User } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 
 /**
  * Returns a summary of all pending approvals relevant to the current user,
  * based on their role and permissions.
  */
-async function getPendingApprovalsSummary(user) {
+async function getPendingApprovalsSummary(req, user) {
+  const AttendanceBatch = getModel(req, 'AttendanceBatch');
+  const SalaryRun = getModel(req, 'SalaryRun');
+  const DriverAdvance = getModel(req, 'DriverAdvance');
+  const GuaranteePassport = getModel(req, 'GuaranteePassport');
   const permissions = await user.getPermissions();
   const permSet = new Set(permissions);
   const isSystemAdmin = user.roleId?.isSystemRole === true;

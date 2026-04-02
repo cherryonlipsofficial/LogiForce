@@ -72,4 +72,6 @@ driverAdvanceSchema.set('toObject', { virtuals: true });
 driverAdvanceSchema.index({ driverId: 1, status: 1 });
 driverAdvanceSchema.index({ projectId: 1, status: 1 });
 
-module.exports = mongoose.model('DriverAdvance', driverAdvanceSchema);
+const DriverAdvance = mongoose.model('DriverAdvance', driverAdvanceSchema);
+module.exports = DriverAdvance;
+module.exports.schema = driverAdvanceSchema;

@@ -1,6 +1,7 @@
-const { AppNotification, User, Role } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 
-async function notifyUsers(userIds, payload) {
+async function notifyUsers(req, userIds, payload) {
+  const AppNotification = getModel(req, 'AppNotification');
   if (!userIds || !userIds.length) return 0;
   await AppNotification.insertMany(
     userIds.map((uid) => ({ recipientId: uid, ...payload }))
@@ -11,7 +12,9 @@ async function notifyUsers(userIds, payload) {
 /**
  * @deprecated Use notifyByPermission() instead — it is decoupled from role names.
  */
-async function notifyByRole(roleNames, payload) {
+async function notifyByRole(req, roleNames, payload) {
+  const Role = getModel(req, 'Role');
+  const User = getModel(req, 'User');
   const roles = await Role.find({ name: { $in: roleNames } }).select('_id');
   const users = await User.find({
     roleId: { $in: roles.map((r) => r._id) },
@@ -19,7 +22,7 @@ async function notifyByRole(roleNames, payload) {
   }).select('_id name');
 
   if (!users.length) return 0;
-  await notifyUsers(users.map((u) => u._id), payload);
+  await notifyUsers(req, users.map((u) => u._id), payload);
   return users.length;
 }
 
@@ -32,7 +35,10 @@ async function notifyByRole(roleNames, payload) {
  * This is the PREFERRED method over notifyByRole() because
  * it's decoupled from role names — works even if roles are renamed.
  */
-async function notifyByPermission(permissionKey, payload) {
+async function notifyByPermission(req, permissionKey, payload) {
+  const Role = getModel(req, 'Role');
+  const User = getModel(req, 'User');
+  const AppNotification = getModel(req, 'AppNotification');
   // 1. Find all roles that contain this permission
   const roles = await Role.find({
     permissions: permissionKey,
@@ -75,11 +81,13 @@ async function notifyByPermission(permissionKey, payload) {
   return allUserIds.length;
 }
 
-async function getUnreadCount(userId) {
+async function getUnreadCount(req, userId) {
+  const AppNotification = getModel(req, 'AppNotification');
   return AppNotification.countDocuments({ recipientId: userId, isRead: false });
 }
 
-async function getUserNotifications(userId, page = 1, limit = 20, { filter, type } = {}) {
+async function getUserNotifications(req, userId, page = 1, limit = 20, { filter, type } = {}) {
+  const AppNotification = getModel(req, 'AppNotification');
   const skip = (page - 1) * limit;
   const query = { recipientId: userId };
 
@@ -121,14 +129,16 @@ async function getUserNotifications(userId, page = 1, limit = 20, { filter, type
   return { notifications, total, unreadCount, page, limit };
 }
 
-async function markAsRead(notificationId, userId) {
+async function markAsRead(req, notificationId, userId) {
+  const AppNotification = getModel(req, 'AppNotification');
   await AppNotification.findOneAndUpdate(
     { _id: notificationId, recipientId: userId },
     { isRead: true, readAt: new Date() }
   );
 }
 
-async function markAllAsRead(userId) {
+async function markAllAsRead(req, userId) {
+  const AppNotification = getModel(req, 'AppNotification');
   await AppNotification.updateMany(
     { recipientId: userId, isRead: false },
     { isRead: true, readAt: new Date() }

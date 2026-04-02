@@ -1,19 +1,16 @@
-const {
-  AttendanceBatch,
-  AttendanceRecord,
-  SalaryRun,
-  Driver,
-  DriverAdvance,
-  DriverLedger,
-  Project,
-  User,
-} = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { notifyUsers } = require('./notification.service');
 
 /**
  * Generate salary runs for all drivers in an approved attendance batch.
  */
-async function runSalaryForBatch(batchId, processedByUserId) {
+async function runSalaryForBatch(req, batchId, processedByUserId) {
+  const AttendanceBatch = getModel(req, 'AttendanceBatch');
+  const AttendanceRecord = getModel(req, 'AttendanceRecord');
+  const SalaryRun = getModel(req, 'SalaryRun');
+  const DriverAdvance = getModel(req, 'DriverAdvance');
+  const DriverLedger = getModel(req, 'DriverLedger');
+
   // STEP 1 — Validate batch
   const batch = await AttendanceBatch.findById(batchId)
     .populate('projectId', 'name projectCode')
@@ -130,7 +127,7 @@ async function runSalaryForBatch(batchId, processedByUserId) {
 
       // STEP 5 — Retrieve previous month's deduction carryover
       const deductions = [];
-      const carryover = await getDeductionCarryover(driver._id, batchYear, batchMonth);
+      const carryover = await getDeductionCarryover(req, driver._id, batchYear, batchMonth);
       if (carryover > 0) {
         deductions.push({
           type: 'deduction_carryover',
@@ -187,7 +184,7 @@ async function runSalaryForBatch(batchId, processedByUserId) {
 
       // STEP 8 — Store carryover for next month if needed
       if (deductionCarryover > 0) {
-        await storeDeductionCarryover(driver._id, batchYear, batchMonth, deductionCarryover);
+        await storeDeductionCarryover(req, driver._id, batchYear, batchMonth, deductionCarryover);
       }
 
       // STEP 9 — Mark advance installments as recovered
@@ -238,7 +235,9 @@ async function runSalaryForBatch(batchId, processedByUserId) {
 /**
  * Get all salary runs for a given attendance batch.
  */
-async function getSalaryRunsByBatch(batchId) {
+async function getSalaryRunsByBatch(req, batchId) {
+  const SalaryRun = getModel(req, 'SalaryRun');
+
   return SalaryRun.find({ attendanceBatchId: batchId, isDeleted: { $ne: true } })
     .populate('driverId', 'fullName employeeCode')
     .populate('advanceDeductions.advanceId', 'amount reason')
@@ -250,7 +249,9 @@ async function getSalaryRunsByBatch(batchId) {
  * Store deduction carryover for the next month via DriverLedger.
  * Idempotent: removes any existing carryover for the same source period before creating.
  */
-async function storeDeductionCarryover(driverId, year, month, amount) {
+async function storeDeductionCarryover(req, driverId, year, month, amount) {
+  const DriverLedger = getModel(req, 'DriverLedger');
+
   let nextMonth = month + 1;
   let nextYear = year;
   if (nextMonth > 12) {
@@ -288,7 +289,9 @@ async function storeDeductionCarryover(driverId, year, month, amount) {
  * Get deduction carryover from a previous month.
  * Sums all matching carryover entries and excludes deleted entries.
  */
-async function getDeductionCarryover(driverId, year, month) {
+async function getDeductionCarryover(req, driverId, year, month) {
+  const DriverLedger = getModel(req, 'DriverLedger');
+
   const carryoverEntries = await DriverLedger.find({
     driverId,
     referenceId: new RegExp(`^carryover_`),

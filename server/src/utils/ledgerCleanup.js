@@ -1,5 +1,5 @@
-const mongoose = require('mongoose');
 const logger = require('./logger');
+const { getModel, getModelForConnection } = require('../config/modelRegistry');
 
 /**
  * Clean up orphaned DriverLedger entries whose referenced SalaryRun
@@ -7,10 +7,26 @@ const logger = require('./logger');
  *
  * - Ledger entries with a salaryRunId pointing to a non-existent SalaryRun → hard delete
  * - Ledger entries with a salaryRunId pointing to a soft-deleted SalaryRun → mark isDeleted
+ *
+ * @param {Object} [reqOrConn] - Express request object OR a Mongoose connection (for cron jobs)
  */
-const cleanupOrphanedLedgerEntries = async () => {
-  const DriverLedger = mongoose.model('DriverLedger');
-  const SalaryRun = mongoose.model('SalaryRun');
+const cleanupOrphanedLedgerEntries = async (reqOrConn) => {
+  let DriverLedger, SalaryRun;
+
+  if (reqOrConn && reqOrConn.tenantConnection) {
+    // Called from a route handler — reqOrConn is req
+    DriverLedger = getModel(reqOrConn, 'DriverLedger');
+    SalaryRun = getModel(reqOrConn, 'SalaryRun');
+  } else if (reqOrConn && typeof reqOrConn.model === 'function') {
+    // Called from a cron job — reqOrConn is a Mongoose connection
+    DriverLedger = getModelForConnection(reqOrConn, 'DriverLedger');
+    SalaryRun = getModelForConnection(reqOrConn, 'SalaryRun');
+  } else {
+    // Fallback: use default mongoose connection (legacy / single-tenant)
+    const mongoose = require('mongoose');
+    DriverLedger = mongoose.model('DriverLedger');
+    SalaryRun = mongoose.model('SalaryRun');
+  }
 
   // 1. Find all distinct salaryRunIds referenced by non-deleted ledger entries
   const ledgerSalaryRunIds = await DriverLedger.distinct('salaryRunId', {

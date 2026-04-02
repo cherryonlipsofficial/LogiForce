@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
 const invoiceService = require('../services/invoice.service');
-const { Invoice, Client, AttendanceBatch } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { generateInvoicePDF } = require('../utils/pdfGenerator');
 const { PAGINATION } = require('../config/constants');
@@ -14,6 +14,8 @@ router.use(protect);
 
 // GET /api/invoices/approved-batches — get fully approved attendance batches for invoice generation
 router.get('/approved-batches', async (req, res) => {
+  const Invoice = getModel(req, 'Invoice');
+  const AttendanceBatch = getModel(req, 'AttendanceBatch');
   const query = { status: { $in: ['fully_approved', 'processed', 'invoiced'] } };
   if (req.query.clientId) query.clientId = req.query.clientId;
   if (req.query.projectId) query.projectId = req.query.projectId;
@@ -63,6 +65,7 @@ router.post('/generate', requirePermission('invoices.generate'), validate(genera
 
 // GET /api/invoices — list with filters
 router.get('/', requirePermission('invoices.view'), async (req, res) => {
+  const Invoice = getModel(req, 'Invoice');
   const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
   const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (page - 1) * limit;
@@ -90,6 +93,7 @@ router.get('/', requirePermission('invoices.view'), async (req, res) => {
 
 // GET /api/invoices/:id — get invoice with line items
 router.get('/:id', requirePermission('invoices.view'), async (req, res) => {
+  const Invoice = getModel(req, 'Invoice');
   const invoice = await Invoice.findOne({ _id: req.params.id, isDeleted: { $ne: true } })
     .populate('clientId')
     .populate('createdBy', 'name')
@@ -102,6 +106,7 @@ router.get('/:id', requirePermission('invoices.view'), async (req, res) => {
 
 // PUT /api/invoices/:id/status — update status
 router.put('/:id/status', requirePermission('invoices.edit'), validate(updateInvoiceStatusValidation), async (req, res) => {
+  const Invoice = getModel(req, 'Invoice');
   const { status } = req.body;
 
   const invoice = await Invoice.findById(req.params.id);
@@ -127,6 +132,8 @@ router.put('/:id/status', requirePermission('invoices.edit'), validate(updateInv
 
 // GET /api/invoices/:id/pdf — generate PDF
 router.get('/:id/pdf', requirePermission('invoices.download'), async (req, res) => {
+  const Invoice = getModel(req, 'Invoice');
+  const CompanySettings = getModel(req, 'CompanySettings');
   const invoice = await Invoice.findById(req.params.id)
     .populate('clientId')
     .populate('projectId', 'name projectCode ratePerDriver')
@@ -140,7 +147,6 @@ router.get('/:id/pdf', requirePermission('invoices.download'), async (req, res) 
 
   const project = invoice.projectId;
 
-  const CompanySettings = require('../models/CompanySettings');
   const companySettings = await CompanySettings.getSettings();
 
   const pdfBuffer = await generateInvoicePDF(invoice, client, project, companySettings);
@@ -172,6 +178,8 @@ router.put('/:id/payment', requirePermission('invoices.edit'), async (req, res) 
 
 // DELETE /api/invoices/:id — delete invoice (soft delete if paid, hard delete otherwise)
 router.delete('/:id', requirePermission('invoices.delete'), async (req, res) => {
+  const Invoice = getModel(req, 'Invoice');
+  const AttendanceBatch = getModel(req, 'AttendanceBatch');
   const invoice = await Invoice.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
   if (!invoice) return sendError(res, 'Invoice not found', 404);
 

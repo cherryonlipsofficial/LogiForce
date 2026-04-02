@@ -93,4 +93,6 @@ vehicleSchema.index({ status: 1 });
 vehicleSchema.index({ supplierId: 1 });
 vehicleSchema.index({ assignedDriverId: 1 });
 
-module.exports = mongoose.model('Vehicle', vehicleSchema);
+const Vehicle = mongoose.model('Vehicle', vehicleSchema);
+module.exports = Vehicle;
+module.exports.schema = vehicleSchema;

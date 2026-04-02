@@ -63,4 +63,6 @@ const driverLedgerSchema = new mongoose.Schema(
   }
 );
 
-module.exports = mongoose.model('DriverLedger', driverLedgerSchema);
+const DriverLedger = mongoose.model('DriverLedger', driverLedgerSchema);
+module.exports = DriverLedger;
+module.exports.schema = driverLedgerSchema;

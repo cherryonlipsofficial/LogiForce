@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
 const creditNoteService = require('../services/creditNote.service');
-const { CreditNote } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
 const { generateCreditNotePDF } = require('../utils/pdfGenerator');
@@ -19,6 +19,7 @@ router.use(protect);
 
 // GET /api/credit-notes/settlement-summary — dashboard KPIs
 router.get('/settlement-summary', requirePermission('credit_notes.view'), async (req, res) => {
+  const CreditNote = getModel(req, 'CreditNote');
   const baseQuery = { isDeleted: { $ne: true } };
 
   const [total, settled, pending, totalAmountAgg] = await Promise.all([
@@ -48,6 +49,7 @@ router.post('/', requirePermission('credit_notes.create'), validate(createCredit
 
 // GET /api/credit-notes — list with filters
 router.get('/', requirePermission('credit_notes.view'), async (req, res) => {
+  const CreditNote = getModel(req, 'CreditNote');
   const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
   const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (page - 1) * limit;
@@ -76,6 +78,7 @@ router.get('/', requirePermission('credit_notes.view'), async (req, res) => {
 
 // GET /api/credit-notes/:id — get single with populated fields
 router.get('/:id', requirePermission('credit_notes.view'), async (req, res) => {
+  const CreditNote = getModel(req, 'CreditNote');
   const cn = await CreditNote.findOne({ _id: req.params.id, isDeleted: { $ne: true } })
     .populate('clientId', 'name')
     .populate('projectId', 'name projectCode')
@@ -124,6 +127,7 @@ router.put('/:id/lines/:lineId/resolve', requirePermission('credit_notes.settle'
 
 // DELETE /api/credit-notes/:id — delete (draft only)
 router.delete('/:id', requirePermission('credit_notes.delete'), async (req, res) => {
+  const CreditNote = getModel(req, 'CreditNote');
   const cn = await CreditNote.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
   if (!cn) return sendError(res, 'Credit note not found', 404);
 
@@ -143,6 +147,8 @@ router.delete('/:id', requirePermission('credit_notes.delete'), async (req, res)
 
 // GET /api/credit-notes/:id/pdf — generate PDF
 router.get('/:id/pdf', requirePermission('credit_notes.download'), async (req, res) => {
+  const CreditNote = getModel(req, 'CreditNote');
+  const CompanySettings = getModel(req, 'CompanySettings');
   const cn = await CreditNote.findById(req.params.id)
     .populate('clientId')
     .populate('projectId', 'name projectCode')
@@ -153,7 +159,6 @@ router.get('/:id/pdf', requirePermission('credit_notes.download'), async (req, r
   const client = cn.clientId;
   const project = cn.projectId;
 
-  const CompanySettings = require('../models/CompanySettings');
   const companySettings = await CompanySettings.getSettings();
 
   const pdfBuffer = await generateCreditNotePDF(cn, client, project, companySettings);

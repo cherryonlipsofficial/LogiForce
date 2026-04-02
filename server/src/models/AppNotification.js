@@ -59,4 +59,6 @@ const appNotificationSchema = new Schema(
 
 appNotificationSchema.index({ recipientId: 1, isRead: 1, createdAt: -1 });
 
-module.exports = mongoose.model('AppNotification', appNotificationSchema);
+const AppNotification = mongoose.model('AppNotification', appNotificationSchema);
+module.exports = AppNotification;
+module.exports.schema = appNotificationSchema;

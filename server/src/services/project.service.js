@@ -1,11 +1,4 @@
-const {
-  Project,
-  ProjectContract,
-  DriverProjectAssignment,
-  Driver,
-  Client,
-  SalaryRun,
-} = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const auditLogger = require('../utils/auditLogger');
 const { PAGINATION } = require('../config/constants');
 
@@ -19,7 +12,11 @@ const throwErr = (message, statusCode) => {
 
 // ─── listProjects ─────────────────────────────────────────────────────────────
 
-const listProjects = async (clientId, filters = {}, pagination = {}) => {
+const listProjects = async (req, clientId, filters = {}, pagination = {}) => {
+  const Project = getModel(req, 'Project');
+  const ProjectContract = getModel(req, 'ProjectContract');
+  const Driver = getModel(req, 'Driver');
+
   const page = parseInt(pagination.page) || PAGINATION.DEFAULT_PAGE;
   const limit = parseInt(pagination.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (page - 1) * limit;
@@ -103,7 +100,11 @@ const listProjects = async (clientId, filters = {}, pagination = {}) => {
 
 // ─── getProject ───────────────────────────────────────────────────────────────
 
-const getProject = async (id) => {
+const getProject = async (req, id) => {
+  const Project = getModel(req, 'Project');
+  const ProjectContract = getModel(req, 'ProjectContract');
+  const Driver = getModel(req, 'Driver');
+
   const project = await Project.findById(id).populate('clientId').lean();
   if (!project) throwErr('Project not found', 404);
 
@@ -137,7 +138,10 @@ const getProject = async (id) => {
 
 // ─── createProject ────────────────────────────────────────────────────────────
 
-const createProject = async (data, userId) => {
+const createProject = async (req, data, userId) => {
+  const Project = getModel(req, 'Project');
+  const Client = getModel(req, 'Client');
+
   // 1. Validate client exists and is active
   const client = await Client.findById(data.clientId);
   if (!client) throwErr('Client not found', 404);
@@ -165,6 +169,7 @@ const createProject = async (data, userId) => {
   let contract = null;
   if (contractData) {
     contract = await createProjectContract(
+      req,
       project._id,
       {
         ...contractData,
@@ -183,7 +188,9 @@ const createProject = async (data, userId) => {
 
 // ─── updateProject ────────────────────────────────────────────────────────────
 
-const updateProject = async (id, data, userId) => {
+const updateProject = async (req, id, data, userId) => {
+  const Project = getModel(req, 'Project');
+
   const project = await Project.findById(id);
   if (!project) throwErr('Project not found', 404);
 
@@ -212,7 +219,10 @@ const updateProject = async (id, data, userId) => {
 
 // ─── createProjectContract ────────────────────────────────────────────────────
 
-const createProjectContract = async (projectId, contractData, userId) => {
+const createProjectContract = async (req, projectId, contractData, userId) => {
+  const Project = getModel(req, 'Project');
+  const ProjectContract = getModel(req, 'ProjectContract');
+
   // 1. Check no other active contract exists
   const existingActive = await ProjectContract.findOne({
     projectId,
@@ -266,7 +276,10 @@ const createProjectContract = async (projectId, contractData, userId) => {
 
 // ─── renewProjectContract ─────────────────────────────────────────────────────
 
-const renewProjectContract = async (projectId, newContractData, userId) => {
+const renewProjectContract = async (req, projectId, newContractData, userId) => {
+  const Project = getModel(req, 'Project');
+  const ProjectContract = getModel(req, 'ProjectContract');
+
   // 1. Find current active contract
   const oldContract = await ProjectContract.findOne({
     projectId,
@@ -315,10 +328,14 @@ const renewProjectContract = async (projectId, newContractData, userId) => {
 // ─── terminateProjectContract ─────────────────────────────────────────────────
 
 const terminateProjectContract = async (
+  req,
   contractId,
   { reason, terminationDate },
   userId
 ) => {
+  const Project = getModel(req, 'Project');
+  const ProjectContract = getModel(req, 'ProjectContract');
+
   const contract = await ProjectContract.findById(contractId);
   if (!contract) throwErr('Project contract not found', 404);
   if (contract.status !== 'active') {
@@ -347,11 +364,17 @@ const terminateProjectContract = async (
 // ─── assignDriverToProject ────────────────────────────────────────────────────
 
 const assignDriverToProject = async (
+  req,
   driverId,
   projectId,
   { reason, contractId },
   assignedByUserId
 ) => {
+  const Project = getModel(req, 'Project');
+  const ProjectContract = getModel(req, 'ProjectContract');
+  const DriverProjectAssignment = getModel(req, 'DriverProjectAssignment');
+  const Driver = getModel(req, 'Driver');
+
   // 1. Find driver and project
   const driver = await Driver.findById(driverId);
   if (!driver) throwErr('Driver not found', 404);
@@ -409,7 +432,10 @@ const assignDriverToProject = async (
 
 // ─── unassignDriverFromProject ────────────────────────────────────────────────
 
-const unassignDriverFromProject = async (driverId, { reason }, userId) => {
+const unassignDriverFromProject = async (req, driverId, { reason }, userId) => {
+  const Driver = getModel(req, 'Driver');
+  const DriverProjectAssignment = getModel(req, 'DriverProjectAssignment');
+
   const driver = await Driver.findById(driverId);
   if (!driver) throwErr('Driver not found', 404);
 
@@ -442,7 +468,9 @@ const unassignDriverFromProject = async (driverId, { reason }, userId) => {
 
 // ─── getProjectDriverHistory ──────────────────────────────────────────────────
 
-const getProjectDriverHistory = async (projectId) => {
+const getProjectDriverHistory = async (req, projectId) => {
+  const DriverProjectAssignment = getModel(req, 'DriverProjectAssignment');
+
   return DriverProjectAssignment.find({ projectId })
     .populate('driverId', 'fullName employeeCode nationality')
     .sort({ createdAt: -1 })
@@ -451,7 +479,9 @@ const getProjectDriverHistory = async (projectId) => {
 
 // ─── getDriverProjectHistory ──────────────────────────────────────────────────
 
-const getDriverProjectHistory = async (driverId) => {
+const getDriverProjectHistory = async (req, driverId) => {
+  const DriverProjectAssignment = getModel(req, 'DriverProjectAssignment');
+
   return DriverProjectAssignment.find({ driverId })
     .populate({
       path: 'projectId',
@@ -464,7 +494,11 @@ const getDriverProjectHistory = async (driverId) => {
 
 // ─── getProjectStats (per client) ─────────────────────────────────────────────
 
-const getProjectStats = async (clientId) => {
+const getProjectStats = async (req, clientId) => {
+  const Project = getModel(req, 'Project');
+  const ProjectContract = getModel(req, 'ProjectContract');
+  const Driver = getModel(req, 'Driver');
+
   const projects = await Project.find({ clientId }).select('_id status').lean();
   const projectIds = projects.map((p) => p._id);
 
@@ -516,7 +550,12 @@ const getProjectStats = async (clientId) => {
 
 // ─── getProjectSummary ───────────────────────────────────────────────────────
 
-const getProjectSummary = async (id) => {
+const getProjectSummary = async (req, id) => {
+  const Project = getModel(req, 'Project');
+  const ProjectContract = getModel(req, 'ProjectContract');
+  const Driver = getModel(req, 'Driver');
+  const SalaryRun = getModel(req, 'SalaryRun');
+
   const project = await Project.findById(id)
     .select('name projectCode status ratePerDriver')
     .populate('clientId', 'name')

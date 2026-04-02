@@ -3,12 +3,11 @@ const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const { protect } = require('../middleware/auth');
 const authService = require('../services/auth.service');
-const User = require('../models/User');
+const { getModel } = require('../config/modelRegistry');
 const bcrypt = require('bcryptjs');
 const { sendSuccess, sendError } = require('../utils/responseHelper');
 const validate = require('../middleware/validate');
 const { loginValidation, registerValidation, changePasswordValidation } = require('../middleware/validators/auth.validators');
-const AuditLog = require('../models/AuditLog');
 
 // Rate limit on login: 5 requests per minute
 const loginLimiter = rateLimit({
@@ -57,6 +56,7 @@ router.post('/login', loginLimiter, validate(loginValidation), async (req, res) 
 
 // GET /api/auth/me
 router.get('/me', protect, async (req, res) => {
+  const User = getModel(req, 'User');
   const user = await User.findById(req.user.id).populate('roleId');
   if (!user) return sendError(res, 'User not found', 404);
   const authData = await authService.buildAuthResponse(user);
@@ -74,6 +74,7 @@ router.put('/change-password', protect, validate(changePasswordValidation), asyn
     return sendError(res, 'New password must be at least 8 characters');
   }
 
+  const User = getModel(req, 'User');
   const user = await User.findById(req.user.id).select('+password');
   if (!(await user.comparePassword(currentPassword))) {
     return sendError(res, 'Current password is incorrect');
@@ -91,6 +92,7 @@ router.put('/change-password', protect, validate(changePasswordValidation), asyn
 
 // GET /api/auth/permissions — current user's effective permission set (for frontend AuthContext)
 router.get('/permissions', protect, async (req, res) => {
+  const User = getModel(req, 'User');
   const user = await User.findById(req.user.id)
     .populate('roleId', 'name displayName permissions isSystemRole');
   if (!user) return sendError(res, 'User not found', 404);
@@ -110,6 +112,7 @@ router.get('/permissions', protect, async (req, res) => {
 
 // GET /api/auth/profile — full profile for current user
 router.get('/profile', protect, async (req, res) => {
+  const User = getModel(req, 'User');
   const user = await User.findById(req.user._id)
     .populate('roleId', 'name displayName description permissions')
     .populate('activatedBy', 'name')
@@ -154,6 +157,9 @@ router.put('/profile', protect, async (req, res) => {
     return sendError(res, 'A valid email is required');
   }
 
+  const User = getModel(req, 'User');
+  const AuditLog = getModel(req, 'AuditLog');
+
   // Check email uniqueness
   const existing = await User.findOne({ email: email.toLowerCase(), _id: { $ne: req.user._id } }).lean();
   if (existing) {
@@ -193,6 +199,7 @@ router.put('/profile/avatar', protect, async (req, res) => {
     return sendError(res, 'Invalid color. Must be one of: ' + validColors.join(', '));
   }
 
+  const User = getModel(req, 'User');
   const user = await User.findById(req.user._id);
   if (!user) return sendError(res, 'User not found', 404);
 

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
-const { Advance, DriverLedger, DriverAdvance } = require('../models');
+const { getModel } = require('../config/modelRegistry');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const { PAGINATION } = require('../config/constants');
 const validate = require('../middleware/validate');
@@ -14,6 +14,8 @@ router.use(protect);
 
 // POST /api/advances — issue advance to driver
 router.post('/', requirePermission('advances.approve'), validate(issueAdvanceValidation), async (req, res) => {
+  const Advance = getModel(req, 'Advance');
+  const DriverLedger = getModel(req, 'DriverLedger');
   const { driverId, amountIssued, notes } = req.body;
 
   const advance = await Advance.create({
@@ -48,6 +50,7 @@ router.post('/', requirePermission('advances.approve'), validate(issueAdvanceVal
 
 // GET /api/advances — list all advances
 router.get('/', requirePermission('advances.view'), async (req, res) => {
+  const Advance = getModel(req, 'Advance');
   const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
   const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (page - 1) * limit;
@@ -72,6 +75,8 @@ router.get('/', requirePermission('advances.view'), async (req, res) => {
 
 // PUT /api/advances/:id/recover — manual recovery entry
 router.put('/:id/recover', requirePermission('advances.manage_recovery'), validate(recoverAdvanceValidation), async (req, res) => {
+  const Advance = getModel(req, 'Advance');
+  const DriverLedger = getModel(req, 'DriverLedger');
   const { amount, salaryRunId } = req.body;
 
   const advance = await Advance.findById(req.params.id);
@@ -143,6 +148,7 @@ router.post('/driver', requirePermission('advances.request'), async (req, res) =
 
 // GET /api/advances/driver — list driver advances with filters + pagination + stats
 router.get('/driver', requirePermission('advances.view'), async (req, res) => {
+  const DriverAdvance = getModel(req, 'DriverAdvance');
   const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
   const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
   const skip = (page - 1) * limit;
@@ -191,6 +197,7 @@ router.get('/driver', requirePermission('advances.view'), async (req, res) => {
 
 // GET /api/advances/driver/:id — single driver advance
 router.get('/driver/:id', requirePermission('advances.view'), async (req, res) => {
+  const DriverAdvance = getModel(req, 'DriverAdvance');
   const advance = await DriverAdvance.findById(req.params.id)
     .populate('driverId', 'fullName employeeCode clientUserId baseSalary')
     .populate('projectId', 'name')
@@ -227,6 +234,7 @@ router.put('/driver/:id/review', requirePermission('advances.approve'), async (r
 
 // GET /api/advances/by-driver/:id — advances for a specific driver
 router.get('/by-driver/:id', requirePermission('advances.view'), async (req, res) => {
+  const DriverAdvance = getModel(req, 'DriverAdvance');
   const advances = await DriverAdvance.find({ driverId: req.params.id })
     .populate('requestedBy', 'name')
     .populate('reviewedBy', 'name')
