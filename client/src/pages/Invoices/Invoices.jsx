@@ -101,7 +101,7 @@ const Invoices = () => {
             <table style={{ width: '100%' }}>
               <thead>
                 <tr>
-                  {['Invoice', 'Client', 'Period', 'Amount', 'Status', 'Issue date', 'Due date', 'Credit notes'].map((h) => (
+                  {['Invoice', 'Client', 'Project', 'Period', 'Amount', 'Status', 'Issue date', 'Due date', 'Credit notes'].map((h) => (
                     <th key={h} style={{ padding: '9px 14px', fontSize: 11, color: 'var(--text3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'left', background: 'var(--surface2)' }}>
                       {h}
                     </th>
@@ -123,9 +123,10 @@ const Invoices = () => {
                         <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>{inv.invoiceNo || inv._id}</span>
                       </td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{inv.client}</td>
+                      <td style={{ padding: '11px 14px', fontSize: 12 }}>{inv.projectName || '—'}</td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{inv.period}</td>
                       <td style={{ padding: '11px 14px' }}>
-                        <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{formatCurrencyFull(inv.amount)}</span>
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{inv.status === 'paid' ? formatCurrencyFull(inv.amountReceived != null ? inv.amountReceived : (inv.adjustedTotal != null ? inv.adjustedTotal : inv.amount)) : formatCurrencyFull(inv.amount)}</span>
                       </td>
                       <td style={{ padding: '11px 14px' }}><Badge variant={st.variant}>{st.label}</Badge></td>
                       <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--text3)' }}>{formatDate(inv.issueDate)}</td>

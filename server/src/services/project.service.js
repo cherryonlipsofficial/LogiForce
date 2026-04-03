@@ -51,7 +51,7 @@ const listProjects = async (req, clientId, filters = {}, pagination = {}) => {
 
   const [projects, total] = await Promise.all([
     Project.find(query)
-      .populate('clientId', 'name')
+      .populate('clientId', 'name tradeLicenceNo')
       .sort({ clientId: 1, name: 1 })
       .skip(skip)
       .limit(limit)
