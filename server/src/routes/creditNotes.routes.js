@@ -22,12 +22,14 @@ router.get('/settlement-summary', requirePermission('credit_notes.view'), async 
   const CreditNote = getModel(req, 'CreditNote');
   const baseQuery = { isDeleted: { $ne: true } };
 
+  const unadjustedQuery = { ...baseQuery, status: { $in: ['draft', 'sent'] } };
+
   const [total, settled, pending, totalAmountAgg] = await Promise.all([
     CreditNote.countDocuments(baseQuery),
     CreditNote.countDocuments({ ...baseQuery, status: 'settled' }),
     CreditNote.countDocuments({ ...baseQuery, status: { $nin: ['settled', 'cancelled'] } }),
     CreditNote.aggregate([
-      { $match: baseQuery },
+      { $match: unadjustedQuery },
       { $group: { _id: null, totalAmount: { $sum: '$totalAmount' } } },
     ]),
   ]);
