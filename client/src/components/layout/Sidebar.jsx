@@ -17,6 +17,7 @@ const mainNavItems = [
   { path: '/projects', label: 'Projects', icon: '◪', permission: 'projects.view' },
   { path: '/suppliers', label: 'Suppliers', icon: '◑', permission: 'suppliers.view' },
   { path: '/vehicles', label: 'Vehicles', icon: '◫', permission: 'vehicles.view' },
+  { path: '/simcards', label: 'SIM cards', icon: '◎', permission: 'simcards.view' },
   { path: '/reports', label: 'Reports', icon: '▨', permission: 'reports.view' },
   { path: '/statement-of-accounts', label: 'Statement of accounts', icon: '▨', permission: 'reports.statement_of_accounts' },
   { path: '/guarantee-passports', label: 'Guarantee passports', icon: '◎', permission: 'guarantee_passports.view' },

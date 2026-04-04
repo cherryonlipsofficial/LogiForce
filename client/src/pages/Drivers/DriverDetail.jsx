@@ -17,6 +17,7 @@ import PassportSubmissionField from '../../components/drivers/PassportSubmission
 import GuaranteePassportCard from '../../components/drivers/GuaranteePassportCard';
 import { getProjects } from '../../api/projectsApi';
 import { getVehicle, getCurrentDriverVehicle, getDriverVehicleHistory } from '../../api/vehiclesApi';
+import { getSimCard, getDriverSimHistory } from '../../api/simcardsApi';
 import DriverStatusBanner from '../../components/drivers/DriverStatusBanner';
 import ChangeStatusModalNew from '../../components/drivers/ChangeStatusModal';
 import DriverHistoryTab from '../../components/drivers/DriverHistoryTab';
@@ -149,6 +150,13 @@ const DriverDetail = ({ driver, onClose }) => {
   });
   const currentVehicle = vehicleData?.vehicle || null;
   const currentVehicleAssignment = vehicleData?.assignment || null;
+
+  const { data: currentSimData } = useQuery({
+    queryKey: ['driver-current-sim', driverId],
+    queryFn: () => getSimCard(d.telecomSimId),
+    enabled: !!d?.telecomSimId,
+  });
+  const currentSim = currentSimData?.data || null;
 
 const { data: statusSummaryData } = useQuery({
     queryKey: ['driver-status-summary', driverId],
@@ -439,6 +447,50 @@ const grossSalary = financialSummary?.grossSalary || d.baseSalary || 0;
             ) : !d.currentVehicleId ? (
               <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 14, padding: '10px 0' }}>
                 No company vehicle assigned
+              </div>
+            ) : null}
+
+            {/* SIM card sub-section */}
+            {d.telecomSimId && currentSim ? (
+              <div style={{
+                background: 'var(--surface2)',
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+                padding: '12px 14px',
+                marginBottom: 14,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 500 }}>SIM: {currentSim.simNumber}</span>
+                  <StatusBadge status={currentSim.status} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>
+                  <span>{currentSim.operator} · {currentSim.planName || 'No plan'}</span>
+                  <span>AED {n(currentSim.monthlyPlanCost || 0)}/mo</span>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>
+                  Assigned since: {currentSim.assignedSince ? formatDate(currentSim.assignedSince) : '—'}
+                </div>
+                <div style={{ fontSize: 11, color: d.deductSimCharges === false ? '#fbbf24' : '#4ade80' }}>
+                  SIM charges: {d.deductSimCharges === false ? 'Not deducted from salary' : 'Deducted from salary'}
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  <button
+                    onClick={() => { navigate('/simcards'); }}
+                    style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 11, cursor: 'pointer', padding: 0 }}
+                  >
+                    View SIM details →
+                  </button>
+                </div>
+              </div>
+            ) : !d.telecomSimId ? (
+              <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 14, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>No SIM assigned</span>
+                <button
+                  onClick={() => { navigate('/simcards'); }}
+                  style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 11, cursor: 'pointer', padding: 0 }}
+                >
+                  Assign SIM →
+                </button>
               </div>
             ) : null}
 
@@ -869,6 +921,7 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
       emiratesIdExpiry: toDateInput(driver.emiratesIdExpiry),
       drivingLicenceExpiry: toDateInput(driver.drivingLicenceExpiry),
       mulkiyaExpiry: toDateInput(driver.mulkiyaExpiry),
+      deductSimCharges: driver.deductSimCharges ?? true,
       passportData: {
         isPassportSubmitted: driver.isPassportSubmitted || false,
         passportSubmissionType: driver.passportSubmissionType || null,
@@ -918,6 +971,7 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
         emiratesIdExpiry: formData.emiratesIdExpiry || undefined,
         drivingLicenceExpiry: formData.drivingLicenceExpiry || undefined,
         mulkiyaExpiry: formData.mulkiyaExpiry || undefined,
+        deductSimCharges: formData.deductSimCharges,
         isPassportSubmitted: formData.passportData?.isPassportSubmitted || false,
         passportSubmissionType: formData.passportData?.passportSubmissionType || null,
       });
@@ -1071,6 +1125,12 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
             <div style={fieldStyle}>
               <label style={labelStyle}>Joining date</label>
               <input type="date" {...register('joinDate')} />
+            </div>
+            <div style={{ ...fieldStyle, gridColumn: '1 / -1' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text2)', cursor: 'pointer' }}>
+                <input type="checkbox" {...register('deductSimCharges')} />
+                Deduct SIM charges from salary
+              </label>
             </div>
           </div>
         )}
