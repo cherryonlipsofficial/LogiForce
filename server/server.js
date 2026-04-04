@@ -114,6 +114,7 @@ app.use('/api/users', require('./src/routes/users.routes'));
 app.use('/api', require('./src/routes/guaranteePassport.routes'));
 app.use('/api/notifications', require('./src/routes/notifications.routes'));
 app.use('/api/settings', require('./src/routes/settings.routes'));
+app.use('/api/simcards', require('./src/routes/simcards.routes'));
 
 // Error handler
 app.use(errorHandler);

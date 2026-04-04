@@ -120,6 +120,14 @@ module.exports = {
     'dashboard.compliance':    { label: 'Compliance dashboard',    module: 'Dashboard',  description: 'Access the compliance-focused dashboard view' },
     'dashboard.sales':         { label: 'Sales dashboard',         module: 'Dashboard',  description: 'Access the sales-focused dashboard view' },
 
+    // ── SIM CARDS ──
+    'simcards.view':           { label: 'View SIM cards',          module: 'SIM Cards', description: 'View SIM card list and details' },
+    'simcards.create':         { label: 'Add SIM cards',           module: 'SIM Cards', description: 'Add new SIM cards' },
+    'simcards.edit':           { label: 'Edit SIM cards',          module: 'SIM Cards', description: 'Edit SIM card details' },
+    'simcards.assign':         { label: 'Assign SIM cards',        module: 'SIM Cards', description: 'Assign and return SIM cards to/from drivers' },
+    'simcards.import_bills':   { label: 'Import SIM bills',        module: 'SIM Cards', description: 'Bulk import monthly telecom bills' },
+    'simcards.manage_bills':   { label: 'Manage SIM bills',        module: 'SIM Cards', description: 'Edit bill allocations and waive charges' },
+
     // ── SETTINGS ──
     'settings.view':           { label: 'View settings',           module: 'Settings',   description: 'Access system settings' },
     'settings.manage':         { label: 'Manage system settings',  module: 'Settings',   description: 'Change deduction rules, allowances, constants' },
