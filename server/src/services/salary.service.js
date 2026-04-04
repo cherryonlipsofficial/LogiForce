@@ -292,6 +292,25 @@ const calculateDeductions = async (req, driverId, year, month, grossSalary) => {
     });
   }
 
+  // f) Vehicle fines — auto-deduct fines/salik/damages from the driver who had the vehicle
+  const VehicleFine = getModel(req, 'VehicleFine');
+  const pendingFines = await VehicleFine.find({
+    driverId,
+    status: 'pending',
+    'deductionPeriod.year': year,
+    'deductionPeriod.month': month,
+  });
+
+  for (const fine of pendingFines) {
+    deductions.push({
+      type: fine.fineType === 'salik' ? 'salik' : 'vehicle_fine',
+      referenceId: String(fine._id),
+      amount: fine.amount,
+      description: `${fine.fineType.replace(/_/g, ' ')} — ${fine.vehiclePlate}${fine.description ? ': ' + fine.description : ''}`,
+      status: 'applied',
+    });
+  }
+
   // g) Credit note deductions — unsettled CN line items for this driver
   //    Excludes lines where a DriverReceivable was already created (resigned/offboarded)
   const unsettledCNLines = await CreditNote.find({
@@ -941,6 +960,20 @@ const processSalaryRun = async (req, runId, userId) => {
     // Check if entire CN is now settled
     const { checkAndSettleCreditNote } = require('./creditNote.service');
     await checkAndSettleCreditNote(cnId);
+  }
+
+  // Mark vehicle fines as deducted
+  const vehicleFineDeductions = (salaryRun.deductions || []).filter(
+    (d) => d.type === 'vehicle_fine' || (d.type === 'salik' && d.referenceId && /^[0-9a-fA-F]{24}$/.test(d.referenceId))
+  );
+  if (vehicleFineDeductions.length > 0) {
+    const VehicleFine = getModel(req, 'VehicleFine');
+    for (const ded of vehicleFineDeductions) {
+      if (!ded.referenceId) continue;
+      await VehicleFine.findByIdAndUpdate(ded.referenceId, {
+        $set: { status: 'deducted', salaryRunId: salaryRun._id },
+      });
+    }
   }
 
   // Notify users with salary.pay permission

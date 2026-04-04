@@ -10,6 +10,8 @@ const {
   assignVehicle,
   returnVehicle,
   getVehicleHistory,
+  getVehicleTimeline,
+  getFleetDashboardStats,
 } = require('../services/vehicleAssignment.service');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 
@@ -160,6 +162,16 @@ router.get('/summary', async (req, res) => {
     });
   } catch (err) {
     sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/vehicles/fleet-dashboard — Fleet dashboard stats
+router.get('/fleet-dashboard', requirePermission('vehicles.fleet_dashboard'), async (req, res) => {
+  try {
+    const stats = await getFleetDashboardStats(req);
+    sendSuccess(res, stats);
+  } catch (err) {
+    sendError(res, err.message, err.statusCode || 500);
   }
 });
 
@@ -610,6 +622,114 @@ router.get('/:id/current-assignment', requirePermission('vehicles.view'), async 
     sendSuccess(res, assignment || null);
   } catch (err) {
     sendError(res, err.message, err.statusCode || 500);
+  }
+});
+
+// GET /api/vehicles/:id/timeline — Full vehicle assignment timeline with idle periods
+router.get('/:id/timeline', requirePermission('vehicles.view_timeline'), async (req, res) => {
+  try {
+    const timeline = await getVehicleTimeline(req, req.params.id);
+    sendSuccess(res, timeline);
+  } catch (err) {
+    sendError(res, err.message, err.statusCode || 500);
+  }
+});
+
+// POST /api/vehicles/:id/off-hire — Off-hire a vehicle (calculate penalty if early termination)
+router.post('/:id/off-hire', requirePermission('vehicles.off_hire'), async (req, res) => {
+  try {
+    const Vehicle = getModel(req, 'Vehicle');
+    const vehicle = await Vehicle.findById(req.params.id);
+    if (!vehicle) return sendError(res, 'Vehicle not found', 404);
+
+    if (vehicle.status === 'off_hired') {
+      return sendError(res, 'Vehicle is already off-hired', 400);
+    }
+
+    const offHireDate = new Date(req.body.offHireDate || Date.now());
+    let penaltyAmount = 0;
+
+    // If vehicle is currently assigned, auto-return it first
+    if (vehicle.status === 'assigned' && vehicle.currentAssignmentId) {
+      await returnVehicle(req, vehicle.currentAssignmentId, {
+        returnCondition: req.body.returnCondition || 'good',
+        damageNotes: req.body.damageNotes || 'Auto-returned due to off-hire',
+      }, req.user._id);
+    }
+
+    // Calculate early termination penalty
+    if (vehicle.contractEnd && offHireDate < new Date(vehicle.contractEnd)) {
+      if (
+        vehicle.contractStart &&
+        vehicle.minimumContractMonths > 0
+      ) {
+        const contractStartDate = new Date(vehicle.contractStart);
+        const monthsElapsed =
+          (offHireDate.getFullYear() - contractStartDate.getFullYear()) * 12 +
+          (offHireDate.getMonth() - contractStartDate.getMonth());
+
+        if (monthsElapsed < vehicle.minimumContractMonths && vehicle.earlyTerminationPenalty > 0) {
+          penaltyAmount = vehicle.earlyTerminationPenalty;
+        } else if (vehicle.penaltyPerDay > 0) {
+          const remainingDays = Math.ceil(
+            (new Date(vehicle.contractEnd) - offHireDate) / (24 * 60 * 60 * 1000)
+          );
+          penaltyAmount = remainingDays * vehicle.penaltyPerDay;
+        }
+      } else if (vehicle.penaltyPerDay > 0) {
+        const remainingDays = Math.ceil(
+          (new Date(vehicle.contractEnd) - offHireDate) / (24 * 60 * 60 * 1000)
+        );
+        penaltyAmount = remainingDays * vehicle.penaltyPerDay;
+      }
+    }
+
+    // Reload vehicle after possible return
+    const updatedVehicle = await Vehicle.findById(req.params.id);
+    updatedVehicle.status = 'off_hired';
+    updatedVehicle.offHireDate = offHireDate;
+    updatedVehicle.offHireReason = req.body.reason || null;
+    updatedVehicle.offHirePenaltyAmount = penaltyAmount;
+    updatedVehicle.offHireBy = req.user._id;
+    updatedVehicle.currentDriverId = null;
+    updatedVehicle.currentAssignmentId = null;
+    await updatedVehicle.save();
+
+    sendSuccess(res, {
+      vehicle: updatedVehicle,
+      penaltyAmount,
+      earlyTermination: penaltyAmount > 0,
+    }, 'Vehicle off-hired successfully');
+  } catch (err) {
+    sendError(res, err.message, err.statusCode || 500);
+  }
+});
+
+// PUT /api/vehicles/:id/mileage — Update mileage
+router.put('/:id/mileage', requirePermission('vehicles.edit'), async (req, res) => {
+  try {
+    const Vehicle = getModel(req, 'Vehicle');
+    const { currentMileage, mileageUnit } = req.body;
+
+    if (currentMileage === undefined || currentMileage === null) {
+      return sendError(res, 'currentMileage is required', 400);
+    }
+    if (currentMileage < 0) {
+      return sendError(res, 'currentMileage must be non-negative', 400);
+    }
+
+    const update = { currentMileage };
+    if (mileageUnit) update.mileageUnit = mileageUnit;
+
+    const vehicle = await Vehicle.findByIdAndUpdate(req.params.id, update, {
+      new: true,
+      runValidators: true,
+    });
+    if (!vehicle) return sendError(res, 'Vehicle not found', 404);
+
+    sendSuccess(res, vehicle, 'Mileage updated');
+  } catch (err) {
+    sendError(res, err.message, 500);
   }
 });
 

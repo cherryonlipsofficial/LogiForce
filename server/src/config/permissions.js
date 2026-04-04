@@ -47,6 +47,10 @@ module.exports = {
     'vehicles.off_hire':       { label: 'Off-hire vehicles',       module: 'Vehicles',   description: 'Off-hire and terminate vehicle contracts' },
     'vehicles.manage_contracts': { label: 'Manage vehicle contracts', module: 'Vehicles', description: 'Create, renew, terminate vehicle lease contracts' },
     'vehicles.manage_catalog': { label: 'Manage vehicle catalog',  module: 'Vehicles',   description: 'Add/edit vehicle categories per supplier' },
+    'vehicles.manage_fines':   { label: 'Manage vehicle fines',    module: 'Vehicles',   description: 'Add, edit, waive traffic fines and salik charges' },
+    'vehicles.view_fines':     { label: 'View vehicle fines',      module: 'Vehicles',   description: 'View fines and salik history for vehicles' },
+    'vehicles.view_timeline':  { label: 'View vehicle timeline',   module: 'Vehicles',   description: 'View full assignment timeline of a vehicle' },
+    'vehicles.fleet_dashboard': { label: 'Fleet dashboard',        module: 'Vehicles',   description: 'Access the fleet management dashboard with KPIs' },
 
     // ── ATTENDANCE ──
     'attendance.view':         { label: 'View attendance',         module: 'Attendance', description: 'See attendance batches and records' },

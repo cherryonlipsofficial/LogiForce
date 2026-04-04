@@ -24,6 +24,7 @@ const DriverAdvance = require('./DriverAdvance');
 const CompanySettings = require('./CompanySettings');
 const CreditNote = require('./CreditNote');
 const DriverReceivable = require('./DriverReceivable');
+const VehicleFine = require('./VehicleFine');
 
 module.exports = {
   User,
@@ -52,4 +53,5 @@ module.exports = {
   CompanySettings,
   CreditNote,
   DriverReceivable,
+  VehicleFine,
 };

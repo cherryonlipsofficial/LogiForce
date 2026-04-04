@@ -35,6 +35,7 @@ const schemas = {
   CompanySettings: require('../models/CompanySettings').schema,
   AuditLog: require('../models/AuditLog').schema,
   AppNotification: require('../models/AppNotification').schema,
+  VehicleFine: require('../models/VehicleFine').schema,
 };
 
 /**
