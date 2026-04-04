@@ -107,6 +107,7 @@ app.use('/api/advances', require('./src/routes/advances.routes'));
 app.use('/api/salary', require('./src/routes/salary.routes'));
 app.use('/api/receivables', require('./src/routes/driverReceivables.routes'));
 app.use('/api/vehicles', require('./src/routes/vehicles.routes'));
+app.use('/api/vehicle-fines', require('./src/routes/vehicleFines.routes'));
 app.use('/api/projects', require('./src/routes/projects.routes'));
 app.use('/api/roles', require('./src/routes/roles.routes'));
 app.use('/api/users', require('./src/routes/users.routes'));

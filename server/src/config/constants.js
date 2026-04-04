@@ -22,6 +22,7 @@ module.exports = {
     'penalty',
     'deduction_carryover',
     'credit_note',
+    'vehicle_fine',
     'other',
   ],
   CREDIT_NOTE_TYPES: [

@@ -83,6 +83,34 @@ const vehicleSchema = new mongoose.Schema(
     offHireDate: {
       type: Date,
     },
+    chassisNumber: { type: String, trim: true },
+    engineNumber: { type: String, trim: true },
+    leaseType: {
+      type: String,
+      enum: ['rental', 'yearly_lease', 'owned', 'driver_owned'],
+      default: 'rental',
+    },
+    contractDurationMonths: { type: Number },
+    contractNumber: { type: String, trim: true },
+    depositAmount: { type: Number, default: 0 },
+    earlyTerminationPenalty: { type: Number, default: 0 },
+    penaltyPerDay: { type: Number, default: 0 },
+    minimumContractMonths: { type: Number, default: 0 },
+    registrationExpiry: { type: Date },
+    offHirePenaltyAmount: { type: Number, default: 0 },
+    offHireBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    currentMileage: { type: Number, default: 0 },
+    mileageUnit: { type: String, enum: ['km', 'miles'], default: 'km' },
+    fuelType: {
+      type: String,
+      enum: ['petrol', 'diesel', 'electric', 'hybrid', 'cng', 'other'],
+      default: 'petrol',
+    },
+    totalAssignments: { type: Number, default: 0 },
+    totalIdleDays: { type: Number, default: 0 },
+    lastIdleSince: { type: Date, default: null },
+    totalFinesAmount: { type: Number, default: 0 },
+    totalFinesCount: { type: Number, default: 0 },
   },
   {
     timestamps: true,
@@ -92,6 +120,10 @@ const vehicleSchema = new mongoose.Schema(
 vehicleSchema.index({ status: 1 });
 vehicleSchema.index({ supplierId: 1 });
 vehicleSchema.index({ assignedDriverId: 1 });
+vehicleSchema.index({ leaseType: 1 });
+vehicleSchema.index({ contractEnd: 1 });
+vehicleSchema.index({ mulkiyaExpiry: 1 });
+vehicleSchema.index({ insuranceExpiry: 1 });
 
 const Vehicle = mongoose.model('Vehicle', vehicleSchema);
 module.exports = Vehicle;
