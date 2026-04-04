@@ -175,6 +175,10 @@ const driverSchema = new mongoose.Schema(
       ref: 'TelecomSim',
       default: null,
     },
+    deductSimCharges: {
+      type: Boolean,
+      default: true,
+    },
 
     // Passport submission tracking
     isPassportSubmitted: {

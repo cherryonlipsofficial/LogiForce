@@ -36,6 +36,9 @@ const schemas = {
   AuditLog: require('../models/AuditLog').schema,
   AppNotification: require('../models/AppNotification').schema,
   VehicleFine: require('../models/VehicleFine').schema,
+  TelecomSim: require('../models/TelecomSim').schema,
+  SimAssignment: require('../models/SimAssignment').schema,
+  SimBill: require('../models/SimBill').schema,
 };
 
 /**

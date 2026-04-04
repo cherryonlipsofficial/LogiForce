@@ -154,14 +154,48 @@ const calculateDeductions = async (req, driverId, year, month, grossSalary) => {
 
   const deductions = [];
 
-  // a) TelecomSim charge
+  // a) TelecomSim bill-based charge
   const driver = await Driver.findById(driverId);
-  if (driver.telecomSimId) {
+  const SimBill = getModel(req, 'SimBill');
+  const simBills = await SimBill.find({
+    'allocations': {
+      $elemMatch: {
+        driverId: driverId,
+        status: 'allocated',
+        deductedInSalaryRunId: null,
+      },
+    },
+    'period.year': year,
+    'period.month': month,
+  });
+
+  for (const bill of simBills) {
+    for (const alloc of bill.allocations) {
+      if (
+        alloc.driverId.toString() === driverId.toString() &&
+        alloc.status === 'allocated' &&
+        !alloc.deductedInSalaryRunId
+      ) {
+        if (driver.deductSimCharges || alloc.isExtra) {
+          deductions.push({
+            type: 'telecom_sim',
+            referenceId: `${bill._id}:${alloc._id}`,
+            amount: alloc.allocatedAmount,
+            description: `SIM ${bill.simNumber} — ${alloc.daysUsed}/${alloc.totalDaysInPeriod} days (${bill.invoiceNumber})`,
+            status: 'applied',
+          });
+        }
+      }
+    }
+  }
+
+  // Fallback: if no SimBill exists but driver has a SIM assigned, use flat rate
+  if (simBills.length === 0 && driver.telecomSimId) {
     deductions.push({
       type: 'telecom_sim',
       referenceId: String(driver.telecomSimId),
       amount: SALARY.TELECOM_SIM_MONTHLY_CHARGE,
-      description: 'Monthly telecom SIM charge',
+      description: 'Monthly telecom SIM charge (flat rate)',
       status: 'applied',
     });
   }
@@ -920,6 +954,25 @@ const processSalaryRun = async (req, runId, userId) => {
 
   // Update advance recoveries
   await updateAdvanceRecoveries(req, salaryRun);
+
+  // Mark SIM bill allocations as deducted
+  const simDeductions = (salaryRun.deductions || []).filter(d => d.type === 'telecom_sim' && d.referenceId && d.referenceId.includes(':'));
+  if (simDeductions.length > 0) {
+    const SimBill = getModel(req, 'SimBill');
+    for (const ded of simDeductions) {
+      const [billId, allocId] = ded.referenceId.split(':');
+      if (!billId || !allocId) continue;
+      await SimBill.findOneAndUpdate(
+        { _id: billId, 'allocations._id': allocId },
+        {
+          $set: {
+            'allocations.$.deductedInSalaryRunId': salaryRun._id,
+            'allocations.$.status': 'deducted',
+          },
+        }
+      );
+    }
+  }
 
   // Mark credit note lines as salary-deducted
   const creditNoteDeductions = (salaryRun.deductions || []).filter(d => d.type === 'credit_note');

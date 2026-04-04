@@ -25,6 +25,9 @@ const CompanySettings = require('./CompanySettings');
 const CreditNote = require('./CreditNote');
 const DriverReceivable = require('./DriverReceivable');
 const VehicleFine = require('./VehicleFine');
+const TelecomSim = require('./TelecomSim');
+const SimAssignment = require('./SimAssignment');
+const SimBill = require('./SimBill');
 
 module.exports = {
   User,
@@ -54,4 +57,7 @@ module.exports = {
   CreditNote,
   DriverReceivable,
   VehicleFine,
+  TelecomSim,
+  SimAssignment,
+  SimBill,
 };

@@ -162,7 +162,7 @@ router.put('/runs/:id/approve/accounts', requirePermission('salary.approve_accou
 
 // PUT /api/salary/runs/:id/process — Senior Accountant processes (accounts_approved → processed)
 router.put('/runs/:id/process', requirePermission('salary.process'), async (req, res) => {
-  const run = await salaryService.processSalaryRun(req.params.id, req.user._id);
+  const run = await salaryService.processSalaryRun(req, req.params.id, req.user._id);
   await auditLogger.logChange('SalaryRun', req.params.id, 'status', 'accounts_approved', 'processed', req.user._id, 'salary_processing');
   sendSuccess(res, run, 'Salary run processed');
 });
