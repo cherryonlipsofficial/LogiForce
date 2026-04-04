@@ -30,6 +30,7 @@ import NotificationsPage from './pages/Notifications';
 import Advances from './pages/Advances/Advances';
 import CreditNotes from './pages/CreditNotes/CreditNotes';
 import StatementOfAccounts from './pages/StatementOfAccounts/StatementOfAccounts';
+import SimCards from './pages/SimCards/SimCards';
 import NotFound from './pages/NotFound';
 
 const queryClient = new QueryClient();
@@ -64,6 +65,7 @@ const RouterContent = () => (
         <Route path="/projects" element={<ProtectedPage permission="projects.view"><Projects /></ProtectedPage>} />
         <Route path="/suppliers" element={<ProtectedPage permission="suppliers.view"><Suppliers /></ProtectedPage>} />
         <Route path="/vehicles" element={<ProtectedPage permission="vehicles.view"><VehiclesPage /></ProtectedPage>} />
+        <Route path="/simcards" element={<ProtectedPage permission="simcards.view"><SimCards /></ProtectedPage>} />
         <Route path="/reports" element={<ProtectedPage permission="reports.view"><Reports /></ProtectedPage>} />
         <Route path="/statement-of-accounts" element={<ProtectedPage permission="reports.statement_of_accounts"><StatementOfAccounts /></ProtectedPage>} />
         <Route path="/settings" element={<ProtectedPage permission="settings.view"><Settings /></ProtectedPage>} />
