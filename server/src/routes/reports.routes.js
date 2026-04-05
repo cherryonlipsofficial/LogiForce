@@ -1681,4 +1681,392 @@ router.get('/headcount-vs-plan', requirePermission('reports.ops_headcount_vs_pla
   }
 });
 
+// =============================================
+// SALES REPORT ENDPOINTS (Task 3)
+// =============================================
+
+// GET /api/reports/revenue-by-client
+router.get('/revenue-by-client', requirePermission('reports.sales_revenue_by_client'), async (req, res) => {
+  try {
+    const Invoice = getModel(req, 'Invoice');
+    const mongoose = require('mongoose');
+    const { year, month, clientId } = req.query;
+    if (!year) return sendError(res, 'year is required', 400);
+
+    const matchStage = {
+      isDeleted: { $ne: true },
+      status: { $ne: 'cancelled' },
+      'period.year': parseInt(year),
+    };
+    if (month) matchStage['period.month'] = parseInt(month);
+    if (clientId) matchStage.clientId = new mongoose.Types.ObjectId(clientId);
+
+    const groupId = month
+      ? { clientId: '$clientId', year: '$period.year', month: '$period.month' }
+      : { clientId: '$clientId', year: '$period.year', month: '$period.month' };
+
+    const pipeline = [
+      { $match: matchStage },
+      {
+        $group: {
+          _id: groupId,
+          subtotal: { $sum: '$subtotal' },
+          vat: { $sum: '$vatAmount' },
+          total: { $sum: '$total' },
+          invoiceCount: { $sum: 1 },
+        },
+      },
+      {
+        $lookup: { from: 'clients', localField: '_id.clientId', foreignField: '_id', as: 'client' },
+      },
+      { $unwind: '$client' },
+      {
+        $project: {
+          _id: 0,
+          clientId: '$_id.clientId',
+          clientName: '$client.name',
+          period: { year: '$_id.year', month: '$_id.month' },
+          subtotal: 1,
+          vat: 1,
+          total: 1,
+          invoiceCount: 1,
+        },
+      },
+      { $sort: { 'clientName': 1, 'period.month': 1 } },
+    ];
+
+    const result = await Invoice.aggregate(pipeline);
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/client-profitability
+router.get('/client-profitability', requirePermission('reports.sales_client_profitability'), async (req, res) => {
+  try {
+    const Invoice = getModel(req, 'Invoice');
+    const SalaryRun = getModel(req, 'SalaryRun');
+    const Client = getModel(req, 'Client');
+    const { year, month } = req.query;
+    if (!year) return sendError(res, 'year is required', 400);
+
+    const periodMatch = { 'period.year': parseInt(year) };
+    if (month) periodMatch['period.month'] = parseInt(month);
+
+    const [revenueData, costData] = await Promise.all([
+      Invoice.aggregate([
+        { $match: { ...periodMatch, isDeleted: { $ne: true }, status: { $ne: 'cancelled' } } },
+        { $group: { _id: '$clientId', revenue: { $sum: '$total' } } },
+      ]),
+      SalaryRun.aggregate([
+        { $match: { ...periodMatch, isDeleted: { $ne: true } } },
+        { $group: { _id: '$clientId', salaryCost: { $sum: '$grossSalary' }, driverCount: { $sum: 1 } } },
+      ]),
+    ]);
+
+    const revenueMap = {};
+    for (const r of revenueData) revenueMap[r._id.toString()] = r.revenue;
+    const costMap = {};
+    const driverMap = {};
+    for (const c of costData) {
+      costMap[c._id.toString()] = c.salaryCost;
+      driverMap[c._id.toString()] = c.driverCount;
+    }
+
+    const allClientIds = [...new Set([...Object.keys(revenueMap), ...Object.keys(costMap)])];
+    const clients = await Client.find({ _id: { $in: allClientIds } }).select('name').lean();
+    const clientNameMap = {};
+    for (const c of clients) clientNameMap[c._id.toString()] = c.name;
+
+    const result = allClientIds.map(id => {
+      const revenue = revenueMap[id] || 0;
+      const salaryCost = costMap[id] || 0;
+      const grossMargin = revenue - salaryCost;
+      return {
+        clientId: id,
+        clientName: clientNameMap[id] || 'Unknown',
+        revenue,
+        salaryCost,
+        grossMargin,
+        marginPercent: revenue > 0 ? Math.round((grossMargin / revenue) * 1000) / 10 : 0,
+        driverCount: driverMap[id] || 0,
+      };
+    }).sort((a, b) => b.grossMargin - a.grossMargin);
+
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/credit-note-impact
+router.get('/credit-note-impact', requirePermission('reports.sales_credit_note_impact'), async (req, res) => {
+  try {
+    const CreditNote = getModel(req, 'CreditNote');
+    const Invoice = getModel(req, 'Invoice');
+    const Client = getModel(req, 'Client');
+    const { year, month } = req.query;
+
+    const matchStage = { isDeleted: { $ne: true } };
+    if (year) matchStage['period.year'] = parseInt(year);
+    if (month) matchStage['period.month'] = parseInt(month);
+
+    // Credit notes grouped by client with noteType breakdown
+    const cnPipeline = [
+      { $match: matchStage },
+      { $unwind: '$lineItems' },
+      {
+        $group: {
+          _id: { clientId: '$clientId', noteType: '$lineItems.noteType' },
+          amount: { $sum: '$lineItems.totalWithVat' },
+        },
+      },
+      {
+        $group: {
+          _id: '$_id.clientId',
+          byType: { $push: { noteType: '$_id.noteType', amount: '$amount' } },
+          totalAmount: { $sum: '$amount' },
+        },
+      },
+    ];
+
+    // Total credit note count per client
+    const cnCountPipeline = [
+      { $match: matchStage },
+      { $group: { _id: '$clientId', totalCreditNotes: { $sum: 1 } } },
+    ];
+
+    // Invoiced revenue per client
+    const invMatchStage = { isDeleted: { $ne: true }, status: { $ne: 'cancelled' } };
+    if (year) invMatchStage['period.year'] = parseInt(year);
+    if (month) invMatchStage['period.month'] = parseInt(month);
+
+    const [cnData, cnCountData, invData] = await Promise.all([
+      CreditNote.aggregate(cnPipeline),
+      CreditNote.aggregate(cnCountPipeline),
+      Invoice.aggregate([
+        { $match: invMatchStage },
+        { $group: { _id: '$clientId', invoicedRevenue: { $sum: '$total' } } },
+      ]),
+    ]);
+
+    const cnMap = {};
+    for (const c of cnData) {
+      const byTypeObj = {};
+      for (const t of c.byType) byTypeObj[t.noteType] = t.amount;
+      cnMap[c._id.toString()] = { totalAmount: c.totalAmount, byType: byTypeObj };
+    }
+    const cnCountMap = {};
+    for (const c of cnCountData) cnCountMap[c._id.toString()] = c.totalCreditNotes;
+    const invMap = {};
+    for (const i of invData) invMap[i._id.toString()] = i.invoicedRevenue;
+
+    const allClientIds = [...new Set([...Object.keys(cnMap), ...Object.keys(invMap)])];
+    const clients = await Client.find({ _id: { $in: allClientIds } }).select('name').lean();
+    const clientNameMap = {};
+    for (const c of clients) clientNameMap[c._id.toString()] = c.name;
+
+    const result = allClientIds
+      .filter(id => cnMap[id])
+      .map(id => {
+        const cn = cnMap[id];
+        const invoicedRevenue = invMap[id] || 0;
+        return {
+          clientId: id,
+          clientName: clientNameMap[id] || 'Unknown',
+          totalCreditNotes: cnCountMap[id] || 0,
+          totalAmount: cn.totalAmount,
+          byType: cn.byType,
+          invoicedRevenue,
+          cnToRevenueRatio: invoicedRevenue > 0 ? Math.round((cn.totalAmount / invoicedRevenue) * 1000) / 10 : 0,
+        };
+      })
+      .sort((a, b) => b.totalAmount - a.totalAmount);
+
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/contract-pipeline
+router.get('/contract-pipeline', requirePermission('reports.sales_contract_pipeline'), async (req, res) => {
+  try {
+    const ProjectContract = getModel(req, 'ProjectContract');
+    const days = parseInt(req.query.days) || 90;
+    const now = new Date();
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + days);
+
+    const contracts = await ProjectContract.find({
+      status: 'active',
+      endDate: { $gte: now, $lte: futureDate },
+    })
+      .populate('projectId', 'name')
+      .populate('clientId', 'name')
+      .sort({ endDate: 1 })
+      .lean();
+
+    const result = contracts.map(c => {
+      const daysUntilExpiry = Math.ceil((new Date(c.endDate) - now) / (1000 * 60 * 60 * 24));
+      return {
+        contractId: c._id,
+        projectName: c.projectId?.name || 'Unknown',
+        clientName: c.clientId?.name || 'Unknown',
+        contractType: c.contractType,
+        startDate: c.startDate,
+        endDate: c.endDate,
+        daysUntilExpiry,
+        ratePerDriver: c.ratePerDriver,
+        rateBasis: c.rateBasis,
+        status: c.status,
+      };
+    });
+
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/fill-rate
+router.get('/fill-rate', requirePermission('reports.sales_fill_rate'), async (req, res) => {
+  try {
+    const Project = getModel(req, 'Project');
+    const Driver = getModel(req, 'Driver');
+
+    const projects = await Project.find({ status: 'active' })
+      .populate('clientId', 'name')
+      .lean();
+
+    const result = [];
+    for (const proj of projects) {
+      const actual = await Driver.countDocuments({ projectId: proj._id, status: 'active' });
+      const planned = proj.plannedDriverCount || 0;
+      const ratePerDriver = proj.ratePerDriver || 0;
+      const fillRate = planned > 0 ? Math.round((actual / planned) * 100) : null;
+      const gap = planned - actual;
+
+      result.push({
+        projectId: proj._id,
+        projectName: proj.name,
+        clientName: proj.clientId?.name || 'Unknown',
+        planned,
+        actual,
+        fillRate,
+        gap,
+        ratePerDriver,
+        potentialMonthlyRevenue: planned * ratePerDriver,
+        actualMonthlyRevenue: actual * ratePerDriver,
+        revenueGap: gap * ratePerDriver,
+      });
+    }
+
+    result.sort((a, b) => (a.fillRate || 0) - (b.fillRate || 0));
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/new-drivers
+router.get('/new-drivers', requirePermission('reports.sales_new_drivers'), async (req, res) => {
+  try {
+    const Driver = getModel(req, 'Driver');
+    const { year, month } = req.query;
+    if (!year || !month) return sendError(res, 'year and month are required', 400);
+
+    const y = parseInt(year);
+    const m = parseInt(month);
+    const startDate = new Date(y, m - 1, 1);
+    const endDate = new Date(y, m, 1);
+
+    const pipeline = [
+      { $match: { createdAt: { $gte: startDate, $lt: endDate } } },
+      {
+        $group: {
+          _id: { clientId: '$clientId', projectId: '$projectId' },
+          count: { $sum: 1 },
+          newDrivers: {
+            $push: {
+              driverId: '$_id',
+              fullName: '$fullName',
+              employeeCode: '$employeeCode',
+              joinDate: '$joinDate',
+              status: '$status',
+            },
+          },
+        },
+      },
+      {
+        $lookup: { from: 'clients', localField: '_id.clientId', foreignField: '_id', as: 'client' },
+      },
+      { $unwind: { path: '$client', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: { from: 'projects', localField: '_id.projectId', foreignField: '_id', as: 'project' },
+      },
+      { $unwind: { path: '$project', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 0,
+          clientId: '$_id.clientId',
+          clientName: '$client.name',
+          projectId: '$_id.projectId',
+          projectName: '$project.name',
+          newDrivers: 1,
+          count: 1,
+        },
+      },
+      { $sort: { count: -1 } },
+    ];
+
+    const result = await Driver.aggregate(pipeline);
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/rate-comparison
+router.get('/rate-comparison', requirePermission('reports.sales_rate_comparison'), async (req, res) => {
+  try {
+    const Project = getModel(req, 'Project');
+    const Driver = getModel(req, 'Driver');
+
+    const projects = await Project.find({ status: 'active' })
+      .populate('clientId', 'name')
+      .sort({ 'clientId.name': 1 })
+      .lean();
+
+    const byClient = {};
+    for (const proj of projects) {
+      const activeDrivers = await Driver.countDocuments({ projectId: proj._id, status: 'active' });
+      const clientKey = proj.clientId?._id?.toString() || 'unknown';
+
+      if (!byClient[clientKey]) {
+        byClient[clientKey] = {
+          clientId: proj.clientId?._id,
+          clientName: proj.clientId?.name || 'Unknown',
+          projects: [],
+        };
+      }
+
+      byClient[clientKey].projects.push({
+        projectId: proj._id,
+        projectName: proj.name,
+        ratePerDriver: proj.ratePerDriver,
+        rateBasis: proj.rateBasis,
+        currency: proj.currency,
+        activeDrivers,
+      });
+    }
+
+    const result = Object.values(byClient).sort((a, b) => a.clientName.localeCompare(b.clientName));
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
 module.exports = router;
