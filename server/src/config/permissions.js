@@ -156,6 +156,24 @@ module.exports = {
     'reports.accounts_ledger_summary':     { label: 'Driver ledger summary',              module: 'Reports', description: 'View per-driver running balance from all ledger entries' },
     'reports.accounts_sim_cost':           { label: 'SIM cost deduction report',          module: 'Reports', description: 'View telecom SIM charges per driver per month' },
 
+    // Finance Reports
+    'reports.finance_pnl':                 { label: 'Profit & loss report',               module: 'Reports', description: 'View revenue vs costs per client (gross/net margin)' },
+    'reports.finance_revenue_forecast':    { label: 'Revenue forecast',                   module: 'Reports', description: 'View projected vs actual revenue from contracts' },
+    'reports.finance_cash_flow':           { label: 'Cash flow projection',               module: 'Reports', description: 'View expected inflows vs outflows over 60 days' },
+    'reports.finance_fleet_cost':          { label: 'Vehicle fleet cost report',           module: 'Reports', description: 'View total fleet cost by supplier' },
+    'reports.finance_cn_financial':        { label: 'Credit note financial impact',        module: 'Reports', description: 'View credit notes issued vs recovered amounts' },
+    'reports.finance_supplier_payment':    { label: 'Supplier payment summary',            module: 'Reports', description: 'View total payable per vehicle supplier' },
+    'reports.finance_outstanding':         { label: 'Outstanding receivables dashboard',   module: 'Reports', description: 'View consolidated unpaid invoices + receivables + advances' },
+
+    // Admin Reports
+    'reports.admin_audit_trail':           { label: 'Audit trail report',                  module: 'Reports', description: 'View full audit log of all system changes' },
+    'reports.admin_user_activity':         { label: 'User activity report',                module: 'Reports', description: 'View user login frequency and actions performed' },
+    'reports.admin_role_matrix':           { label: 'Role & permission matrix',            module: 'Reports', description: 'View exportable role vs permission matrix' },
+    'reports.admin_data_quality':          { label: 'Data quality report',                 module: 'Reports', description: 'View drivers with missing critical data fields' },
+    'reports.admin_executive_summary':     { label: 'Monthly executive summary',           module: 'Reports', description: 'View consolidated KPI dashboard' },
+    'reports.admin_trend':                 { label: 'Multi-period trend report',           module: 'Reports', description: 'View 6-12 month trends on key business metrics' },
+    'reports.admin_sim_inventory':         { label: 'SIM card inventory report',           module: 'Reports', description: 'View full SIM inventory with assignment status' },
+
     // ── DASHBOARD ──
     'dashboard.default':       { label: 'Default dashboard',       module: 'Dashboard',  description: 'Access the default admin/ops dashboard view' },
     'dashboard.compliance':    { label: 'Compliance dashboard',    module: 'Dashboard',  description: 'Access the compliance-focused dashboard view' },
