@@ -21,7 +21,7 @@ router.use(protect);
 // GET /api/drivers/expiring-documents — must be before /:id routes
 router.get('/expiring-documents', async (req, res) => {
   const days = parseInt(req.query.days) || 30;
-  const docs = await driverService.getExpiringDocuments(days);
+  const docs = await driverService.getExpiringDocuments(req, days);
   sendSuccess(res, docs);
 });
 
@@ -147,7 +147,7 @@ router.get('/uploads/:fileKey', async (req, res) => {
 
 // GET /api/drivers/status-counts — counts by status for KPI cards
 router.get('/status-counts', async (req, res) => {
-  const counts = await driverService.getStatusCounts();
+  const counts = await driverService.getStatusCounts(req);
   sendSuccess(res, counts);
 });
 
@@ -196,6 +196,7 @@ router.get('/history/summary', requirePermission('drivers.view'), async (req, re
 router.get('/export', async (req, res) => {
   const { status, clientId, projectId, search, clientIdStatus } = req.query;
   const result = await driverService.findAll(
+    req,
     { status, clientId, projectId, search, clientIdStatus },
     { page: 1, limit: 10000 }
   );
@@ -328,7 +329,7 @@ router.post('/bulk-import', requirePermission('drivers.create'), (req, res, next
     if (rows.length === 0) return sendError(res, 'File is empty or has no data rows', 400);
     if (rows.length > 500) return sendError(res, 'Maximum 500 rows per import', 400);
 
-    const result = await driverService.bulkCreate(rows, req.user._id);
+    const result = await driverService.bulkCreate(req, rows, req.user._id);
     sendSuccess(res, result, `Imported ${result.created} drivers${result.errors.length > 0 ? ` with ${result.errors.length} errors` : ''}`, 201);
   } catch (err) {
     const logger = require('../utils/logger');
@@ -377,6 +378,7 @@ router.get('/bulk-import/template', async (req, res) => {
 router.get('/my', requirePermission('drivers.view'), async (req, res) => {
   const { status, page, limit } = req.query;
   const result = await driverService.findAll(
+    req,
     { status, createdBy: req.user._id },
     { page, limit }
   );
@@ -387,6 +389,7 @@ router.get('/my', requirePermission('drivers.view'), async (req, res) => {
 router.get('/', async (req, res) => {
   const { status, clientId, projectId, search, page, limit, clientIdStatus } = req.query;
   const result = await driverService.findAll(
+    req,
     { status, clientId, projectId, search, clientIdStatus },
     { page, limit }
   );
@@ -395,13 +398,13 @@ router.get('/', async (req, res) => {
 
 // POST /api/drivers — create (ops, admin)
 router.post('/', requirePermission('drivers.create'), validate(createDriverValidation), async (req, res) => {
-  const driver = await driverService.create(req.body, req.user._id);
+  const driver = await driverService.create(req, req.body, req.user._id);
   sendSuccess(res, driver, 'Driver created', 201);
 });
 
 // GET /api/drivers/:id — get single driver
 router.get('/:id', async (req, res) => {
-  const driver = await driverService.findById(req.params.id);
+  const driver = await driverService.findById(req, req.params.id);
   sendSuccess(res, driver);
 });
 
@@ -410,26 +413,26 @@ router.put('/:id', requirePermission('drivers.edit'), validate(updateDriverValid
   const isAdmin = req.userPermissions?.includes('*') ||
     (req.user.roleId?.isSystemRole === true);
   const canEditActive = req.userPermissions?.includes('drivers.edit_active');
-  const driver = await driverService.update(req.params.id, req.body, req.user._id, { isAdmin, canEditActive });
+  const driver = await driverService.update(req, req.params.id, req.body, req.user._id, { isAdmin, canEditActive });
   sendSuccess(res, driver, 'Driver updated');
 });
 
 // DELETE /api/drivers/:id — hard delete (admin only)
 router.delete('/:id', requirePermission('drivers.delete'), async (req, res) => {
-  await driverService.hardDelete(req.params.id);
+  await driverService.hardDelete(req, req.params.id);
   sendSuccess(res, null, 'Driver permanently deleted');
 });
 
 // GET /api/drivers/:id/ledger — paginated ledger
 router.get('/:id/ledger', async (req, res) => {
   const { page, limit } = req.query;
-  const result = await driverService.getLedger(req.params.id, { page, limit });
+  const result = await driverService.getLedger(req, req.params.id, { page, limit });
   sendPaginated(res, result.entries, result.total, result.page, result.limit);
 });
 
 // GET /api/drivers/:id/ledger/export — export ledger as CSV
 router.get('/:id/ledger/export', async (req, res) => {
-  const entries = await driverService.getAllLedger(req.params.id);
+  const entries = await driverService.getAllLedger(req, req.params.id);
   const escapeCsv = (val) => {
     const str = String(val ?? '');
     if (str.includes(',') || str.includes('"') || str.includes('\n')) {
@@ -544,11 +547,11 @@ router.post('/:id/documents', requirePermission('drivers.manage_docs'), (req, re
       existing.status = 'pending';
       await existing.save();
 
-      await logEvent(req.params.id, 'document_uploaded', {
+      await logEvent(req, req.params.id, 'document_uploaded', {
         documentType: req.body.docType,
         description: `${req.body.docType.replace(/_/g, ' ')} uploaded`,
       }, req.user._id);
-      await evaluateAndTransition(req.params.id, req.user._id);
+      await evaluateAndTransition(req, req.params.id, req.user._id);
 
       return sendSuccess(res, existing, 'Document updated', 200);
     }
@@ -560,11 +563,11 @@ router.post('/:id/documents', requirePermission('drivers.manage_docs'), (req, re
       expiryDate: req.body.expiryDate || null,
     });
 
-    await logEvent(req.params.id, 'document_uploaded', {
+    await logEvent(req, req.params.id, 'document_uploaded', {
       documentType: req.body.docType,
       description: `${req.body.docType.replace(/_/g, ' ')} uploaded`,
     }, req.user._id);
-    await evaluateAndTransition(req.params.id, req.user._id);
+    await evaluateAndTransition(req, req.params.id, req.user._id);
 
     sendSuccess(res, doc, 'Document uploaded', 201);
   } catch (err) {
@@ -575,7 +578,7 @@ router.post('/:id/documents', requirePermission('drivers.manage_docs'), (req, re
 // POST /api/drivers/:id/verify-contacts — Compliance verifies contact details
 router.post('/:id/verify-contacts', requirePermission('drivers.change_status'), async (req, res) => {
   try {
-    const driver = await verifyContacts(req.params.id, req.user._id);
+    const driver = await verifyContacts(req, req.params.id, req.user._id);
     sendSuccess(res, driver, `Contacts verified. Current status: ${driver.status}`);
   } catch (err) {
     sendError(res, err.message, err.statusCode || 500);
@@ -590,7 +593,7 @@ router.put('/:id/client-user-id', requirePermission('drivers.update_client_id'),
     if (!clientUserId || typeof clientUserId !== 'string' || !clientUserId.trim()) {
       return sendError(res, 'clientUserId is required and must be a non-empty string', 400);
     }
-    const driver = await setClientUserId(req.params.id, clientUserId, req.user._id);
+    const driver = await setClientUserId(req, req.params.id, clientUserId, req.user._id);
     sendSuccess(res, driver, `Client user ID set. Current status: ${driver.status}`);
   } catch (err) {
     sendError(res, err.message, err.statusCode || 500);
@@ -601,7 +604,7 @@ router.put('/:id/client-user-id', requirePermission('drivers.update_client_id'),
 router.post('/:id/activate', requirePermission('drivers.activate'), async (req, res) => {
   try {
     const { personalVerificationConfirmed } = req.body;
-    const driver = await activateDriver(req.params.id, req.user._id, { personalVerificationConfirmed });
+    const driver = await activateDriver(req, req.params.id, req.user._id, { personalVerificationConfirmed });
     sendSuccess(res, driver, `Driver activated. Current status: ${driver.status}`);
   } catch (err) {
     sendError(res, err.message, err.statusCode || 500);
@@ -612,7 +615,7 @@ router.post('/:id/activate', requirePermission('drivers.activate'), async (req, 
 router.put('/:id/status', requirePermission('drivers.change_status'), validate(changeStatusValidation), async (req, res) => {
   try {
     const { status, reason } = req.body;
-    const driver = await changeStatusManual(req.params.id, status, reason, req.user._id);
+    const driver = await changeStatusManual(req, req.params.id, status, reason, req.user._id);
     sendSuccess(res, driver, 'Status updated');
   } catch (err) {
     sendError(res, err.message, err.statusCode || 500);
@@ -622,7 +625,7 @@ router.put('/:id/status', requirePermission('drivers.change_status'), validate(c
 // GET /api/drivers/:id/status-summary — get status summary for frontend
 router.get('/:id/status-summary', requirePermission('drivers.view'), async (req, res) => {
   try {
-    const summary = await getDriverStatusSummary(req.params.id);
+    const summary = await getDriverStatusSummary(req, req.params.id);
     sendSuccess(res, summary);
   } catch (err) {
     sendError(res, err.message, err.statusCode || 500);
@@ -634,7 +637,7 @@ router.get('/:id/history', requirePermission('drivers.view'), async (req, res) =
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 30;
-    const result = await getHistory(req.params.id, page, limit);
+    const result = await getHistory(req, req.params.id, page, limit);
     sendSuccess(res, result);
   } catch (err) {
     sendError(res, err.message, err.statusCode || 500);
@@ -645,6 +648,7 @@ router.get('/:id/history', requirePermission('drivers.view'), async (req, res) =
 router.get('/:id/vehicle-history', requirePermission('drivers.view'), async (req, res) => {
   try {
     const result = await getDriverVehicleHistory(
+      req,
       req.params.id,
       parseInt(req.query.page) || 1,
       parseInt(req.query.limit) || 20

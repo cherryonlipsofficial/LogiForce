@@ -31,7 +31,7 @@ async function verifyContacts(req, driverId, userId) {
   driver.contactsVerifiedAt = new Date();
   await driver.save();
 
-  await logEvent(driverId, 'contacts_verified', {
+  await logEvent(req, driverId, 'contacts_verified', {
     description: 'Contact details verified by Compliance',
   }, userId);
 
@@ -67,7 +67,7 @@ async function setClientUserId(req, driverId, clientUserId, userId) {
   driver.clientUserId = clientUserId.trim();
   await driver.save();
 
-  await logEvent(driverId, 'client_user_id_set', {
+  await logEvent(req, driverId, 'client_user_id_set', {
     fieldName: 'clientUserId',
     oldValue: oldClientUserId,
     newValue: clientUserId.trim(),
@@ -111,10 +111,10 @@ async function activateDriver(req, driverId, userId, { personalVerificationConfi
 
   const activatingUser = await User.findById(userId).select('email').lean();
   const activatedByLabel = activatingUser?.email ? `Driver activated by ${activatingUser.email}` : 'Driver activated by authorized user';
-  await logEvent(driverId, 'personal_verification_confirmed', {
+  await logEvent(req, driverId, 'personal_verification_confirmed', {
     description: `Personal verification confirmed by ${activatingUser?.email || 'authorized user'}`,
   }, userId);
-  await logEvent(driverId, 'driver_activated', {
+  await logEvent(req, driverId, 'driver_activated', {
     description: activatedByLabel,
   }, userId);
 
