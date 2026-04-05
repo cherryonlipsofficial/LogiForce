@@ -42,12 +42,41 @@ router.get('/summary', requirePermission('simcards.view'), async (req, res) => {
   const TelecomSim = getModel(req, 'TelecomSim');
   const SimBill = getModel(req, 'SimBill');
 
-  const [statusCounts, totalSims, pendingAllocations] = await Promise.all([
+  // Determine last month's year/month
+  const now = new Date();
+  const lastMonth = now.getMonth() === 0
+    ? { year: now.getFullYear() - 1, month: 12 }
+    : { year: now.getFullYear(), month: now.getMonth() };
+
+  const [statusCounts, totalSims, pendingAllocations, assigned, lastMonthBills] = await Promise.all([
     TelecomSim.aggregate([
       { $group: { _id: '$status', count: { $sum: 1 } } },
     ]),
     TelecomSim.countDocuments(),
     SimBill.countDocuments({ 'allocations.status': 'allocated' }),
+    TelecomSim.countDocuments({ currentDriverId: { $ne: null } }),
+    SimBill.aggregate([
+      { $match: { 'period.year': lastMonth.year, 'period.month': lastMonth.month } },
+      {
+        $group: {
+          _id: null,
+          totalBill: { $sum: '$totalAmount' },
+          billCount: { $sum: 1 },
+          idleBill: {
+            $sum: { $cond: [{ $eq: ['$isIdleBill', true] }, '$totalAmount', 0] },
+          },
+          chargedToDrivers: {
+            $sum: {
+              $reduce: {
+                input: '$allocations',
+                initialValue: 0,
+                in: { $add: ['$$value', { $ifNull: ['$$this.allocatedAmount', 0] }] },
+              },
+            },
+          },
+        },
+      },
+    ]),
   ]);
 
   const byStatus = {};
@@ -55,17 +84,23 @@ router.get('/summary', requirePermission('simcards.view'), async (req, res) => {
     byStatus[s._id] = s.count;
   }
 
-  const assigned = await TelecomSim.countDocuments({ currentDriverId: { $ne: null } });
+  const lm = lastMonthBills[0] || { totalBill: 0, billCount: 0, idleBill: 0, chargedToDrivers: 0 };
 
   sendSuccess(res, {
-    total: totalSims,
+    totalSims: totalSims,
+    allocatedSims: assigned,
+    idleSims: byStatus.idle || 0,
     active: byStatus.active || 0,
-    idle: byStatus.idle || 0,
     suspended: byStatus.suspended || 0,
     terminated: byStatus.terminated || 0,
-    assigned,
     unassigned: totalSims - assigned,
     pendingBillAllocations: pendingAllocations,
+    lastMonth: {
+      totalBill: lm.totalBill,
+      billCount: lm.billCount,
+      chargedToDrivers: lm.chargedToDrivers,
+      idleBill: lm.idleBill,
+    },
   });
 });
 
