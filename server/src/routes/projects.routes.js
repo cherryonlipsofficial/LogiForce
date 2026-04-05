@@ -17,6 +17,7 @@ router.use(protect);
 router.get('/', async (req, res) => {
   const { clientId, status, search, contractExpiringSoon, page, limit } = req.query;
   const result = await projectService.listProjects(
+    req,
     clientId,
     { status, search, contractExpiringSoon },
     { page, limit }
@@ -26,25 +27,26 @@ router.get('/', async (req, res) => {
 
 // POST /api/projects — create (admin, ops)
 router.post('/', requirePermission('projects.create'), validate(createProjectValidation), async (req, res) => {
-  const project = await projectService.createProject(req.body, req.user._id);
+  const project = await projectService.createProject(req, req.body, req.user._id);
   sendSuccess(res, project, 'Project created', 201);
 });
 
 // GET /api/projects/:id/summary — project summary with payroll & billing
 router.get('/:id/summary', async (req, res) => {
-  const summary = await projectService.getProjectSummary(req.params.id);
+  const summary = await projectService.getProjectSummary(req, req.params.id);
   sendSuccess(res, summary);
 });
 
 // GET /api/projects/:id — full project detail (drivers, contracts, stats)
 router.get('/:id', async (req, res) => {
-  const project = await projectService.getProject(req.params.id);
+  const project = await projectService.getProject(req, req.params.id);
   sendSuccess(res, project);
 });
 
 // PUT /api/projects/:id — update project fields (admin, ops)
 router.put('/:id', requirePermission('projects.edit'), validate(updateProjectValidation), async (req, res) => {
   const project = await projectService.updateProject(
+    req,
     req.params.id,
     req.body,
     req.user._id
@@ -96,6 +98,7 @@ router.get('/:id/contracts', async (req, res) => {
 // POST /api/projects/:id/contracts — create new contract (admin)
 router.post('/:id/contracts', requirePermission('projects.manage_contracts'), async (req, res) => {
   const contract = await projectService.createProjectContract(
+    req,
     req.params.id,
     req.body,
     req.user._id
@@ -106,6 +109,7 @@ router.post('/:id/contracts', requirePermission('projects.manage_contracts'), as
 // POST /api/projects/:id/contracts/renew — renew active contract (admin)
 router.post('/:id/contracts/renew', requirePermission('projects.manage_contracts'), async (req, res) => {
   const contract = await projectService.renewProjectContract(
+    req,
     req.params.id,
     req.body,
     req.user._id
@@ -119,6 +123,7 @@ router.put(
   requirePermission('projects.manage_contracts'),
   async (req, res) => {
     const contract = await projectService.terminateProjectContract(
+      req,
       req.params.contractId,
       { reason: req.body.reason, terminationDate: req.body.terminationDate },
       req.user._id
@@ -135,6 +140,7 @@ router.post('/:id/assign-driver', requirePermission('projects.assign_drivers'), 
   if (!driverId) return sendError(res, 'driverId is required', 400);
 
   const assignment = await projectService.assignDriverToProject(
+    req,
     driverId,
     req.params.id,
     { reason, contractId },
@@ -149,6 +155,7 @@ router.post('/unassign-driver', requirePermission('projects.assign_drivers'), as
   if (!driverId) return sendError(res, 'driverId is required', 400);
 
   const assignment = await projectService.unassignDriverFromProject(
+    req,
     driverId,
     { reason },
     req.user._id
@@ -178,7 +185,7 @@ router.get('/:id/drivers', async (req, res) => {
 
 // GET /api/projects/:id/driver-history — full assignment history
 router.get('/:id/driver-history', async (req, res) => {
-  const history = await projectService.getProjectDriverHistory(req.params.id);
+  const history = await projectService.getProjectDriverHistory(req, req.params.id);
   sendSuccess(res, history);
 });
 

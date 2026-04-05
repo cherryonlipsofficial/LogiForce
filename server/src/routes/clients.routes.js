@@ -168,7 +168,7 @@ router.get('/:id/projects', async (req, res) => {
 // GET /api/clients/:id/project-stats — aggregated stats for client dashboard
 router.get('/:id/project-stats', async (req, res) => {
   const projectService = require('../services/project.service');
-  const stats = await projectService.getProjectStats(req.params.id);
+  const stats = await projectService.getProjectStats(req, req.params.id);
   sendSuccess(res, stats);
 });
 
