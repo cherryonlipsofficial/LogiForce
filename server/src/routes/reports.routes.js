@@ -2069,4 +2069,366 @@ router.get('/rate-comparison', requirePermission('reports.sales_rate_comparison'
   }
 });
 
+// =====================================================
+// COMPLIANCE / HR ENDPOINTS
+// =====================================================
+
+// GET /api/reports/kyc-compliance — KYC compliance rate per client
+router.get('/kyc-compliance', requirePermission('reports.compliance_kyc_status'), async (req, res) => {
+  try {
+    const Client = getModel(req, 'Client');
+    const Driver = getModel(req, 'Driver');
+    const DriverDocument = getModel(req, 'DriverDocument');
+
+    const clients = await Client.find({ isActive: true, kycRules: { $exists: true } }).lean();
+    const result = [];
+
+    for (const client of clients) {
+      const rules = client.kycRules || {};
+      const requiredDocTypes = [];
+      if (rules.requireEmiratesId) requiredDocTypes.push('emirates_id');
+      if (rules.requirePassport) requiredDocTypes.push('passport');
+      if (rules.requireVisa) requiredDocTypes.push('visa');
+      if (rules.requireLabourCard) requiredDocTypes.push('labour_card');
+
+      if (requiredDocTypes.length === 0) continue;
+
+      const drivers = await Driver.find({ clientId: client._id, status: 'active' }).lean();
+      const totalDrivers = drivers.length;
+      let compliantDrivers = 0;
+      const nonCompliantDrivers = [];
+
+      for (const driver of drivers) {
+        const docs = await DriverDocument.find({
+          driverId: driver._id,
+          docType: { $in: requiredDocTypes },
+          status: { $in: ['verified', 'pending'] },
+          $or: [
+            { expiryDate: { $exists: false } },
+            { expiryDate: null },
+            { expiryDate: { $gte: new Date() } },
+          ],
+        }).lean();
+
+        const presentDocTypes = docs.map(d => d.docType);
+        const missingDocs = requiredDocTypes.filter(dt => !presentDocTypes.includes(dt));
+
+        if (missingDocs.length === 0) {
+          compliantDrivers++;
+        } else {
+          nonCompliantDrivers.push({
+            driverId: driver._id,
+            fullName: driver.fullName,
+            employeeCode: driver.employeeCode,
+            missingDocs,
+          });
+        }
+      }
+
+      result.push({
+        clientId: client._id,
+        clientName: client.name,
+        kycRules: rules,
+        totalDrivers,
+        compliantDrivers,
+        complianceRate: totalDrivers > 0 ? Math.round((compliantDrivers / totalDrivers) * 10000) / 100 : 0,
+        nonCompliantDrivers,
+      });
+    }
+
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/status-transitions — driver status change history
+router.get('/status-transitions', requirePermission('reports.compliance_status_transitions'), async (req, res) => {
+  try {
+    const DriverHistory = getModel(req, 'DriverHistory');
+    const { year, month } = req.query;
+
+    const match = { eventType: 'status_change' };
+    if (year && month) {
+      const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+      const endDate = new Date(parseInt(year), parseInt(month), 1);
+      match.createdAt = { $gte: startDate, $lt: endDate };
+    } else if (year) {
+      const startDate = new Date(parseInt(year), 0, 1);
+      const endDate = new Date(parseInt(year) + 1, 0, 1);
+      match.createdAt = { $gte: startDate, $lt: endDate };
+    }
+
+    const transitions = await DriverHistory.find(match)
+      .populate('driverId', 'fullName employeeCode')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const records = transitions.map(t => ({
+      driverId: t.driverId?._id || t.driverId,
+      driverName: t.driverId?.fullName,
+      employeeCode: t.driverId?.employeeCode,
+      statusFrom: t.statusFrom,
+      statusTo: t.statusTo,
+      reason: t.reason,
+      performedByName: t.performedByName,
+      performedByRole: t.performedByRole,
+      createdAt: t.createdAt,
+    }));
+
+    // Build summary
+    const byTransition = {};
+    for (const r of records) {
+      const key = `${r.statusFrom || 'unknown'}→${r.statusTo || 'unknown'}`;
+      byTransition[key] = (byTransition[key] || 0) + 1;
+    }
+
+    sendSuccess(res, {
+      summary: {
+        totalTransitions: records.length,
+        byTransition,
+      },
+      transitions: records,
+    });
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/workforce-headcount — driver headcount by status, nationality, client
+router.get('/workforce-headcount', requirePermission('reports.compliance_headcount'), async (req, res) => {
+  try {
+    const Driver = getModel(req, 'Driver');
+
+    const [byStatus, byNationality, byClient, total] = await Promise.all([
+      Driver.aggregate([
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]),
+      Driver.aggregate([
+        { $match: { nationality: { $exists: true, $ne: null, $ne: '' } } },
+        { $group: { _id: '$nationality', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]),
+      Driver.aggregate([
+        { $match: { clientId: { $exists: true, $ne: null } } },
+        { $group: { _id: '$clientId', count: { $sum: 1 } } },
+        {
+          $lookup: {
+            from: 'clients',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'client',
+          },
+        },
+        { $unwind: { path: '$client', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            clientId: '$_id',
+            clientName: { $ifNull: ['$client.name', 'Unknown'] },
+            count: 1,
+          },
+        },
+        { $sort: { count: -1 } },
+      ]),
+      Driver.countDocuments(),
+    ]);
+
+    const statusMap = {};
+    for (const s of byStatus) {
+      statusMap[s._id || 'unknown'] = s.count;
+    }
+
+    sendSuccess(res, {
+      byStatus: statusMap,
+      byNationality: byNationality.map(n => ({ nationality: n._id, count: n.count })),
+      byClient: byClient.map(c => ({ clientId: c.clientId, clientName: c.clientName, count: c.count })),
+      total,
+    });
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/verification-audit — drivers pending verification
+router.get('/verification-audit', requirePermission('reports.compliance_verification'), async (req, res) => {
+  try {
+    const Driver = getModel(req, 'Driver');
+    const now = new Date();
+
+    const drivers = await Driver.find({
+      $or: [
+        { status: { $in: ['pending_kyc', 'pending_verification'] } },
+        { contactsVerified: false },
+        { personalVerificationDone: false },
+      ],
+    })
+      .populate('contactsVerifiedBy', 'name')
+      .populate('personalVerificationBy', 'name')
+      .lean();
+
+    const result = drivers.map(d => {
+      const statusDate = d.lastStatusChange?.changedAt || d.updatedAt || d.createdAt;
+      const daysInStatus = statusDate ? Math.floor((now - new Date(statusDate)) / (1000 * 60 * 60 * 24)) : null;
+
+      return {
+        driverId: d._id,
+        fullName: d.fullName,
+        employeeCode: d.employeeCode,
+        status: d.status,
+        contactsVerified: d.contactsVerified || false,
+        personalVerificationDone: d.personalVerificationDone || false,
+        contactsVerifiedBy: d.contactsVerifiedBy?.name || null,
+        personalVerificationBy: d.personalVerificationBy?.name || null,
+        daysInStatus,
+      };
+    });
+
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/expired-doc-violations — expired documents for active drivers
+router.get('/expired-doc-violations', requirePermission('reports.compliance_expired_action'), async (req, res) => {
+  try {
+    const DriverDocument = getModel(req, 'DriverDocument');
+    const now = new Date();
+
+    const docs = await DriverDocument.find({
+      expiryDate: { $lt: now },
+    })
+      .populate({
+        path: 'driverId',
+        match: { status: 'active' },
+        select: 'fullName employeeCode clientId',
+        populate: { path: 'clientId', select: 'name' },
+      })
+      .lean();
+
+    // Filter out docs where driver didn't match (not active)
+    const result = docs
+      .filter(d => d.driverId)
+      .map(d => ({
+        driverId: d.driverId._id,
+        driverName: d.driverId.fullName,
+        employeeCode: d.driverId.employeeCode,
+        clientName: d.driverId.clientId?.name || 'Unknown',
+        docType: d.docType,
+        expiryDate: d.expiryDate,
+        daysExpired: Math.floor((now - new Date(d.expiryDate)) / (1000 * 60 * 60 * 24)),
+        documentStatus: d.status,
+      }))
+      .sort((a, b) => b.daysExpired - a.daysExpired);
+
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/sim-compliance — placeholder until SIM module is integrated
+router.get('/sim-compliance', requirePermission('reports.compliance_sim_compliance'), async (req, res) => {
+  try {
+    sendSuccess(res, { message: 'SIM Card module not yet integrated. This report will be available once the TelecomSim model is connected.' });
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/attrition-tenure — attrition rates and tenure analysis
+router.get('/attrition-tenure', requirePermission('reports.compliance_attrition'), async (req, res) => {
+  try {
+    const Driver = getModel(req, 'Driver');
+    const { year, month } = req.query;
+
+    // Default to last 12 months
+    let startDate, endDate;
+    if (year && month) {
+      startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+      endDate = new Date(parseInt(year), parseInt(month), 1);
+    } else if (year) {
+      startDate = new Date(parseInt(year), 0, 1);
+      endDate = new Date(parseInt(year) + 1, 0, 1);
+    } else {
+      endDate = new Date();
+      startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - 12);
+    }
+
+    const matchFilter = {
+      status: { $in: ['resigned', 'offboarded'] },
+    };
+    if (startDate) {
+      matchFilter['lastStatusChange.changedAt'] = { $gte: startDate, $lt: endDate };
+    }
+
+    const departed = await Driver.find(matchFilter)
+      .populate('clientId', 'name')
+      .populate('projectId', 'name')
+      .lean();
+
+    // Calculate total active for attrition rate
+    const totalActive = await Driver.countDocuments({ status: 'active' });
+
+    let totalTenureDays = 0;
+    const byClient = {};
+    const byReason = {};
+    const recentDepartures = [];
+
+    for (const d of departed) {
+      const start = d.joinDate || d.createdAt;
+      const end = d.lastStatusChange?.changedAt || d.updatedAt;
+      const tenureDays = start && end ? Math.floor((new Date(end) - new Date(start)) / (1000 * 60 * 60 * 24)) : 0;
+      totalTenureDays += tenureDays;
+
+      // By client
+      const clientKey = d.clientId?._id?.toString() || 'unassigned';
+      if (!byClient[clientKey]) {
+        byClient[clientKey] = { clientId: d.clientId?._id || null, clientName: d.clientId?.name || 'Unassigned', departed: 0, totalTenure: 0 };
+      }
+      byClient[clientKey].departed++;
+      byClient[clientKey].totalTenure += tenureDays;
+
+      // By reason
+      const reason = d.lastStatusChange?.reason || d.status;
+      byReason[reason] = (byReason[reason] || 0) + 1;
+
+      recentDepartures.push({
+        driverId: d._id,
+        fullName: d.fullName,
+        employeeCode: d.employeeCode,
+        clientName: d.clientId?.name || 'Unassigned',
+        projectName: d.projectId?.name || 'Unassigned',
+        status: d.status,
+        reason: d.lastStatusChange?.reason || null,
+        tenureDays,
+        departureDate: d.lastStatusChange?.changedAt || d.updatedAt,
+      });
+    }
+
+    const clientStats = Object.values(byClient).map(c => ({
+      clientId: c.clientId,
+      clientName: c.clientName,
+      departed: c.departed,
+      avgTenure: c.departed > 0 ? Math.round(c.totalTenure / c.departed) : 0,
+    }));
+
+    const reasonStats = Object.entries(byReason).map(([reason, count]) => ({ reason, count }));
+
+    sendSuccess(res, {
+      attritionRate: totalActive + departed.length > 0
+        ? Math.round((departed.length / (totalActive + departed.length)) * 10000) / 100
+        : 0,
+      averageTenureDays: departed.length > 0 ? Math.round(totalTenureDays / departed.length) : 0,
+      totalDeparted: departed.length,
+      byClient: clientStats,
+      byReason: reasonStats,
+      recentDepartures: recentDepartures.sort((a, b) => new Date(b.departureDate) - new Date(a.departureDate)),
+    });
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
 module.exports = router;
