@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { schemas } = require('./modelRegistry');
 
 /**
  * Maintains a pool of Mongoose connections — one per tenant.
@@ -32,6 +33,13 @@ const getConnectionForTenant = async (tenantConfig) => {
     maxPoolSize: 5,          // low for free tier, increase later
     serverSelectionTimeoutMS: 5000,
   }).asPromise();
+
+  // Register all schemas upfront so populate() and ref lookups work
+  for (const [modelName, schema] of Object.entries(schemas)) {
+    if (!conn.models[modelName]) {
+      conn.model(modelName, schema);
+    }
+  }
 
   console.log(`[DB] Connected to tenant database: ${dbName}`);
   connections.set(dbName, conn);
