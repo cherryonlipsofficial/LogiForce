@@ -52,7 +52,6 @@ const vehicleSchema = new mongoose.Schema(
       type: String,
       enum: ['available', 'assigned', 'maintenance', 'off_hired', 'reserved'],
       default: 'available',
-      index: true,
     },
     monthlyRate: {
       type: Number,
