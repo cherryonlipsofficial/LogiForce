@@ -5,6 +5,7 @@ import KpiCard from '../../components/ui/KpiCard';
 import Badge from '../../components/ui/Badge';
 import Btn from '../../components/ui/Btn';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import PermissionGate from '../../components/ui/PermissionGate';
 import { getPayrollSummary, getInvoiceAging, getCostPerDriver, getFleetUtilisation } from '../../api/reportsApi';
 import { getClients } from '../../api/clientsApi';
 import { getProjects } from '../../api/projectsApi';
@@ -20,6 +21,29 @@ const fleetReportCards = [
   { title: 'Contract expiry schedule', desc: 'All contracts with expiry dates in next 6 months', icon: '📅' },
   { title: 'Off-hire log', desc: 'History of all off-hired vehicles with termination reason', icon: '🚫' },
   { title: 'Assignment history', desc: 'Full log of which driver had which vehicle when', icon: '🔄' },
+];
+
+const opsReportCards = [
+  { title: 'Driver availability', desc: 'Driver count by status per project', route: '/reports/ops/driver-availability', permission: 'reports.ops_driver_availability' },
+  { title: 'Attendance tracker', desc: 'Batch approval pipeline status', route: '/reports/ops/attendance-tracker', permission: 'reports.ops_attendance_tracker' },
+  { title: 'Dispute log', desc: 'Dispute history and turnaround times', route: '/reports/ops/dispute-log', permission: 'reports.ops_dispute_log' },
+  { title: 'Assignment history', desc: 'Driver-to-project assignment history', route: '/reports/ops/assignment-history', permission: 'reports.ops_assignment_history' },
+  { title: 'Vehicle utilization', desc: 'Vehicle assignment status and idle tracking', route: '/reports/ops/vehicle-utilization', permission: 'reports.ops_vehicle_utilization' },
+  { title: 'Vehicle returns', desc: 'Return conditions and damage trends', route: '/reports/ops/vehicle-return', permission: 'reports.ops_vehicle_return' },
+  { title: 'Onboarding pipeline', desc: 'Driver onboarding stages and bottlenecks', route: '/reports/ops/onboarding-pipeline', permission: 'reports.ops_onboarding_pipeline' },
+  { title: 'SIM allocation', desc: 'SIM card assignments and unallocated SIMs', route: '/reports/ops/sim-allocation', permission: 'reports.ops_sim_allocation' },
+  { title: 'Salary pipeline', desc: 'Salary run approval stage tracking', route: '/reports/ops/salary-pipeline', permission: 'reports.ops_salary_pipeline' },
+  { title: 'Headcount vs plan', desc: 'Actual vs planned driver count per project', route: '/reports/ops/headcount-vs-plan', permission: 'reports.ops_headcount_vs_plan' },
+];
+
+const salesReportCards = [
+  { title: 'Revenue by client', desc: 'Invoiced revenue per client with trends', route: '/reports/sales/revenue-by-client', permission: 'reports.sales_revenue_by_client' },
+  { title: 'Client profitability', desc: 'Revenue minus cost per client (gross margin)', route: '/reports/sales/client-profitability', permission: 'reports.sales_client_profitability' },
+  { title: 'Credit note impact', desc: 'Credit note amounts and revenue impact', route: '/reports/sales/credit-note-impact', permission: 'reports.sales_credit_note_impact' },
+  { title: 'Contract pipeline', desc: 'Contracts expiring in 30/60/90 days', route: '/reports/sales/contract-pipeline', permission: 'reports.sales_contract_pipeline' },
+  { title: 'Fill rate', desc: 'Active vs planned headcount fill rate', route: '/reports/sales/fill-rate', permission: 'reports.sales_fill_rate' },
+  { title: 'New driver additions', desc: 'Drivers added per client/project per period', route: '/reports/sales/new-drivers', permission: 'reports.sales_new_drivers' },
+  { title: 'Rate comparison', desc: 'Rate per driver across projects per client', route: '/reports/sales/rate-comparison', permission: 'reports.sales_rate_comparison' },
 ];
 
 const periodOptions = [
@@ -281,6 +305,60 @@ const Reports = () => {
                   Available
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Operations reports section */}
+          <div style={{ marginTop: 8 }}>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Operations reports</div>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : isTablet ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 12 }}>
+              {opsReportCards.map((card) => (
+                <PermissionGate key={card.route} permission={card.permission}>
+                  <div
+                    onClick={() => navigate(card.route)}
+                    style={{
+                      background: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-lg)',
+                      padding: '16px 18px',
+                      cursor: 'pointer',
+                      transition: 'border-color .15s',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>{card.title}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.4 }}>{card.desc}</div>
+                  </div>
+                </PermissionGate>
+              ))}
+            </div>
+          </div>
+
+          {/* Sales reports section */}
+          <div style={{ marginTop: 8 }}>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Sales reports</div>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : isTablet ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 12 }}>
+              {salesReportCards.map((card) => (
+                <PermissionGate key={card.route} permission={card.permission}>
+                  <div
+                    onClick={() => navigate(card.route)}
+                    style={{
+                      background: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-lg)',
+                      padding: '16px 18px',
+                      cursor: 'pointer',
+                      transition: 'border-color .15s',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>{card.title}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.4 }}>{card.desc}</div>
+                  </div>
+                </PermissionGate>
+              ))}
             </div>
           </div>
         </>
