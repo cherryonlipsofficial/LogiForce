@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { protect, requirePermission } = require('../middleware/auth');
 const { getModel } = require('../config/modelRegistry');
-const { sendSuccess, sendError } = require('../utils/responseHelper');
+const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
+const { PAGINATION } = require('../config/constants');
 
 // All routes are protected
 router.use(protect);
@@ -2896,6 +2897,745 @@ router.get('/sim-cost', requirePermission('reports.accounts_sim_cost'), async (r
   try {
     sendSuccess(res, {
       message: 'SIM cost report is a placeholder — SIM module not yet integrated.',
+      data: [],
+    });
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// FINANCE REPORTS
+// ═══════════════════════════════════════════════════════════════════
+
+// GET /api/reports/profit-loss — Revenue vs costs per client (P&L)
+router.get('/profit-loss', requirePermission('reports.finance_pnl'), async (req, res) => {
+  try {
+    const Invoice = getModel(req, 'Invoice');
+    const SalaryRun = getModel(req, 'SalaryRun');
+    const mongoose = require('mongoose');
+
+    const { year, month } = req.query;
+    if (!year) return sendError(res, 'year is required', 400);
+
+    const invoiceMatch = {
+      isDeleted: { $ne: true },
+      status: { $nin: ['cancelled'] },
+      'period.year': parseInt(year),
+    };
+    const salaryMatch = {
+      'period.year': parseInt(year),
+      status: { $in: ['approved', 'paid'] },
+    };
+    if (month) {
+      invoiceMatch['period.month'] = parseInt(month);
+      salaryMatch['period.month'] = parseInt(month);
+    }
+
+    const [revByClient, costByClient] = await Promise.all([
+      Invoice.aggregate([
+        { $match: invoiceMatch },
+        {
+          $group: {
+            _id: '$clientId',
+            revenue: { $sum: '$total' },
+          },
+        },
+        { $lookup: { from: 'clients', localField: '_id', foreignField: '_id', as: 'client' } },
+        { $unwind: { path: '$client', preserveNullAndEmptyArrays: true } },
+      ]),
+      SalaryRun.aggregate([
+        { $match: salaryMatch },
+        {
+          $group: {
+            _id: '$clientId',
+            cost: { $sum: '$grossSalary' },
+            driverCount: { $addToSet: '$driverId' },
+          },
+        },
+        { $lookup: { from: 'clients', localField: '_id', foreignField: '_id', as: 'client' } },
+        { $unwind: { path: '$client', preserveNullAndEmptyArrays: true } },
+      ]),
+    ]);
+
+    // Merge revenue and cost by client
+    const clientMap = {};
+    for (const r of revByClient) {
+      const id = r._id?.toString();
+      if (!clientMap[id]) clientMap[id] = { clientId: r._id, clientName: r.client?.name || 'Unknown', revenue: 0, cost: 0, driverCount: 0 };
+      clientMap[id].revenue = r.revenue;
+    }
+    for (const c of costByClient) {
+      const id = c._id?.toString();
+      if (!clientMap[id]) clientMap[id] = { clientId: c._id, clientName: c.client?.name || 'Unknown', revenue: 0, cost: 0, driverCount: 0 };
+      clientMap[id].cost = c.cost;
+      clientMap[id].driverCount = c.driverCount?.length || 0;
+    }
+
+    const byClient = Object.values(clientMap).map(c => ({
+      clientId: c.clientId,
+      clientName: c.clientName,
+      revenue: Math.round(c.revenue * 100) / 100,
+      cost: Math.round(c.cost * 100) / 100,
+      margin: Math.round((c.revenue - c.cost) * 100) / 100,
+      marginPercent: c.revenue > 0 ? Math.round(((c.revenue - c.cost) / c.revenue) * 10000) / 100 : 0,
+      driverCount: c.driverCount,
+    }));
+
+    const consolidated = byClient.reduce(
+      (acc, c) => {
+        acc.revenue += c.revenue;
+        acc.salaryCost += c.cost;
+        return acc;
+      },
+      { revenue: 0, salaryCost: 0 }
+    );
+    consolidated.grossMargin = Math.round((consolidated.revenue - consolidated.salaryCost) * 100) / 100;
+    consolidated.marginPercent = consolidated.revenue > 0
+      ? Math.round(((consolidated.revenue - consolidated.salaryCost) / consolidated.revenue) * 10000) / 100
+      : 0;
+
+    sendSuccess(res, { consolidated, byClient });
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/revenue-forecast — Projected vs actual revenue from contracts
+router.get('/revenue-forecast', requirePermission('reports.finance_revenue_forecast'), async (req, res) => {
+  try {
+    const ProjectContract = getModel(req, 'ProjectContract');
+    const Driver = getModel(req, 'Driver');
+    const Invoice = getModel(req, 'Invoice');
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+
+    const activeContracts = await ProjectContract.find({ status: 'active' })
+      .populate('projectId', 'name')
+      .populate('clientId', 'name')
+      .lean();
+
+    const result = [];
+    for (const contract of activeContracts) {
+      const activeDrivers = await Driver.countDocuments({
+        projectId: contract.projectId?._id,
+        status: 'active',
+      });
+
+      const invoices = await Invoice.aggregate([
+        {
+          $match: {
+            projectId: contract.projectId?._id,
+            'period.year': currentYear,
+            'period.month': currentMonth,
+            isDeleted: { $ne: true },
+            status: { $nin: ['cancelled'] },
+          },
+        },
+        { $group: { _id: null, total: { $sum: '$total' } } },
+      ]);
+
+      const projectedRevenue = Math.round(contract.ratePerDriver * activeDrivers * 100) / 100;
+      const actualInvoiced = invoices[0]?.total || 0;
+      const variance = Math.round((actualInvoiced - projectedRevenue) * 100) / 100;
+
+      result.push({
+        projectId: contract.projectId?._id,
+        projectName: contract.projectId?.name || 'Unknown',
+        clientName: contract.clientId?.name || 'Unknown',
+        ratePerDriver: contract.ratePerDriver,
+        activeDrivers,
+        projectedRevenue,
+        actualInvoiced: Math.round(actualInvoiced * 100) / 100,
+        variance,
+        variancePercent: projectedRevenue > 0 ? Math.round((variance / projectedRevenue) * 10000) / 100 : 0,
+      });
+    }
+
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/cash-flow — Expected inflows vs outflows
+router.get('/cash-flow', requirePermission('reports.finance_cash_flow'), async (req, res) => {
+  try {
+    const Invoice = getModel(req, 'Invoice');
+    const Project = getModel(req, 'Project');
+    const Driver = getModel(req, 'Driver');
+
+    const days = parseInt(req.query.days) || 60;
+    const now = new Date();
+    const endDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+
+    // Inflows: unpaid invoices with dueDate in range
+    const unpaidInvoices = await Invoice.find({
+      status: { $in: ['sent', 'overdue'] },
+      isDeleted: { $ne: true },
+      dueDate: { $gte: now, $lte: endDate },
+    })
+      .select('invoiceNo dueDate total clientId')
+      .populate('clientId', 'name')
+      .sort({ dueDate: 1 })
+      .lean();
+
+    const inflows = unpaidInvoices.map(inv => ({
+      date: inv.dueDate,
+      amount: inv.total,
+      source: inv.clientId?.name || 'Unknown',
+      invoiceNo: inv.invoiceNo,
+    }));
+
+    // Outflows: estimated salary payments from active projects
+    const activeProjects = await Project.find({ status: 'active' })
+      .select('name salaryReleaseDay')
+      .lean();
+
+    const outflows = [];
+    for (const proj of activeProjects) {
+      const driverCount = await Driver.countDocuments({ projectId: proj._id, status: 'active' });
+      if (driverCount === 0) continue;
+
+      // Estimate salary outflow for each month in the window
+      const releaseDay = proj.salaryReleaseDay || 25;
+      for (let d = new Date(now); d <= endDate; d.setMonth(d.getMonth() + 1)) {
+        const payDate = new Date(d.getFullYear(), d.getMonth(), releaseDay);
+        if (payDate >= now && payDate <= endDate) {
+          outflows.push({
+            date: payDate,
+            amount: 0, // actual amount unknown without salary run data
+            source: 'Salary',
+            projectName: proj.name,
+          });
+        }
+      }
+    }
+    outflows.sort((a, b) => a.date - b.date);
+
+    // Net by week
+    const weekMap = {};
+    const getWeekKey = (date) => {
+      const d = new Date(date);
+      const startOfYear = new Date(d.getFullYear(), 0, 1);
+      const weekNo = Math.ceil(((d - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);
+      return `${d.getFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+    };
+
+    for (const inf of inflows) {
+      const wk = getWeekKey(inf.date);
+      if (!weekMap[wk]) weekMap[wk] = { week: wk, inflow: 0, outflow: 0, net: 0 };
+      weekMap[wk].inflow += inf.amount;
+    }
+    for (const out of outflows) {
+      const wk = getWeekKey(out.date);
+      if (!weekMap[wk]) weekMap[wk] = { week: wk, inflow: 0, outflow: 0, net: 0 };
+      weekMap[wk].outflow += out.amount;
+    }
+    const netByWeek = Object.values(weekMap)
+      .map(w => ({ ...w, net: Math.round((w.inflow - w.outflow) * 100) / 100 }))
+      .sort((a, b) => a.week.localeCompare(b.week));
+
+    sendSuccess(res, { inflows, outflows, netByWeek });
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/fleet-cost — Vehicle fleet cost by supplier
+router.get('/fleet-cost', requirePermission('reports.finance_fleet_cost'), async (req, res) => {
+  try {
+    const Vehicle = getModel(req, 'Vehicle');
+    const VehicleFine = getModel(req, 'VehicleFine');
+    const VehicleAssignment = getModel(req, 'VehicleAssignment');
+
+    const [vehicleCosts, fineTotals, damageTotals] = await Promise.all([
+      Vehicle.aggregate([
+        { $match: { status: { $ne: 'off_hired' } } },
+        {
+          $group: {
+            _id: '$supplierId',
+            vehicleCount: { $sum: 1 },
+            totalMonthlyRate: { $sum: '$monthlyRate' },
+          },
+        },
+        { $lookup: { from: 'suppliers', localField: '_id', foreignField: '_id', as: 'supplier' } },
+        { $unwind: { path: '$supplier', preserveNullAndEmptyArrays: true } },
+      ]),
+      VehicleFine.aggregate([
+        { $match: { status: { $ne: 'waived' } } },
+        {
+          $lookup: { from: 'vehicles', localField: 'vehicleId', foreignField: '_id', as: 'vehicle' },
+        },
+        { $unwind: { path: '$vehicle', preserveNullAndEmptyArrays: true } },
+        {
+          $group: {
+            _id: '$vehicle.supplierId',
+            totalFines: { $sum: '$amount' },
+          },
+        },
+      ]),
+      VehicleAssignment.aggregate([
+        { $match: { damagePenaltyAmount: { $gt: 0 } } },
+        {
+          $lookup: { from: 'vehicles', localField: 'vehicleId', foreignField: '_id', as: 'vehicle' },
+        },
+        { $unwind: { path: '$vehicle', preserveNullAndEmptyArrays: true } },
+        {
+          $group: {
+            _id: '$vehicle.supplierId',
+            totalDamagePenalties: { $sum: '$damagePenaltyAmount' },
+          },
+        },
+      ]),
+    ]);
+
+    const fineMap = {};
+    for (const f of fineTotals) fineMap[f._id?.toString()] = f.totalFines;
+    const damageMap = {};
+    for (const d of damageTotals) damageMap[d._id?.toString()] = d.totalDamagePenalties;
+
+    const result = vehicleCosts.map(v => {
+      const sid = v._id?.toString();
+      const totalFines = fineMap[sid] || 0;
+      const totalDamagePenalties = damageMap[sid] || 0;
+      const totalCost = v.totalMonthlyRate + totalFines + totalDamagePenalties;
+      return {
+        supplierId: v._id,
+        supplierName: v.supplier?.name || 'Unknown / No Supplier',
+        vehicleCount: v.vehicleCount,
+        totalMonthlyRate: Math.round(v.totalMonthlyRate * 100) / 100,
+        totalFines: Math.round(totalFines * 100) / 100,
+        totalDamagePenalties: Math.round(totalDamagePenalties * 100) / 100,
+        totalCost: Math.round(totalCost * 100) / 100,
+        avgCostPerVehicle: v.vehicleCount > 0 ? Math.round((totalCost / v.vehicleCount) * 100) / 100 : 0,
+      };
+    });
+
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/cn-financial-impact — Credit note financial impact
+router.get('/cn-financial-impact', requirePermission('reports.finance_cn_financial'), async (req, res) => {
+  try {
+    const CreditNote = getModel(req, 'CreditNote');
+    const DriverReceivable = getModel(req, 'DriverReceivable');
+
+    const { year } = req.query;
+    const cnMatch = { isDeleted: { $ne: true }, status: { $nin: ['cancelled'] } };
+    if (year) cnMatch['period.year'] = parseInt(year);
+
+    // Total issued
+    const totalIssuedAgg = await CreditNote.aggregate([
+      { $match: cnMatch },
+      { $group: { _id: null, totalIssued: { $sum: '$totalAmount' } } },
+    ]);
+    const totalIssued = totalIssuedAgg[0]?.totalIssued || 0;
+
+    // Recovered via salary: sum of lineItems where salaryDeducted = true
+    const salaryRecoveredAgg = await CreditNote.aggregate([
+      { $match: cnMatch },
+      { $unwind: '$lineItems' },
+      { $match: { 'lineItems.salaryDeducted': true } },
+      { $group: { _id: null, total: { $sum: '$lineItems.totalWithVat' } } },
+    ]);
+    const totalRecoveredViaSalary = salaryRecoveredAgg[0]?.total || 0;
+
+    // Recovered via receivable
+    const receivableMatch = {};
+    const receivableRecoveredAgg = await DriverReceivable.aggregate([
+      { $match: { ...receivableMatch, isDeleted: { $ne: true } } },
+      { $group: { _id: null, totalRecovered: { $sum: '$amountRecovered' }, totalWrittenOff: { $sum: { $ifNull: ['$writeOffAmount', 0] } } } },
+    ]);
+    const totalRecoveredViaReceivable = receivableRecoveredAgg[0]?.totalRecovered || 0;
+    const totalWrittenOff = receivableRecoveredAgg[0]?.totalWrittenOff || 0;
+
+    // By month
+    const byMonth = await CreditNote.aggregate([
+      { $match: cnMatch },
+      {
+        $group: {
+          _id: { year: '$period.year', month: '$period.month' },
+          issued: { $sum: '$totalAmount' },
+        },
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1 } },
+      {
+        $project: {
+          _id: 0,
+          month: { $concat: [{ $toString: '$_id.year' }, '-', { $toString: '$_id.month' }] },
+          issued: { $round: ['$issued', 2] },
+          recovered: 0, // would require cross-collection join per month
+        },
+      },
+    ]);
+
+    sendSuccess(res, {
+      totalIssued: Math.round(totalIssued * 100) / 100,
+      totalRecoveredViaSalary: Math.round(totalRecoveredViaSalary * 100) / 100,
+      totalRecoveredViaReceivable: Math.round(totalRecoveredViaReceivable * 100) / 100,
+      totalWrittenOff: Math.round(totalWrittenOff * 100) / 100,
+      netLoss: Math.round((totalIssued - totalRecoveredViaSalary - totalRecoveredViaReceivable - totalWrittenOff) * 100) / 100,
+      byMonth,
+    });
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/supplier-payment — Supplier payment summary
+router.get('/supplier-payment', requirePermission('reports.finance_supplier_payment'), async (req, res) => {
+  try {
+    const Supplier = getModel(req, 'Supplier');
+    const Vehicle = getModel(req, 'Vehicle');
+
+    const activeSuppliers = await Supplier.find({ isActive: true }).lean();
+
+    const result = [];
+    for (const supplier of activeSuppliers) {
+      const vehicles = await Vehicle.aggregate([
+        { $match: { supplierId: supplier._id, status: { $ne: 'off_hired' } } },
+        {
+          $group: {
+            _id: null,
+            activeVehicles: { $sum: 1 },
+            totalMonthlyPayable: { $sum: '$monthlyRate' },
+          },
+        },
+      ]);
+
+      result.push({
+        supplierId: supplier._id,
+        supplierName: supplier.name,
+        activeVehicles: vehicles[0]?.activeVehicles || 0,
+        totalMonthlyPayable: Math.round((vehicles[0]?.totalMonthlyPayable || 0) * 100) / 100,
+        paymentTerms: supplier.paymentTerms || null,
+        contractEnd: supplier.contractEnd || null,
+      });
+    }
+
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/outstanding-receivables — Consolidated unpaid invoices + receivables + advances
+router.get('/outstanding-receivables', requirePermission('reports.finance_outstanding'), async (req, res) => {
+  try {
+    const Invoice = getModel(req, 'Invoice');
+    const DriverReceivable = getModel(req, 'DriverReceivable');
+    const DriverAdvance = getModel(req, 'DriverAdvance');
+
+    const [unpaidInvoices, driverReceivables, outstandingAdvances] = await Promise.all([
+      Invoice.aggregate([
+        { $match: { status: { $in: ['sent', 'overdue'] }, isDeleted: { $ne: true } } },
+        { $group: { _id: null, count: { $sum: 1 }, total: { $sum: '$total' } } },
+      ]),
+      DriverReceivable.aggregate([
+        { $match: { status: { $in: ['outstanding', 'partially_recovered'] }, isDeleted: { $ne: true } } },
+        {
+          $group: {
+            _id: null,
+            count: { $sum: 1 },
+            total: { $sum: { $subtract: ['$amount', '$amountRecovered'] } },
+          },
+        },
+      ]),
+      DriverAdvance.aggregate([
+        { $match: { status: 'approved' } },
+        {
+          $group: {
+            _id: null,
+            count: { $sum: 1 },
+            total: { $sum: { $subtract: ['$amount', '$totalRecovered'] } },
+          },
+        },
+        // Filter to only those with remaining > 0
+      ]),
+    ]);
+
+    const inv = unpaidInvoices[0] || { count: 0, total: 0 };
+    const recv = driverReceivables[0] || { count: 0, total: 0 };
+    const adv = outstandingAdvances[0] || { count: 0, total: 0 };
+
+    sendSuccess(res, {
+      unpaidInvoices: { count: inv.count, total: Math.round(inv.total * 100) / 100 },
+      driverReceivables: { count: recv.count, total: Math.round(recv.total * 100) / 100 },
+      outstandingAdvances: { count: adv.count, total: Math.round(adv.total * 100) / 100 },
+      grandTotal: Math.round((inv.total + recv.total + adv.total) * 100) / 100,
+    });
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// ADMIN REPORTS
+// ═══════════════════════════════════════════════════════════════════
+
+// GET /api/reports/audit-trail — Full audit log with filters (paginated)
+router.get('/audit-trail', requirePermission('reports.admin_audit_trail'), async (req, res) => {
+  try {
+    const AuditLog = getModel(req, 'AuditLog');
+
+    const { model: modelName, userId, dateFrom, dateTo, action } = req.query;
+    const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
+    const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
+    const skip = (page - 1) * limit;
+
+    const query = {};
+    if (modelName) query.model = modelName;
+    if (userId) {
+      const mongoose = require('mongoose');
+      query.userId = new mongoose.Types.ObjectId(userId);
+    }
+    if (action) query.action = action;
+    if (dateFrom || dateTo) {
+      query.timestamp = {};
+      if (dateFrom) query.timestamp.$gte = new Date(dateFrom);
+      if (dateTo) query.timestamp.$lte = new Date(dateTo);
+    }
+
+    const [data, total] = await Promise.all([
+      AuditLog.find(query)
+        .populate('userId', 'name email')
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      AuditLog.countDocuments(query),
+    ]);
+
+    sendPaginated(res, data, total, page, limit);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/user-activity — User login frequency and activity
+router.get('/user-activity', requirePermission('reports.admin_user_activity'), async (req, res) => {
+  try {
+    const User = getModel(req, 'User');
+
+    const users = await User.find({ isActive: true })
+      .populate('roleId', 'name displayName')
+      .select('name email roleId lastLogin permissionOverrides isActive')
+      .sort({ lastLogin: -1 })
+      .lean();
+
+    const now = new Date();
+    const result = users.map(u => ({
+      userId: u._id,
+      name: u.name,
+      email: u.email,
+      roleName: u.roleId?.displayName || u.roleId?.name || 'Unknown',
+      lastLogin: u.lastLogin || null,
+      daysSinceLastLogin: u.lastLogin ? Math.floor((now - new Date(u.lastLogin)) / 86400000) : null,
+      isActive: u.isActive,
+      overrideCount: u.permissionOverrides?.length || 0,
+    }));
+
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/role-matrix — Role vs permission matrix
+router.get('/role-matrix', requirePermission('reports.admin_role_matrix'), async (req, res) => {
+  try {
+    const Role = getModel(req, 'Role');
+    const { PERMISSIONS } = require('../config/permissions');
+
+    const roles = await Role.find({ isActive: true }).select('name displayName permissions').lean();
+
+    const permissions = Object.entries(PERMISSIONS).map(([key, val]) => ({
+      key,
+      label: val.label,
+      module: val.module,
+    }));
+
+    const matrix = {};
+    for (const role of roles) {
+      matrix[role.name] = role.permissions || [];
+    }
+
+    sendSuccess(res, {
+      roles: roles.map(r => ({ roleId: r._id, name: r.name, displayName: r.displayName })),
+      permissions,
+      matrix,
+    });
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/data-quality — Drivers with missing critical data
+router.get('/data-quality', requirePermission('reports.admin_data_quality'), async (req, res) => {
+  try {
+    const Driver = getModel(req, 'Driver');
+
+    const activeDrivers = await Driver.find({ status: 'active' })
+      .populate('projectId', 'name')
+      .select('fullName employeeCode projectId bankName iban phoneUae emergencyContactName emergencyContactPhone clientUserId')
+      .lean();
+
+    const fieldsToCheck = ['bankName', 'iban', 'phoneUae', 'emergencyContactName', 'emergencyContactPhone', 'clientUserId'];
+
+    const withIssues = [];
+    for (const d of activeDrivers) {
+      const missingFields = fieldsToCheck.filter(f => !d[f] || d[f] === '');
+      if (missingFields.length > 0) {
+        withIssues.push({
+          driverId: d._id,
+          fullName: d.fullName,
+          employeeCode: d.employeeCode,
+          projectName: d.projectId?.name || 'Unassigned',
+          missingFields,
+        });
+      }
+    }
+
+    const totalActive = activeDrivers.length;
+    const completionRate = totalActive > 0
+      ? Math.round(((totalActive - withIssues.length) / totalActive) * 10000) / 100
+      : 100;
+
+    sendSuccess(res, {
+      summary: { totalActive, withIssues: withIssues.length, completionRate },
+      drivers: withIssues,
+    });
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/executive-summary — Consolidated KPI dashboard
+router.get('/executive-summary', requirePermission('reports.admin_executive_summary'), async (req, res) => {
+  try {
+    const Driver = getModel(req, 'Driver');
+    const Invoice = getModel(req, 'Invoice');
+    const SalaryRun = getModel(req, 'SalaryRun');
+    const Vehicle = getModel(req, 'Vehicle');
+    const DriverDocument = getModel(req, 'DriverDocument');
+    const AttendanceDispute = getModel(req, 'AttendanceDispute');
+
+    const now = new Date();
+    const year = parseInt(req.query.year) || now.getFullYear();
+    const month = parseInt(req.query.month) || (now.getMonth() + 1);
+
+    const [
+      totalActiveDrivers,
+      revenueAgg,
+      payrollAgg,
+      totalVehicles,
+      assignedVehicles,
+      totalDocs,
+      validDocs,
+      overdueInvoices,
+      openDisputes,
+    ] = await Promise.all([
+      Driver.countDocuments({ status: 'active' }),
+      Invoice.aggregate([
+        { $match: { 'period.year': year, 'period.month': month, isDeleted: { $ne: true }, status: { $nin: ['cancelled'] } } },
+        { $group: { _id: null, total: { $sum: '$total' } } },
+      ]),
+      SalaryRun.aggregate([
+        { $match: { 'period.year': year, 'period.month': month, status: { $in: ['approved', 'paid'] } } },
+        { $group: { _id: null, total: { $sum: '$grossSalary' } } },
+      ]),
+      Vehicle.countDocuments({ status: { $ne: 'off_hired' } }),
+      Vehicle.countDocuments({ status: 'assigned' }),
+      DriverDocument.countDocuments({}),
+      DriverDocument.countDocuments({ status: 'verified' }),
+      Invoice.countDocuments({ status: 'overdue', isDeleted: { $ne: true } }),
+      AttendanceDispute.countDocuments({ status: 'open' }),
+    ]);
+
+    const totalRevenue = revenueAgg[0]?.total || 0;
+    const totalPayrollCost = payrollAgg[0]?.total || 0;
+    const grossMargin = totalRevenue - totalPayrollCost;
+    const fleetUtilization = totalVehicles > 0 ? Math.round((assignedVehicles / totalVehicles) * 10000) / 100 : 0;
+    const complianceRate = totalDocs > 0 ? Math.round((validDocs / totalDocs) * 10000) / 100 : 0;
+
+    sendSuccess(res, {
+      totalActiveDrivers,
+      totalRevenue: Math.round(totalRevenue * 100) / 100,
+      totalPayrollCost: Math.round(totalPayrollCost * 100) / 100,
+      grossMargin: Math.round(grossMargin * 100) / 100,
+      fleetUtilization,
+      complianceRate,
+      overdueInvoices,
+      openDisputes,
+    });
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/trend — Multi-period trend (last N months)
+router.get('/trend', requirePermission('reports.admin_trend'), async (req, res) => {
+  try {
+    const Driver = getModel(req, 'Driver');
+    const Invoice = getModel(req, 'Invoice');
+    const SalaryRun = getModel(req, 'SalaryRun');
+
+    const months = parseInt(req.query.months) || 12;
+    const now = new Date();
+
+    const result = [];
+    for (let i = months - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const month = d.getMonth() + 1;
+
+      const [driverCount, revAgg, salaryAgg, invoiceCount] = await Promise.all([
+        Driver.countDocuments({
+          status: 'active',
+          createdAt: { $lte: new Date(year, month, 0) }, // end of that month
+        }),
+        Invoice.aggregate([
+          { $match: { 'period.year': year, 'period.month': month, isDeleted: { $ne: true }, status: { $nin: ['cancelled'] } } },
+          { $group: { _id: null, total: { $sum: '$total' } } },
+        ]),
+        SalaryRun.aggregate([
+          { $match: { 'period.year': year, 'period.month': month, status: { $in: ['approved', 'paid'] } } },
+          { $group: { _id: null, total: { $sum: '$grossSalary' } } },
+        ]),
+        Invoice.countDocuments({ 'period.year': year, 'period.month': month, isDeleted: { $ne: true }, status: { $nin: ['cancelled'] } }),
+      ]);
+
+      const revenue = revAgg[0]?.total || 0;
+      const payrollCost = salaryAgg[0]?.total || 0;
+
+      result.push({
+        year,
+        month,
+        activeDrivers: driverCount,
+        revenue: Math.round(revenue * 100) / 100,
+        payrollCost: Math.round(payrollCost * 100) / 100,
+        margin: Math.round((revenue - payrollCost) * 100) / 100,
+        invoiceCount,
+      });
+    }
+
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/sim-inventory — Placeholder (SIM module not yet integrated)
+router.get('/sim-inventory', requirePermission('reports.admin_sim_inventory'), async (req, res) => {
+  try {
+    sendSuccess(res, {
+      message: 'SIM inventory report is a placeholder — SIM module not yet integrated.',
       data: [],
     });
   } catch (err) {
