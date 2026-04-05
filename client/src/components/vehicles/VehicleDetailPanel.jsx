@@ -10,6 +10,7 @@ import SectionHeader from '../ui/SectionHeader';
 import Avatar from '../ui/Avatar';
 import AssignVehicleModal from './AssignVehicleModal';
 import ReturnVehicleModal from './ReturnVehicleModal';
+import EditVehicleModal from './EditVehicleModal';
 import VehicleAssignmentHistory from './VehicleAssignmentHistory';
 import { useAuth } from '../../context/AuthContext';
 import { useFormatters } from '../../hooks/useFormatters';
@@ -181,6 +182,7 @@ const VehicleDetailPanel = ({ vehicleId, onClose }) => {
   const [offHireReason, setOffHireReason] = useState('');
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [returnModalOpen, setReturnModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
 
   const offHireMut = useMutation({
     mutationFn: (d) => offHireVehicle(vehicleId, d),
@@ -224,6 +226,9 @@ const VehicleDetailPanel = ({ vehicleId, onClose }) => {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <Badge variant={vehicleStatusVariant(vehicle.status)}>{vehicleStatusLabel(vehicle.status)}</Badge>
+              {canEditVehicle && (
+                <Btn small variant="ghost" onClick={() => setEditModalOpen(true)}>Edit</Btn>
+              )}
               <button
                 onClick={onClose}
                 style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 20, cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}
@@ -470,6 +475,18 @@ const VehicleDetailPanel = ({ vehicleId, onClose }) => {
             qc.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
             qc.invalidateQueries({ queryKey: ['vehicle-current-assignment', vehicleId] });
             qc.invalidateQueries({ queryKey: ['vehicle-assignment-history', vehicleId] });
+          }}
+        />
+      )}
+
+      {editModalOpen && vehicle && (
+        <EditVehicleModal
+          vehicle={vehicle}
+          onClose={() => setEditModalOpen(false)}
+          onSuccess={() => {
+            setEditModalOpen(false);
+            qc.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
+            qc.invalidateQueries({ queryKey: ['vehicles'] });
           }}
         />
       )}

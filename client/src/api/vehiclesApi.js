@@ -82,3 +82,15 @@ export const updateMileage = (vehicleId, data) =>
 // Delete vehicle
 export const deleteVehicle = (id) =>
   axiosInstance.delete(`/vehicles/${id}`).then((r) => r.data);
+
+// Bulk import
+export const bulkUploadVehicles = (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return axiosInstance.post('/vehicles/bulk-upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data);
+};
+
+export const downloadVehicleTemplate = () =>
+  axiosInstance.get('/vehicles/bulk-template', { responseType: 'blob' }).then((r) => r);
