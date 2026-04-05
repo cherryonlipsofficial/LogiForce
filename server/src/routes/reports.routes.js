@@ -1272,4 +1272,413 @@ router.get('/sales/rate-comparison', requirePermission('reports.sales_rate_compa
   }
 });
 
+// =============================================
+// OPERATIONS REPORT ENDPOINTS (V2)
+// =============================================
+
+// GET /api/reports/driver-availability — driver count by status per project with fill rate
+router.get('/driver-availability', requirePermission('reports.ops_driver_availability'), async (req, res) => {
+  try {
+    const Driver = getModel(req, 'Driver');
+    const Project = getModel(req, 'Project');
+    const mongoose = require('mongoose');
+    const { projectId } = req.query;
+
+    const driverMatch = {};
+    if (projectId) driverMatch.projectId = new mongoose.Types.ObjectId(projectId);
+
+    const pipeline = [
+      { $match: driverMatch },
+      {
+        $group: {
+          _id: { projectId: '$projectId', status: '$status' },
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $group: {
+          _id: '$_id.projectId',
+          statusCounts: { $push: { k: '$_id.status', v: '$count' } },
+          totalActive: {
+            $sum: {
+              $cond: [{ $eq: ['$_id.status', 'active'] }, '$count', 0],
+            },
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: 'projects',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'project',
+        },
+      },
+      { $unwind: { path: '$project', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: 'clients',
+          localField: 'project.clientId',
+          foreignField: '_id',
+          as: 'client',
+        },
+      },
+      { $unwind: { path: '$client', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          projectId: '$_id',
+          projectName: '$project.name',
+          clientName: '$client.name',
+          statusCounts: { $arrayToObject: '$statusCounts' },
+          totalActive: 1,
+          planned: { $ifNull: ['$project.plannedDriverCount', 0] },
+        },
+      },
+      {
+        $addFields: {
+          fillRate: {
+            $cond: [
+              { $gt: ['$planned', 0] },
+              { $multiply: [{ $divide: ['$totalActive', '$planned'] }, 100] },
+              null,
+            ],
+          },
+        },
+      },
+      { $sort: { projectName: 1 } },
+    ];
+
+    const result = await Driver.aggregate(pipeline);
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/attendance-tracker — batch approval status per project
+router.get('/attendance-tracker', requirePermission('reports.ops_attendance_tracker'), async (req, res) => {
+  try {
+    const AttendanceBatch = getModel(req, 'AttendanceBatch');
+    const { year, month } = req.query;
+
+    const matchStage = {};
+    if (year) matchStage['period.year'] = parseInt(year);
+    if (month) matchStage['period.month'] = parseInt(month);
+
+    const batches = await AttendanceBatch.find(matchStage)
+      .populate('projectId', 'name')
+      .populate('clientId', 'name')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const result = batches.map(b => ({
+      projectId: b.projectId?._id,
+      projectName: b.projectId?.name,
+      clientName: b.clientId?.name,
+      batchId: b.batchId,
+      status: b.status,
+      salesApproval: { status: b.salesApproval?.status || 'pending' },
+      opsApproval: { status: b.opsApproval?.status || 'pending' },
+      hasDisputes: Array.isArray(b.disputes) && b.disputes.length > 0,
+      uploadedAt: b.createdAt,
+    }));
+
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/dispute-log — attendance disputes with turnaround time
+router.get('/dispute-log', requirePermission('reports.ops_dispute_log'), async (req, res) => {
+  try {
+    const AttendanceDispute = getModel(req, 'AttendanceDispute');
+    const { year, month, status } = req.query;
+
+    const matchStage = {};
+    if (status) matchStage.status = status;
+
+    // Filter by year/month via batch period lookup
+    if (year || month) {
+      const AttendanceBatch = getModel(req, 'AttendanceBatch');
+      const batchMatch = {};
+      if (year) batchMatch['period.year'] = parseInt(year);
+      if (month) batchMatch['period.month'] = parseInt(month);
+      const batchIds = await AttendanceBatch.find(batchMatch).distinct('_id');
+      matchStage.batchId = { $in: batchIds };
+    }
+
+    const disputes = await AttendanceDispute.find(matchStage)
+      .populate('batchId', 'batchId period')
+      .populate('projectId', 'name')
+      .populate('clientId', 'name')
+      .sort({ raisedAt: -1 })
+      .lean();
+
+    const result = disputes.map(d => {
+      const responseTimeMs = d.response?.respondedAt
+        ? new Date(d.response.respondedAt) - new Date(d.raisedAt)
+        : null;
+      return {
+        disputeId: d._id,
+        batchId: d.batchId?.batchId,
+        projectName: d.projectId?.name,
+        clientName: d.clientId?.name,
+        disputeType: d.disputeType,
+        reason: d.reason,
+        raisedByName: d.raisedByName,
+        raisedAt: d.raisedAt,
+        status: d.status,
+        responseTime: responseTimeMs ? Math.round(responseTimeMs / (1000 * 60 * 60) * 10) / 10 : null,
+        resolvedAt: d.resolvedAt || null,
+      };
+    });
+
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/assignment-history — driver/project assignment records
+router.get('/assignment-history', requirePermission('reports.ops_assignment_history'), async (req, res) => {
+  try {
+    const DriverProjectAssignment = getModel(req, 'DriverProjectAssignment');
+    const mongoose = require('mongoose');
+    const { driverId, projectId } = req.query;
+
+    if (!driverId && !projectId) {
+      return sendError(res, 'At least one of driverId or projectId is required', 400);
+    }
+
+    const matchStage = {};
+    if (driverId) matchStage.driverId = new mongoose.Types.ObjectId(driverId);
+    if (projectId) matchStage.projectId = new mongoose.Types.ObjectId(projectId);
+
+    const assignments = await DriverProjectAssignment.find(matchStage)
+      .populate('driverId', 'fullName employeeCode')
+      .populate('projectId', 'name')
+      .populate('clientId', 'name')
+      .sort({ assignedDate: -1 })
+      .lean();
+
+    const result = assignments.map(a => ({
+      driverId: a.driverId?._id,
+      driverName: a.driverId?.fullName,
+      employeeCode: a.driverId?.employeeCode,
+      projectName: a.projectId?.name,
+      clientName: a.clientId?.name,
+      ratePerDriver: a.ratePerDriver,
+      assignedDate: a.assignedDate,
+      unassignedDate: a.unassignedDate || null,
+      status: a.status,
+      reason: a.reason || null,
+    }));
+
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/vehicle-return-condition — returned vehicles with damage summary
+router.get('/vehicle-return-condition', requirePermission('reports.ops_vehicle_return'), async (req, res) => {
+  try {
+    const VehicleAssignment = getModel(req, 'VehicleAssignment');
+    const { year, month } = req.query;
+
+    const matchStage = { status: 'returned' };
+    if (year && month) {
+      const start = new Date(parseInt(year), parseInt(month) - 1, 1);
+      const end = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59, 999);
+      matchStage.returnedDate = { $gte: start, $lte: end };
+    }
+
+    const assignments = await VehicleAssignment.find(matchStage)
+      .sort({ returnedDate: -1 })
+      .lean();
+
+    const returns = assignments.map(a => ({
+      vehiclePlate: a.vehiclePlateNumber,
+      vehicleMakeModel: a.vehicleMakeModel,
+      driverName: a.driverName,
+      returnCondition: a.returnCondition || 'good',
+      damageNotes: a.damageNotes || null,
+      damagePenaltyAmount: a.damagePenaltyAmount || 0,
+      returnedDate: a.returnedDate,
+      returnedByName: a.returnedByName || null,
+    }));
+
+    const summary = {
+      total: returns.length,
+      good: returns.filter(r => r.returnCondition === 'good').length,
+      minor_damage: returns.filter(r => r.returnCondition === 'minor_damage').length,
+      major_damage: returns.filter(r => r.returnCondition === 'major_damage').length,
+      total_loss: returns.filter(r => r.returnCondition === 'total_loss').length,
+      totalPenalties: returns.reduce((sum, r) => sum + (r.damagePenaltyAmount || 0), 0),
+    };
+
+    sendSuccess(res, { returns, summary });
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/onboarding-pipeline — drivers in onboarding with missing docs
+router.get('/onboarding-pipeline', requirePermission('reports.ops_onboarding_pipeline'), async (req, res) => {
+  try {
+    const Driver = getModel(req, 'Driver');
+    const DriverDocument = getModel(req, 'DriverDocument');
+
+    const onboardingStatuses = ['draft', 'pending_kyc', 'pending_verification'];
+    const drivers = await Driver.find({ status: { $in: onboardingStatuses } })
+      .select('fullName employeeCode status lastStatusChange createdAt contactsVerified personalVerificationDone')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const requiredDocTypes = ['emirates_id', 'passport', 'visa', 'labour_card'];
+    const now = new Date();
+
+    const result = await Promise.all(drivers.map(async (d) => {
+      const docs = await DriverDocument.find({ driverId: d._id }).lean();
+      const existingTypes = new Set(docs.filter(doc => doc.status !== 'expired' && (!doc.expiryDate || new Date(doc.expiryDate) > now)).map(doc => doc.docType));
+      const missingDocs = requiredDocTypes.filter(t => !existingTypes.has(t));
+
+      const statusChangeDate = d.lastStatusChange?.changedAt || d.createdAt;
+      const daysInStatus = Math.ceil((now - new Date(statusChangeDate)) / (1000 * 60 * 60 * 24));
+
+      return {
+        driverId: d._id,
+        fullName: d.fullName,
+        employeeCode: d.employeeCode,
+        status: d.status,
+        daysInStatus,
+        createdAt: d.createdAt,
+        missingDocs,
+        contactsVerified: d.contactsVerified || false,
+        personalVerificationDone: d.personalVerificationDone || false,
+      };
+    }));
+
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/sim-allocation — placeholder until TelecomSim model is connected
+router.get('/sim-allocation', requirePermission('reports.ops_sim_allocation'), async (req, res) => {
+  try {
+    sendSuccess(res, { message: 'SIM Card module not yet integrated. This report will be available once the TelecomSim model is connected.' });
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/salary-pipeline — salary run status grouped by stage and project
+router.get('/salary-pipeline', requirePermission('reports.ops_salary_pipeline'), async (req, res) => {
+  try {
+    const SalaryRun = getModel(req, 'SalaryRun');
+    const { year, month } = req.query;
+
+    const matchStage = { isDeleted: { $ne: true } };
+    if (year) matchStage['period.year'] = parseInt(year);
+    if (month) matchStage['period.month'] = parseInt(month);
+
+    const pipeline = [
+      { $match: matchStage },
+      {
+        $facet: {
+          byStatus: [
+            { $group: { _id: '$status', count: { $sum: 1 } } },
+          ],
+          byProject: [
+            {
+              $group: {
+                _id: { projectId: '$projectId', clientId: '$clientId', status: '$status' },
+                count: { $sum: 1 },
+              },
+            },
+            {
+              $group: {
+                _id: { projectId: '$_id.projectId', clientId: '$_id.clientId' },
+                statusCounts: { $push: { k: '$_id.status', v: '$count' } },
+              },
+            },
+            {
+              $lookup: { from: 'projects', localField: '_id.projectId', foreignField: '_id', as: 'project' },
+            },
+            { $unwind: { path: '$project', preserveNullAndEmptyArrays: true } },
+            {
+              $lookup: { from: 'clients', localField: '_id.clientId', foreignField: '_id', as: 'client' },
+            },
+            { $unwind: { path: '$client', preserveNullAndEmptyArrays: true } },
+            {
+              $project: {
+                projectId: '$_id.projectId',
+                projectName: '$project.name',
+                clientName: '$client.name',
+                statusCounts: { $arrayToObject: '$statusCounts' },
+              },
+            },
+            { $sort: { clientName: 1, projectName: 1 } },
+          ],
+          total: [
+            { $count: 'count' },
+          ],
+        },
+      },
+    ];
+
+    const [facetResult] = await SalaryRun.aggregate(pipeline);
+
+    const byStatus = {};
+    for (const s of facetResult.byStatus) {
+      byStatus[s._id] = s.count;
+    }
+
+    const period = year && month ? `${year}-${String(month).padStart(2, '0')}` : 'all';
+
+    sendSuccess(res, {
+      byStatus,
+      byProject: facetResult.byProject,
+      total: facetResult.total[0]?.count || 0,
+      period,
+    });
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/headcount-vs-plan — actual vs planned driver headcount per project
+router.get('/headcount-vs-plan', requirePermission('reports.ops_headcount_vs_plan'), async (req, res) => {
+  try {
+    const Project = getModel(req, 'Project');
+    const Driver = getModel(req, 'Driver');
+
+    const projects = await Project.find({ status: 'active' })
+      .populate('clientId', 'name')
+      .lean();
+
+    const result = [];
+    for (const proj of projects) {
+      const actual = await Driver.countDocuments({ projectId: proj._id, status: 'active' });
+      const planned = proj.plannedDriverCount || 0;
+      result.push({
+        projectId: proj._id,
+        projectName: proj.name,
+        clientName: proj.clientId?.name,
+        planned,
+        actual,
+        fillRate: planned > 0 ? (actual / planned * 100).toFixed(1) : null,
+        gap: planned - actual,
+      });
+    }
+
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
 module.exports = router;
