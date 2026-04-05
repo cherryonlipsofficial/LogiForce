@@ -1,367 +1,114 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import KpiCard from '../../components/ui/KpiCard';
-import Badge from '../../components/ui/Badge';
-import Btn from '../../components/ui/Btn';
-import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import PermissionGate from '../../components/ui/PermissionGate';
-import { getPayrollSummary, getInvoiceAging, getCostPerDriver, getFleetUtilisation } from '../../api/reportsApi';
+import { useAuth } from '../../context/AuthContext';
 import { getClients } from '../../api/clientsApi';
 import { getProjects } from '../../api/projectsApi';
-import { useFormatters } from '../../hooks/useFormatters';
-import { useNavigate } from 'react-router-dom';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
-
-const COLORS = ['#4f8ef7', '#7c5ff0', '#1DB388', '#fbbf24'];
-
-const fleetReportCards = [
-  { title: 'Fleet utilisation report', desc: '% of vehicles assigned vs idle per supplier', icon: '📊' },
-  { title: 'Vehicle cost per driver', desc: 'Monthly vehicle deduction by driver + client', icon: '💰' },
-  { title: 'Contract expiry schedule', desc: 'All contracts with expiry dates in next 6 months', icon: '📅' },
-  { title: 'Off-hire log', desc: 'History of all off-hired vehicles with termination reason', icon: '🚫' },
-  { title: 'Assignment history', desc: 'Full log of which driver had which vehicle when', icon: '🔄' },
-];
-
-const opsReportCards = [
-  { title: 'Driver availability', desc: 'Driver count by status per project', route: '/reports/ops/driver-availability', permission: 'reports.ops_driver_availability' },
-  { title: 'Attendance tracker', desc: 'Batch approval pipeline status', route: '/reports/ops/attendance-tracker', permission: 'reports.ops_attendance_tracker' },
-  { title: 'Dispute log', desc: 'Dispute history and turnaround times', route: '/reports/ops/dispute-log', permission: 'reports.ops_dispute_log' },
-  { title: 'Assignment history', desc: 'Driver-to-project assignment history', route: '/reports/ops/assignment-history', permission: 'reports.ops_assignment_history' },
-  { title: 'Vehicle utilization', desc: 'Vehicle assignment status and idle tracking', route: '/reports/ops/vehicle-utilization', permission: 'reports.ops_vehicle_utilization' },
-  { title: 'Vehicle returns', desc: 'Return conditions and damage trends', route: '/reports/ops/vehicle-return', permission: 'reports.ops_vehicle_return' },
-  { title: 'Onboarding pipeline', desc: 'Driver onboarding stages and bottlenecks', route: '/reports/ops/onboarding-pipeline', permission: 'reports.ops_onboarding_pipeline' },
-  { title: 'SIM allocation', desc: 'SIM card assignments and unallocated SIMs', route: '/reports/ops/sim-allocation', permission: 'reports.ops_sim_allocation' },
-  { title: 'Salary pipeline', desc: 'Salary run approval stage tracking', route: '/reports/ops/salary-pipeline', permission: 'reports.ops_salary_pipeline' },
-  { title: 'Headcount vs plan', desc: 'Actual vs planned driver count per project', route: '/reports/ops/headcount-vs-plan', permission: 'reports.ops_headcount_vs_plan' },
-];
-
-const salesReportCards = [
-  { title: 'Revenue by client', desc: 'Invoiced revenue per client with trends', route: '/reports/sales/revenue-by-client', permission: 'reports.sales_revenue_by_client' },
-  { title: 'Client profitability', desc: 'Revenue minus cost per client (gross margin)', route: '/reports/sales/client-profitability', permission: 'reports.sales_client_profitability' },
-  { title: 'Credit note impact', desc: 'Credit note amounts and revenue impact', route: '/reports/sales/credit-note-impact', permission: 'reports.sales_credit_note_impact' },
-  { title: 'Contract pipeline', desc: 'Contracts expiring in 30/60/90 days', route: '/reports/sales/contract-pipeline', permission: 'reports.sales_contract_pipeline' },
-  { title: 'Fill rate', desc: 'Active vs planned headcount fill rate', route: '/reports/sales/fill-rate', permission: 'reports.sales_fill_rate' },
-  { title: 'New driver additions', desc: 'Drivers added per client/project per period', route: '/reports/sales/new-drivers', permission: 'reports.sales_new_drivers' },
-  { title: 'Rate comparison', desc: 'Rate per driver across projects per client', route: '/reports/sales/rate-comparison', permission: 'reports.sales_rate_comparison' },
-];
-
-const periodOptions = [
-  { label: 'Mar 2026', year: 2026, month: 3 },
-  { label: 'Feb 2026', year: 2026, month: 2 },
-  { label: 'Jan 2026', year: 2026, month: 1 },
-];
+import { TABS, REPORT_CARDS } from './reportCards';
+import ReportTabs from './ReportTabs';
+import ReportCardExpanded from './ReportCardExpanded';
 
 const Reports = () => {
-  const { isMobile, isTablet } = useBreakpoint();
-  const { formatCurrencyFull, formatCurrency } = useFormatters();
-  const navigate = useNavigate();
-  const [periodIdx, setPeriodIdx] = useState(0);
-  const [selectedClientId, setSelectedClientId] = useState('');
-  const [selectedProjectId, setSelectedProjectId] = useState('');
-  const selected = periodOptions[periodIdx];
+  const { hasPermission } = useAuth();
+  const { isMobile } = useBreakpoint();
+  const [activeTab, setActiveTab] = useState(null);
+  const [expandedCardId, setExpandedCardId] = useState(null);
 
+  // ── Determine which tabs are visible based on permissions ──
+  const visibleTabs = useMemo(() => {
+    return TABS.filter(tab => {
+      const hasTabPerm = REPORT_CARDS
+        .filter(c => c.tab === tab.id)
+        .some(c => hasPermission(c.permission));
+      const hasAltPerm = tab.altPerm ? hasPermission(tab.altPerm) : false;
+      return hasTabPerm || hasAltPerm;
+    }).map(t => t.id);
+  }, [hasPermission]);
+
+  // Auto-select first visible tab
+  useState(() => {
+    if (visibleTabs.length > 0 && !activeTab) {
+      setActiveTab(visibleTabs[0]);
+    }
+  });
+
+  // Update activeTab if it's not visible (e.g. on first render)
+  const currentTab = visibleTabs.includes(activeTab) ? activeTab : visibleTabs[0] || null;
+
+  // ── Cards for the active tab, filtered by permission ──
+  const visibleCards = useMemo(() => {
+    return REPORT_CARDS.filter(
+      c => c.tab === currentTab && hasPermission(c.permission)
+    );
+  }, [currentTab, hasPermission]);
+
+  // ── Shared data: clients & projects for filter dropdowns ──
   const { data: clientsData } = useQuery({
-    queryKey: ['reports-clients'],
+    queryKey: ['reports-hub-clients'],
     queryFn: () => getClients({ limit: 1000 }),
     staleTime: 5 * 60 * 1000,
   });
   const clients = clientsData?.data || [];
 
   const { data: projectsData } = useQuery({
-    queryKey: ['reports-projects', selectedClientId],
-    queryFn: () => getProjects({ clientId: selectedClientId }),
-    enabled: !!selectedClientId,
+    queryKey: ['reports-hub-projects'],
+    queryFn: () => getProjects({ limit: 1000 }),
     staleTime: 5 * 60 * 1000,
   });
   const projects = projectsData?.data || [];
 
-  const payrollParams = { year: selected.year, month: selected.month };
-  if (selectedProjectId) payrollParams.projectId = selectedProjectId;
-
-  const { data: payrollData, isLoading: loadingPayroll } = useQuery({
-    queryKey: ['reports-payroll', selected.year, selected.month, selectedProjectId],
-    queryFn: () => getPayrollSummary(payrollParams),
-    retry: 1,
-  });
-
-  const { data: agingData, isLoading: loadingAging } = useQuery({
-    queryKey: ['reports-aging'],
-    queryFn: () => getInvoiceAging(),
-    retry: 1,
-  });
-
-  const { data: costData, isLoading: loadingCost } = useQuery({
-    queryKey: ['reports-cost', selected.year],
-    queryFn: () => getCostPerDriver({ year: selected.year }),
-    retry: 1,
-  });
-
-  const { data: fleetData } = useQuery({
-    queryKey: ['reports-fleet-util'],
-    queryFn: () => getFleetUtilisation(),
-    retry: 1,
-  });
-
-  const fleetUtil = fleetData?.data?.bySupplier
-    ? fleetData.data.bySupplier.map((s) => ({ supplier: s.name, assigned: s.assigned, available: s.available }))
-    : [];
-
-  // Backend returns array of {clientName, totalGross, totalNet, totalDeductions, driverCount}
-  // Aggregate into summary for KPI cards
-  const payrollRaw = payrollData?.data;
-  const payroll = payrollRaw && payrollRaw.length > 0
-    ? {
-        totalGross: payrollRaw.reduce((s, r) => s + (r.totalGross || 0), 0),
-        totalNet: payrollRaw.reduce((s, r) => s + (r.totalNet || 0), 0),
-        totalDeductions: payrollRaw.reduce((s, r) => s + (r.totalDeductions || 0), 0),
-        avgCostPerDriver: Math.round(
-          payrollRaw.reduce((s, r) => s + (r.totalGross || 0), 0) /
-          Math.max(1, payrollRaw.reduce((s, r) => s + (r.driverCount || 0), 0))
-        ),
-        trends: [],
-      }
-    : { totalGross: 0, totalNet: 0, totalDeductions: 0, avgCostPerDriver: 0, trends: [] };
-
-  // Backend returns {current_0_30, overdue_31_60, overdue_61_90, overdue_90_plus} buckets
-  const agingRaw = agingData?.data;
-  const aging = agingRaw
-    ? {
-        buckets: [
-          { name: 'Current', value: agingRaw.current_0_30?.total || 0, color: '#4ade80' },
-          { name: '31-60 days', value: agingRaw.overdue_31_60?.total || 0, color: '#fbbf24' },
-          { name: '61-90 days', value: agingRaw.overdue_61_90?.total || 0, color: '#f97316' },
-          { name: '90+ days', value: agingRaw.overdue_90_plus?.total || 0, color: '#f87171' },
-        ],
-      }
-    : { buckets: [] };
-
-  // Backend returns array of {clientName, avgCostPerDriver, driverCount, totalCost}
-  const costRaw = costData?.data;
-  const costPerDriver = costRaw && costRaw.length > 0
-    ? costRaw.map((c) => ({ client: c.clientName, avgCost: c.avgCostPerDriver, driverCount: c.driverCount }))
-    : [];
-
-  const isLoading = loadingPayroll || loadingAging || loadingCost;
-
-  const tooltipStyle = {
-    contentStyle: { background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 },
-    labelStyle: { color: 'var(--text3)' },
+  const handleToggle = (cardId) => {
+    setExpandedCardId(prev => prev === cardId ? null : cardId);
   };
+
+  if (visibleTabs.length === 0) {
+    return (
+      <div className="page-enter" style={{ padding: 40, textAlign: 'center', color: 'var(--text3)' }}>
+        <div style={{ fontSize: 36, marginBottom: 12 }}>🔒</div>
+        <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text2)' }}>No reports available</div>
+        <div style={{ fontSize: 13, marginTop: 4 }}>Contact your administrator to get report access.</div>
+      </div>
+    );
+  }
 
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : isTablet ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 12 }}>
-        <KpiCard label="Gross payroll" value={formatCurrency(payroll.totalGross)} />
-        <KpiCard label="Net payout" value={formatCurrency(payroll.totalNet)} color="#4ade80" />
-        <KpiCard label="Total deductions" value={formatCurrency(payroll.totalDeductions)} color="#f87171" />
-        <KpiCard label="Avg cost/driver" value={formatCurrencyFull(payroll.avgCostPerDriver)} />
+      {/* Page header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)' }}>Reports</div>
+          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
+            {visibleCards.length} report{visibleCards.length !== 1 ? 's' : ''} available
+          </div>
+        </div>
       </div>
 
-      {isLoading ? (
-        <LoadingSpinner />
-      ) : (
-        <>
-          {/* Payroll trend */}
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <div style={{ fontSize: 14, fontWeight: 500 }}>Payroll trend (6 months)</div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <select
-                  value={selectedClientId}
-                  onChange={(e) => { setSelectedClientId(e.target.value); setSelectedProjectId(''); }}
-                  style={{ height: 30, fontSize: 12 }}
-                >
-                  <option value="">All clients</option>
-                  {clients.map((c) => (
-                    <option key={c._id} value={c._id}>{c.name}</option>
-                  ))}
-                </select>
-                {selectedClientId && (
-                  <select
-                    value={selectedProjectId}
-                    onChange={(e) => setSelectedProjectId(e.target.value)}
-                    style={{ height: 30, fontSize: 12 }}
-                  >
-                    <option value="">All projects</option>
-                    {projects.map((p) => (
-                      <option key={p._id} value={p._id}>{p.name}</option>
-                    ))}
-                  </select>
-                )}
-                <select value={periodIdx} onChange={(e) => setPeriodIdx(Number(e.target.value))} style={{ height: 30, fontSize: 12 }}>
-                  {periodOptions.map((p, i) => (
-                    <option key={p.label} value={i}>{p.label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <ResponsiveContainer width="100%" height={280}>
-              <AreaChart data={payroll.trends}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis dataKey="month" tick={{ fill: 'var(--text3)', fontSize: 11 }} />
-                <YAxis tick={{ fill: 'var(--text3)', fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}K`} />
-                <Tooltip {...tooltipStyle} formatter={(v) => formatCurrencyFull(v)} />
-                <Area type="monotone" dataKey="gross" stroke="#4f8ef7" fill="rgba(79,142,247,0.15)" strokeWidth={2} />
-                <Area type="monotone" dataKey="net" stroke="#4ade80" fill="rgba(74,222,128,0.1)" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+      {/* Tab bar */}
+      <ReportTabs
+        tabs={TABS}
+        activeTab={currentTab}
+        onTabChange={(id) => { setActiveTab(id); setExpandedCardId(null); }}
+        visibleTabs={visibleTabs}
+      />
 
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
-            {/* Invoice aging */}
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
-              <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 16 }}>Invoice aging</div>
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie data={aging.buckets.filter((b) => b.value > 0)} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, value }) => `${name}: ${formatCurrency(value)}`}>
-                    {aging.buckets.filter((b) => b.value > 0).map((entry) => (
-                      <Cell key={entry.name} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip {...tooltipStyle} formatter={(v) => formatCurrencyFull(v)} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 8 }}>
-                {aging.buckets.map((b) => (
-                  <div key={b.name} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text3)' }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: b.color, display: 'inline-block' }} />
-                    {b.name}
-                  </div>
-                ))}
-              </div>
-            </div>
+      {/* Report cards for active tab */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {visibleCards.map(card => (
+          <ReportCardExpanded
+            key={card.id}
+            card={card}
+            isExpanded={expandedCardId === card.id}
+            onToggle={() => handleToggle(card.id)}
+            clients={clients}
+            projects={projects}
+          />
+        ))}
+      </div>
 
-            {/* Cost per driver by client */}
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
-              <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 16 }}>Cost per driver by client</div>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={costPerDriver}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="client" tick={{ fill: 'var(--text3)', fontSize: 11 }} />
-                  <YAxis tick={{ fill: 'var(--text3)', fontSize: 11 }} />
-                  <Tooltip {...tooltipStyle} formatter={(v) => formatCurrencyFull(v)} />
-                  <Bar dataKey="avgCost" fill="#7c5ff0" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-              <div style={{ marginTop: 12 }}>
-                {costPerDriver.map((c) => (
-                  <div key={c.client} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
-                    <span>{c.client}</span>
-                    <span style={{ display: 'flex', gap: 12 }}>
-                      <span style={{ color: 'var(--text3)' }}>{c.driverCount} drivers</span>
-                      <span style={{ fontFamily: 'var(--mono)', color: '#a78bfa' }}>{formatCurrencyFull(c.avgCost)}</span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Vehicle & fleet reports section */}
-          <div style={{ marginTop: 8 }}>
-            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Vehicle &amp; fleet reports</div>
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : isTablet ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
-              {fleetReportCards.map((card) => (
-                <div
-                  key={card.title}
-                  style={{
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-lg)',
-                    padding: '16px 18px',
-                    cursor: 'pointer',
-                    transition: 'border-color .15s',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
-                >
-                  <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>{card.title}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.4 }}>{card.desc}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Fleet utilisation chart */}
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
-              <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 16 }}>Fleet utilisation by supplier</div>
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={fleetUtil} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="supplier" tick={{ fill: 'var(--text3)', fontSize: 11 }} />
-                  <YAxis tick={{ fill: 'var(--text3)', fontSize: 11 }} />
-                  <Tooltip {...tooltipStyle} />
-                  <Bar dataKey="assigned" name="Assigned" fill="#4f8ef7" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="available" name="Available" fill="#1DB388" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-              <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text3)' }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 2, background: '#4f8ef7', display: 'inline-block' }} />
-                  Assigned
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text3)' }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 2, background: '#1DB388', display: 'inline-block' }} />
-                  Available
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Operations reports section */}
-          <div style={{ marginTop: 8 }}>
-            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Operations reports</div>
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : isTablet ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 12 }}>
-              {opsReportCards.map((card) => (
-                <PermissionGate key={card.route} permission={card.permission}>
-                  <div
-                    onClick={() => navigate(card.route)}
-                    style={{
-                      background: 'var(--surface)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-lg)',
-                      padding: '16px 18px',
-                      cursor: 'pointer',
-                      transition: 'border-color .15s',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
-                  >
-                    <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>{card.title}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.4 }}>{card.desc}</div>
-                  </div>
-                </PermissionGate>
-              ))}
-            </div>
-          </div>
-
-          {/* Sales reports section */}
-          <div style={{ marginTop: 8 }}>
-            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Sales reports</div>
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : isTablet ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 12 }}>
-              {salesReportCards.map((card) => (
-                <PermissionGate key={card.route} permission={card.permission}>
-                  <div
-                    onClick={() => navigate(card.route)}
-                    style={{
-                      background: 'var(--surface)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-lg)',
-                      padding: '16px 18px',
-                      cursor: 'pointer',
-                      transition: 'border-color .15s',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
-                  >
-                    <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>{card.title}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.4 }}>{card.desc}</div>
-                  </div>
-                </PermissionGate>
-              ))}
-            </div>
-          </div>
-        </>
+      {visibleCards.length === 0 && currentTab && (
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
+          No reports available in this category. Contact your administrator.
+        </div>
       )}
     </div>
   );
