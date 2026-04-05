@@ -115,6 +115,27 @@ module.exports = {
     'reports.financial':       { label: 'Financial reports',       module: 'Reports',    description: 'Access P&L, cost and revenue reports' },
     'reports.statement_of_accounts': { label: 'Statement of accounts', module: 'Reports', description: 'View statement of accounts per project with invoices, credit notes, and payments' },
 
+    // Operations Reports
+    'reports.ops_driver_availability':     { label: 'Driver availability report',        module: 'Reports', description: 'View daily driver availability by status per project' },
+    'reports.ops_attendance_tracker':      { label: 'Attendance approval tracker',        module: 'Reports', description: 'View attendance batch approval pipeline status' },
+    'reports.ops_dispute_log':             { label: 'Attendance dispute log',             module: 'Reports', description: 'View attendance dispute history and turnaround times' },
+    'reports.ops_assignment_history':      { label: 'Driver assignment history',          module: 'Reports', description: 'View driver-to-project assignment history' },
+    'reports.ops_vehicle_utilization':     { label: 'Vehicle utilization report',         module: 'Reports', description: 'View vehicle assignment status and idle tracking' },
+    'reports.ops_vehicle_return':          { label: 'Vehicle return condition report',    module: 'Reports', description: 'View vehicle return conditions and damage trends' },
+    'reports.ops_onboarding_pipeline':     { label: 'Driver onboarding pipeline',         module: 'Reports', description: 'View driver onboarding stages and bottlenecks' },
+    'reports.ops_sim_allocation':          { label: 'SIM card allocation report',         module: 'Reports', description: 'View SIM card assignments and unallocated SIMs' },
+    'reports.ops_salary_pipeline':         { label: 'Salary approval pipeline',           module: 'Reports', description: 'View salary run approval stage tracking' },
+    'reports.ops_headcount_vs_plan':       { label: 'Project headcount vs plan',          module: 'Reports', description: 'View actual vs planned driver count per project' },
+
+    // Sales Reports
+    'reports.sales_revenue_by_client':     { label: 'Revenue by client',                  module: 'Reports', description: 'View invoiced revenue per client with trends' },
+    'reports.sales_client_profitability':  { label: 'Client profitability analysis',      module: 'Reports', description: 'View revenue minus cost per client (gross margin)' },
+    'reports.sales_credit_note_impact':    { label: 'Credit note impact report',          module: 'Reports', description: 'View credit note amounts and impact on revenue per client' },
+    'reports.sales_contract_pipeline':     { label: 'Contract expiry & renewal pipeline', module: 'Reports', description: 'View contracts expiring in 30/60/90 days' },
+    'reports.sales_fill_rate':             { label: 'Driver fill rate by project',        module: 'Reports', description: 'View active vs planned headcount fill rate' },
+    'reports.sales_new_drivers':           { label: 'New driver additions report',        module: 'Reports', description: 'View drivers added per client/project per period' },
+    'reports.sales_rate_comparison':       { label: 'Client rate comparison',             module: 'Reports', description: 'View rate per driver across projects per client' },
+
     // ── DASHBOARD ──
     'dashboard.default':       { label: 'Default dashboard',       module: 'Dashboard',  description: 'Access the default admin/ops dashboard view' },
     'dashboard.compliance':    { label: 'Compliance dashboard',    module: 'Dashboard',  description: 'Access the compliance-focused dashboard view' },
