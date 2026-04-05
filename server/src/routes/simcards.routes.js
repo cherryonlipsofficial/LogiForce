@@ -31,6 +31,20 @@ const zipUpload = multer({
   },
 });
 
+// Multer for CSV upload (memory storage, 10MB limit)
+const csvUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ext === '.csv' || file.mimetype === 'text/csv' || file.mimetype === 'application/vnd.ms-excel') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only CSV files are allowed'));
+    }
+  },
+});
+
 // ═══════════════════════════════════════════════════════════
 // SIM CRUD
 // ═══════════════════════════════════════════════════════════
@@ -168,6 +182,193 @@ router.get('/', requirePermission('simcards.view'), async (req, res) => {
   }
 
   sendPaginated(res, sims, total, page, limit);
+});
+
+// ═══════════════════════════════════════════════════════════
+// BULK SIM IMPORT (CSV)
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * POST /api/simcards/bulk-import — Bulk import SIM cards from CSV
+ *
+ * CSV columns (header row required):
+ *   simNumber (required), operator, plan, monthlyPlanCost, accountNumber, accountOwner, status, notes
+ */
+router.post('/bulk-import', requirePermission('simcards.bulk_import'), csvUpload.single('file'), async (req, res) => {
+  if (!req.file) return sendError(res, 'CSV file is required', 400);
+
+  const TelecomSim = getModel(req, 'TelecomSim');
+
+  try {
+    const csvContent = req.file.buffer.toString('utf8');
+    const lines = csvContent.split(/\r?\n/).filter(l => l.trim());
+
+    if (lines.length < 2) {
+      return sendError(res, 'CSV file must contain a header row and at least one data row', 400);
+    }
+
+    // Parse header
+    const rawHeader = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''));
+    const header = rawHeader.map(h => h.toLowerCase().replace(/[\s\-]+/g, ''));
+
+    // Map column names to model fields
+    const colMap = {};
+    const fieldAliases = {
+      simnumber: 'simNumber',
+      sim: 'simNumber',
+      mobilenumber: 'simNumber',
+      mobile: 'simNumber',
+      number: 'simNumber',
+      phonenumber: 'simNumber',
+      phone: 'simNumber',
+      operator: 'operator',
+      provider: 'operator',
+      plan: 'plan',
+      planname: 'plan',
+      monthlyplancost: 'monthlyPlanCost',
+      monthlycost: 'monthlyPlanCost',
+      plancost: 'monthlyPlanCost',
+      cost: 'monthlyPlanCost',
+      accountnumber: 'accountNumber',
+      account: 'accountNumber',
+      accountowner: 'accountOwner',
+      owner: 'accountOwner',
+      status: 'status',
+      notes: 'notes',
+      note: 'notes',
+      remarks: 'notes',
+    };
+
+    for (let i = 0; i < header.length; i++) {
+      const mapped = fieldAliases[header[i]];
+      if (mapped) colMap[i] = mapped;
+    }
+
+    if (!Object.values(colMap).includes('simNumber')) {
+      return sendError(res, 'CSV must contain a "SIM Number" column', 400);
+    }
+
+    const results = { created: 0, updated: 0, skipped: 0, errors: [] };
+    const validOperators = ['etisalat', 'du', 'virgin'];
+    const validStatuses = ['active', 'idle', 'suspended', 'terminated'];
+    const simNumberRegex = /^(05\d{8}|\+9715\d{8})$/;
+
+    // Parse CSV rows (handle quoted fields)
+    function parseCsvRow(line) {
+      const fields = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"' || ch === "'") {
+          if (inQuotes && i + 1 < line.length && line[i + 1] === ch) {
+            current += ch;
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (ch === ',' && !inQuotes) {
+          fields.push(current.trim());
+          current = '';
+        } else {
+          current += ch;
+        }
+      }
+      fields.push(current.trim());
+      return fields;
+    }
+
+    for (let rowIdx = 1; rowIdx < lines.length; rowIdx++) {
+      const row = parseCsvRow(lines[rowIdx]);
+      const rowNum = rowIdx + 1;
+
+      // Build record from column mapping
+      const record = {};
+      for (const [colIdx, field] of Object.entries(colMap)) {
+        const val = row[parseInt(colIdx)];
+        if (val !== undefined && val !== '') record[field] = val;
+      }
+
+      // Validate simNumber
+      if (!record.simNumber) {
+        results.errors.push({ row: rowNum, error: 'Missing SIM number' });
+        continue;
+      }
+
+      // Normalize SIM number
+      let simNumber = record.simNumber.replace(/[\s\-]/g, '');
+      if (simNumber.startsWith('+9715')) simNumber = '05' + simNumber.slice(4);
+      if (simNumber.startsWith('9715')) simNumber = '05' + simNumber.slice(3);
+      if (simNumber.startsWith('5') && simNumber.length === 9) simNumber = '0' + simNumber;
+
+      if (!simNumberRegex.test(simNumber) && !simNumberRegex.test('+971' + simNumber.slice(1))) {
+        results.errors.push({ row: rowNum, error: `Invalid SIM number: ${record.simNumber}` });
+        continue;
+      }
+
+      // Normalize operator
+      let operator = (record.operator || 'etisalat').toLowerCase().trim();
+      if (!validOperators.includes(operator)) {
+        results.errors.push({ row: rowNum, error: `Invalid operator "${record.operator}". Must be etisalat, du, or virgin` });
+        continue;
+      }
+
+      // Normalize status
+      let status = (record.status || 'active').toLowerCase().trim();
+      if (!validStatuses.includes(status)) {
+        results.errors.push({ row: rowNum, error: `Invalid status "${record.status}". Must be active, idle, suspended, or terminated` });
+        continue;
+      }
+
+      // Parse cost
+      let monthlyPlanCost = 0;
+      if (record.monthlyPlanCost) {
+        monthlyPlanCost = parseFloat(String(record.monthlyPlanCost).replace(/[^\d.]/g, ''));
+        if (isNaN(monthlyPlanCost) || monthlyPlanCost < 0) monthlyPlanCost = 0;
+      }
+
+      try {
+        const existing = await TelecomSim.findOne({ simNumber });
+        if (existing) {
+          // Update existing SIM with non-empty fields
+          let changed = false;
+          if (record.operator && existing.operator !== operator) { existing.operator = operator; changed = true; }
+          if (record.plan && existing.plan !== record.plan) { existing.plan = record.plan; changed = true; }
+          if (record.monthlyPlanCost && existing.monthlyPlanCost !== monthlyPlanCost) { existing.monthlyPlanCost = monthlyPlanCost; changed = true; }
+          if (record.accountNumber && existing.accountNumber !== record.accountNumber) { existing.accountNumber = record.accountNumber; changed = true; }
+          if (record.accountOwner && existing.accountOwner !== record.accountOwner) { existing.accountOwner = record.accountOwner; changed = true; }
+          if (record.status && existing.status !== status) { existing.status = status; changed = true; }
+          if (record.notes && existing.notes !== record.notes) { existing.notes = record.notes; changed = true; }
+
+          if (changed) {
+            await existing.save();
+            results.updated++;
+          } else {
+            results.skipped++;
+          }
+        } else {
+          await TelecomSim.create({
+            simNumber,
+            operator,
+            plan: record.plan || undefined,
+            monthlyPlanCost,
+            accountNumber: record.accountNumber || undefined,
+            accountOwner: record.accountOwner || undefined,
+            status,
+            notes: record.notes || undefined,
+            createdBy: req.user._id,
+          });
+          results.created++;
+        }
+      } catch (err) {
+        results.errors.push({ row: rowNum, error: err.message });
+      }
+    }
+
+    sendSuccess(res, results, `Imported ${results.created} new SIM cards, updated ${results.updated}`);
+  } catch (err) {
+    sendError(res, `Failed to process CSV file: ${err.message}`, 500);
+  }
 });
 
 // ══���════════════════════��═══════════════════════════════════

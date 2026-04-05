@@ -33,6 +33,13 @@ export const getSimAssignmentHistory = (simId, params) =>
 export const getDriverSimHistory = (driverId, params) =>
   axiosInstance.get(`/simcards/driver/${driverId}/sim-history`, { params }).then(r => r.data);
 
+// Bulk SIM import
+export const bulkImportSims = (formData) =>
+  axiosInstance.post('/simcards/bulk-import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60000,
+  }).then(r => r.data);
+
 // Bills
 export const importSimBills = (formData) =>
   axiosInstance.post('/simcards/bills/import', formData, {

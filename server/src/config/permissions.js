@@ -184,6 +184,7 @@ module.exports = {
     'simcards.create':         { label: 'Add SIM cards',           module: 'SIM Cards', description: 'Add new SIM cards' },
     'simcards.edit':           { label: 'Edit SIM cards',          module: 'SIM Cards', description: 'Edit SIM card details' },
     'simcards.assign':         { label: 'Assign SIM cards',        module: 'SIM Cards', description: 'Assign and return SIM cards to/from drivers' },
+    'simcards.bulk_import':    { label: 'Bulk import SIM cards',    module: 'SIM Cards', description: 'Bulk import SIM cards from CSV file' },
     'simcards.import_bills':   { label: 'Import SIM bills',        module: 'SIM Cards', description: 'Bulk import monthly telecom bills' },
     'simcards.manage_bills':   { label: 'Manage SIM bills',        module: 'SIM Cards', description: 'Edit bill allocations and waive charges' },
 

@@ -21,6 +21,7 @@ import {
   assignSim,
   returnSim,
   getSimAssignmentHistory,
+  bulkImportSims,
   importSimBills,
   getSimBills,
   getSimBill,
@@ -318,6 +319,113 @@ const ImportBillsModal = ({ onClose, onSaved }) => {
   );
 };
 
+// ── Bulk Import SIM Modal ──
+const BulkImportSimModal = ({ onClose, onSaved }) => {
+  const fileRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [results, setResults] = useState(null);
+  const [fileName, setFileName] = useState('');
+
+  const handleUpload = async () => {
+    const file = fileRef.current?.files?.[0];
+    if (!file) return toast.error('Select a CSV file');
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await bulkImportSims(formData);
+      setResults(res.data);
+      onSaved();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Bulk import failed');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleFileChange = () => {
+    const file = fileRef.current?.files?.[0];
+    setFileName(file ? file.name : '');
+  };
+
+  return (
+    <Modal title="Bulk Import SIM Cards" onClose={onClose} width={540}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {!results ? (
+          <>
+            <div style={{
+              border: '2px dashed var(--border2)',
+              borderRadius: 10,
+              padding: '24px 16px',
+              textAlign: 'center',
+              cursor: 'pointer',
+            }} onClick={() => fileRef.current?.click()}>
+              <input type="file" ref={fileRef} accept=".csv" style={{ display: 'none' }} onChange={handleFileChange} />
+              <div style={{ fontSize: 32, opacity: 0.4, marginBottom: 8 }}>&#128196;</div>
+              <div style={{ fontSize: 13, color: 'var(--text2)' }}>
+                {fileName || 'Click to select a CSV file'}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                Upload a CSV with SIM card details to import
+              </div>
+            </div>
+
+            <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: 12, fontSize: 11, color: 'var(--text3)' }}>
+              <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--text2)', fontSize: 12 }}>CSV Format</div>
+              <div style={{ marginBottom: 4 }}>Required column: <strong style={{ color: 'var(--text)' }}>SIM Number</strong></div>
+              <div style={{ marginBottom: 6 }}>Optional columns: Operator, Plan, Monthly Plan Cost, Account Number, Account Owner, Status, Notes</div>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 10, background: 'var(--surface)', borderRadius: 6, padding: '8px 10px', overflowX: 'auto', whiteSpace: 'nowrap' }}>
+                SIM Number,Operator,Plan,Monthly Plan Cost,Status<br />
+                0501234567,etisalat,Business 100,100,active<br />
+                0559876543,du,Premium,150,active
+              </div>
+              <div style={{ marginTop: 6 }}>
+                Existing SIM numbers will be <strong style={{ color: 'var(--text2)' }}>updated</strong> with new values. New SIM numbers will be <strong style={{ color: 'var(--text2)' }}>created</strong>.
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+              <Btn onClick={handleUpload} disabled={uploading}>{uploading ? 'Importing...' : 'Upload & Import'}</Btn>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
+              <div style={{ background: 'rgba(74,222,128,0.1)', borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
+                <div style={{ fontSize: 20, fontWeight: 600, color: '#4ade80' }}>{results.created}</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)' }}>Created</div>
+              </div>
+              <div style={{ background: 'rgba(96,165,250,0.1)', borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
+                <div style={{ fontSize: 20, fontWeight: 600, color: '#60a5fa' }}>{results.updated}</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)' }}>Updated</div>
+              </div>
+              <div style={{ background: 'rgba(245,158,11,0.1)', borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
+                <div style={{ fontSize: 20, fontWeight: 600, color: '#fbbf24' }}>{results.skipped}</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)' }}>Skipped</div>
+              </div>
+              <div style={{ background: 'rgba(248,113,113,0.1)', borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
+                <div style={{ fontSize: 20, fontWeight: 600, color: '#f87171' }}>{results.errors?.length || 0}</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)' }}>Errors</div>
+              </div>
+            </div>
+            {results.errors?.length > 0 && (
+              <div style={{ maxHeight: 150, overflowY: 'auto', background: 'var(--surface2)', borderRadius: 8, padding: 10 }}>
+                {results.errors.map((e, i) => (
+                  <div key={i} style={{ fontSize: 11, color: '#f87171', marginBottom: 4 }}>
+                    Row {e.row}: {e.error}
+                  </div>
+                ))}
+              </div>
+            )}
+            <Btn onClick={onClose} style={{ alignSelf: 'flex-end' }}>Done</Btn>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+};
+
 // ── SIM Detail Panel ──
 const SimDetailPanel = ({ simId, onClose }) => {
   const { n } = useFormatters();
@@ -581,6 +689,7 @@ const SimCards = () => {
   const { isMobile } = useBreakpoint();
   const canCreate = usePermission('simcards.create');
   const canAssign = usePermission('simcards.assign');
+  const canBulkImport = usePermission('simcards.bulk_import');
   const canImport = usePermission('simcards.import_bills');
   const canViewBills = usePermission('simcards.view_bills');
 
@@ -589,6 +698,7 @@ const SimCards = () => {
   const [assignModal, setAssignModal] = useState(null);
   const [returnModal, setReturnModal] = useState(null);
   const [importModal, setImportModal] = useState(false);
+  const [bulkImportModal, setBulkImportModal] = useState(false);
   const [detailSim, setDetailSim] = useState(null);
   const [filters, setFilters] = useState({ search: '', status: '', operator: '', assignment: '' });
 
@@ -663,6 +773,7 @@ const SimCards = () => {
             </select>
             <div style={{ display: 'flex', gap: 6 }}>
               {canCreate && <Btn onClick={() => setShowAddModal(true)}>+ Add SIM</Btn>}
+              {canBulkImport && <Btn variant="ghost" onClick={() => setBulkImportModal(true)}>Bulk Import</Btn>}
               {canImport && <Btn variant="ghost" onClick={() => setImportModal(true)}>Import Bills</Btn>}
             </div>
           </div>
@@ -734,6 +845,9 @@ const SimCards = () => {
       )}
       {returnModal && (
         <ReturnSimModal sim={returnModal} onClose={() => setReturnModal(null)} onSaved={() => { setReturnModal(null); invalidateAll(); }} />
+      )}
+      {bulkImportModal && (
+        <BulkImportSimModal onClose={() => setBulkImportModal(false)} onSaved={() => invalidateAll()} />
       )}
       {importModal && (
         <ImportBillsModal onClose={() => setImportModal(false)} onSaved={() => invalidateAll()} />
