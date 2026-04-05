@@ -34,7 +34,7 @@ router.post('/register', validate(registerValidation), async (req, res) => {
     }
   }
 
-  const { token, user } = await authService.register(req.body);
+  const { token, user } = await authService.register(req, req.body);
   sendSuccess(res, { token, user }, 201);
 });
 
@@ -42,8 +42,8 @@ router.post('/register', validate(registerValidation), async (req, res) => {
 router.post('/login', loginLimiter, validate(loginValidation), async (req, res) => {
   try {
     const { email, password } = req.body;
-    const { token, user } = await authService.login(email, password);
-    const authData = await authService.buildAuthResponse(user);
+    const { token, user } = await authService.login(req, email, password);
+    const authData = await authService.buildAuthResponse(req, user);
     sendSuccess(res, { token, ...authData });
   } catch (err) {
     res.status(err.statusCode || 400).json({
@@ -59,7 +59,7 @@ router.get('/me', protect, async (req, res) => {
   const User = getModel(req, 'User');
   const user = await User.findById(req.user.id).populate('roleId');
   if (!user) return sendError(res, 'User not found', 404);
-  const authData = await authService.buildAuthResponse(user);
+  const authData = await authService.buildAuthResponse(req, user);
   sendSuccess(res, authData);
 });
 
