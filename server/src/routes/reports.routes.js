@@ -2431,4 +2431,476 @@ router.get('/attrition-tenure', requirePermission('reports.compliance_attrition'
   }
 });
 
+// =============================================
+// ACCOUNTS TEAM REPORTS
+// =============================================
+
+// GET /api/reports/deduction-breakdown
+router.get('/deduction-breakdown', requirePermission('reports.accounts_deduction_breakdown'), async (req, res) => {
+  try {
+    const SalaryRun = getModel(req, 'SalaryRun');
+    const { year, month } = req.query;
+    if (!year || !month) return sendError(res, 'year and month are required', 400);
+
+    const match = {
+      'period.year': parseInt(year),
+      'period.month': parseInt(month),
+      isDeleted: { $ne: true },
+    };
+
+    // Group by deduction type
+    const byType = await SalaryRun.aggregate([
+      { $match: match },
+      { $unwind: '$deductions' },
+      {
+        $group: {
+          _id: '$deductions.type',
+          count: { $sum: 1 },
+          totalAmount: { $sum: '$deductions.amount' },
+        },
+      },
+      { $project: { _id: 0, type: '$_id', count: 1, totalAmount: 1 } },
+      { $sort: { totalAmount: -1 } },
+    ]);
+
+    // Group by driver
+    const byDriver = await SalaryRun.aggregate([
+      { $match: match },
+      { $unwind: '$deductions' },
+      {
+        $group: {
+          _id: '$driverId',
+          deductions: { $push: { type: '$deductions.type', amount: '$deductions.amount' } },
+          totalDeductions: { $sum: '$deductions.amount' },
+        },
+      },
+      {
+        $lookup: {
+          from: 'drivers',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'driver',
+        },
+      },
+      { $unwind: { path: '$driver', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 0,
+          driverId: '$_id',
+          driverName: { $ifNull: ['$driver.fullName', 'Unknown'] },
+          employeeCode: { $ifNull: ['$driver.employeeCode', ''] },
+          deductions: 1,
+          totalDeductions: 1,
+        },
+      },
+      { $sort: { totalDeductions: -1 } },
+    ]);
+
+    sendSuccess(res, { byType, byDriver });
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/advance-schedule
+router.get('/advance-schedule', requirePermission('reports.accounts_advance_schedule'), async (req, res) => {
+  try {
+    const DriverAdvance = getModel(req, 'DriverAdvance');
+    const { year, month } = req.query;
+    if (!year || !month) return sendError(res, 'year and month are required', 400);
+
+    const y = parseInt(year);
+    const m = parseInt(month);
+
+    const advances = await DriverAdvance.aggregate([
+      { $match: { status: 'approved' } },
+      { $unwind: '$recoverySchedule' },
+      {
+        $match: {
+          'recoverySchedule.period.year': y,
+          'recoverySchedule.period.month': m,
+        },
+      },
+      {
+        $group: {
+          _id: { advanceId: '$_id', driverId: '$driverId' },
+          amount: { $first: '$amount' },
+          totalRecovered: { $first: '$totalRecovered' },
+          installments: {
+            $push: {
+              installmentNo: '$recoverySchedule.installmentNo',
+              period: '$recoverySchedule.period',
+              amountToRecover: '$recoverySchedule.amountToRecover',
+              recovered: '$recoverySchedule.recovered',
+              recoveredAt: '$recoverySchedule.recoveredAt',
+            },
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: 'drivers',
+          localField: '_id.driverId',
+          foreignField: '_id',
+          as: 'driver',
+        },
+      },
+      { $unwind: { path: '$driver', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 0,
+          advanceId: '$_id.advanceId',
+          driverId: '$_id.driverId',
+          driverName: { $ifNull: ['$driver.fullName', 'Unknown'] },
+          employeeCode: { $ifNull: ['$driver.employeeCode', ''] },
+          totalAmount: '$amount',
+          amountRemaining: { $subtract: ['$amount', '$totalRecovered'] },
+          installments: 1,
+        },
+      },
+      { $sort: { driverName: 1 } },
+    ]);
+
+    sendSuccess(res, advances);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/receivables-aging
+router.get('/receivables-aging', requirePermission('reports.accounts_receivables_aging'), async (req, res) => {
+  try {
+    const DriverReceivable = getModel(req, 'DriverReceivable');
+    const now = new Date();
+
+    const receivables = await DriverReceivable.find({
+      status: { $in: ['outstanding', 'partially_recovered'] },
+    })
+      .populate('driverId', 'fullName employeeCode')
+      .populate('clientId', 'clientName')
+      .lean();
+
+    const buckets = { current: [], overdue_31_60: [], overdue_61_90: [], overdue_90_plus: [] };
+    let totalOutstanding = 0;
+    let totalRecovered = 0;
+    let totalWrittenOff = 0;
+
+    for (const r of receivables) {
+      const ageDays = Math.floor((now - new Date(r.createdAt)) / (1000 * 60 * 60 * 24));
+      const remaining = r.amount - (r.amountRecovered || 0) - (r.writeOffAmount || 0);
+      const entry = {
+        receivableNo: r.receivableNo,
+        driverId: r.driverId?._id || r.driverId,
+        driverName: r.driverId?.fullName || r.driverName || 'Unknown',
+        employeeCode: r.driverId?.employeeCode || r.employeeCode || '',
+        clientName: r.clientId?.clientName || '',
+        creditNoteNo: r.creditNoteNo,
+        amount: r.amount,
+        amountRecovered: r.amountRecovered || 0,
+        amountRemaining: remaining,
+        ageDays,
+        status: r.status,
+      };
+
+      totalOutstanding += remaining;
+      totalRecovered += r.amountRecovered || 0;
+      totalWrittenOff += r.writeOffAmount || 0;
+
+      if (ageDays <= 30) buckets.current.push(entry);
+      else if (ageDays <= 60) buckets.overdue_31_60.push(entry);
+      else if (ageDays <= 90) buckets.overdue_61_90.push(entry);
+      else buckets.overdue_90_plus.push(entry);
+    }
+
+    sendSuccess(res, {
+      buckets,
+      summary: {
+        totalOutstanding: Math.round(totalOutstanding * 100) / 100,
+        totalRecovered: Math.round(totalRecovered * 100) / 100,
+        totalWrittenOff: Math.round(totalWrittenOff * 100) / 100,
+      },
+    });
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/cn-reconciliation
+router.get('/cn-reconciliation', requirePermission('reports.accounts_cn_reconciliation'), async (req, res) => {
+  try {
+    const CreditNote = getModel(req, 'CreditNote');
+    const { year, month } = req.query;
+
+    const match = { isDeleted: { $ne: true } };
+    if (year) match['period.year'] = parseInt(year);
+    if (month) match['period.month'] = parseInt(month);
+
+    const creditNotes = await CreditNote.find(match)
+      .populate('clientId', 'clientName')
+      .populate('linkedInvoiceId', 'invoiceNo')
+      .populate('lineItems.driverId', 'fullName employeeCode')
+      .lean();
+
+    const result = creditNotes.map((cn) => {
+      const clientSettled = !!cn.linkedInvoiceId;
+      const lineItems = (cn.lineItems || []).map((li) => {
+        let driverSideStatus = 'unresolved';
+        if (li.salaryDeducted) driverSideStatus = 'deducted';
+        else if (li.receivableCreated) driverSideStatus = 'receivable';
+        else if (li.manuallyResolved) driverSideStatus = 'manual';
+        else if (li.pendingNextSalary) driverSideStatus = 'pending';
+
+        return {
+          driverId: li.driverId?._id || li.driverId,
+          driverName: li.driverId?.fullName || li.driverName || 'Unknown',
+          employeeCode: li.driverId?.employeeCode || li.employeeCode || '',
+          noteType: li.noteType,
+          amount: li.amount,
+          driverSideStatus,
+        };
+      });
+
+      return {
+        creditNoteNo: cn.creditNoteNo,
+        clientName: cn.clientId?.clientName || '',
+        period: cn.period,
+        totalAmount: cn.totalAmount,
+        status: cn.status,
+        clientSettled,
+        lineItems,
+      };
+    });
+
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/invoice-reconciliation
+router.get('/invoice-reconciliation', requirePermission('reports.accounts_invoice_reconciliation'), async (req, res) => {
+  try {
+    const Invoice = getModel(req, 'Invoice');
+    const { year } = req.query;
+
+    const match = { isDeleted: { $ne: true } };
+    if (year) match['period.year'] = parseInt(year);
+
+    const invoices = await Invoice.find(match)
+      .populate('clientId', 'clientName')
+      .lean();
+
+    const result = invoices.map((inv) => {
+      const creditNotesTotal = (inv.linkedCreditNotes || []).reduce((sum, cn) => sum + (cn.amount || 0), 0);
+      const adjustedTotal = inv.adjustedTotal != null ? inv.adjustedTotal : inv.total - creditNotesTotal;
+      const paymentVariance = (inv.amountReceived || 0) - adjustedTotal;
+
+      return {
+        invoiceNo: inv.invoiceNo,
+        clientName: inv.clientId?.clientName || '',
+        period: inv.period,
+        total: inv.total,
+        creditNotesLinked: (inv.linkedCreditNotes || []).length,
+        adjustedTotal: Math.round(adjustedTotal * 100) / 100,
+        amountReceived: inv.amountReceived || 0,
+        paymentVariance: Math.round(paymentVariance * 100) / 100,
+        paymentReference: inv.paymentReference || '',
+        status: inv.status,
+      };
+    });
+
+    sendSuccess(res, result);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/fine-deductions
+router.get('/fine-deductions', requirePermission('reports.accounts_fine_deductions'), async (req, res) => {
+  try {
+    const VehicleFine = getModel(req, 'VehicleFine');
+    const { year, month } = req.query;
+
+    const match = {};
+    if (year && month) {
+      const start = new Date(parseInt(year), parseInt(month) - 1, 1);
+      const end = new Date(parseInt(year), parseInt(month), 1);
+      match.fineDate = { $gte: start, $lt: end };
+    } else if (year) {
+      const start = new Date(parseInt(year), 0, 1);
+      const end = new Date(parseInt(year) + 1, 0, 1);
+      match.fineDate = { $gte: start, $lt: end };
+    }
+
+    const fines = await VehicleFine.find(match)
+      .populate('driverId', 'fullName employeeCode')
+      .lean();
+
+    let totalFines = 0;
+    let totalPending = 0;
+    let totalDeducted = 0;
+    let totalWaived = 0;
+    let totalDisputed = 0;
+
+    const records = fines.map((f) => {
+      totalFines += f.amount || 0;
+      if (f.status === 'pending' || f.status === 'unassigned') totalPending += f.amount || 0;
+      else if (f.status === 'deducted') totalDeducted += f.amount || 0;
+      else if (f.status === 'waived') totalWaived += f.amount || 0;
+      else if (f.status === 'disputed') totalDisputed += f.amount || 0;
+
+      return {
+        vehiclePlate: f.vehiclePlate || '',
+        driverName: f.driverId?.fullName || f.driverName || 'Unknown',
+        employeeCode: f.driverId?.employeeCode || f.driverEmployeeCode || '',
+        fineType: f.fineType,
+        amount: f.amount,
+        fineDate: f.fineDate,
+        status: f.status,
+        referenceNumber: f.referenceNumber || '',
+        salaryRunId: f.salaryRunId || null,
+        deductionPeriod: f.deductionPeriod || null,
+      };
+    });
+
+    sendSuccess(res, {
+      records,
+      summary: {
+        totalFines: Math.round(totalFines * 100) / 100,
+        totalPending: Math.round(totalPending * 100) / 100,
+        totalDeducted: Math.round(totalDeducted * 100) / 100,
+        totalWaived: Math.round(totalWaived * 100) / 100,
+        totalDisputed: Math.round(totalDisputed * 100) / 100,
+      },
+    });
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/wps-reconciliation
+router.get('/wps-reconciliation', requirePermission('reports.accounts_wps_reconciliation'), async (req, res) => {
+  try {
+    const SalaryRun = getModel(req, 'SalaryRun');
+    const { year, month } = req.query;
+    if (!year || !month) return sendError(res, 'year and month are required', 400);
+
+    const runs = await SalaryRun.find({
+      'period.year': parseInt(year),
+      'period.month': parseInt(month),
+      status: 'paid',
+      isDeleted: { $ne: true },
+    })
+      .populate('driverId', 'fullName employeeCode bankName iban')
+      .lean();
+
+    let totalPaid = 0;
+    let driversWithMissingIban = 0;
+
+    const records = runs.map((r) => {
+      totalPaid += r.netSalary || 0;
+      const missingBankDetails = !r.driverId?.iban;
+      if (missingBankDetails) driversWithMissingIban++;
+
+      return {
+        runId: r.runId,
+        driverName: r.driverId?.fullName || 'Unknown',
+        employeeCode: r.driverId?.employeeCode || '',
+        bankName: r.driverId?.bankName || '',
+        iban: r.driverId?.iban || '',
+        netSalary: r.netSalary,
+        paidAt: r.paidAt,
+        missingBankDetails,
+      };
+    });
+
+    sendSuccess(res, {
+      records,
+      summary: {
+        totalPaid: Math.round(totalPaid * 100) / 100,
+        driversWithMissingIban,
+      },
+    });
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/ledger-summary
+router.get('/ledger-summary', requirePermission('reports.accounts_ledger_summary'), async (req, res) => {
+  try {
+    const DriverLedger = getModel(req, 'DriverLedger');
+    const { year, month, driverId } = req.query;
+    if (!year || !month) return sendError(res, 'year and month are required', 400);
+
+    const mongoose = require('mongoose');
+    const match = {
+      'period.year': parseInt(year),
+      'period.month': parseInt(month),
+      isDeleted: { $ne: true },
+    };
+    if (driverId) match.driverId = new mongoose.Types.ObjectId(driverId);
+
+    const ledgerData = await DriverLedger.aggregate([
+      { $match: match },
+      { $sort: { createdAt: 1 } },
+      {
+        $group: {
+          _id: '$driverId',
+          totalCredits: { $sum: '$credit' },
+          totalDebits: { $sum: '$debit' },
+          entries: {
+            $push: {
+              entryType: '$entryType',
+              debit: '$debit',
+              credit: '$credit',
+              runningBalance: '$runningBalance',
+              description: '$description',
+              createdAt: '$createdAt',
+            },
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: 'drivers',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'driver',
+        },
+      },
+      { $unwind: { path: '$driver', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 0,
+          driverId: '$_id',
+          driverName: { $ifNull: ['$driver.fullName', 'Unknown'] },
+          employeeCode: { $ifNull: ['$driver.employeeCode', ''] },
+          totalCredits: 1,
+          totalDebits: 1,
+          closingBalance: { $subtract: ['$totalCredits', '$totalDebits'] },
+          entries: 1,
+        },
+      },
+      { $sort: { driverName: 1 } },
+    ]);
+
+    sendSuccess(res, ledgerData);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/reports/sim-cost
+router.get('/sim-cost', requirePermission('reports.accounts_sim_cost'), async (req, res) => {
+  try {
+    sendSuccess(res, {
+      message: 'SIM cost report is a placeholder — SIM module not yet integrated.',
+      data: [],
+    });
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
+});
+
 module.exports = router;
