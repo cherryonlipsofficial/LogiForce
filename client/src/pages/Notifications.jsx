@@ -86,7 +86,7 @@ const Notifications = () => {
 
   const { data, isLoading } = useQuery({
     queryKey: ['notifications-page', page, filter],
-    queryFn: () => getNotifications(page, filterParams).then(r => r.data),
+    queryFn: () => getNotifications(page, filterParams).then(r => r.data?.data || r.data),
   });
 
   // Accumulate notifications across pages; reset when filter changes

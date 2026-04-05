@@ -235,7 +235,7 @@ const Topbar = ({ page, onMenuToggle, showMenuButton }) => {
   // Poll unread count every 30 seconds
   const { data: countData } = useQuery({
     queryKey: ['notif-unread-count'],
-    queryFn: () => getUnreadCount().then(r => r.data),
+    queryFn: () => getUnreadCount().then(r => r.data?.data || r.data),
     refetchInterval: 30000,
     enabled: isAuthenticated,
   });
@@ -244,7 +244,7 @@ const Topbar = ({ page, onMenuToggle, showMenuButton }) => {
   // Fetch notifications when panel opens
   const { data: notifData, isLoading: notifLoading } = useQuery({
     queryKey: ['notifications', notifPage],
-    queryFn: () => getNotifications(notifPage).then(r => r.data),
+    queryFn: () => getNotifications(notifPage).then(r => r.data?.data || r.data),
     enabled: notifOpen,
   });
   const notifications = notifData?.notifications || [];
