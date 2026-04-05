@@ -13,7 +13,7 @@ const getTenantId = () => {
 };
 
 const axiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://api.logiforce.app/api',
+  baseURL: import.meta.env.VITE_API_URL || 'https://logiforce.onrender.com/api',
   headers: {
     'Content-Type': 'application/json',
   },
