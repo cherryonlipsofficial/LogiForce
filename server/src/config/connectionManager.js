@@ -14,6 +14,10 @@ const connections = new Map();
 const getConnectionForTenant = async (tenantConfig) => {
   const { dbName, dbUri } = tenantConfig;
 
+  if (!dbUri) {
+    throw new Error(`No valid MongoDB URI configured for tenant "${dbName}". Check MONGODB_BASE_URI or tenant-specific env vars.`);
+  }
+
   if (connections.has(dbName)) {
     const conn = connections.get(dbName);
     // Check if connection is still alive
