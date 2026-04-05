@@ -28,7 +28,7 @@ const tenants = {
   'logi-force': {
     name: 'LogiForce',
     dbName: 'logiforce_main',
-    dbUri: buildDbUri('MONGODB_URI_MAIN', 'logiforce_main'),
+    dbUri: buildDbUri('MONGODB_URI_MAIN', 'logiforce_main') || process.env.MONGODB_URI,
   },
   clienta: {
     name: 'Client A Transport LLC',
