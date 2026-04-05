@@ -136,6 +136,26 @@ module.exports = {
     'reports.sales_new_drivers':           { label: 'New driver additions report',        module: 'Reports', description: 'View drivers added per client/project per period' },
     'reports.sales_rate_comparison':       { label: 'Client rate comparison',             module: 'Reports', description: 'View rate per driver across projects per client' },
 
+    // Compliance / HR Reports
+    'reports.compliance_kyc_status':       { label: 'KYC compliance status',              module: 'Reports', description: 'View per-client KYC rule compliance rates' },
+    'reports.compliance_status_transitions': { label: 'Driver status transitions',        module: 'Reports', description: 'View all driver status changes with reasons' },
+    'reports.compliance_headcount':        { label: 'Workforce headcount report',         module: 'Reports', description: 'View total drivers by status, nationality, client' },
+    'reports.compliance_verification':     { label: 'Personal verification audit',        module: 'Reports', description: 'View drivers pending personal/contacts verification' },
+    'reports.compliance_expired_action':   { label: 'Expired document action report',     module: 'Reports', description: 'View expired docs on active drivers (violations)' },
+    'reports.compliance_sim_compliance':   { label: 'SIM card compliance report',         module: 'Reports', description: 'View SIM cards on resigned/offboarded drivers' },
+    'reports.compliance_attrition':        { label: 'Driver attrition & tenure',          module: 'Reports', description: 'View attrition rates and average tenure' },
+
+    // Accounts Reports
+    'reports.accounts_deduction_breakdown': { label: 'Deduction breakdown report',        module: 'Reports', description: 'View all deductions by type across salary runs' },
+    'reports.accounts_advance_schedule':   { label: 'Advance recovery schedule',          module: 'Reports', description: 'View advance recovery installment forecast' },
+    'reports.accounts_receivables_aging':  { label: 'Driver receivables aging',           module: 'Reports', description: 'View outstanding driver receivables by age' },
+    'reports.accounts_cn_reconciliation':  { label: 'Credit note reconciliation',         module: 'Reports', description: 'View credit note client-side and driver-side settlement' },
+    'reports.accounts_invoice_reconciliation': { label: 'Invoice vs payment reconciliation', module: 'Reports', description: 'View invoice amounts vs payments received' },
+    'reports.accounts_fine_deductions':    { label: 'Vehicle fine deduction report',      module: 'Reports', description: 'View vehicle fines and salary deduction status' },
+    'reports.accounts_wps_reconciliation': { label: 'WPS export reconciliation',          module: 'Reports', description: 'View paid salary runs with bank details for WPS' },
+    'reports.accounts_ledger_summary':     { label: 'Driver ledger summary',              module: 'Reports', description: 'View per-driver running balance from all ledger entries' },
+    'reports.accounts_sim_cost':           { label: 'SIM cost deduction report',          module: 'Reports', description: 'View telecom SIM charges per driver per month' },
+
     // ── DASHBOARD ──
     'dashboard.default':       { label: 'Default dashboard',       module: 'Dashboard',  description: 'Access the default admin/ops dashboard view' },
     'dashboard.compliance':    { label: 'Compliance dashboard',    module: 'Dashboard',  description: 'Access the compliance-focused dashboard view' },
