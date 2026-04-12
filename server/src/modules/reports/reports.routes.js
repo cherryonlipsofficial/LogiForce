@@ -3009,48 +3009,54 @@ router.get('/revenue-forecast', requirePermission('reports.finance_revenue_forec
     const Invoice = getModel(req, 'Invoice');
 
     const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1;
+    const year = parseInt(req.query.year) || now.getFullYear();
+    const filterMonth = req.query.month ? parseInt(req.query.month) : null;
 
+    // Compute projected monthly revenue based on current active contracts × active drivers
     const activeContracts = await ProjectContract.find({ status: 'active' })
       .populate('projectId', 'name')
-      .populate('clientId', 'name')
       .lean();
 
-    const result = [];
+    let projectedPerMonth = 0;
     for (const contract of activeContracts) {
+      if (!contract.projectId?._id) continue;
       const activeDrivers = await Driver.countDocuments({
-        projectId: contract.projectId?._id,
+        projectId: contract.projectId._id,
         status: 'active',
       });
+      projectedPerMonth += (contract.ratePerDriver || 0) * activeDrivers;
+    }
+    projectedPerMonth = Math.round(projectedPerMonth * 100) / 100;
 
-      const invoices = await Invoice.aggregate([
-        {
-          $match: {
-            projectId: contract.projectId?._id,
-            'period.year': currentYear,
-            'period.month': currentMonth,
-            isDeleted: { $ne: true },
-            status: { $nin: ['cancelled'] },
-          },
+    // Aggregate actual invoiced revenue per month for the given year
+    const actuals = await Invoice.aggregate([
+      {
+        $match: {
+          'period.year': year,
+          isDeleted: { $ne: true },
+          status: { $nin: ['cancelled'] },
         },
-        { $group: { _id: null, total: { $sum: '$total' } } },
-      ]);
+      },
+      { $group: { _id: '$period.month', total: { $sum: '$total' } } },
+    ]);
 
-      const projectedRevenue = Math.round(contract.ratePerDriver * activeDrivers * 100) / 100;
-      const actualInvoiced = invoices[0]?.total || 0;
-      const variance = Math.round((actualInvoiced - projectedRevenue) * 100) / 100;
+    const actualMap = {};
+    for (const a of actuals) actualMap[a._id] = a.total;
 
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const result = [];
+    for (let m = 1; m <= 12; m++) {
+      if (filterMonth && m !== filterMonth) continue;
+      const actual = Math.round((actualMap[m] || 0) * 100) / 100;
+      const variance = Math.round((actual - projectedPerMonth) * 100) / 100;
       result.push({
-        projectId: contract.projectId?._id,
-        projectName: contract.projectId?.name || 'Unknown',
-        clientName: contract.clientId?.name || 'Unknown',
-        ratePerDriver: contract.ratePerDriver,
-        activeDrivers,
-        projectedRevenue,
-        actualInvoiced: Math.round(actualInvoiced * 100) / 100,
+        month: `${monthNames[m - 1]} ${year}`,
+        monthNumber: m,
+        year,
+        projected: projectedPerMonth,
+        actual,
         variance,
-        variancePercent: projectedRevenue > 0 ? Math.round((variance / projectedRevenue) * 10000) / 100 : 0,
+        variancePercent: projectedPerMonth > 0 ? Math.round((variance / projectedPerMonth) * 10000) / 100 : 0,
       });
     }
 
