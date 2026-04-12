@@ -1,5 +1,5 @@
 const { getModel } = require('../config/modelRegistry');
-const { notifyByPermission, notifyUsers } = require('./notification.service');
+const { notifyByPermission, notifyUsers } = require('../modules/shared/notification.service');
 
 /**
  * Request a salary advance for a driver.

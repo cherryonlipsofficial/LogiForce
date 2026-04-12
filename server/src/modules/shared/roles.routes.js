@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { protect, requirePermission } = require('../middleware/auth');
-const { getModel } = require('../config/modelRegistry');
-const { PERMISSIONS, getByModule, getAllKeys, migrateLegacyKeys } = require('../config/permissions');
-const { sendSuccess, sendError } = require('../utils/responseHelper');
+const { protect, requirePermission } = require('../../middleware/auth');
+const { getModel } = require('../../config/modelRegistry');
+const { PERMISSIONS, getByModule, getAllKeys, migrateLegacyKeys } = require('../../config/permissions');
+const { sendSuccess, sendError } = require('../../utils/responseHelper');
 
 // All routes require authentication
 router.use(protect);

@@ -1,4 +1,4 @@
-const { getModel } = require('../config/modelRegistry');
+const { getModel } = require('../../config/modelRegistry');
 
 async function notifyUsers(req, userIds, payload) {
   const AppNotification = getModel(req, 'AppNotification');

@@ -9,8 +9,8 @@
 
 // Import only the SCHEMAS, not the compiled models
 const schemas = {
-  User: require('../models/User').schema,
-  Role: require('../models/Role').schema,
+  User: require('../modules/shared/User').schema,
+  Role: require('../modules/shared/Role').schema,
   Driver: require('../models/Driver').schema,
   Client: require('../models/Client').schema,
   Supplier: require('../models/Supplier').schema,
@@ -32,9 +32,9 @@ const schemas = {
   DriverReceivable: require('../models/DriverReceivable').schema,
   GuaranteePassport: require('../models/GuaranteePassport').schema,
   SalaryRun: require('../models/SalaryRun').schema,
-  CompanySettings: require('../models/CompanySettings').schema,
-  AuditLog: require('../models/AuditLog').schema,
-  AppNotification: require('../models/AppNotification').schema,
+  CompanySettings: require('../modules/shared/CompanySettings').schema,
+  AuditLog: require('../modules/shared/AuditLog').schema,
+  AppNotification: require('../modules/shared/AppNotification').schema,
   VehicleFine: require('../models/VehicleFine').schema,
   TelecomSim: require('../models/TelecomSim').schema,
   SimAssignment: require('../models/SimAssignment').schema,

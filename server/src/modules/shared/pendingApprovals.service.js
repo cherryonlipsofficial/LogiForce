@@ -1,4 +1,4 @@
-const { getModel } = require('../config/modelRegistry');
+const { getModel } = require('../../config/modelRegistry');
 
 /**
  * Returns a summary of all pending approvals relevant to the current user,

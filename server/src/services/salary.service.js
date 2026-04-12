@@ -837,7 +837,7 @@ const approveByOps = async (req, runId, userId, remarks) => {
   await salaryRun.save();
 
   // Notify users with compliance approval permission
-  const { notifyByPermission } = require('./notification.service');
+  const { notifyByPermission } = require('../modules/shared/notification.service');
   await notifyByPermission('salary.approve_compliance', {
     type: 'salary_ops_approved',
     title: 'Salary run ready for compliance review',
@@ -874,7 +874,7 @@ const approveByCompliance = async (req, runId, userId, remarks) => {
   await salaryRun.save();
 
   // Notify users with accounts approval permission
-  const { notifyByPermission } = require('./notification.service');
+  const { notifyByPermission } = require('../modules/shared/notification.service');
   await notifyByPermission('salary.approve_accounts', {
     type: 'salary_compliance_approved',
     title: 'Salary run ready for accounts review',
@@ -911,7 +911,7 @@ const approveByAccounts = async (req, runId, userId, remarks) => {
   await salaryRun.save();
 
   // Notify users with salary.process permission
-  const { notifyByPermission } = require('./notification.service');
+  const { notifyByPermission } = require('../modules/shared/notification.service');
   await notifyByPermission('salary.process', {
     type: 'salary_accounts_approved',
     title: 'Salary run ready for processing',
@@ -1102,7 +1102,7 @@ const processSalaryRun = async (req, runId, userId) => {
   }
 
   // Notify users with salary.pay permission
-  const { notifyByPermission } = require('./notification.service');
+  const { notifyByPermission } = require('../modules/shared/notification.service');
   await notifyByPermission('salary.pay', {
     type: 'salary_processed',
     title: 'Salary run processed',

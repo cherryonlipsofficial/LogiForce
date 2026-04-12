@@ -95,7 +95,7 @@ app.get('/api/health', async (req, res) => {
 app.use('/api', resolveTenant);
 
 // Routes
-app.use('/api/auth', require('./src/routes/auth.routes'));
+app.use('/api/auth', require('./src/modules/shared/auth.routes'));
 app.use('/api/drivers', require('./src/routes/drivers.routes'));
 app.use('/api/clients', require('./src/routes/clients.routes'));
 app.use('/api/suppliers', require('./src/routes/suppliers.routes'));
@@ -109,11 +109,11 @@ app.use('/api/receivables', require('./src/routes/driverReceivables.routes'));
 app.use('/api/vehicles', require('./src/routes/vehicles.routes'));
 app.use('/api/vehicle-fines', require('./src/routes/vehicleFines.routes'));
 app.use('/api/projects', require('./src/routes/projects.routes'));
-app.use('/api/roles', require('./src/routes/roles.routes'));
-app.use('/api/users', require('./src/routes/users.routes'));
+app.use('/api/roles', require('./src/modules/shared/roles.routes'));
+app.use('/api/users', require('./src/modules/shared/users.routes'));
 app.use('/api', require('./src/routes/guaranteePassport.routes'));
-app.use('/api/notifications', require('./src/routes/notifications.routes'));
-app.use('/api/settings', require('./src/routes/settings.routes'));
+app.use('/api/notifications', require('./src/modules/shared/notifications.routes'));
+app.use('/api/settings', require('./src/modules/shared/settings.routes'));
 app.use('/api/simcards', require('./src/routes/simcards.routes'));
 app.use('/api/driver-clearance', require('./src/routes/driverClearance.routes'));
 app.use('/api/driver-visas', require('./src/routes/driverVisas.routes'));

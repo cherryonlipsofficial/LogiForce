@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { getModel } = require('../config/modelRegistry');
+const { getModel } = require('../../config/modelRegistry');
 
 const generateToken = (userId) => {
   return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
@@ -52,7 +52,7 @@ const buildAuthResponse = async (req, user) => {
   const isAdmin = user.roleId?.isSystemRole === true;
 
   if (isAdmin) {
-    const { getAllKeys } = require('../config/permissions');
+    const { getAllKeys } = require('../../config/permissions');
     return {
       user: {
         _id: user._id, name: user.name, email: user.email,

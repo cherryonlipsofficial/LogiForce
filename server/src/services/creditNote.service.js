@@ -83,7 +83,7 @@ const createCreditNote = async (req, data, createdBy) => {
 
   // Notify accounts team
   try {
-    const { notifyByPermission } = require('./notification.service');
+    const { notifyByPermission } = require('../modules/shared/notification.service');
     await notifyByPermission(req, 'credit_notes.adjust', {
       type: 'credit_note_created',
       title: 'New credit note created',
@@ -127,7 +127,7 @@ const sendCreditNote = async (req, creditNoteId, userId) => {
   const adjustmentSummary = await adjustDraftSalaryRuns(req, cn);
 
   try {
-    const { notifyByPermission } = require('./notification.service');
+    const { notifyByPermission } = require('../modules/shared/notification.service');
     await notifyByPermission(req, 'credit_notes.adjust', {
       type: 'credit_note_sent',
       title: 'Credit note sent to client',
@@ -201,7 +201,7 @@ const adjustCreditNote = async (req, creditNoteId, invoiceId, userId) => {
   await invoice.save();
 
   try {
-    const { notifyByPermission } = require('./notification.service');
+    const { notifyByPermission } = require('../modules/shared/notification.service');
     await notifyByPermission(req, 'credit_notes.adjust', {
       type: 'credit_note_adjusted',
       title: 'Credit note linked to invoice',
@@ -271,7 +271,7 @@ const checkAndSettleCreditNote = async (req, creditNoteId) => {
     await cn.save();
 
     try {
-      const { notifyByPermission } = require('./notification.service');
+      const { notifyByPermission } = require('../modules/shared/notification.service');
       await notifyByPermission(req, 'credit_notes.adjust', {
         type: 'credit_note_settled',
         title: 'Credit note fully settled',
@@ -578,7 +578,7 @@ const adjustDraftSalaryRuns = async (req, creditNote) => {
 
   // Send notifications for items that couldn't be auto-adjusted
   try {
-    const { notifyByPermission } = require('./notification.service');
+    const { notifyByPermission } = require('../modules/shared/notification.service');
 
     if (adjustmentSummary.pendingNextSalary.length > 0) {
       const driverNames = adjustmentSummary.pendingNextSalary.map((d) => d.driverName).join(', ');

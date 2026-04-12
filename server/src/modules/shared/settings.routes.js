@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const { protect, requirePermission } = require('../middleware/auth');
-const { getModel } = require('../config/modelRegistry');
-const { sendSuccess, sendError } = require('../utils/responseHelper');
+const { protect, requirePermission } = require('../../middleware/auth');
+const { getModel } = require('../../config/modelRegistry');
+const { sendSuccess, sendError } = require('../../utils/responseHelper');
 
 const upload = multer({
   limits: { fileSize: 2 * 1024 * 1024 }, // 2MB max

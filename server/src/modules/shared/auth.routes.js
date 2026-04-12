@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const rateLimit = require('express-rate-limit');
-const { protect } = require('../middleware/auth');
-const authService = require('../services/auth.service');
-const { getModel } = require('../config/modelRegistry');
+const { protect } = require('../../middleware/auth');
+const authService = require('./auth.service');
+const { getModel } = require('../../config/modelRegistry');
 const bcrypt = require('bcryptjs');
-const { sendSuccess, sendError } = require('../utils/responseHelper');
-const validate = require('../middleware/validate');
-const { loginValidation, registerValidation, changePasswordValidation } = require('../middleware/validators/auth.validators');
+const { sendSuccess, sendError } = require('../../utils/responseHelper');
+const validate = require('../../middleware/validate');
+const { loginValidation, registerValidation, changePasswordValidation } = require('./auth.validators');
 
 // Rate limit on login: 5 requests per minute
 const loginLimiter = rateLimit({

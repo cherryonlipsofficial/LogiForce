@@ -23,7 +23,7 @@ const roleSchema = new Schema({
     type: String,
     validate: {
       validator: function(key) {
-        const { PERMISSIONS } = require('../config/permissions');
+        const { PERMISSIONS } = require('../../config/permissions');
         return key in PERMISSIONS;
       },
       message: props => `${props.value} is not a valid permission key`,

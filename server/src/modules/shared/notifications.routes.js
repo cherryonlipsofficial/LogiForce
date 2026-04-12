@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../middleware/auth');
+const { protect } = require('../../middleware/auth');
 const {
   getUserNotifications, markAsRead, markAllAsRead, getUnreadCount,
-} = require('../services/notification.service');
-const { getPendingApprovalsSummary } = require('../services/pendingApprovals.service');
+} = require('./notification.service');
+const { getPendingApprovalsSummary } = require('./pendingApprovals.service');
 
 // All routes are protected
 router.use(protect);
