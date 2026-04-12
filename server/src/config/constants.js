@@ -23,6 +23,7 @@ module.exports = {
     'deduction_carryover',
     'credit_note',
     'vehicle_fine',
+    'visa_cost',
     'other',
   ],
   CREDIT_NOTE_TYPES: [

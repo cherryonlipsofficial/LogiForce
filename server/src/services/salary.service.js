@@ -385,6 +385,17 @@ const calculateDeductions = async (req, driverId, year, month, grossSalary) => {
     }
   }
 
+  // h) Visa cost monthly recovery (company-sponsored visa / TWP)
+  //    Only applied when there is an active DriverVisa record with a non-zero
+  //    monthlyDeduction and an outstanding balance. Finance can excuse a given
+  //    month via the manual salary adjustment endpoint (which removes/reduces
+  //    this line on the salary run).
+  const driverVisaService = require('./driverVisa.service');
+  const visaResult = await driverVisaService.resolveVisaDeductionForDriver(req, driverId);
+  if (visaResult) {
+    deductions.push(visaResult.deduction);
+  }
+
   // f) Deduction carryover from previous month
   const carryover = await getDeductionCarryover(req, driverId, year, month);
   if (carryover > 0) {
@@ -1009,6 +1020,12 @@ const processSalaryRun = async (req, runId, userId) => {
 
   // Update advance recoveries
   await updateAdvanceRecoveries(req, salaryRun);
+
+  // Update visa cost recovery on the corresponding DriverVisa record(s).
+  // Only the amount still present on the salary run (post Finance adjustments)
+  // is credited, so excused months don't increment totalRecovered.
+  const driverVisaSvc = require('./driverVisa.service');
+  await driverVisaSvc.recordVisaRecovery(req, salaryRun.driverId, salaryRun);
 
   // Mark SIM bill allocations as deducted
   const simDeductions = (salaryRun.deductions || []).filter(d => d.type === 'telecom_sim' && d.referenceId && d.referenceId.includes(':'));

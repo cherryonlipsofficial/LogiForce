@@ -40,6 +40,7 @@ const schemas = {
   SimAssignment: require('../models/SimAssignment').schema,
   SimBill: require('../models/SimBill').schema,
   DriverClearance: require('../models/DriverClearance').schema,
+  DriverVisa: require('../models/DriverVisa').schema,
 };
 
 /**

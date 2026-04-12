@@ -15,6 +15,13 @@ module.exports = {
     'drivers.update_client_id': { label: 'Update Client User ID',   module: 'Drivers',    description: 'Set or update the Client User ID on active drivers' },
     'drivers.manage_passport': { label: 'Manage passport submission', module: 'Drivers', description: 'Record passport submission, guarantee passports, request extensions' },
 
+    // ── DRIVER VISAS ──
+    'driver_visas.view':       { label: 'View driver visa records',   module: 'Driver Visas', description: 'See driver visa cost records, statement and recovery status' },
+    'driver_visas.create':     { label: 'Add driver visa record',     module: 'Driver Visas', description: 'Create a new driver visa record (Sales / Compliance)' },
+    'driver_visas.edit':       { label: 'Edit visa non-financial fields', module: 'Driver Visas', description: 'Update visa number, dates, label and remarks' },
+    'driver_visas.manage':     { label: 'Manage visa financials & deduction', module: 'Driver Visas', description: 'Edit charges, discount, cash received, monthly deduction; add / remove statement line items; waive or cancel (Admin / Finance / Accounts only)' },
+    'driver_visas.log_processing': { label: 'Log visa processing date', module: 'Driver Visas', description: 'Record the date the visa was processed / stamped (Operations)' },
+
     // ── COMPLIANCE ──
     'guarantee_passports.view':  { label: 'View guarantee passports',  module: 'Compliance', description: 'View all guarantee passports and their status' },
     'expired_documents.view':    { label: 'View expired documents',    module: 'Compliance', description: 'View drivers with expired documents across all document types' },
@@ -75,7 +82,7 @@ module.exports = {
     'salary.export_wps':       { label: 'Export WPS file',         module: 'Salary',     description: 'Download WPS salary transfer file' },
     'salary.view_payslip':     { label: 'View & download payslips', module: 'Salary',    description: 'Generate, view and download payslip PDFs' },
     'salary.delete':           { label: 'Delete salary runs',      module: 'Salary',     description: 'Delete salary runs in draft or approved status' },
-    'salary.manage_deductions': { label: 'Manage deductions',      module: 'Salary',     description: 'Manually add or edit salary deductions (telecom, vehicle, salik, advance, penalty, carryover, other)' },
+    'salary.manage_deductions': { label: 'Manage deductions',      module: 'Salary',     description: 'Manually add or edit salary deductions (telecom, vehicle, salik, advance, penalty, carryover, visa cost, other)' },
     'salary.pay':              { label: 'Mark salary as paid',     module: 'Salary',     description: 'Mark approved salary runs as paid' },
     'salary.dispute':          { label: 'Dispute salary',          module: 'Salary',     description: 'Raise a dispute on a salary run' },
 
