@@ -812,7 +812,7 @@ export const REPORT_CARDS = [
     name: 'KYC Compliance',
     description: 'Driver KYC document status',
     frequency: 'Daily',
-    permission: 'reports.compliance_kyc',
+    permission: 'reports.compliance_kyc_status',
     fetchFn: getKycCompliance,
     filters: ['clientId', 'projectId'],
     columns: [
