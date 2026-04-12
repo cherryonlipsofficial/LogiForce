@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { protect, requirePermission } = require('../middleware/auth');
-const { getModel } = require('../config/modelRegistry');
+const { protect, requirePermission } = require('../../middleware/auth');
+const { getModel } = require('../../config/modelRegistry');
 const {
   createFine,
   updateFine,
@@ -11,8 +11,8 @@ const {
   bulkCreateFines,
   disputeFine,
   waiveFine,
-} = require('../services/vehicleFine.service');
-const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
+} = require('./vehicleFine.service');
+const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseHelper');
 
 router.use(protect);
 

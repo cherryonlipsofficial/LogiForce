@@ -1,4 +1,4 @@
-const { getModel } = require('../config/modelRegistry');
+const { getModel } = require('../../config/modelRegistry');
 
 /**
  * Resolve which driver had a vehicle at a given date by querying VehicleAssignment.

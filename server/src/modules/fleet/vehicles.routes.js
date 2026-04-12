@@ -4,16 +4,16 @@ const multer = require('multer');
 const XLSX = require('xlsx');
 const csvParser = require('csv-parser');
 const { Readable } = require('stream');
-const { protect, requirePermission } = require('../middleware/auth');
-const { getModel } = require('../config/modelRegistry');
+const { protect, requirePermission } = require('../../middleware/auth');
+const { getModel } = require('../../config/modelRegistry');
 const {
   assignVehicle,
   returnVehicle,
   getVehicleHistory,
   getVehicleTimeline,
   getFleetDashboardStats,
-} = require('../services/vehicleAssignment.service');
-const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
+} = require('./vehicleAssignment.service');
+const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseHelper');
 
 const memUpload = multer({
   storage: multer.memoryStorage(),
