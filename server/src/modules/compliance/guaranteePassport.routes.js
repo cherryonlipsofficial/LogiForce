@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { protect, requirePermission } = require('../middleware/auth');
-const { sendSuccess, sendError } = require('../utils/responseHelper');
-const { getModel } = require('../config/modelRegistry');
-const guaranteePassportService = require('../services/guaranteePassport.service');
+const { protect, requirePermission } = require('../../middleware/auth');
+const { sendSuccess, sendError } = require('../../utils/responseHelper');
+const { getModel } = require('../../config/modelRegistry');
+const guaranteePassportService = require('./guaranteePassport.service');
 
 router.use(protect);
 

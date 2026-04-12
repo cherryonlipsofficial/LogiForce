@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { protect, requirePermission } = require('../middleware/auth');
-const { getModel } = require('../config/modelRegistry');
-const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
-const { PAGINATION } = require('../config/constants');
-const validate = require('../middleware/validate');
-const driverVisaService = require('../services/driverVisa.service');
-const auditLogger = require('../utils/auditLogger');
+const { protect, requirePermission } = require('../../middleware/auth');
+const { getModel } = require('../../config/modelRegistry');
+const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseHelper');
+const { PAGINATION } = require('../../config/constants');
+const validate = require('../../middleware/validate');
+const driverVisaService = require('./driverVisa.service');
+const auditLogger = require('../../utils/auditLogger');
 const {
   createVisaValidation,
   updateBasicsValidation,
@@ -14,7 +14,7 @@ const {
   reasonValidation,
   lineItemValidation,
   processingValidation,
-} = require('../middleware/validators/driverVisa.validators');
+} = require('./driverVisa.validators');
 
 router.use(protect);
 

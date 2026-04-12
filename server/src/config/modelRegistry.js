@@ -30,7 +30,7 @@ const schemas = {
   DriverLedger: require('../modules/payroll/DriverLedger').schema,
   DriverProjectAssignment: require('../modules/billing/DriverProjectAssignment').schema,
   DriverReceivable: require('../modules/payroll/DriverReceivable').schema,
-  GuaranteePassport: require('../models/GuaranteePassport').schema,
+  GuaranteePassport: require('../modules/compliance/GuaranteePassport').schema,
   SalaryRun: require('../modules/payroll/SalaryRun').schema,
   CompanySettings: require('../modules/shared/CompanySettings').schema,
   AuditLog: require('../modules/shared/AuditLog').schema,
@@ -39,8 +39,8 @@ const schemas = {
   TelecomSim: require('../models/TelecomSim').schema,
   SimAssignment: require('../models/SimAssignment').schema,
   SimBill: require('../models/SimBill').schema,
-  DriverClearance: require('../models/DriverClearance').schema,
-  DriverVisa: require('../models/DriverVisa').schema,
+  DriverClearance: require('../modules/compliance/DriverClearance').schema,
+  DriverVisa: require('../modules/compliance/DriverVisa').schema,
 };
 
 /**

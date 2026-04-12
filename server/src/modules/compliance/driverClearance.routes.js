@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { protect, requirePermission } = require('../middleware/auth');
-const clearanceService = require('../services/driverClearance.service');
-const { sendSuccess, sendPaginated } = require('../utils/responseHelper');
-const { PAGINATION } = require('../config/constants');
-const auditLogger = require('../utils/auditLogger');
+const { protect, requirePermission } = require('../../middleware/auth');
+const clearanceService = require('./driverClearance.service');
+const { sendSuccess, sendPaginated } = require('../../utils/responseHelper');
+const { PAGINATION } = require('../../config/constants');
+const auditLogger = require('../../utils/auditLogger');
 
 router.use(protect);
 

@@ -17,7 +17,7 @@ const ProjectContract = require('../modules/billing/ProjectContract');
 const DriverProjectAssignment = require('../modules/billing/DriverProjectAssignment');
 const DriverHistory = require('../modules/drivers/DriverHistory');
 const VehicleAssignment = require('../modules/fleet/VehicleAssignment');
-const GuaranteePassport = require('./GuaranteePassport');
+const GuaranteePassport = require('../modules/compliance/GuaranteePassport');
 const AttendanceDispute = require('../modules/attendance/AttendanceDispute');
 const AppNotification = require('../modules/shared/AppNotification');
 const DriverAdvance = require('../modules/payroll/DriverAdvance');
@@ -28,8 +28,8 @@ const VehicleFine = require('../modules/fleet/VehicleFine');
 const TelecomSim = require('./TelecomSim');
 const SimAssignment = require('./SimAssignment');
 const SimBill = require('./SimBill');
-const DriverClearance = require('./DriverClearance');
-const DriverVisa = require('./DriverVisa');
+const DriverClearance = require('../modules/compliance/DriverClearance');
+const DriverVisa = require('../modules/compliance/DriverVisa');
 
 module.exports = {
   User,

@@ -111,12 +111,12 @@ app.use('/api/vehicle-fines', require('./src/modules/fleet/vehicleFines.routes')
 app.use('/api/projects', require('./src/modules/billing/projects.routes'));
 app.use('/api/roles', require('./src/modules/shared/roles.routes'));
 app.use('/api/users', require('./src/modules/shared/users.routes'));
-app.use('/api', require('./src/routes/guaranteePassport.routes'));
+app.use('/api', require('./src/modules/compliance/guaranteePassport.routes'));
 app.use('/api/notifications', require('./src/modules/shared/notifications.routes'));
 app.use('/api/settings', require('./src/modules/shared/settings.routes'));
 app.use('/api/simcards', require('./src/routes/simcards.routes'));
-app.use('/api/driver-clearance', require('./src/routes/driverClearance.routes'));
-app.use('/api/driver-visas', require('./src/routes/driverVisas.routes'));
+app.use('/api/driver-clearance', require('./src/modules/compliance/driverClearance.routes'));
+app.use('/api/driver-visas', require('./src/modules/compliance/driverVisas.routes'));
 
 // Error handler
 app.use(errorHandler);

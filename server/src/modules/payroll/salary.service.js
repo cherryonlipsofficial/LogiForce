@@ -390,7 +390,7 @@ const calculateDeductions = async (req, driverId, year, month, grossSalary) => {
   //    monthlyDeduction and an outstanding balance. Finance can excuse a given
   //    month via the manual salary adjustment endpoint (which removes/reduces
   //    this line on the salary run).
-  const driverVisaService = require('../../services/driverVisa.service');
+  const driverVisaService = require('../compliance/driverVisa.service');
   const visaResult = await driverVisaService.resolveVisaDeductionForDriver(req, driverId);
   if (visaResult) {
     deductions.push(visaResult.deduction);
@@ -1024,7 +1024,7 @@ const processSalaryRun = async (req, runId, userId) => {
   // Update visa cost recovery on the corresponding DriverVisa record(s).
   // Only the amount still present on the salary run (post Finance adjustments)
   // is credited, so excused months don't increment totalRecovered.
-  const driverVisaSvc = require('../../services/driverVisa.service');
+  const driverVisaSvc = require('../compliance/driverVisa.service');
   await driverVisaSvc.recordVisaRecovery(req, salaryRun.driverId, salaryRun);
 
   // Mark SIM bill allocations as deducted
