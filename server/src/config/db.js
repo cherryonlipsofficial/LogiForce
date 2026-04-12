@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const logger = require('../utils/logger');
 
 const ensureAdminRole = async () => {
-  const Role = require('../models/Role');
+  const Role = require('../modules/shared/Role');
   const { PERMISSIONS } = require('./permissions');
   const allKeys = Object.keys(PERMISSIONS);
 
@@ -42,12 +42,12 @@ const migrateAttendanceBatchIndexes = async () => {
   );
 
   // Let Mongoose create the correct index (with version) if missing
-  const AttendanceBatch = require('../models/AttendanceBatch');
+  const AttendanceBatch = require('../modules/attendance/AttendanceBatch');
   await AttendanceBatch.syncIndexes();
 };
 
 const ensureRolePermissions = async () => {
-  const Role = require('../models/Role');
+  const Role = require('../modules/shared/Role');
 
   // Map of role names to permissions they must have for salary approval flow
   const REQUIRED_PERMS = {

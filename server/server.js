@@ -95,28 +95,28 @@ app.get('/api/health', async (req, res) => {
 app.use('/api', resolveTenant);
 
 // Routes
-app.use('/api/auth', require('./src/routes/auth.routes'));
-app.use('/api/drivers', require('./src/routes/drivers.routes'));
-app.use('/api/clients', require('./src/routes/clients.routes'));
-app.use('/api/suppliers', require('./src/routes/suppliers.routes'));
-app.use('/api/attendance', require('./src/routes/attendance.routes'));
-app.use('/api/invoices', require('./src/routes/invoices.routes'));
-app.use('/api/credit-notes', require('./src/routes/creditNotes.routes'));
-app.use('/api/reports', require('./src/routes/reports.routes'));
-app.use('/api/advances', require('./src/routes/advances.routes'));
-app.use('/api/salary', require('./src/routes/salary.routes'));
-app.use('/api/receivables', require('./src/routes/driverReceivables.routes'));
-app.use('/api/vehicles', require('./src/routes/vehicles.routes'));
-app.use('/api/vehicle-fines', require('./src/routes/vehicleFines.routes'));
-app.use('/api/projects', require('./src/routes/projects.routes'));
-app.use('/api/roles', require('./src/routes/roles.routes'));
-app.use('/api/users', require('./src/routes/users.routes'));
-app.use('/api', require('./src/routes/guaranteePassport.routes'));
-app.use('/api/notifications', require('./src/routes/notifications.routes'));
-app.use('/api/settings', require('./src/routes/settings.routes'));
-app.use('/api/simcards', require('./src/routes/simcards.routes'));
-app.use('/api/driver-clearance', require('./src/routes/driverClearance.routes'));
-app.use('/api/driver-visas', require('./src/routes/driverVisas.routes'));
+app.use('/api/auth', require('./src/modules/shared/auth.routes'));
+app.use('/api/drivers', require('./src/modules/drivers/drivers.routes'));
+app.use('/api/clients', require('./src/modules/billing/clients.routes'));
+app.use('/api/suppliers', require('./src/modules/billing/suppliers.routes'));
+app.use('/api/attendance', require('./src/modules/attendance/attendance.routes'));
+app.use('/api/invoices', require('./src/modules/billing/invoices.routes'));
+app.use('/api/credit-notes', require('./src/modules/billing/creditNotes.routes'));
+app.use('/api/reports', require('./src/modules/reports/reports.routes'));
+app.use('/api/advances', require('./src/modules/payroll/advances.routes'));
+app.use('/api/salary', require('./src/modules/payroll/salary.routes'));
+app.use('/api/receivables', require('./src/modules/payroll/driverReceivables.routes'));
+app.use('/api/vehicles', require('./src/modules/fleet/vehicles.routes'));
+app.use('/api/vehicle-fines', require('./src/modules/fleet/vehicleFines.routes'));
+app.use('/api/projects', require('./src/modules/billing/projects.routes'));
+app.use('/api/roles', require('./src/modules/shared/roles.routes'));
+app.use('/api/users', require('./src/modules/shared/users.routes'));
+app.use('/api', require('./src/modules/compliance/guaranteePassport.routes'));
+app.use('/api/notifications', require('./src/modules/shared/notifications.routes'));
+app.use('/api/settings', require('./src/modules/shared/settings.routes'));
+app.use('/api/simcards', require('./src/modules/telecom/simcards.routes'));
+app.use('/api/driver-clearance', require('./src/modules/compliance/driverClearance.routes'));
+app.use('/api/driver-visas', require('./src/modules/compliance/driverVisas.routes'));
 
 // Error handler
 app.use(errorHandler);
@@ -171,7 +171,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   });
 
   // Daily salary approval reminder at 9:00 AM
-  const { notifyAccountsBeforeSalaryDate } = require('./src/services/salaryReminder.service');
+  const { notifyAccountsBeforeSalaryDate } = require('./src/modules/payroll/salaryReminder.service');
   cron.schedule('0 9 * * *', async () => {
     logger.info('Running salary approval reminder check...');
     for (const [key, tenantConfig] of Object.entries(tenants)) {

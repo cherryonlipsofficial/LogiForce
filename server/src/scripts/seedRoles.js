@@ -1,4 +1,4 @@
-const Role = require('../models/Role');
+const Role = require('../modules/shared/Role');
 const { PERMISSIONS } = require('../config/permissions');
 
 const allKeys = Object.keys(PERMISSIONS);
