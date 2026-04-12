@@ -25,9 +25,9 @@ const CompanySettings = require('../modules/shared/CompanySettings');
 const CreditNote = require('../modules/billing/CreditNote');
 const DriverReceivable = require('../modules/payroll/DriverReceivable');
 const VehicleFine = require('../modules/fleet/VehicleFine');
-const TelecomSim = require('./TelecomSim');
-const SimAssignment = require('./SimAssignment');
-const SimBill = require('./SimBill');
+const TelecomSim = require('../modules/telecom/TelecomSim');
+const SimAssignment = require('../modules/telecom/SimAssignment');
+const SimBill = require('../modules/telecom/SimBill');
 const DriverClearance = require('../modules/compliance/DriverClearance');
 const DriverVisa = require('../modules/compliance/DriverVisa');
 

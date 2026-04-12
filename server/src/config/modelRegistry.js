@@ -36,9 +36,9 @@ const schemas = {
   AuditLog: require('../modules/shared/AuditLog').schema,
   AppNotification: require('../modules/shared/AppNotification').schema,
   VehicleFine: require('../modules/fleet/VehicleFine').schema,
-  TelecomSim: require('../models/TelecomSim').schema,
-  SimAssignment: require('../models/SimAssignment').schema,
-  SimBill: require('../models/SimBill').schema,
+  TelecomSim: require('../modules/telecom/TelecomSim').schema,
+  SimAssignment: require('../modules/telecom/SimAssignment').schema,
+  SimBill: require('../modules/telecom/SimBill').schema,
   DriverClearance: require('../modules/compliance/DriverClearance').schema,
   DriverVisa: require('../modules/compliance/DriverVisa').schema,
 };

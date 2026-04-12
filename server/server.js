@@ -114,7 +114,7 @@ app.use('/api/users', require('./src/modules/shared/users.routes'));
 app.use('/api', require('./src/modules/compliance/guaranteePassport.routes'));
 app.use('/api/notifications', require('./src/modules/shared/notifications.routes'));
 app.use('/api/settings', require('./src/modules/shared/settings.routes'));
-app.use('/api/simcards', require('./src/routes/simcards.routes'));
+app.use('/api/simcards', require('./src/modules/telecom/simcards.routes'));
 app.use('/api/driver-clearance', require('./src/modules/compliance/driverClearance.routes'));
 app.use('/api/driver-visas', require('./src/modules/compliance/driverVisas.routes'));
 
