@@ -48,6 +48,7 @@ import Advances from './pages/Advances/Advances';
 import CreditNotes from './pages/CreditNotes/CreditNotes';
 import StatementOfAccounts from './pages/StatementOfAccounts/StatementOfAccounts';
 import SimCards from './pages/SimCards/SimCards';
+import DriverVisas from './pages/DriverVisas/DriverVisas';
 import NotFound from './pages/NotFound';
 
 const queryClient = new QueryClient();
@@ -83,6 +84,7 @@ const RouterContent = () => (
         <Route path="/suppliers" element={<ProtectedPage permission="suppliers.view"><Suppliers /></ProtectedPage>} />
         <Route path="/vehicles" element={<ProtectedPage permission="vehicles.view"><VehiclesPage /></ProtectedPage>} />
         <Route path="/simcards" element={<ProtectedPage permission="simcards.view"><SimCards /></ProtectedPage>} />
+        <Route path="/driver-visas" element={<ProtectedPage permission="driver_visas.view"><DriverVisas /></ProtectedPage>} />
         <Route path="/reports" element={<ProtectedPage permission="reports.view"><Reports /></ProtectedPage>} />
         <Route path="/reports/ops/driver-availability" element={<ProtectedPage permission="reports.ops_driver_availability"><OpsDriverAvailability /></ProtectedPage>} />
         <Route path="/reports/ops/attendance-tracker" element={<ProtectedPage permission="reports.ops_attendance_tracker"><OpsAttendanceTracker /></ProtectedPage>} />

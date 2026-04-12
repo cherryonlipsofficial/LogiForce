@@ -28,6 +28,7 @@ const VehicleFine = require('./VehicleFine');
 const TelecomSim = require('./TelecomSim');
 const SimAssignment = require('./SimAssignment');
 const SimBill = require('./SimBill');
+const DriverVisa = require('./DriverVisa');
 
 module.exports = {
   User,
@@ -60,4 +61,5 @@ module.exports = {
   TelecomSim,
   SimAssignment,
   SimBill,
+  DriverVisa,
 };
