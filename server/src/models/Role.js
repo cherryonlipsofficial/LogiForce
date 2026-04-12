@@ -13,7 +13,7 @@ const roleSchema = new Schema({
   displayName: {
     type: String,
     required: true,
-    // e.g. 'Administrator', 'Senior Accountant', 'Operations Manager'
+    // e.g. 'Administrator', 'Finance', 'Operations Manager'
   },
   description: { type: String },
 

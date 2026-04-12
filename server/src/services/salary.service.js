@@ -914,7 +914,7 @@ const approveByAccounts = async (req, runId, userId, remarks) => {
 };
 
 /**
- * Senior Accountant processes — accounts_approved → processed
+ * Finance processes — accounts_approved → processed
  */
 const processSalaryRun = async (req, runId, userId) => {
   const SalaryRun = getModel(req, 'SalaryRun');
