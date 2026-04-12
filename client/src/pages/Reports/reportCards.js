@@ -993,5 +993,38 @@ export const REPORT_CARDS = [
       { header: 'Missing', accessor: 'missingCount', sortable: true, align: 'right' },
       { header: 'Completeness', accessor: 'completeness', sortable: true, align: 'right', render: 'percent' },
     ],
+    // Backend returns { summary: { totalActive, ... }, drivers: [{ missingFields: [...] }] }
+    // Aggregate driver-level data into one row per (entity, field).
+    flattenData: (data) => {
+      const drivers = data?.drivers || [];
+      const totalActive = data?.summary?.totalActive || 0;
+      const fieldLabels = {
+        bankName: 'Bank Name',
+        iban: 'IBAN',
+        phoneUae: 'UAE Phone',
+        emergencyContactName: 'Emergency Contact Name',
+        emergencyContactPhone: 'Emergency Contact Phone',
+        clientUserId: 'Linked Client User',
+      };
+      const trackedFields = Object.keys(fieldLabels);
+      const missingCounts = trackedFields.reduce((acc, f) => ({ ...acc, [f]: 0 }), {});
+      for (const d of drivers) {
+        for (const f of d.missingFields || []) {
+          if (missingCounts[f] != null) missingCounts[f] += 1;
+        }
+      }
+      return trackedFields.map((f) => {
+        const missingCount = missingCounts[f];
+        const completeness = totalActive > 0
+          ? Math.round(((totalActive - missingCount) / totalActive) * 10000) / 100
+          : 100;
+        return {
+          entity: 'Driver',
+          field: fieldLabels[f],
+          missingCount,
+          completeness,
+        };
+      });
+    },
   },
 ];
