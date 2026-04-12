@@ -169,15 +169,17 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   });
 
   // Daily salary approval reminder at 9:00 AM
+  const { notifyAccountsBeforeSalaryDate } = require('./src/services/salaryReminder.service');
   cron.schedule('0 9 * * *', async () => {
     logger.info('Running salary approval reminder check...');
     for (const [key, tenantConfig] of Object.entries(tenants)) {
       try {
         const conn = await getConnectionForTenant(tenantConfig);
-        // TODO: refactor checkAndSendReminders to accept connection
-        logger.info(`[Cron] Salary reminder check done for ${key}`);
+        // Notify Accounts users 3 days before each project's salary release date
+        const result = await notifyAccountsBeforeSalaryDate({ dbConnection: conn }, { daysBefore: 3 });
+        logger.info(`[Cron] Salary reminder check done for ${key}: ${result.notificationsSent} notification(s) sent`);
       } catch (err) {
-        logger.error(`[Cron] Salary reminder check failed for ${key}:`, { error: err.message });
+        logger.error(`[Cron] Salary reminder check failed for ${key}:`, { error: err.message, stack: err.stack });
       }
     }
   });

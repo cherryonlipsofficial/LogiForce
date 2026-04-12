@@ -1,6 +1,75 @@
 const { getModel } = require('../config/modelRegistry');
 const { notifyByPermission } = require('./notification.service');
 
+function ordinalSuffix(n) {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return s[(v - 20) % 10] || s[v] || s[0];
+}
+
+/**
+ * Notify Accounts users 3 days before each active project's salary release date.
+ *
+ * For every active project, compute (this month's salaryReleaseDay − daysBefore).
+ * If that matches today, send a notification to all users holding the
+ * `salary.approve_accounts` permission (i.e. the Accounts team).
+ *
+ * De-duplicated per project per day via an AppNotification lookup.
+ *
+ * @param {{ dbConnection: import('mongoose').Connection }} reqLike
+ * @param {{ daysBefore?: number }} [options]
+ */
+async function notifyAccountsBeforeSalaryDate(reqLike, { daysBefore = 3 } = {}) {
+  const Project = getModel(reqLike, 'Project');
+  const AppNotification = getModel(reqLike, 'AppNotification');
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const projects = await Project.find({ status: 'active' })
+    .select('_id name salaryReleaseDay');
+
+  let notificationsSent = 0;
+
+  for (const project of projects) {
+    const releaseDay = project.salaryReleaseDay || 25;
+
+    // Salary release date in the current month
+    const releaseDate = new Date(now.getFullYear(), now.getMonth(), releaseDay);
+    const notifyDate = new Date(releaseDate);
+    notifyDate.setDate(notifyDate.getDate() - daysBefore);
+
+    // Only fire when today is exactly the notify-date
+    if (today.getTime() !== notifyDate.getTime()) continue;
+
+    // De-duplicate: skip if this project already got an accounts reminder today
+    const startOfDay = new Date(today);
+    const endOfDay = new Date(today);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+
+    const alreadySent = await AppNotification.findOne({
+      type: 'salary_approval_reminder',
+      referenceModel: 'Project',
+      referenceId: project._id,
+      title: 'Salary date approaching',
+      createdAt: { $gte: startOfDay, $lt: endOfDay },
+    });
+    if (alreadySent) continue;
+
+    const sent = await notifyByPermission(reqLike, 'salary.approve_accounts', {
+      type: 'salary_approval_reminder',
+      title: 'Salary date approaching',
+      message: `Salary release date for project "${project.name}" is on the ${releaseDay}${ordinalSuffix(releaseDay)} — only ${daysBefore} day(s) away. Please prepare accounts processing.`,
+      referenceModel: 'Project',
+      referenceId: project._id,
+    });
+
+    notificationsSent += sent;
+  }
+
+  return { notificationsSent };
+}
+
 // Map salary run status → which permission should be notified
 const STATUS_TO_PERMISSION = {
   draft: 'salary.approve_ops',
@@ -116,4 +185,4 @@ async function checkAndSendReminders(req) {
   return { notificationsSent };
 }
 
-module.exports = { checkAndSendReminders };
+module.exports = { checkAndSendReminders, notifyAccountsBeforeSalaryDate };
