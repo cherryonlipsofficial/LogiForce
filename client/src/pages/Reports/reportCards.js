@@ -962,6 +962,16 @@ export const REPORT_CARDS = [
     permission: 'reports.admin_role_matrix',
     fetchFn: getRoleMatrix,
     filters: [],
+    flattenData: (data) => {
+      const roles = Array.isArray(data?.roles) ? data.roles : [];
+      return roles.map(r => ({
+        roleName: r.roleName || r.displayName || r.name,
+        userCount: r.userCount || 0,
+        permissionCount: r.permissionCount != null
+          ? r.permissionCount
+          : (data?.matrix?.[r.name]?.length || 0),
+      }));
+    },
     columns: [
       { header: 'Role', accessor: 'roleName', sortable: true },
       { header: 'Users', accessor: 'userCount', sortable: true, align: 'right' },

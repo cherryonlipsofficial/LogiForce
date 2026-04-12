@@ -3610,9 +3610,19 @@ router.get('/user-activity', requirePermission('reports.admin_user_activity'), a
 router.get('/role-matrix', requirePermission('reports.admin_role_matrix'), async (req, res) => {
   try {
     const Role = getModel(req, 'Role');
+    const User = getModel(req, 'User');
     const { PERMISSIONS } = require('../../config/permissions');
 
     const roles = await Role.find({ isActive: true }).select('name displayName permissions').lean();
+
+    const userCountsAgg = await User.aggregate([
+      { $match: { roleId: { $ne: null } } },
+      { $group: { _id: '$roleId', count: { $sum: 1 } } },
+    ]);
+    const userCountByRoleId = {};
+    for (const row of userCountsAgg) {
+      userCountByRoleId[String(row._id)] = row.count;
+    }
 
     const permissions = Object.entries(PERMISSIONS).map(([key, val]) => ({
       key,
@@ -3621,12 +3631,20 @@ router.get('/role-matrix', requirePermission('reports.admin_role_matrix'), async
     }));
 
     const matrix = {};
-    for (const role of roles) {
-      matrix[role.name] = role.permissions || [];
-    }
+    const rolesOut = roles.map(r => {
+      matrix[r.name] = r.permissions || [];
+      return {
+        roleId: r._id,
+        name: r.name,
+        displayName: r.displayName,
+        roleName: r.displayName || r.name,
+        userCount: userCountByRoleId[String(r._id)] || 0,
+        permissionCount: (r.permissions || []).length,
+      };
+    });
 
     sendSuccess(res, {
-      roles: roles.map(r => ({ roleId: r._id, name: r.name, displayName: r.displayName })),
+      roles: rolesOut,
       permissions,
       matrix,
     });
