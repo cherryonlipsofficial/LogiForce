@@ -107,11 +107,12 @@ router.get('/runs', requirePermission('salary.view'), async (req, res) => {
 
   const [runs, total] = await Promise.all([
     SalaryRun.find(query)
-      .populate('driverId', 'fullName employeeCode bankName iban')
+      .populate('driverId', 'fullName employeeCode bankName iban status')
       .populate('clientId', 'name')
       .populate('projectId', 'name')
       .populate('processedBy', 'name')
       .populate('approvals.approvedBy', 'name')
+      .populate('clearanceRef', 'clearanceNo overallStatus')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -126,12 +127,13 @@ router.get('/runs', requirePermission('salary.view'), async (req, res) => {
 router.get('/runs/:id', requirePermission('salary.view'), async (req, res) => {
   const SalaryRun = getModel(req, 'SalaryRun');
   const run = await SalaryRun.findOne({ _id: req.params.id, isDeleted: { $ne: true } })
-    .populate('driverId', 'fullName employeeCode bankName iban payStructure')
+    .populate('driverId', 'fullName employeeCode bankName iban payStructure status')
     .populate('clientId', 'name')
     .populate('projectId', 'name salaryReleaseDay')
     .populate('attendanceRecordId')
     .populate('processedBy', 'name')
     .populate('approvals.approvedBy', 'name')
+    .populate('clearanceRef', 'clearanceNo overallStatus clientClearance supplierClearance internalClearance')
     .lean();
 
   if (!run) return sendError(res, 'Salary run not found', 404);

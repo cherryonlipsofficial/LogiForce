@@ -48,6 +48,7 @@ import Advances from './pages/Advances/Advances';
 import CreditNotes from './pages/CreditNotes/CreditNotes';
 import StatementOfAccounts from './pages/StatementOfAccounts/StatementOfAccounts';
 import SimCards from './pages/SimCards/SimCards';
+import DriverClearance from './pages/DriverClearance/DriverClearance';
 import DriverVisas from './pages/DriverVisas/DriverVisas';
 import NotFound from './pages/NotFound';
 
@@ -76,6 +77,7 @@ const RouterContent = () => (
         <Route path="/drivers" element={<ProtectedPage permission="drivers.view"><Drivers /></ProtectedPage>} />
         <Route path="/attendance" element={<ProtectedPage permission="attendance.view"><Attendance /></ProtectedPage>} />
         <Route path="/salary" element={<ProtectedPage permission="salary.view"><Salary /></ProtectedPage>} />
+        <Route path="/driver-clearance" element={<ProtectedPage permission="clearance.view"><DriverClearance /></ProtectedPage>} />
         <Route path="/invoices" element={<ProtectedPage permission="invoices.view"><Invoices /></ProtectedPage>} />
         <Route path="/credit-notes" element={<ProtectedPage permission="credit_notes.view"><CreditNotes /></ProtectedPage>} />
         <Route path="/advances" element={<ProtectedPage permission="advances.view"><Advances /></ProtectedPage>} />
