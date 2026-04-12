@@ -2159,17 +2159,87 @@ router.get('/rate-comparison', requirePermission('reports.sales_rate_comparison'
 // COMPLIANCE / HR ENDPOINTS
 // =====================================================
 
-// GET /api/reports/kyc-compliance — KYC compliance rate per client
+// GET /api/reports/kyc-compliance — KYC document status, one row per (driver, required doc)
+// Optional filters: clientId, projectId
 router.get('/kyc-compliance', requirePermission('reports.compliance_kyc_status'), async (req, res) => {
   try {
+    const mongoose = require('mongoose');
     const Client = getModel(req, 'Client');
     const Driver = getModel(req, 'Driver');
+    const Project = getModel(req, 'Project');
     const DriverDocument = getModel(req, 'DriverDocument');
 
-    const clients = await Client.find({ isActive: true, kycRules: { $exists: true } }).lean();
-    const result = [];
+    const { clientId, projectId } = req.query;
 
-    for (const client of clients) {
+    const DOC_TYPE_LABELS = {
+      emirates_id: 'Emirates ID',
+      passport: 'Passport',
+      visa: 'Visa',
+      labour_card: 'Labour Card',
+    };
+
+    const clientQuery = { isActive: true, kycRules: { $exists: true } };
+    if (clientId) clientQuery._id = new mongoose.Types.ObjectId(clientId);
+
+    const clients = await Client.find(clientQuery).lean();
+    const clientMap = new Map(clients.map(c => [String(c._id), c]));
+
+    if (clients.length === 0) {
+      return sendSuccess(res, []);
+    }
+
+    const driverQuery = {
+      clientId: { $in: clients.map(c => c._id) },
+      status: 'active',
+    };
+    if (projectId) driverQuery.projectId = new mongoose.Types.ObjectId(projectId);
+
+    const drivers = await Driver.find(driverQuery).lean();
+
+    if (drivers.length === 0) {
+      return sendSuccess(res, []);
+    }
+
+    // Preload projects referenced by these drivers
+    const projectIds = [...new Set(drivers.map(d => d.projectId).filter(Boolean).map(String))];
+    const projects = projectIds.length
+      ? await Project.find({ _id: { $in: projectIds } }).select('_id name').lean()
+      : [];
+    const projectMap = new Map(projects.map(p => [String(p._id), p]));
+
+    // Preload documents for all drivers in one query
+    const driverIds = drivers.map(d => d._id);
+    const allDocs = await DriverDocument.find({
+      driverId: { $in: driverIds },
+      docType: { $in: Object.keys(DOC_TYPE_LABELS) },
+    })
+      .select('driverId docType status expiryDate')
+      .lean();
+
+    // Index latest doc per (driverId, docType) — prefer verified, then pending, then most recent
+    const STATUS_RANK = { verified: 0, pending: 1, rejected: 2, expired: 3 };
+    const docIndex = new Map();
+    for (const doc of allDocs) {
+      const key = `${doc.driverId}::${doc.docType}`;
+      const existing = docIndex.get(key);
+      if (!existing) {
+        docIndex.set(key, doc);
+        continue;
+      }
+      const existingRank = STATUS_RANK[existing.status] ?? 99;
+      const newRank = STATUS_RANK[doc.status] ?? 99;
+      if (newRank < existingRank) {
+        docIndex.set(key, doc);
+      }
+    }
+
+    const now = new Date();
+    const rows = [];
+
+    for (const driver of drivers) {
+      const client = clientMap.get(String(driver.clientId));
+      if (!client) continue;
+
       const rules = client.kycRules || {};
       const requiredDocTypes = [];
       if (rules.requireEmiratesId) requiredDocTypes.push('emirates_id');
@@ -2179,50 +2249,49 @@ router.get('/kyc-compliance', requirePermission('reports.compliance_kyc_status')
 
       if (requiredDocTypes.length === 0) continue;
 
-      const drivers = await Driver.find({ clientId: client._id, status: 'active' }).lean();
-      const totalDrivers = drivers.length;
-      let compliantDrivers = 0;
-      const nonCompliantDrivers = [];
+      const project = driver.projectId ? projectMap.get(String(driver.projectId)) : null;
 
-      for (const driver of drivers) {
-        const docs = await DriverDocument.find({
-          driverId: driver._id,
-          docType: { $in: requiredDocTypes },
-          status: { $in: ['verified', 'pending'] },
-          $or: [
-            { expiryDate: { $exists: false } },
-            { expiryDate: null },
-            { expiryDate: { $gte: new Date() } },
-          ],
-        }).lean();
+      for (const docType of requiredDocTypes) {
+        const doc = docIndex.get(`${driver._id}::${docType}`);
 
-        const presentDocTypes = docs.map(d => d.docType);
-        const missingDocs = requiredDocTypes.filter(dt => !presentDocTypes.includes(dt));
+        let status;
+        let expiryDate = null;
 
-        if (missingDocs.length === 0) {
-          compliantDrivers++;
+        if (!doc) {
+          status = 'missing';
         } else {
-          nonCompliantDrivers.push({
-            driverId: driver._id,
-            fullName: driver.fullName,
-            employeeCode: driver.employeeCode,
-            missingDocs,
-          });
+          expiryDate = doc.expiryDate || null;
+          if (doc.status === 'verified' && expiryDate && new Date(expiryDate) < now) {
+            status = 'expired';
+          } else {
+            status = doc.status;
+          }
         }
-      }
 
-      result.push({
-        clientId: client._id,
-        clientName: client.name,
-        kycRules: rules,
-        totalDrivers,
-        compliantDrivers,
-        complianceRate: totalDrivers > 0 ? Math.round((compliantDrivers / totalDrivers) * 10000) / 100 : 0,
-        nonCompliantDrivers,
-      });
+        rows.push({
+          driverId: driver._id,
+          driverName: driver.fullName || driver.employeeCode,
+          employeeCode: driver.employeeCode,
+          clientId: client._id,
+          clientName: client.name,
+          projectId: project?._id || null,
+          projectName: project?.name || null,
+          docType,
+          documentType: DOC_TYPE_LABELS[docType] || docType,
+          status,
+          expiryDate,
+          isCompliant: status === 'verified' || status === 'pending',
+        });
+      }
     }
 
-    sendSuccess(res, result);
+    // Sort: non-compliant first, then by driver name
+    rows.sort((a, b) => {
+      if (a.isCompliant !== b.isCompliant) return a.isCompliant ? 1 : -1;
+      return (a.driverName || '').localeCompare(b.driverName || '');
+    });
+
+    sendSuccess(res, rows);
   } catch (err) {
     sendError(res, err.message, 500);
   }
