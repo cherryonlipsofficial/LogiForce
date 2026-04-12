@@ -70,6 +70,15 @@ const ReportCardExpanded = ({ card, isExpanded, onToggle, clients, projects }) =
             return d.toLocaleDateString('en-CA'); // YYYY-MM-DD
           };
           break;
+        case 'datetime':
+          renderFn = (val) => {
+            if (!val) return '—';
+            const d = new Date(val);
+            const date = d.toLocaleDateString('en-CA'); // YYYY-MM-DD
+            const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+            return `${date} ${time}`;
+          };
+          break;
         case 'percent':
           renderFn = (val) => (val != null ? `${val}%` : '—');
           break;

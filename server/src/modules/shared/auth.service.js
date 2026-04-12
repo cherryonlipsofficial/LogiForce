@@ -26,6 +26,7 @@ const login = async (req, email, password) => {
   }
 
   user.lastLogin = new Date();
+  user.loginCount = (user.loginCount || 0) + 1;
   await user.save({ validateBeforeSave: false });
 
   const token = generateToken(user._id);

@@ -949,7 +949,7 @@ export const REPORT_CARDS = [
     columns: [
       { header: 'User', accessor: 'userName', sortable: true },
       { header: 'Role', accessor: 'role', sortable: true },
-      { header: 'Last Login', accessor: 'lastLogin', sortable: true, render: 'date' },
+      { header: 'Last Login', accessor: 'lastLogin', sortable: true, render: 'datetime' },
       { header: 'Sessions', accessor: 'sessionCount', sortable: true, align: 'right' },
     ],
   },
