@@ -2,7 +2,7 @@ const path = require('path');
 const XLSX = require('xlsx');
 const { Readable } = require('stream');
 const csv = require('csv-parser');
-const { getModel } = require('../config/modelRegistry');
+const { getModel } = require('../../config/modelRegistry');
 
 const parseAttendanceFile = async (req, file, columnMapping, clientId, period) => {
   const Driver = getModel(req, 'Driver');

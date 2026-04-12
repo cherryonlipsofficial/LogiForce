@@ -1,19 +1,19 @@
 const express = require('express');
 const router = express.Router();
-const { protect, requirePermission, requireAnyPermission } = require('../middleware/auth');
-const { attendanceUpload } = require('../middleware/upload');
-const attendanceService = require('../services/attendance.service');
+const { protect, requirePermission, requireAnyPermission } = require('../../middleware/auth');
+const { attendanceUpload } = require('../../middleware/upload');
+const attendanceService = require('./attendance.service');
 const {
   sendUploadNotification, approveAttendance, raiseDispute,
   respondToDispute,
-} = require('../services/attendanceApproval.service');
-const { generateInvoice } = require('../services/invoiceGeneration.service');
-const { runSalaryForBatch, getSalaryRunsByBatch } = require('../services/salaryRun.service');
-const { getModel } = require('../config/modelRegistry');
-const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
-const { PAGINATION } = require('../config/constants');
-const validate = require('../middleware/validate');
-const { uploadAttendanceValidation, overrideRecordValidation } = require('../middleware/validators/attendance.validators');
+} = require('./attendanceApproval.service');
+const { generateInvoice } = require('../../services/invoiceGeneration.service');
+const { runSalaryForBatch, getSalaryRunsByBatch } = require('../../services/salaryRun.service');
+const { getModel } = require('../../config/modelRegistry');
+const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseHelper');
+const { PAGINATION } = require('../../config/constants');
+const validate = require('../../middleware/validate');
+const { uploadAttendanceValidation, overrideRecordValidation } = require('./attendance.validators');
 
 // All routes are protected
 router.use(protect);

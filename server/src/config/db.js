@@ -42,7 +42,7 @@ const migrateAttendanceBatchIndexes = async () => {
   );
 
   // Let Mongoose create the correct index (with version) if missing
-  const AttendanceBatch = require('../models/AttendanceBatch');
+  const AttendanceBatch = require('../modules/attendance/AttendanceBatch');
   await AttendanceBatch.syncIndexes();
 };
 

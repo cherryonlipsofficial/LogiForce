@@ -1,5 +1,5 @@
-const { getModel } = require('../config/modelRegistry');
-const { notifyByPermission, notifyUsers } = require('../modules/shared/notification.service');
+const { getModel } = require('../../config/modelRegistry');
+const { notifyByPermission, notifyUsers } = require('../shared/notification.service');
 
 function getMonthName(year, month) {
   return new Date(year, month - 1).toLocaleString('en', { month: 'long' });

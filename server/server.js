@@ -99,7 +99,7 @@ app.use('/api/auth', require('./src/modules/shared/auth.routes'));
 app.use('/api/drivers', require('./src/modules/drivers/drivers.routes'));
 app.use('/api/clients', require('./src/routes/clients.routes'));
 app.use('/api/suppliers', require('./src/routes/suppliers.routes'));
-app.use('/api/attendance', require('./src/routes/attendance.routes'));
+app.use('/api/attendance', require('./src/modules/attendance/attendance.routes'));
 app.use('/api/invoices', require('./src/routes/invoices.routes'));
 app.use('/api/credit-notes', require('./src/routes/creditNotes.routes'));
 app.use('/api/reports', require('./src/routes/reports.routes'));
