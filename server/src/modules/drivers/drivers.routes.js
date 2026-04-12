@@ -1,19 +1,19 @@
 const express = require('express');
 const path = require('path');
 const router = express.Router();
-const { protect, requirePermission } = require('../middleware/auth');
-const upload = require('../middleware/upload');
-const driverService = require('../services/driver.service');
-const { verifyContacts, setClientUserId, activateDriver, changeStatusManual, getDriverStatusSummary } = require('../services/driverWorkflow.service');
-const { getHistory } = require('../services/driverHistory.service');
-const { getDriverVehicleHistory } = require('../services/vehicleAssignment.service');
-const { getModel } = require('../config/modelRegistry');
-const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
-const validate = require('../middleware/validate');
-const { createDriverValidation, updateDriverValidation, changeStatusValidation } = require('../middleware/validators/driver.validators');
-const auditLogger = require('../utils/auditLogger');
-const { evaluateAndTransition } = require('../services/driverStatusEngine.service');
-const { logEvent } = require('../services/driverHistory.service');
+const { protect, requirePermission } = require('../../middleware/auth');
+const upload = require('../../middleware/upload');
+const driverService = require('./driver.service');
+const { verifyContacts, setClientUserId, activateDriver, changeStatusManual, getDriverStatusSummary } = require('./driverWorkflow.service');
+const { getHistory } = require('./driverHistory.service');
+const { getDriverVehicleHistory } = require('../../services/vehicleAssignment.service');
+const { getModel } = require('../../config/modelRegistry');
+const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseHelper');
+const validate = require('../../middleware/validate');
+const { createDriverValidation, updateDriverValidation, changeStatusValidation } = require('./driver.validators');
+const auditLogger = require('../../utils/auditLogger');
+const { evaluateAndTransition } = require('./driverStatusEngine.service');
+const { logEvent } = require('./driverHistory.service');
 
 // All routes are protected
 router.use(protect);
@@ -332,7 +332,7 @@ router.post('/bulk-import', requirePermission('drivers.create'), (req, res, next
     const result = await driverService.bulkCreate(req, rows, req.user._id);
     sendSuccess(res, result, `Imported ${result.created} drivers${result.errors.length > 0 ? ` with ${result.errors.length} errors` : ''}`, 201);
   } catch (err) {
-    const logger = require('../utils/logger');
+    const logger = require('../../utils/logger');
     logger.error('Bulk import failed', { error: err.message, stack: err.stack });
     return sendError(res, `Failed to process file: ${err.message}`, 400);
   }

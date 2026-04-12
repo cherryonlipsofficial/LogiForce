@@ -96,7 +96,7 @@ app.use('/api', resolveTenant);
 
 // Routes
 app.use('/api/auth', require('./src/modules/shared/auth.routes'));
-app.use('/api/drivers', require('./src/routes/drivers.routes'));
+app.use('/api/drivers', require('./src/modules/drivers/drivers.routes'));
 app.use('/api/clients', require('./src/routes/clients.routes'));
 app.use('/api/suppliers', require('./src/routes/suppliers.routes'));
 app.use('/api/attendance', require('./src/routes/attendance.routes'));

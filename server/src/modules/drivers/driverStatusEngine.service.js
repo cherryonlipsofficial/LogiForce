@@ -1,4 +1,4 @@
-const { getModel } = require('../config/modelRegistry');
+const { getModel } = require('../../config/modelRegistry');
 const { logStatusChange } = require('./driverHistory.service');
 
 const REQUIRED_KYC_DOCS = ['emirates_id', 'passport', 'driving_licence'];

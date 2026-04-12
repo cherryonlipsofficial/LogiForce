@@ -1,6 +1,6 @@
 const { getModel } = require('../config/modelRegistry');
-const { logEvent } = require('./driverHistory.service');
-const { evaluateAndTransition } = require('./driverStatusEngine.service');
+const { logEvent } = require('../modules/drivers/driverHistory.service');
+const { evaluateAndTransition } = require('../modules/drivers/driverStatusEngine.service');
 
 /**
  * Mark driver as having submitted their own passport.

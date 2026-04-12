@@ -12,7 +12,7 @@ const { getModel } = require('../config/modelRegistry');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
 const validate = require('../middleware/validate');
 const { validateCreateSim, validateUpdateSim, validateAssignSim } = require('../middleware/validators/simcard.validators');
-const { logEvent } = require('../services/driverHistory.service');
+const { logEvent } = require('../modules/drivers/driverHistory.service');
 const { PAGINATION } = require('../config/constants');
 
 // All routes require authentication

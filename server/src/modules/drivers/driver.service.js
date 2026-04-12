@@ -1,5 +1,5 @@
-const { getModel } = require('../config/modelRegistry');
-const { PAGINATION } = require('../config/constants');
+const { getModel } = require('../../config/modelRegistry');
+const { PAGINATION } = require('../../config/constants');
 const { evaluateAndTransition } = require('./driverStatusEngine.service');
 const { logEvent } = require('./driverHistory.service');
 

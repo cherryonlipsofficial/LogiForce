@@ -1,5 +1,5 @@
 const { getModel } = require('../config/modelRegistry');
-const { logEvent } = require('./driverHistory.service');
+const { logEvent } = require('../modules/drivers/driverHistory.service');
 
 /**
  * Assign a vehicle to a driver.
