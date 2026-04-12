@@ -102,7 +102,7 @@ app.use('/api/suppliers', require('./src/modules/billing/suppliers.routes'));
 app.use('/api/attendance', require('./src/modules/attendance/attendance.routes'));
 app.use('/api/invoices', require('./src/modules/billing/invoices.routes'));
 app.use('/api/credit-notes', require('./src/modules/billing/creditNotes.routes'));
-app.use('/api/reports', require('./src/routes/reports.routes'));
+app.use('/api/reports', require('./src/modules/reports/reports.routes'));
 app.use('/api/advances', require('./src/modules/payroll/advances.routes'));
 app.use('/api/salary', require('./src/modules/payroll/salary.routes'));
 app.use('/api/receivables', require('./src/modules/payroll/driverReceivables.routes'));

@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { protect, requirePermission } = require('../middleware/auth');
-const { getModel } = require('../config/modelRegistry');
-const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
-const { PAGINATION } = require('../config/constants');
+const { protect, requirePermission } = require('../../middleware/auth');
+const { getModel } = require('../../config/modelRegistry');
+const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseHelper');
+const { PAGINATION } = require('../../config/constants');
 
 // All routes are protected
 router.use(protect);
@@ -391,7 +391,7 @@ router.get('/statement-of-accounts', requirePermission('reports.statement_of_acc
   const { projectId, year } = req.query;
   if (!projectId) return sendError(res, 'projectId is required', 400);
 
-  const creditNoteService = require('../modules/billing/creditNote.service');
+  const creditNoteService = require('../billing/creditNote.service');
   const result = await creditNoteService.getStatementOfAccounts(
     projectId,
     year ? parseInt(year) : new Date().getFullYear()
@@ -3451,7 +3451,7 @@ router.get('/user-activity', requirePermission('reports.admin_user_activity'), a
 router.get('/role-matrix', requirePermission('reports.admin_role_matrix'), async (req, res) => {
   try {
     const Role = getModel(req, 'Role');
-    const { PERMISSIONS } = require('../config/permissions');
+    const { PERMISSIONS } = require('../../config/permissions');
 
     const roles = await Role.find({ isActive: true }).select('name displayName permissions').lean();
 
