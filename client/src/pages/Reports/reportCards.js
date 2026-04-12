@@ -225,6 +225,19 @@ export const REPORT_CARDS = [
     permission: 'reports.ops_salary_pipeline',
     fetchFn: getOpsSalaryPipeline,
     filters: ['year', 'month'],
+    flattenData: (data) => {
+      if (!Array.isArray(data)) return [];
+      return data.flatMap(row =>
+        (row.stages || []).map(s => ({
+          projectName: row.projectName,
+          clientName: row.clientName,
+          stage: s.status,
+          driverCount: s.count,
+          totalAmount: s.totalGross,
+          totalNet: s.totalNet,
+        }))
+      );
+    },
     columns: [
       { header: 'Project', accessor: 'projectName', sortable: true },
       { header: 'Stage', accessor: 'stage', sortable: true, render: 'badge' },
