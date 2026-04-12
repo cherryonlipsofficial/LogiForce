@@ -614,13 +614,22 @@ const RunDetail = ({ run, onClose }) => {
               )}
             </>
           )}
-          {currentStatus === 'accounts_approved' && canActOnCurrentStage && (
-            <PermissionGate permission="salary.process">
-              <Btn variant="primary" onClick={() => processMut()} disabled={processing}>
-                {processing ? 'Processing...' : 'Process Salary'}
-              </Btn>
-            </PermissionGate>
-          )}
+          {currentStatus === 'accounts_approved' && canActOnCurrentStage && (() => {
+            const needsClearance = ['resigned', 'offboarded'].includes(detail.driverId?.status);
+            const clearanceBlocked = needsClearance && detail.clearanceRef?.overallStatus !== 'completed';
+            return (
+              <PermissionGate permission="salary.process">
+                <Btn
+                  variant="primary"
+                  onClick={() => processMut()}
+                  disabled={processing || clearanceBlocked}
+                  title={clearanceBlocked ? 'Clearance must be completed before processing final salary for a resigned/offboarded driver' : undefined}
+                >
+                  {processing ? 'Processing...' : clearanceBlocked ? 'Process Salary (Clearance pending)' : 'Process Salary'}
+                </Btn>
+              </PermissionGate>
+            );
+          })()}
           <PermissionGate permission="salary.pay">
             {(currentStatus === 'processed' || currentStatus === 'approved') && (
               !confirmPay ? (
