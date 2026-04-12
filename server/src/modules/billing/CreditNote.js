@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
-const { amountToWords } = require('../utils/numberToWords');
+const { amountToWords } = require('../../utils/numberToWords');
 
 const creditNoteSchema = new Schema(
   {
