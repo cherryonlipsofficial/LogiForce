@@ -884,9 +884,9 @@ export const REPORT_CARDS = [
     filters: ['clientId'],
     columns: [
       { header: 'Driver', accessor: 'driverName', sortable: true },
-      { header: 'Document', accessor: 'documentType', sortable: true },
+      { header: 'Document', accessor: 'docType', sortable: true },
       { header: 'Expired On', accessor: 'expiryDate', sortable: true, render: 'date' },
-      { header: 'Days Overdue', accessor: 'daysOverdue', sortable: true, align: 'right' },
+      { header: 'Days Overdue', accessor: 'daysExpired', sortable: true, align: 'right' },
     ],
   },
   {
