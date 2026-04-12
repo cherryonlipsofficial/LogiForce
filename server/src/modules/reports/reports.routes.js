@@ -3564,7 +3564,14 @@ router.get('/audit-trail', requirePermission('reports.admin_audit_trail'), async
       AuditLog.countDocuments(query),
     ]);
 
-    sendPaginated(res, data, total, page, limit);
+    const mapped = data.map(log => ({
+      ...log,
+      userName: log.userId?.name || log.userId?.email || 'System',
+      userEmail: log.userId?.email || null,
+      resource: log.documentId ? `${log.model}:${log.documentId}` : log.model,
+    }));
+
+    sendPaginated(res, mapped, total, page, limit);
   } catch (err) {
     sendError(res, err.message, 500);
   }
