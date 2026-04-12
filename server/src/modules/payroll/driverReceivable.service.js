@@ -1,4 +1,4 @@
-const { getModel } = require('../config/modelRegistry');
+const { getModel } = require('../../config/modelRegistry');
 
 /**
  * Record a recovery against a driver receivable.
@@ -137,7 +137,7 @@ const resolveLinkedCreditNoteLine = async (req, receivable, userId, note) => {
   await cn.save();
 
   // Check if entire CN is now settled
-  const { checkAndSettleCreditNote } = require('./creditNote.service');
+  const { checkAndSettleCreditNote } = require('../billing/creditNote.service');
   await checkAndSettleCreditNote(req, cn._id);
 };
 

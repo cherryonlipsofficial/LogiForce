@@ -1,5 +1,5 @@
-const { getModel } = require('../config/modelRegistry');
-const { notifyByPermission } = require('../modules/shared/notification.service');
+const { getModel } = require('../../config/modelRegistry');
+const { notifyByPermission } = require('../shared/notification.service');
 
 function ordinalSuffix(n) {
   const s = ['th', 'st', 'nd', 'rd'];

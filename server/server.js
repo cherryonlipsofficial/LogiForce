@@ -103,9 +103,9 @@ app.use('/api/attendance', require('./src/modules/attendance/attendance.routes')
 app.use('/api/invoices', require('./src/modules/billing/invoices.routes'));
 app.use('/api/credit-notes', require('./src/modules/billing/creditNotes.routes'));
 app.use('/api/reports', require('./src/routes/reports.routes'));
-app.use('/api/advances', require('./src/routes/advances.routes'));
-app.use('/api/salary', require('./src/routes/salary.routes'));
-app.use('/api/receivables', require('./src/routes/driverReceivables.routes'));
+app.use('/api/advances', require('./src/modules/payroll/advances.routes'));
+app.use('/api/salary', require('./src/modules/payroll/salary.routes'));
+app.use('/api/receivables', require('./src/modules/payroll/driverReceivables.routes'));
 app.use('/api/vehicles', require('./src/modules/fleet/vehicles.routes'));
 app.use('/api/vehicle-fines', require('./src/modules/fleet/vehicleFines.routes'));
 app.use('/api/projects', require('./src/modules/billing/projects.routes'));
@@ -171,7 +171,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   });
 
   // Daily salary approval reminder at 9:00 AM
-  const { notifyAccountsBeforeSalaryDate } = require('./src/services/salaryReminder.service');
+  const { notifyAccountsBeforeSalaryDate } = require('./src/modules/payroll/salaryReminder.service');
   cron.schedule('0 9 * * *', async () => {
     logger.info('Running salary approval reminder check...');
     for (const [key, tenantConfig] of Object.entries(tenants)) {

@@ -8,7 +8,7 @@ const {
   respondToDispute,
 } = require('./attendanceApproval.service');
 const { generateInvoice } = require('../billing/invoiceGeneration.service');
-const { runSalaryForBatch, getSalaryRunsByBatch } = require('../../services/salaryRun.service');
+const { runSalaryForBatch, getSalaryRunsByBatch } = require('../payroll/salaryRun.service');
 const { getModel } = require('../../config/modelRegistry');
 const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseHelper');
 const { PAGINATION } = require('../../config/constants');

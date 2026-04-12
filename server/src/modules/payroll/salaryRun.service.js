@@ -1,5 +1,5 @@
-const { getModel } = require('../config/modelRegistry');
-const { notifyUsers } = require('../modules/shared/notification.service');
+const { getModel } = require('../../config/modelRegistry');
+const { notifyUsers } = require('../shared/notification.service');
 
 /**
  * Generate salary runs for all drivers in an approved attendance batch.

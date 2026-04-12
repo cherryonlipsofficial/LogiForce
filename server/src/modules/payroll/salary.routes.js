@@ -1,14 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const { protect, requirePermission } = require('../middleware/auth');
-const salaryService = require('../services/salary.service');
-const { getModel } = require('../config/modelRegistry');
-const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
-const { PAGINATION } = require('../config/constants');
-const validate = require('../middleware/validate');
-const { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation, manualDeductionValidation, approvalRemarksValidation, bulkApprovalValidation } = require('../middleware/validators/salary.validators');
-const auditLogger = require('../utils/auditLogger');
-const { generatePayslipPDF } = require('../utils/pdfGenerator');
+const { protect, requirePermission } = require('../../middleware/auth');
+const salaryService = require('./salary.service');
+const { getModel } = require('../../config/modelRegistry');
+const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseHelper');
+const { PAGINATION } = require('../../config/constants');
+const validate = require('../../middleware/validate');
+const { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation, manualDeductionValidation, approvalRemarksValidation, bulkApprovalValidation } = require('./salary.validators');
+const auditLogger = require('../../utils/auditLogger');
+const { generatePayslipPDF } = require('../../utils/pdfGenerator');
 
 /**
  * Revert credit note line items that were deducted in a salary run being deleted.

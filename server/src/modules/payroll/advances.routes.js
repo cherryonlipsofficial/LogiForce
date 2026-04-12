@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { protect, requirePermission } = require('../middleware/auth');
-const { getModel } = require('../config/modelRegistry');
-const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
-const { PAGINATION } = require('../config/constants');
-const validate = require('../middleware/validate');
-const { issueAdvanceValidation, recoverAdvanceValidation } = require('../middleware/validators/advance.validators');
-const auditLogger = require('../utils/auditLogger');
-const { requestAdvance, reviewAdvance } = require('../services/driverAdvance.service');
+const { protect, requirePermission } = require('../../middleware/auth');
+const { getModel } = require('../../config/modelRegistry');
+const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseHelper');
+const { PAGINATION } = require('../../config/constants');
+const validate = require('../../middleware/validate');
+const { issueAdvanceValidation, recoverAdvanceValidation } = require('./advance.validators');
+const auditLogger = require('../../utils/auditLogger');
+const { requestAdvance, reviewAdvance } = require('./driverAdvance.service');
 
 // All routes are protected
 router.use(protect);

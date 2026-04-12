@@ -1,5 +1,5 @@
-const { getModel } = require('../config/modelRegistry');
-const { SALARY } = require('../config/constants');
+const { getModel } = require('../../config/modelRegistry');
+const { SALARY } = require('../../config/constants');
 
 /**
  * Calculate salary for a single driver for a given period.
@@ -390,7 +390,7 @@ const calculateDeductions = async (req, driverId, year, month, grossSalary) => {
   //    monthlyDeduction and an outstanding balance. Finance can excuse a given
   //    month via the manual salary adjustment endpoint (which removes/reduces
   //    this line on the salary run).
-  const driverVisaService = require('./driverVisa.service');
+  const driverVisaService = require('../../services/driverVisa.service');
   const visaResult = await driverVisaService.resolveVisaDeductionForDriver(req, driverId);
   if (visaResult) {
     deductions.push(visaResult.deduction);
@@ -837,7 +837,7 @@ const approveByOps = async (req, runId, userId, remarks) => {
   await salaryRun.save();
 
   // Notify users with compliance approval permission
-  const { notifyByPermission } = require('../modules/shared/notification.service');
+  const { notifyByPermission } = require('../shared/notification.service');
   await notifyByPermission('salary.approve_compliance', {
     type: 'salary_ops_approved',
     title: 'Salary run ready for compliance review',
@@ -874,7 +874,7 @@ const approveByCompliance = async (req, runId, userId, remarks) => {
   await salaryRun.save();
 
   // Notify users with accounts approval permission
-  const { notifyByPermission } = require('../modules/shared/notification.service');
+  const { notifyByPermission } = require('../shared/notification.service');
   await notifyByPermission('salary.approve_accounts', {
     type: 'salary_compliance_approved',
     title: 'Salary run ready for accounts review',
@@ -911,7 +911,7 @@ const approveByAccounts = async (req, runId, userId, remarks) => {
   await salaryRun.save();
 
   // Notify users with salary.process permission
-  const { notifyByPermission } = require('../modules/shared/notification.service');
+  const { notifyByPermission } = require('../shared/notification.service');
   await notifyByPermission('salary.process', {
     type: 'salary_accounts_approved',
     title: 'Salary run ready for processing',
@@ -1024,7 +1024,7 @@ const processSalaryRun = async (req, runId, userId) => {
   // Update visa cost recovery on the corresponding DriverVisa record(s).
   // Only the amount still present on the salary run (post Finance adjustments)
   // is credited, so excused months don't increment totalRecovered.
-  const driverVisaSvc = require('./driverVisa.service');
+  const driverVisaSvc = require('../../services/driverVisa.service');
   await driverVisaSvc.recordVisaRecovery(req, salaryRun.driverId, salaryRun);
 
   // Mark SIM bill allocations as deducted
@@ -1083,7 +1083,7 @@ const processSalaryRun = async (req, runId, userId) => {
     });
 
     // Check if entire CN is now settled
-    const { checkAndSettleCreditNote } = require('./creditNote.service');
+    const { checkAndSettleCreditNote } = require('../billing/creditNote.service');
     await checkAndSettleCreditNote(cnId);
   }
 
@@ -1102,7 +1102,7 @@ const processSalaryRun = async (req, runId, userId) => {
   }
 
   // Notify users with salary.pay permission
-  const { notifyByPermission } = require('../modules/shared/notification.service');
+  const { notifyByPermission } = require('../shared/notification.service');
   await notifyByPermission('salary.pay', {
     type: 'salary_processed',
     title: 'Salary run processed',
@@ -1139,7 +1139,7 @@ const generateWpsFile = async (req, clientId, year, month) => {
     throw err;
   }
 
-  const { WPS } = require('../config/constants');
+  const { WPS } = require('../../config/constants');
   const salaryMonth = `${year}${String(month).padStart(2, '0')}`;
 
   // SIF header
@@ -1190,7 +1190,7 @@ const extractBankCode = (iban) => {
  */
 const addManualDeduction = async (req, runId, { type, amount, description }, addedBy) => {
   const SalaryRun = getModel(req, 'SalaryRun');
-  const { DEDUCTION_TYPES } = require('../config/constants');
+  const { DEDUCTION_TYPES } = require('../../config/constants');
 
   if (!DEDUCTION_TYPES.includes(type)) {
     const err = new Error(`Invalid deduction type "${type}". Allowed: ${DEDUCTION_TYPES.join(', ')}`);
