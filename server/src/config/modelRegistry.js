@@ -39,6 +39,7 @@ const schemas = {
   TelecomSim: require('../models/TelecomSim').schema,
   SimAssignment: require('../models/SimAssignment').schema,
   SimBill: require('../models/SimBill').schema,
+  DriverClearance: require('../models/DriverClearance').schema,
 };
 
 /**

@@ -920,6 +920,8 @@ const processSalaryRun = async (req, runId, userId) => {
   const SalaryRun = getModel(req, 'SalaryRun');
   const DriverLedger = getModel(req, 'DriverLedger');
   const CreditNote = getModel(req, 'CreditNote');
+  const Driver = getModel(req, 'Driver');
+  const DriverClearance = getModel(req, 'DriverClearance');
 
   const salaryRun = await SalaryRun.findById(runId);
   if (!salaryRun) {
@@ -941,6 +943,59 @@ const processSalaryRun = async (req, runId, userId) => {
       const err = new Error(`Missing '${required}' approval — cannot process salary run`);
       err.statusCode = 400;
       throw err;
+    }
+  }
+
+  // Clearance gate: if driver has resigned/offboarded, the DriverClearance
+  // record must exist and be 'completed' (client + supplier + internal all done)
+  // before the final salary can be processed and paid.
+  const driver = await Driver.findById(salaryRun.driverId).select('status fullName').lean();
+  if (driver && ['resigned', 'offboarded'].includes(driver.status)) {
+    const clearance = await DriverClearance.findOne({
+      driverId: salaryRun.driverId,
+      isDeleted: false,
+    });
+
+    if (!clearance) {
+      const err = new Error(
+        `Clearance not initiated for ${driver.fullName || 'driver'}. Open a clearance record before processing final salary.`
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+
+    if (clearance.overallStatus !== 'completed') {
+      const pending = [];
+      if (!['received', 'waived', 'not_applicable'].includes(clearance.clientClearance?.status)) pending.push('client');
+      if (!['received', 'waived', 'not_applicable'].includes(clearance.supplierClearance?.status)) pending.push('supplier');
+      if (!['received', 'waived', 'not_applicable'].includes(clearance.internalClearance?.status)) pending.push('internal');
+      const err = new Error(
+        `Cannot process salary — pending clearance(s): ${pending.join(', ')}. Complete clearance ${clearance.clearanceNo} first.`
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+
+    // Sync supplier-clearance deductions into the salary run (idempotent).
+    const unpostedDeductions = (clearance.supplierDeductions || []).filter(d => !d.postedToSalaryRunId);
+    if (unpostedDeductions.length > 0) {
+      for (const ded of unpostedDeductions) {
+        salaryRun.deductions.push({
+          type: 'clearance_deduction',
+          referenceId: `${clearance._id}:${ded._id}`,
+          amount: ded.amount,
+          description: `Clearance (${ded.type}): ${ded.description || clearance.clearanceNo}`,
+          status: 'applied',
+        });
+        salaryRun.totalDeductions = (salaryRun.totalDeductions || 0) + ded.amount;
+        ded.postedToSalaryRunId = salaryRun._id;
+        ded.postedAt = new Date();
+      }
+      salaryRun.netSalary = Math.max(0, Math.round(((salaryRun.grossSalary || 0) - (salaryRun.totalDeductions || 0)) * 100) / 100);
+      salaryRun.clearanceRef = clearance._id;
+      await clearance.save();
+    } else if (!salaryRun.clearanceRef) {
+      salaryRun.clearanceRef = clearance._id;
     }
   }
 

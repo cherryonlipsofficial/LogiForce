@@ -79,6 +79,12 @@ module.exports = {
     'salary.pay':              { label: 'Mark salary as paid',     module: 'Salary',     description: 'Mark approved salary runs as paid' },
     'salary.dispute':          { label: 'Dispute salary',          module: 'Salary',     description: 'Raise a dispute on a salary run' },
 
+    // ── DRIVER CLEARANCE ──
+    'clearance.view':           { label: 'View driver clearances',  module: 'Clearance',  description: 'View the driver offboarding clearance list and details' },
+    'clearance.log_client':     { label: 'Log client clearance',    module: 'Clearance',  description: 'Operations logs client-side clearance received via email' },
+    'clearance.log_supplier':   { label: 'Log supplier clearance',  module: 'Clearance',  description: 'Operations logs supplier-side clearance and adds vehicle-related deductions' },
+    'clearance.log_internal':   { label: 'Log internal clearance',  module: 'Clearance',  description: 'Accounts logs internal financial clearance (ledger/advances reconciled)' },
+
     // ── INVOICES ──
     'invoices.view':           { label: 'View invoices',           module: 'Invoices',   description: 'See invoice list and details' },
     'invoices.generate':       { label: 'Generate invoices',       module: 'Invoices',   description: 'Create invoices for clients' },

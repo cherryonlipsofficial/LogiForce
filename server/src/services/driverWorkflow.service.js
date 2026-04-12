@@ -1,6 +1,7 @@
 const { getModel } = require('../config/modelRegistry');
 const { applyStatusChange, evaluateAndTransition, checkKycDocsUploaded, checkKycDocsValid, checkProfileAndEmploymentComplete, REQUIRED_KYC_DOCS, REQUIRED_PROFILE_FIELDS, REQUIRED_EMPLOYMENT_FIELDS } = require('./driverStatusEngine.service');
 const { logEvent } = require('./driverHistory.service');
+const { openClearanceForOffboarding } = require('./driverClearance.service');
 
 const VALID_STATUSES = ['draft', 'pending_kyc', 'pending_verification', 'active', 'on_leave', 'suspended', 'resigned', 'offboarded'];
 
@@ -170,6 +171,20 @@ async function changeStatusManual(req, driverId, newStatus, reason, userId) {
   }
 
   await applyStatusChange(driver, newStatus, reason, description, userId);
+
+  // Auto-open a DriverClearance record when a driver resigns or is offboarded.
+  // The clearance must be completed (client + supplier + internal) before
+  // their final salary run can be processed.
+  if (['resigned', 'offboarded'].includes(newStatus) && !['resigned', 'offboarded'].includes(currentStatus)) {
+    try {
+      await openClearanceForOffboarding(req, driverId, newStatus, userId);
+    } catch (err) {
+      // Don't block the status change if clearance creation fails — log and continue.
+      // eslint-disable-next-line no-console
+      console.error('[driverWorkflow] Failed to open clearance on offboarding:', err.message);
+    }
+  }
+
   const updated = await Driver.findById(driverId);
   return updated;
 }

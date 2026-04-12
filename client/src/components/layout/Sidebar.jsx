@@ -10,6 +10,7 @@ const mainNavItems = [
   { path: '/drivers', label: 'Drivers', icon: '◈', permission: 'drivers.view' },
   { path: '/attendance', label: 'Attendance', icon: '◉', permission: 'attendance.view' },
   { path: '/salary', label: 'Salary runs', icon: '◎', permission: 'salary.view' },
+  { path: '/driver-clearance', label: 'Driver clearance', icon: '◈', permission: 'clearance.view' },
   { path: '/invoices', label: 'Invoices', icon: '◳', permission: 'invoices.view' },
   { path: '/credit-notes', label: 'Credit notes', icon: '◳', permission: 'credit_notes.view' },
   { path: '/advances', label: 'Advances', icon: '◎', permission: 'advances.view' },

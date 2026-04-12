@@ -119,6 +119,12 @@ const salaryRunSchema = new Schema(
       },
       remarks: { type: String },
     }],
+    // Link to the driver's offboarding clearance record (for resigned/offboarded drivers).
+    // When set, finance cannot process this run until the clearance is 'completed'.
+    clearanceRef: {
+      type: Schema.Types.ObjectId,
+      ref: 'DriverClearance',
+    },
     processedBy: {
       type: Schema.Types.ObjectId,
       ref: 'User',
