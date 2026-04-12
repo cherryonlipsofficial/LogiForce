@@ -1,5 +1,5 @@
-const { getModel } = require('../config/modelRegistry');
-const { computeLineAmount } = require('../utils/rateCalculator');
+const { getModel } = require('../../config/modelRegistry');
+const { computeLineAmount } = require('../../utils/rateCalculator');
 
 const VAT_RATE = 0.05;
 

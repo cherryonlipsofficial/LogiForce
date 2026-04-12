@@ -1,6 +1,6 @@
-const { getModel } = require('../config/modelRegistry');
-const auditLogger = require('../utils/auditLogger');
-const { PAGINATION } = require('../config/constants');
+const { getModel } = require('../../config/modelRegistry');
+const auditLogger = require('../../utils/auditLogger');
+const { PAGINATION } = require('../../config/constants');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

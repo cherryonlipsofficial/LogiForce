@@ -7,7 +7,7 @@ const {
   sendUploadNotification, approveAttendance, raiseDispute,
   respondToDispute,
 } = require('./attendanceApproval.service');
-const { generateInvoice } = require('../../services/invoiceGeneration.service');
+const { generateInvoice } = require('../billing/invoiceGeneration.service');
 const { runSalaryForBatch, getSalaryRunsByBatch } = require('../../services/salaryRun.service');
 const { getModel } = require('../../config/modelRegistry');
 const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseHelper');

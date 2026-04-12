@@ -1,6 +1,6 @@
-const { getModel } = require('../config/modelRegistry');
-const { notifyByPermission } = require('../modules/shared/notification.service')
-const { computeLineAmount } = require('../utils/rateCalculator')
+const { getModel } = require('../../config/modelRegistry');
+const { notifyByPermission } = require('../shared/notification.service')
+const { computeLineAmount } = require('../../utils/rateCalculator')
 
 /**
  * Generate an invoice from a fully-approved attendance batch.

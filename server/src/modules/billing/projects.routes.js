@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { protect, requirePermission } = require('../middleware/auth');
-const projectService = require('../services/project.service');
-const { getModel } = require('../config/modelRegistry');
-const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
-const { PAGINATION } = require('../config/constants');
-const validate = require('../middleware/validate');
-const { createProjectValidation, updateProjectValidation } = require('../middleware/validators/project.validators');
+const { protect, requirePermission } = require('../../middleware/auth');
+const projectService = require('./project.service');
+const { getModel } = require('../../config/modelRegistry');
+const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseHelper');
+const { PAGINATION } = require('../../config/constants');
+const validate = require('../../middleware/validate');
+const { createProjectValidation, updateProjectValidation } = require('./project.validators');
 
 // All routes are protected
 router.use(protect);

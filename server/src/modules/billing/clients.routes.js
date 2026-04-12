@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const { protect, requirePermission } = require('../middleware/auth');
-const { getModel } = require('../config/modelRegistry');
-const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
-const { PAGINATION } = require('../config/constants');
-const validate = require('../middleware/validate');
-const { createClientValidation, updateClientValidation } = require('../middleware/validators/client.validators');
+const { protect, requirePermission } = require('../../middleware/auth');
+const { getModel } = require('../../config/modelRegistry');
+const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseHelper');
+const { PAGINATION } = require('../../config/constants');
+const validate = require('../../middleware/validate');
+const { createClientValidation, updateClientValidation } = require('./client.validators');
 
 // Memory storage for MongoDB — no disk writes
 const memUpload = multer({
@@ -156,7 +156,7 @@ router.get('/:id/drivers', async (req, res) => {
 
 // GET /api/clients/:id/projects — all projects for this client with stats
 router.get('/:id/projects', async (req, res) => {
-  const projectService = require('../services/project.service');
+  const projectService = require('./project.service');
   const result = await projectService.listProjects(
     req.params.id,
     { status: req.query.status },
@@ -167,7 +167,7 @@ router.get('/:id/projects', async (req, res) => {
 
 // GET /api/clients/:id/project-stats — aggregated stats for client dashboard
 router.get('/:id/project-stats', async (req, res) => {
-  const projectService = require('../services/project.service');
+  const projectService = require('./project.service');
   const stats = await projectService.getProjectStats(req, req.params.id);
   sendSuccess(res, stats);
 });

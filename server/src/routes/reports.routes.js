@@ -391,7 +391,7 @@ router.get('/statement-of-accounts', requirePermission('reports.statement_of_acc
   const { projectId, year } = req.query;
   if (!projectId) return sendError(res, 'projectId is required', 400);
 
-  const creditNoteService = require('../services/creditNote.service');
+  const creditNoteService = require('../modules/billing/creditNote.service');
   const result = await creditNoteService.getStatementOfAccounts(
     projectId,
     year ? parseInt(year) : new Date().getFullYear()

@@ -1,18 +1,18 @@
 const express = require('express');
 const router = express.Router();
-const { protect, requirePermission } = require('../middleware/auth');
-const creditNoteService = require('../services/creditNote.service');
-const { getModel } = require('../config/modelRegistry');
-const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
-const { PAGINATION } = require('../config/constants');
-const { generateCreditNotePDF } = require('../utils/pdfGenerator');
-const validate = require('../middleware/validate');
+const { protect, requirePermission } = require('../../middleware/auth');
+const creditNoteService = require('./creditNote.service');
+const { getModel } = require('../../config/modelRegistry');
+const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseHelper');
+const { PAGINATION } = require('../../config/constants');
+const { generateCreditNotePDF } = require('../../utils/pdfGenerator');
+const validate = require('../../middleware/validate');
 const {
   createCreditNoteValidation,
   adjustCreditNoteValidation,
   resolveLineValidation,
-} = require('../middleware/validators/creditNote.validators');
-const auditLogger = require('../utils/auditLogger');
+} = require('./creditNote.validators');
+const auditLogger = require('../../utils/auditLogger');
 
 // All routes are protected
 router.use(protect);

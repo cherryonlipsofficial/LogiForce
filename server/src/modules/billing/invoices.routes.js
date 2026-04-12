@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { protect, requirePermission } = require('../middleware/auth');
-const invoiceService = require('../services/invoice.service');
-const { getModel } = require('../config/modelRegistry');
-const { sendSuccess, sendError, sendPaginated } = require('../utils/responseHelper');
-const { generateInvoicePDF } = require('../utils/pdfGenerator');
-const { PAGINATION } = require('../config/constants');
-const validate = require('../middleware/validate');
-const { generateInvoiceValidation, updateInvoiceStatusValidation } = require('../middleware/validators/invoice.validators');
+const { protect, requirePermission } = require('../../middleware/auth');
+const invoiceService = require('./invoice.service');
+const { getModel } = require('../../config/modelRegistry');
+const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseHelper');
+const { generateInvoicePDF } = require('../../utils/pdfGenerator');
+const { PAGINATION } = require('../../config/constants');
+const validate = require('../../middleware/validate');
+const { generateInvoiceValidation, updateInvoiceStatusValidation } = require('./invoice.validators');
 
 // All routes are protected
 router.use(protect);
@@ -166,7 +166,7 @@ router.put('/:id/payment', requirePermission('invoices.edit'), async (req, res) 
     return sendError(res, 'amountReceived is required and must be positive', 400);
   }
 
-  const creditNoteService = require('../services/creditNote.service');
+  const creditNoteService = require('./creditNote.service');
   const invoice = await creditNoteService.recordInvoicePayment(
     req.params.id,
     { amountReceived: parseFloat(amountReceived), paymentReference, paymentDate },
