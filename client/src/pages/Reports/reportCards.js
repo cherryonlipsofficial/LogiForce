@@ -570,7 +570,7 @@ export const REPORT_CARDS = [
     name: 'Outstanding Receivables',
     description: 'Unpaid client invoices with aging',
     frequency: 'Weekly',
-    permission: 'reports.finance_outstanding_receivables',
+    permission: 'reports.finance_outstanding',
     fetchFn: getOutstandingReceivables,
     filters: ['clientId'],
     columns: [
