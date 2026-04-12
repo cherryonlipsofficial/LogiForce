@@ -386,18 +386,103 @@ router.get('/vehicle-cost-per-driver', requirePermission('reports.financial'), a
   }
 });
 
-// GET /api/reports/statement-of-accounts — per-project statement
+// GET /api/reports/statement-of-accounts
+// Two modes:
+//   1. projectId provided → monthly per-project statement (used by /statement-of-accounts page)
+//   2. projectId omitted  → per-client summary for the given year (and optional month),
+//                           used by the Reports index card
 router.get('/statement-of-accounts', requirePermission('reports.statement_of_accounts'), async (req, res) => {
-  const { projectId, year } = req.query;
-  if (!projectId) return sendError(res, 'projectId is required', 400);
+  try {
+    const { projectId, clientId, year, month } = req.query;
+    const resolvedYear = year ? parseInt(year) : new Date().getFullYear();
 
-  const creditNoteService = require('../billing/creditNote.service');
-  const result = await creditNoteService.getStatementOfAccounts(
-    projectId,
-    year ? parseInt(year) : new Date().getFullYear()
-  );
+    if (projectId) {
+      const creditNoteService = require('../billing/creditNote.service');
+      const result = await creditNoteService.getStatementOfAccounts(req, projectId, resolvedYear);
+      return sendSuccess(res, result);
+    }
 
-  sendSuccess(res, result);
+    // Aggregate per-client for the Reports card view
+    const Invoice = getModel(req, 'Invoice');
+    const CreditNote = getModel(req, 'CreditNote');
+    const mongoose = require('mongoose');
+
+    const invoiceMatch = {
+      'period.year': resolvedYear,
+      isDeleted: { $ne: true },
+      status: { $ne: 'draft' },
+    };
+    const creditNoteMatch = {
+      'period.year': resolvedYear,
+      isDeleted: { $ne: true },
+      status: { $ne: 'draft' },
+    };
+    if (month) {
+      invoiceMatch['period.month'] = parseInt(month);
+      creditNoteMatch['period.month'] = parseInt(month);
+    }
+    if (clientId) {
+      invoiceMatch.clientId = new mongoose.Types.ObjectId(clientId);
+      creditNoteMatch.clientId = new mongoose.Types.ObjectId(clientId);
+    }
+
+    const [invoices, creditNotes] = await Promise.all([
+      Invoice.find(invoiceMatch)
+        .select('clientId total adjustedTotal amountReceived status')
+        .populate('clientId', 'name')
+        .lean(),
+      CreditNote.find(creditNoteMatch)
+        .select('clientId totalAmount')
+        .populate('clientId', 'name')
+        .lean(),
+    ]);
+
+    const byClient = new Map();
+    const getRow = (id, name) => {
+      const key = String(id);
+      if (!byClient.has(key)) {
+        byClient.set(key, {
+          clientId: key,
+          clientName: name || '—',
+          invoiced: 0,
+          creditNotes: 0,
+          received: 0,
+          balance: 0,
+        });
+      }
+      return byClient.get(key);
+    };
+
+    for (const inv of invoices) {
+      if (!inv.clientId) continue;
+      const row = getRow(inv.clientId._id || inv.clientId, inv.clientId?.name);
+      row.invoiced += inv.total || 0;
+      if (inv.amountReceived > 0) {
+        row.received += inv.amountReceived;
+      } else if (inv.status === 'paid') {
+        row.received += inv.adjustedTotal != null ? inv.adjustedTotal : (inv.total || 0);
+      }
+    }
+
+    for (const cn of creditNotes) {
+      if (!cn.clientId) continue;
+      const row = getRow(cn.clientId._id || cn.clientId, cn.clientId?.name);
+      row.creditNotes += cn.totalAmount || 0;
+    }
+
+    const rows = Array.from(byClient.values()).map((r) => ({
+      ...r,
+      invoiced: Math.round(r.invoiced * 100) / 100,
+      creditNotes: Math.round(r.creditNotes * 100) / 100,
+      received: Math.round(r.received * 100) / 100,
+      balance: Math.round((r.invoiced - r.creditNotes - r.received) * 100) / 100,
+    }));
+
+    rows.sort((a, b) => a.clientName.localeCompare(b.clientName));
+    sendSuccess(res, rows);
+  } catch (err) {
+    sendError(res, err.message, 500);
+  }
 });
 
 // GET /api/reports/alert-count — count actionable alerts for the logged-in user
