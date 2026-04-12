@@ -832,12 +832,14 @@ export const REPORT_CARDS = [
     permission: 'reports.compliance_status_transitions',
     fetchFn: getStatusTransitions,
     filters: ['year', 'month'],
+    flattenData: (raw) => (Array.isArray(raw) ? raw : raw?.transitions || []),
     columns: [
       { header: 'Driver', accessor: 'driverName', sortable: true },
-      { header: 'From', accessor: 'fromStatus', sortable: true, render: 'badge' },
-      { header: 'To', accessor: 'toStatus', sortable: true, render: 'badge' },
-      { header: 'Changed', accessor: 'changedAt', sortable: true, render: 'date' },
-      { header: 'Changed By', accessor: 'changedBy', sortable: true },
+      { header: 'From', accessor: 'statusFrom', sortable: true, render: 'badge' },
+      { header: 'To', accessor: 'statusTo', sortable: true, render: 'badge' },
+      { header: 'Reason', accessor: 'reason', sortable: true },
+      { header: 'Changed', accessor: 'createdAt', sortable: true, render: 'datetime' },
+      { header: 'Changed By', accessor: 'performedByName', sortable: true },
     ],
   },
   {
