@@ -3270,7 +3270,7 @@ router.get('/cn-financial-impact', requirePermission('reports.finance_cn_financi
           _id: 0,
           month: { $concat: [{ $toString: '$_id.year' }, '-', { $toString: '$_id.month' }] },
           issued: { $round: ['$issued', 2] },
-          recovered: 0, // would require cross-collection join per month
+          recovered: { $literal: 0 }, // would require cross-collection join per month
         },
       },
     ]);
