@@ -124,15 +124,15 @@ const AppWithAuth = () => {
     return (
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        height: '100vh', background: '#0d0f14', flexDirection: 'column', gap: 14,
+        height: '100vh', background: 'var(--bg)', flexDirection: 'column', gap: 14,
       }}>
         <div style={{
           fontFamily: "'Playfair Display', serif",
-          fontSize: 22, fontWeight: 600, color: '#e8eaf0',
+          fontSize: 22, fontWeight: 600, color: 'var(--text)',
         }}>LogiForce</div>
         <div style={{
-          width: 32, height: 32, border: '2px solid #232840',
-          borderTopColor: '#4f8ef7', borderRadius: '50%',
+          width: 32, height: 32, border: '2px solid var(--surface3)',
+          borderTopColor: 'var(--accent)', borderRadius: '50%',
           animation: 'spin 0.7s linear infinite',
         }}/>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
