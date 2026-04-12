@@ -16,10 +16,11 @@ module.exports = {
     'drivers.manage_passport': { label: 'Manage passport submission', module: 'Drivers', description: 'Record passport submission, guarantee passports, request extensions' },
 
     // ── DRIVER VISAS ──
-    'driver_visas.view':       { label: 'View driver visa records',   module: 'Driver Visas', description: 'See driver visa cost records and recovery status' },
+    'driver_visas.view':       { label: 'View driver visa records',   module: 'Driver Visas', description: 'See driver visa cost records, statement and recovery status' },
     'driver_visas.create':     { label: 'Add driver visa record',     module: 'Driver Visas', description: 'Create a new driver visa record (Sales / Compliance)' },
-    'driver_visas.edit':       { label: 'Edit visa non-financial fields', module: 'Driver Visas', description: 'Update visa number, dates and remarks' },
-    'driver_visas.manage':     { label: 'Manage visa financials & deduction', module: 'Driver Visas', description: 'Edit total cost, discount, cash-paid, monthly deduction; waive or cancel records (Admin / Finance / Accounts only)' },
+    'driver_visas.edit':       { label: 'Edit visa non-financial fields', module: 'Driver Visas', description: 'Update visa number, dates, label and remarks' },
+    'driver_visas.manage':     { label: 'Manage visa financials & deduction', module: 'Driver Visas', description: 'Edit charges, discount, cash received, monthly deduction; add / remove statement line items; waive or cancel (Admin / Finance / Accounts only)' },
+    'driver_visas.log_processing': { label: 'Log visa processing date', module: 'Driver Visas', description: 'Record the date the visa was processed / stamped (Operations)' },
 
     // ── COMPLIANCE ──
     'guarantee_passports.view':  { label: 'View guarantee passports',  module: 'Compliance', description: 'View all guarantee passports and their status' },

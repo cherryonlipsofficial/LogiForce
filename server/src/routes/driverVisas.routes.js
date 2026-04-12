@@ -12,12 +12,15 @@ const {
   updateBasicsValidation,
   updateFinancialsValidation,
   reasonValidation,
+  lineItemValidation,
+  processingValidation,
 } = require('../middleware/validators/driverVisa.validators');
 
 router.use(protect);
 
 /**
  * GET /api/driver-visas — list visa records with filters
+ * Query: driverId, status, expiringInDays, unprocessed, page, limit
  */
 router.get('/', requirePermission('driver_visas.view'), async (req, res) => {
   const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
@@ -25,6 +28,8 @@ router.get('/', requirePermission('driver_visas.view'), async (req, res) => {
   const { items, total } = await driverVisaService.listVisaRecords(req, {
     driverId: req.query.driverId,
     status: req.query.status,
+    expiringInDays: req.query.expiringInDays,
+    unprocessed: req.query.unprocessed,
     page,
     limit,
   });
@@ -32,24 +37,21 @@ router.get('/', requirePermission('driver_visas.view'), async (req, res) => {
 });
 
 /**
- * GET /api/driver-visas/:id — get one record
+ * GET /api/driver-visas/:id — get one record (full detail incl. line items)
  */
 router.get('/:id', requirePermission('driver_visas.view'), async (req, res) => {
   const DriverVisa = getModel(req, 'DriverVisa');
   const visa = await DriverVisa.findById(req.params.id)
-    .populate('driverId', 'fullName employeeCode visaType')
+    .populate('driverId', 'fullName employeeCode visaType phoneUae clientUserId')
     .populate('createdBy', 'name')
-    .populate('lastUpdatedBy', 'name');
+    .populate('lastUpdatedBy', 'name')
+    .populate('visaProcessedBy', 'name');
   if (!visa) return sendError(res, 'Visa record not found', 404);
-  sendSuccess(res, visa);
+  sendSuccess(res, visa.toObject({ virtuals: true }));
 });
 
 /**
- * POST /api/driver-visas — create a new visa record (Sales / Compliance)
- *
- * Body may include financial fields; on create they are accepted because the
- * agreement is captured at the point of visa issuance. Edits afterwards are
- * restricted to the Finance/Accounts/Admin roles via driver_visas.manage.
+ * POST /api/driver-visas — create record (Sales / Compliance)
  */
 router.post(
   '/',
@@ -104,8 +106,7 @@ router.put(
 );
 
 /**
- * PUT /api/driver-visas/:id/financials — edit totalCost / discount / cashPaid /
- * monthlyDeduction (Admin / Finance / Accounts only).
+ * PUT /api/driver-visas/:id/financials — Admin/Finance/Accounts only
  */
 router.put(
   '/:id/financials',
@@ -123,7 +124,7 @@ router.put(
       visa._id,
       'update_financials',
       null,
-      `total=${visa.totalCost} discount=${visa.discountAmount} cash=${visa.cashPaid} monthly=${visa.monthlyDeduction}`,
+      `total=${visa.totalCost} medical=${visa.medicalInsuranceCost} discount=${visa.discountAmount} cash=${visa.cashPaid} monthly=${visa.monthlyDeduction}`,
       req.user._id,
       'driver_visa_manage'
     );
@@ -132,7 +133,87 @@ router.put(
 );
 
 /**
- * PUT /api/driver-visas/:id/waive — waive remaining balance
+ * POST /api/driver-visas/:id/line-items — add statement line item
+ */
+router.post(
+  '/:id/line-items',
+  requirePermission('driver_visas.manage'),
+  validate(lineItemValidation),
+  async (req, res) => {
+    const visa = await driverVisaService.addLineItem(
+      req,
+      req.params.id,
+      req.body,
+      req.user._id
+    );
+    await auditLogger.logChange(
+      'DriverVisa',
+      visa._id,
+      'line_item_add',
+      null,
+      `${req.body.direction} ${req.body.amount} — ${req.body.label}`,
+      req.user._id,
+      'driver_visa_line_item'
+    );
+    sendSuccess(res, visa, 'Line item added');
+  }
+);
+
+/**
+ * DELETE /api/driver-visas/:id/line-items/:lineItemId — remove line item
+ */
+router.delete(
+  '/:id/line-items/:lineItemId',
+  requirePermission('driver_visas.manage'),
+  async (req, res) => {
+    const visa = await driverVisaService.removeLineItem(
+      req,
+      req.params.id,
+      req.params.lineItemId,
+      req.user._id
+    );
+    await auditLogger.logChange(
+      'DriverVisa',
+      visa._id,
+      'line_item_remove',
+      req.params.lineItemId,
+      null,
+      req.user._id,
+      'driver_visa_line_item'
+    );
+    sendSuccess(res, visa, 'Line item removed');
+  }
+);
+
+/**
+ * PUT /api/driver-visas/:id/processing — Operations logs the processing date
+ */
+router.put(
+  '/:id/processing',
+  requirePermission('driver_visas.log_processing'),
+  validate(processingValidation),
+  async (req, res) => {
+    const visa = await driverVisaService.logVisaProcessing(
+      req,
+      req.params.id,
+      req.body.processedDate,
+      req.user._id
+    );
+    await auditLogger.logChange(
+      'DriverVisa',
+      visa._id,
+      'visa_processed',
+      null,
+      String(visa.visaProcessedDate),
+      req.user._id,
+      'driver_visa_processing'
+    );
+    sendSuccess(res, visa, 'Visa processing date logged');
+  }
+);
+
+/**
+ * PUT /api/driver-visas/:id/waive
  */
 router.put(
   '/:id/waive',
@@ -145,21 +226,13 @@ router.put(
       req.body.reason,
       req.user._id
     );
-    await auditLogger.logChange(
-      'DriverVisa',
-      visa._id,
-      'waive',
-      'active',
-      'waived',
-      req.user._id,
-      'driver_visa_waive'
-    );
+    await auditLogger.logChange('DriverVisa', visa._id, 'waive', 'active', 'waived', req.user._id, 'driver_visa_waive');
     sendSuccess(res, visa, 'Visa record waived');
   }
 );
 
 /**
- * PUT /api/driver-visas/:id/cancel — cancel visa record
+ * PUT /api/driver-visas/:id/cancel
  */
 router.put(
   '/:id/cancel',
@@ -172,15 +245,7 @@ router.put(
       req.body.reason,
       req.user._id
     );
-    await auditLogger.logChange(
-      'DriverVisa',
-      visa._id,
-      'cancel',
-      null,
-      'cancelled',
-      req.user._id,
-      'driver_visa_cancel'
-    );
+    await auditLogger.logChange('DriverVisa', visa._id, 'cancel', null, 'cancelled', req.user._id, 'driver_visa_cancel');
     sendSuccess(res, visa, 'Visa record cancelled');
   }
 );
