@@ -604,12 +604,24 @@ export const REPORT_CARDS = [
     frequency: 'Monthly',
     permission: 'reports.accounts_deduction_breakdown',
     fetchFn: getDeductionBreakdown,
-    filters: ['year', 'month', 'clientId'],
+    filters: ['year', 'month'],
+    flattenData: (data) => {
+      const drivers = data?.byDriver;
+      if (!Array.isArray(drivers)) return [];
+      return drivers.flatMap(row =>
+        (row.deductions || []).map(d => ({
+          driverName: row.driverName,
+          employeeCode: row.employeeCode,
+          deductionType: d.type,
+          amount: d.amount,
+        }))
+      );
+    },
     columns: [
       { header: 'Driver', accessor: 'driverName', sortable: true },
+      { header: 'Employee Code', accessor: 'employeeCode', sortable: true },
       { header: 'Type', accessor: 'deductionType', sortable: true },
       { header: 'Amount', accessor: 'amount', sortable: true, align: 'right', render: 'currency' },
-      { header: 'Client', accessor: 'clientName', sortable: true },
     ],
   },
   {
