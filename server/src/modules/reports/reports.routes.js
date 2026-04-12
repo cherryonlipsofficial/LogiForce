@@ -3584,17 +3584,18 @@ router.get('/user-activity', requirePermission('reports.admin_user_activity'), a
 
     const users = await User.find({ isActive: true })
       .populate('roleId', 'name displayName')
-      .select('name email roleId lastLogin permissionOverrides isActive')
+      .select('name email roleId lastLogin loginCount permissionOverrides isActive')
       .sort({ lastLogin: -1 })
       .lean();
 
     const now = new Date();
     const result = users.map(u => ({
       userId: u._id,
-      name: u.name,
+      userName: u.name,
       email: u.email,
-      roleName: u.roleId?.displayName || u.roleId?.name || 'Unknown',
+      role: u.roleId?.displayName || u.roleId?.name || 'Unknown',
       lastLogin: u.lastLogin || null,
+      sessionCount: u.loginCount || 0,
       daysSinceLastLogin: u.lastLogin ? Math.floor((now - new Date(u.lastLogin)) / 86400000) : null,
       isActive: u.isActive,
       overrideCount: u.permissionOverrides?.length || 0,

@@ -52,6 +52,10 @@ const userSchema = new mongoose.Schema(
     lastLogin: {
       type: Date,
     },
+    loginCount: {
+      type: Number,
+      default: 0,
+    },
     preferences: {
       initialsColor: {
         type: String,
