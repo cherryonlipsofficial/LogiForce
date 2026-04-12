@@ -3325,51 +3325,43 @@ router.get('/supplier-payment', requirePermission('reports.finance_supplier_paym
   }
 });
 
-// GET /api/reports/outstanding-receivables — Consolidated unpaid invoices + receivables + advances
+// GET /api/reports/outstanding-receivables — Unpaid client invoices with aging
 router.get('/outstanding-receivables', requirePermission('reports.finance_outstanding'), async (req, res) => {
   try {
+    const mongoose = require('mongoose');
     const Invoice = getModel(req, 'Invoice');
-    const DriverReceivable = getModel(req, 'DriverReceivable');
-    const DriverAdvance = getModel(req, 'DriverAdvance');
+    const { clientId } = req.query;
+    const now = new Date();
 
-    const [unpaidInvoices, driverReceivables, outstandingAdvances] = await Promise.all([
-      Invoice.aggregate([
-        { $match: { status: { $in: ['sent', 'overdue'] }, isDeleted: { $ne: true } } },
-        { $group: { _id: null, count: { $sum: 1 }, total: { $sum: '$total' } } },
-      ]),
-      DriverReceivable.aggregate([
-        { $match: { status: { $in: ['outstanding', 'partially_recovered'] }, isDeleted: { $ne: true } } },
-        {
-          $group: {
-            _id: null,
-            count: { $sum: 1 },
-            total: { $sum: { $subtract: ['$amount', '$amountRecovered'] } },
-          },
-        },
-      ]),
-      DriverAdvance.aggregate([
-        { $match: { status: 'approved' } },
-        {
-          $group: {
-            _id: null,
-            count: { $sum: 1 },
-            total: { $sum: { $subtract: ['$amount', '$totalRecovered'] } },
-          },
-        },
-        // Filter to only those with remaining > 0
-      ]),
-    ]);
+    const match = {
+      status: { $in: ['sent', 'overdue'] },
+      isDeleted: { $ne: true },
+    };
+    if (clientId) match.clientId = new mongoose.Types.ObjectId(clientId);
 
-    const inv = unpaidInvoices[0] || { count: 0, total: 0 };
-    const recv = driverReceivables[0] || { count: 0, total: 0 };
-    const adv = outstandingAdvances[0] || { count: 0, total: 0 };
+    const invoices = await Invoice.find(match)
+      .populate('clientId', 'name')
+      .sort({ dueDate: 1 })
+      .lean();
 
-    sendSuccess(res, {
-      unpaidInvoices: { count: inv.count, total: Math.round(inv.total * 100) / 100 },
-      driverReceivables: { count: recv.count, total: Math.round(recv.total * 100) / 100 },
-      outstandingAdvances: { count: adv.count, total: Math.round(adv.total * 100) / 100 },
-      grandTotal: Math.round((inv.total + recv.total + adv.total) * 100) / 100,
+    const rows = invoices.map((inv) => {
+      const outstanding =
+        (inv.adjustedTotal != null ? inv.adjustedTotal : inv.total) -
+        (inv.amountReceived || 0);
+      const dueDate = inv.dueDate ? new Date(inv.dueDate) : null;
+      const daysOverdue = dueDate
+        ? Math.max(0, Math.floor((now - dueDate) / (1000 * 60 * 60 * 24)))
+        : 0;
+      return {
+        clientName: inv.clientId?.name || '—',
+        invoiceNumber: inv.invoiceNo,
+        amount: Math.round(outstanding * 100) / 100,
+        dueDate: inv.dueDate,
+        daysOverdue,
+      };
     });
+
+    sendSuccess(res, rows);
   } catch (err) {
     sendError(res, err.message, 500);
   }
