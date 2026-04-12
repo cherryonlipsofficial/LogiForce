@@ -870,7 +870,7 @@ export const REPORT_CARDS = [
       { header: 'Driver', accessor: 'driverName', sortable: true },
       { header: 'Verified', accessor: 'isVerified', sortable: true, render: 'boolean' },
       { header: 'Verified By', accessor: 'verifiedBy', sortable: true },
-      { header: 'Date', accessor: 'verifiedAt', sortable: true, render: 'date' },
+      { header: 'Date', accessor: 'verifiedAt', sortable: true, render: 'datetime' },
     ],
   },
   {
