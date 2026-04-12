@@ -2425,15 +2425,39 @@ router.get('/verification-audit', requirePermission('reports.compliance_verifica
       const statusDate = d.lastStatusChange?.changedAt || d.updatedAt || d.createdAt;
       const daysInStatus = statusDate ? Math.floor((now - new Date(statusDate)) / (1000 * 60 * 60 * 24)) : null;
 
+      const contactsVerified = d.contactsVerified || false;
+      const personalVerificationDone = d.personalVerificationDone || false;
+      const isVerified = contactsVerified && personalVerificationDone;
+
+      const verifiedByNames = [
+        d.contactsVerifiedBy?.name,
+        d.personalVerificationBy?.name,
+      ].filter(Boolean);
+      const uniqueVerifiedBy = [...new Set(verifiedByNames)];
+      const verifiedBy = uniqueVerifiedBy.length ? uniqueVerifiedBy.join(', ') : null;
+
+      const verificationDates = [d.contactsVerifiedAt, d.personalVerificationAt]
+        .filter(Boolean)
+        .map(v => new Date(v));
+      const verifiedAt = verificationDates.length
+        ? new Date(Math.max(...verificationDates.map(v => v.getTime())))
+        : null;
+
       return {
         driverId: d._id,
+        driverName: d.fullName,
         fullName: d.fullName,
         employeeCode: d.employeeCode,
         status: d.status,
-        contactsVerified: d.contactsVerified || false,
-        personalVerificationDone: d.personalVerificationDone || false,
+        isVerified,
+        contactsVerified,
+        personalVerificationDone,
+        verifiedBy,
         contactsVerifiedBy: d.contactsVerifiedBy?.name || null,
         personalVerificationBy: d.personalVerificationBy?.name || null,
+        verifiedAt,
+        contactsVerifiedAt: d.contactsVerifiedAt || null,
+        personalVerificationAt: d.personalVerificationAt || null,
         daysInStatus,
       };
     });
