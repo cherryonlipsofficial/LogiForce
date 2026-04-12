@@ -2491,7 +2491,7 @@ router.get('/sim-compliance', requirePermission('reports.compliance_sim_complian
   }
 });
 
-// GET /api/reports/attrition-tenure — attrition rates and tenure analysis
+// GET /api/reports/attrition-tenure — attrition rates and tenure analysis by project
 router.get('/attrition-tenure', requirePermission('reports.compliance_attrition'), async (req, res) => {
   try {
     const Driver = getModel(req, 'Driver');
@@ -2511,76 +2511,89 @@ router.get('/attrition-tenure', requirePermission('reports.compliance_attrition'
       startDate.setMonth(startDate.getMonth() - 12);
     }
 
-    const matchFilter = {
+    const departed = await Driver.find({
       status: { $in: ['resigned', 'offboarded'] },
-    };
-    if (startDate) {
-      matchFilter['lastStatusChange.changedAt'] = { $gte: startDate, $lt: endDate };
-    }
-
-    const departed = await Driver.find(matchFilter)
-      .populate('clientId', 'name')
+      'lastStatusChange.changedAt': { $gte: startDate, $lt: endDate },
+    })
       .populate('projectId', 'name')
       .lean();
 
-    // Calculate total active for attrition rate
-    const totalActive = await Driver.countDocuments({ status: 'active' });
+    // Count currently-active drivers per project for per-project attrition denominator
+    const activeByProject = await Driver.aggregate([
+      { $match: { status: 'active' } },
+      { $group: { _id: '$projectId', count: { $sum: 1 } } },
+    ]);
+    const activeMap = {};
+    for (const row of activeByProject) {
+      activeMap[row._id ? row._id.toString() : 'unassigned'] = row.count;
+    }
 
-    let totalTenureDays = 0;
-    const byClient = {};
-    const byReason = {};
-    const recentDepartures = [];
-
+    // Aggregate per project
+    const byProject = {};
     for (const d of departed) {
       const start = d.joinDate || d.createdAt;
       const end = d.lastStatusChange?.changedAt || d.updatedAt;
-      const tenureDays = start && end ? Math.floor((new Date(end) - new Date(start)) / (1000 * 60 * 60 * 24)) : 0;
-      totalTenureDays += tenureDays;
+      const tenureDays = start && end
+        ? Math.max(0, Math.floor((new Date(end) - new Date(start)) / (1000 * 60 * 60 * 24)))
+        : 0;
 
-      // By client
-      const clientKey = d.clientId?._id?.toString() || 'unassigned';
-      if (!byClient[clientKey]) {
-        byClient[clientKey] = { clientId: d.clientId?._id || null, clientName: d.clientId?.name || 'Unassigned', departed: 0, totalTenure: 0 };
+      const projectKey = d.projectId?._id?.toString() || 'unassigned';
+      if (!byProject[projectKey]) {
+        byProject[projectKey] = {
+          projectId: d.projectId?._id || null,
+          projectName: d.projectId?.name || 'Unassigned',
+          exits: 0,
+          totalTenure: 0,
+        };
       }
-      byClient[clientKey].departed++;
-      byClient[clientKey].totalTenure += tenureDays;
-
-      // By reason
-      const reason = d.lastStatusChange?.reason || d.status;
-      byReason[reason] = (byReason[reason] || 0) + 1;
-
-      recentDepartures.push({
-        driverId: d._id,
-        fullName: d.fullName,
-        employeeCode: d.employeeCode,
-        clientName: d.clientId?.name || 'Unassigned',
-        projectName: d.projectId?.name || 'Unassigned',
-        status: d.status,
-        reason: d.lastStatusChange?.reason || null,
-        tenureDays,
-        departureDate: d.lastStatusChange?.changedAt || d.updatedAt,
-      });
+      byProject[projectKey].exits++;
+      byProject[projectKey].totalTenure += tenureDays;
     }
 
-    const clientStats = Object.values(byClient).map(c => ({
-      clientId: c.clientId,
-      clientName: c.clientName,
-      departed: c.departed,
-      avgTenure: c.departed > 0 ? Math.round(c.totalTenure / c.departed) : 0,
-    }));
+    // Include projects that have active drivers but no exits (0% attrition)
+    for (const key of Object.keys(activeMap)) {
+      if (!byProject[key] && key !== 'unassigned') {
+        byProject[key] = {
+          projectId: key,
+          projectName: null, // populated below
+          exits: 0,
+          totalTenure: 0,
+        };
+      }
+    }
 
-    const reasonStats = Object.entries(byReason).map(([reason, count]) => ({ reason, count }));
+    // Resolve any missing project names
+    const Project = getModel(req, 'Project');
+    const missingIds = Object.values(byProject)
+      .filter(p => p.projectId && !p.projectName)
+      .map(p => p.projectId);
+    if (missingIds.length > 0) {
+      const projects = await Project.find({ _id: { $in: missingIds } }).select('name').lean();
+      const nameMap = {};
+      for (const p of projects) nameMap[p._id.toString()] = p.name;
+      for (const p of Object.values(byProject)) {
+        if (p.projectId && !p.projectName) {
+          p.projectName = nameMap[p.projectId.toString()] || 'Unassigned';
+        }
+      }
+    }
 
-    sendSuccess(res, {
-      attritionRate: totalActive + departed.length > 0
-        ? Math.round((departed.length / (totalActive + departed.length)) * 10000) / 100
-        : 0,
-      averageTenureDays: departed.length > 0 ? Math.round(totalTenureDays / departed.length) : 0,
-      totalDeparted: departed.length,
-      byClient: clientStats,
-      byReason: reasonStats,
-      recentDepartures: recentDepartures.sort((a, b) => new Date(b.departureDate) - new Date(a.departureDate)),
+    const rows = Object.values(byProject).map(p => {
+      const active = activeMap[p.projectId ? p.projectId.toString() : 'unassigned'] || 0;
+      const denom = active + p.exits;
+      return {
+        projectId: p.projectId,
+        projectName: p.projectName || 'Unassigned',
+        exits: p.exits,
+        avgTenure: p.exits > 0 ? Math.round(p.totalTenure / p.exits) : 0,
+        attritionRate: denom > 0 ? Math.round((p.exits / denom) * 10000) / 100 : 0,
+      };
     });
+
+    // Sort highest-attrition first so operators see hotspots at the top
+    rows.sort((a, b) => b.attritionRate - a.attritionRate || b.exits - a.exits);
+
+    sendSuccess(res, rows);
   } catch (err) {
     sendError(res, err.message, 500);
   }

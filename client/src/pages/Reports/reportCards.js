@@ -911,7 +911,7 @@ export const REPORT_CARDS = [
     name: 'Attrition & Tenure',
     description: 'Driver turnover and tenure analysis',
     frequency: 'Monthly',
-    permission: 'reports.compliance_attrition_tenure',
+    permission: 'reports.compliance_attrition',
     fetchFn: getAttritionTenure,
     filters: ['year', 'month'],
     columns: [
