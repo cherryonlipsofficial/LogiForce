@@ -901,7 +901,7 @@ const editTabs = ['profile', 'employment', 'documents'];
 const EditDriverModal = ({ driver, onClose, onSaved }) => {
   const { isMobile } = useBreakpoint();
   const [editTab, setEditTab] = useState('profile');
-  const { register, handleSubmit, getValues, setValue, watch, formState: { errors } } = useForm({
+  const { register, handleSubmit, getValues, setValue, setError, watch, formState: { errors } } = useForm({
     defaultValues: {
       fullName: driver.fullName || driver.name || '',
       nationality: driver.nationality || '',
@@ -978,7 +978,15 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
       toast.success('Driver updated successfully');
       onSaved();
     } catch (err) {
-      toast.error(err?.response?.data?.message || 'Failed to update driver');
+      const apiErrors = err?.response?.data?.errors;
+      if (Array.isArray(apiErrors) && apiErrors.length > 0) {
+        apiErrors.forEach(({ field, message }) => {
+          if (field) setError(field, { type: 'server', message });
+        });
+        toast.error(apiErrors.map(({ message }) => message).join('; '));
+      } else {
+        toast.error(err?.response?.data?.message || 'Failed to update driver');
+      }
     } finally {
       setSubmitting(false);
     }
