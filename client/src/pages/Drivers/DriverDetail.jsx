@@ -1134,12 +1134,18 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
               <label style={labelStyle}>Joining date</label>
               <input type="date" {...register('joinDate')} />
             </div>
-            <div style={{ ...fieldStyle, gridColumn: '1 / -1' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text2)', cursor: 'pointer' }}>
-                <input type="checkbox" {...register('deductSimCharges')} />
-                Deduct SIM charges from salary
-              </label>
-            </div>
+            {driver.telecomSimId && (
+              <div style={{ ...fieldStyle, gridColumn: '1 / -1', marginTop: 4 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text2)', cursor: 'pointer', margin: 0 }}>
+                  <input
+                    type="checkbox"
+                    {...register('deductSimCharges')}
+                    style={{ width: 16, height: 16, margin: 0, cursor: 'pointer', flexShrink: 0 }}
+                  />
+                  <span>Deduct SIM charges from salary</span>
+                </label>
+              </div>
+            )}
           </div>
         )}
 
