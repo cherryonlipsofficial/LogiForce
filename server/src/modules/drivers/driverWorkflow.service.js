@@ -170,7 +170,7 @@ async function changeStatusManual(req, driverId, newStatus, reason, userId) {
     description = `Status changed by ${user.email || 'user'}`;
   }
 
-  await applyStatusChange(driver, newStatus, reason, description, userId);
+  await applyStatusChange(req, driver, newStatus, reason, description, userId);
 
   // Auto-open a DriverClearance record when a driver resigns or is offboarded.
   // The clearance must be completed (client + supplier + internal) before

@@ -127,7 +127,7 @@ async function evaluateAndTransition(req, driverId, triggeredBy) {
   if (kycValid.valid) {
     // Driver qualifies for pending_verification — all docs uploaded and valid
     if (currentStatus === 'draft' || currentStatus === 'pending_kyc') {
-      await applyStatusChange(driver, 'pending_verification', null,
+      await applyStatusChange(req, driver, 'pending_verification', null,
         'All KYC documents uploaded and valid', triggeredBy);
       return { transitioned: true, newStatus: 'pending_verification' };
     }
@@ -156,7 +156,7 @@ async function evaluateAndTransition(req, driverId, triggeredBy) {
     }
 
     if (currentStatus === 'draft') {
-      await applyStatusChange(driver, 'pending_kyc', null,
+      await applyStatusChange(req, driver, 'pending_kyc', null,
         'Profile and employment details completed', triggeredBy);
       return { transitioned: true, newStatus: 'pending_kyc' };
     }
@@ -168,7 +168,7 @@ async function evaluateAndTransition(req, driverId, triggeredBy) {
   if (currentStatus === 'pending_verification' && driver.activatedManually) {
     const activatingUser = await User.findById(typeof triggeredBy === 'object' ? triggeredBy._id : triggeredBy).select('email').lean();
     const activatedByLabel = activatingUser?.email ? `Activated by ${activatingUser.email}` : 'Activated by authorized user';
-    await applyStatusChange(driver, 'active', null,
+    await applyStatusChange(req, driver, 'active', null,
       activatedByLabel, triggeredBy);
     return { transitioned: true, newStatus: 'active' };
   }
@@ -179,7 +179,7 @@ async function evaluateAndTransition(req, driverId, triggeredBy) {
 /**
  * Internal helper — applies the status change and logs it.
  */
-async function applyStatusChange(driver, newStatus, reason, description, performedBy) {
+async function applyStatusChange(req, driver, newStatus, reason, description, performedBy) {
   const oldStatus = driver.status;
   driver.status = newStatus;
   driver.lastStatusChange = {
@@ -190,7 +190,7 @@ async function applyStatusChange(driver, newStatus, reason, description, perform
     changedAt: new Date(),
   };
   await driver.save();
-  await logStatusChange(driver._id, oldStatus, newStatus, reason, description, performedBy);
+  await logStatusChange(req, driver._id, oldStatus, newStatus, reason, description, performedBy);
 }
 
 module.exports = {
