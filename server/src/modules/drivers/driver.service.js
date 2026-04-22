@@ -3,6 +3,31 @@ const { PAGINATION } = require('../../config/constants');
 const { evaluateAndTransition } = require('./driverStatusEngine.service');
 const { logEvent } = require('./driverHistory.service');
 
+// Fields with a unique partial index — must never be persisted as null or an
+// empty string. The partial filter excludes such rows from the uniqueness
+// check, but storing them means a later `$set: { field: "real value" }` races
+// against other null rows. Remove the key so Mongo stores the field as
+// missing. Returns the list of fields that were cleared so an update can
+// translate those into `$unset`.
+const UNIQUE_STRING_FIELDS = ['phoneUae', 'emiratesId', 'passportNumber'];
+
+const stripEmptyUniqueFields = (data) => {
+  const cleared = [];
+  for (const field of UNIQUE_STRING_FIELDS) {
+    if (!(field in data)) continue;
+    const value = data[field];
+    const isEmpty =
+      value === null ||
+      value === undefined ||
+      (typeof value === 'string' && value.trim() === '');
+    if (isEmpty) {
+      delete data[field];
+      cleared.push(field);
+    }
+  }
+  return cleared;
+};
+
 const findAll = async (req, filters = {}, pagination = {}) => {
   const Driver = getModel(req, 'Driver');
   const page = parseInt(pagination.page) || PAGINATION.DEFAULT_PAGE;
@@ -80,6 +105,8 @@ const findById = async (req, id) => {
 
 const create = async (req, data, userId) => {
   const Driver = getModel(req, 'Driver');
+
+  stripEmptyUniqueFields(data);
 
   if (data.phoneUae) {
     const existing = await Driver.findOne({ phoneUae: data.phoneUae });
@@ -169,6 +196,8 @@ const update = async (req, id, data, userId, { isAdmin = false, canEditActive = 
     throw err;
   }
 
+  const clearedUniqueFields = stripEmptyUniqueFields(data);
+
   if (data.phoneUae) {
     const duplicate = await Driver.findOne({ phoneUae: data.phoneUae, _id: { $ne: id } });
     if (duplicate) {
@@ -188,9 +217,10 @@ const update = async (req, id, data, userId, { isAdmin = false, canEditActive = 
   // Detect changed fields before updating
   const changedFields = [];
   for (const field of TRACKED_FIELDS) {
-    if (data[field] === undefined) continue;
+    const isCleared = clearedUniqueFields.includes(field);
+    if (data[field] === undefined && !isCleared) continue;
     const oldVal = existing[field];
-    const newVal = data[field];
+    const newVal = isCleared ? undefined : data[field];
 
     if (REFERENCE_FIELDS[field]) {
       // Compare by ObjectId for reference fields to avoid false changes
@@ -217,7 +247,12 @@ const update = async (req, id, data, userId, { isAdmin = false, canEditActive = 
     }
   }
 
-  const driver = await Driver.findByIdAndUpdate(id, data, {
+  const updateQuery = { $set: data };
+  if (clearedUniqueFields.length > 0) {
+    updateQuery.$unset = Object.fromEntries(clearedUniqueFields.map((f) => [f, '']));
+  }
+
+  const driver = await Driver.findByIdAndUpdate(id, updateQuery, {
     new: true,
     runValidators: true,
   });

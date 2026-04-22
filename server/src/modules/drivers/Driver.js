@@ -20,16 +20,12 @@ const driverSchema = new mongoose.Schema(
     },
     emiratesId: {
       type: String,
-      unique: true,
-      sparse: true,
     },
     emiratesIdExpiry: {
       type: Date,
     },
     passportNumber: {
       type: String,
-      unique: true,
-      sparse: true,
     },
     passportExpiry: {
       type: Date,
@@ -58,8 +54,6 @@ const driverSchema = new mongoose.Schema(
     },
     phoneUae: {
       type: String,
-      unique: true,
-      sparse: true,
     },
     phoneHomeCountry: {
       type: String,
@@ -271,6 +265,36 @@ driverSchema.pre('save', async function (next) {
 });
 
 driverSchema.index({ clientId: 1 });
+
+// Unique-when-present indexes. `sparse: true` alone is insufficient because
+// MongoDB still indexes documents where the field is explicitly null, which
+// causes E11000 collisions when multiple drivers are saved without these
+// values. A partial filter that requires a non-empty string excludes both
+// missing and null/empty values from the index.
+driverSchema.index(
+  { phoneUae: 1 },
+  {
+    name: 'phoneUae_unique_nonempty',
+    unique: true,
+    partialFilterExpression: { phoneUae: { $type: 'string', $gt: '' } },
+  }
+);
+driverSchema.index(
+  { emiratesId: 1 },
+  {
+    name: 'emiratesId_unique_nonempty',
+    unique: true,
+    partialFilterExpression: { emiratesId: { $type: 'string', $gt: '' } },
+  }
+);
+driverSchema.index(
+  { passportNumber: 1 },
+  {
+    name: 'passportNumber_unique_nonempty',
+    unique: true,
+    partialFilterExpression: { passportNumber: { $type: 'string', $gt: '' } },
+  }
+);
 
 const Driver = mongoose.model('Driver', driverSchema);
 module.exports = Driver;
