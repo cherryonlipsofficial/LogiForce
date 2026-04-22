@@ -11,7 +11,7 @@ const createDriverValidation = [
     .optional()
     .trim(),
   body('phoneUae')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim()
     .matches(/^\+971\d{8,9}$/).withMessage('UAE phone must match format +971XXXXXXXXX (+ prefix is mandatory)'),
   body('baseSalary')
@@ -80,7 +80,7 @@ const updateDriverValidation = [
     .trim()
     .isLength({ min: 2, max: 200 }).withMessage('Full name must be 2-200 characters'),
   body('phoneUae')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim()
     .matches(/^\+971\d{8,9}$/).withMessage('UAE phone must match format +971XXXXXXXXX (+ prefix is mandatory)'),
   body('baseSalary')
