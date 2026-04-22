@@ -87,10 +87,12 @@ export default function AddUserModal({ onClose, onSuccess, roles }) {
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
       zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 24,
+      paddingTop: 'calc(var(--topbar-h) + 24px)',
     }}>
       <div style={{
         background: 'var(--surface)', borderRadius: 14, width: 440,
-        maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column',
+        maxHeight: 'calc(100vh - var(--topbar-h) - 48px)',
+        overflowY: 'auto', display: 'flex', flexDirection: 'column',
       }}>
         {/* Header */}
         <div style={{
