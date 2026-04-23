@@ -468,7 +468,7 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
 
         {batch.status === 'pending_review' && (
           <div>
-            {hasPermission('attendance.approve') && batch.errors > 0 && (
+            {(hasPermission('attendance.approve_sales') || hasPermission('attendance.approve_ops')) && batch.errors > 0 && (
               <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, padding: 12, fontSize: 12, color: '#f87171', marginBottom: 12 }}>
                 Cannot approve batch with {batch.errors} validation error(s). Please resolve all errors before approving.
               </div>
