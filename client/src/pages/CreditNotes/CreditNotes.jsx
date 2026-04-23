@@ -316,10 +316,9 @@ const CreditNoteDetail = ({ cnId, onClose }) => {
                     <tr key={line._id} style={{ borderBottom: '1px solid var(--border)' }}>
                       <td style={{ padding: '8px 8px' }}>
                         <div>{line.driverName}</div>
-                        {line.clientUserId && <div style={{ fontSize: 10, color: 'var(--text3)' }}>{line.clientUserId}</div>}
                       </td>
                       <td style={{ padding: '8px 8px', fontSize: 11 }}>{noteTypeLabels[line.noteType] || line.noteType || '—'}</td>
-                      <td style={{ padding: '8px 8px', fontFamily: 'var(--mono)', fontSize: 11 }}>{line.employeeCode || '—'}</td>
+                      <td style={{ padding: '8px 8px', fontFamily: 'var(--mono)', fontSize: 11 }}>{line.clientUserId || '—'}</td>
                       <td style={{ padding: '8px 8px' }}>{line.referenceNo || '—'}</td>
                       <td style={{ padding: '8px 8px', fontFamily: 'var(--mono)' }}>{formatCurrencyFull(line.amount)}</td>
                       <td style={{ padding: '8px 8px', fontFamily: 'var(--mono)' }}>{formatCurrencyFull(line.vatAmount)}</td>
