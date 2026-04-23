@@ -85,22 +85,43 @@ const DriverDetail = ({ driver, onClose }) => {
       const m = name.split(/[?#]/)[0].match(/\.([a-z0-9]+)$/i);
       return m ? m[1].toLowerCase() : '';
     };
-    const isPdfExt = (ext) => ext === 'pdf';
+    const typeFromExt = (ext) => {
+      if (!ext) return 'application/octet-stream';
+      if (ext === 'pdf') return 'application/pdf';
+      if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+      if (ext === 'png') return 'image/png';
+      if (ext === 'webp') return 'image/webp';
+      if (ext === 'gif') return 'image/gif';
+      return `image/${ext}`;
+    };
     try {
       setViewingFile({ loading: true, fileName: fileKey });
       if (fileUrl) {
         const ext = extFromName(fileUrl) || extFromName(fileKey);
-        const contentType = isPdfExt(ext) ? 'application/pdf' : `image/${ext || 'jpeg'}`;
-        setViewingFile({ blobUrl: fileUrl, contentType, fileName: fileKey, isDirect: true });
+        setViewingFile({
+          blobUrl: fileUrl,
+          openUrl: fileUrl,
+          contentType: typeFromExt(ext),
+          fileName: fileKey,
+          isDirect: true,
+        });
         return;
       }
       const res = await fetchDocumentFile(fileKey);
-      const headerType = (res.headers?.['content-type'] || '').split(';')[0].trim();
       const ext = extFromName(fileKey);
-      const contentType = headerType || res.data.type || (isPdfExt(ext) ? 'application/pdf' : 'image/jpeg');
-      const typedBlob = res.data.type ? res.data : new Blob([res.data], { type: contentType });
+      // Trust the file extension over response headers — the server sometimes
+      // stores docs without a contentType and returns application/octet-stream,
+      // which with nosniff makes browsers refuse to render the image.
+      const contentType = typeFromExt(ext);
+      const typedBlob = new Blob([res.data], { type: contentType });
       const blobUrl = URL.createObjectURL(typedBlob);
-      setViewingFile({ blobUrl, contentType, fileName: fileKey, isDirect: false });
+      setViewingFile({
+        blobUrl,
+        openUrl: blobUrl,
+        contentType,
+        fileName: fileKey,
+        isDirect: false,
+      });
     } catch {
       setViewingFile(null);
       toast.error('Failed to load document');
@@ -892,21 +913,37 @@ const grossSalary = financialSummary?.grossSalary || d.baseSalary || 0;
               <div style={{ padding: 40 }}>
                 <LoadingSpinner />
               </div>
+            ) : viewingFile.renderError ? (
+              <div style={{ padding: 24, color: 'var(--text2)', fontSize: 13 }}>
+                Preview unavailable. Use the links below to open or download the file.
+              </div>
             ) : (viewingFile.contentType || '').includes('pdf') ? (
               <iframe
                 src={viewingFile.blobUrl}
                 title="Document"
+                onError={() => setViewingFile((v) => v && { ...v, renderError: true })}
                 style={{ width: '100%', height: '70vh', border: 'none', borderRadius: 8 }}
               />
             ) : (
               <img
                 src={viewingFile.blobUrl}
                 alt="Document"
+                onError={() => setViewingFile((v) => v && { ...v, renderError: true })}
                 style={{ maxWidth: '100%', maxHeight: '70vh', borderRadius: 8 }}
               />
             )}
             {!viewingFile.loading && viewingFile.blobUrl && (
-              <div style={{ marginTop: 12 }}>
+              <div style={{ marginTop: 12, display: 'flex', gap: 16, justifyContent: 'center' }}>
+                {viewingFile.openUrl && (
+                  <a
+                    href={viewingFile.openUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: 'var(--accent)', fontSize: 13, textDecoration: 'underline' }}
+                  >
+                    Open in new tab
+                  </a>
+                )}
                 <button
                   onClick={handleDownloadFile}
                   style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}
