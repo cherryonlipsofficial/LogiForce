@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -50,12 +51,36 @@ const Invoices = () => {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showGenerate, setShowGenerate] = useState(false);
   const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const deepLinkInvoiceId = searchParams.get('invoiceId');
 
   const { data, isLoading } = useQuery({
     queryKey: ['invoices', { status: statusFilter, page }],
     queryFn: () => getInvoices({ status: statusFilter !== 'all' ? statusFilter : undefined, page, limit: 20 }),
     retry: 1,
   });
+
+  const { data: deepLinkData } = useQuery({
+    queryKey: ['invoice-deeplink', deepLinkInvoiceId],
+    queryFn: () => getInvoice(deepLinkInvoiceId),
+    enabled: !!deepLinkInvoiceId && !selectedInvoice,
+    retry: 1,
+  });
+
+  useEffect(() => {
+    if (deepLinkData?.data && !selectedInvoice) {
+      setSelectedInvoice(normalizeInvoice(deepLinkData.data));
+    }
+  }, [deepLinkData, selectedInvoice]);
+
+  const closeInvoiceDetail = () => {
+    setSelectedInvoice(null);
+    if (deepLinkInvoiceId) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('invoiceId');
+      setSearchParams(next, { replace: true });
+    }
+  };
 
   const invoices = (data?.data || []).map(normalizeInvoice);
   const pagination = data?.pagination;
@@ -155,7 +180,7 @@ const Invoices = () => {
         />
       </div>
 
-      {selectedInvoice && <InvoiceDetail invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} />}
+      {selectedInvoice && <InvoiceDetail invoice={selectedInvoice} onClose={closeInvoiceDetail} />}
       {showGenerate && <GenerateInvoiceModal onClose={() => setShowGenerate(false)} />}
     </div>
   );
