@@ -53,6 +53,20 @@ const driverDocumentSchema = new mongoose.Schema(
     verifiedAt: {
       type: Date,
     },
+    // Who uploaded or last replaced this document
+    uploadedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    uploadedByName: {
+      type: String,
+    },
+    uploadedByRole: {
+      type: String,
+    },
+    uploadedAt: {
+      type: Date,
+    },
   },
   {
     timestamps: true,

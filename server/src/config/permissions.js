@@ -209,6 +209,7 @@ module.exports = {
     'users.edit':              { label: 'Edit users',              module: 'Users',      description: 'Update user details and roles' },
     'users.delete':            { label: 'Delete users',            module: 'Users',      description: 'Remove user accounts' },
     'roles.manage':            { label: 'Manage roles & permissions', module: 'Users',   description: 'Create roles and configure permissions — super admin only' },
+    'activity_log.view':       { label: 'View activity log',       module: 'Users',      description: 'View system-wide activity log showing who did what across the platform — super admin only' },
   },
 
 };

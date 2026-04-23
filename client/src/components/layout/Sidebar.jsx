@@ -29,6 +29,7 @@ const mainNavItems = [
 const adminNavItems = [
   { path: '/users', label: 'Users', icon: '◎', permission: 'users.view' },
   { path: '/roles', label: 'Roles & access', icon: '◈', permission: 'roles.manage' },
+  { path: '/activity-log', label: 'Activity log', icon: '◉', permission: 'activity_log.view' },
   { path: '/guarantee-extensions', label: 'Guarantee approvals', icon: '◎', permission: 'roles.manage', hasBadge: true },
   { path: '/settings', label: 'Settings', icon: '⚙', permission: 'settings.view' },
 ];

@@ -530,27 +530,59 @@ router.post('/:id/documents', requirePermission('drivers.manage_docs'), (req, re
 
     if (!req.file) return sendError(res, 'No file uploaded', 400);
 
+    const docTypeLabel = (req.body.docType || '').replace(/_/g, ' ');
+    const fmtDate = (d) => (d ? new Date(d).toISOString().slice(0, 10) : '(none)');
+
     const fileKey = Date.now() + '-' + Math.round(Math.random() * 1e9) + '-' + req.file.originalname;
+    const uploaderRole =
+      req.user.roleId?.displayName || req.user.roleId?.name || 'Unknown';
     const fileFields = {
       fileKey,
       originalName: req.file.originalname,
       contentType: req.file.mimetype,
       fileData: req.file.buffer,
       fileSize: req.file.size,
+      uploadedBy: req.user._id,
+      uploadedByName: req.user.name,
+      uploadedByRole: uploaderRole,
+      uploadedAt: new Date(),
     };
 
     // If a document of same type already exists, update it instead of creating duplicate
     const existing = await DriverDocument.findOne({ driverId: req.params.id, docType: req.body.docType });
     if (existing) {
+      const prevExpiry = existing.expiryDate;
+      const prevFileName = existing.originalName;
+
       Object.assign(existing, fileFields);
-      existing.expiryDate = req.body.expiryDate || existing.expiryDate;
+      if (req.body.expiryDate) existing.expiryDate = req.body.expiryDate;
       existing.status = 'pending';
       await existing.save();
 
+      const parts = [`${docTypeLabel} re-uploaded (${req.file.originalname})`];
+      if (existing.expiryDate) parts.push(`expiry: ${fmtDate(existing.expiryDate)}`);
       await logEvent(req, req.params.id, 'document_uploaded', {
         documentType: req.body.docType,
-        description: `${req.body.docType.replace(/_/g, ' ')} uploaded`,
+        description: parts.join(' — '),
+        metadata: {
+          fileName: req.file.originalname,
+          previousFileName: prevFileName,
+          expiryDate: existing.expiryDate,
+        },
       }, req.user._id);
+
+      // If the re-upload changed the expiry date, log that as an explicit field change
+      const newExpiryIso = existing.expiryDate ? new Date(existing.expiryDate).toISOString() : '';
+      const oldExpiryIso = prevExpiry ? new Date(prevExpiry).toISOString() : '';
+      if (newExpiryIso !== oldExpiryIso) {
+        await logEvent(req, req.params.id, 'field_updated', {
+          fieldName: `${req.body.docType}.expiryDate`,
+          oldValue: fmtDate(prevExpiry),
+          newValue: fmtDate(existing.expiryDate),
+          description: `${docTypeLabel} expiry changed from "${fmtDate(prevExpiry)}" to "${fmtDate(existing.expiryDate)}"`,
+        }, req.user._id);
+      }
+
       await evaluateAndTransition(req, req.params.id, req.user._id);
 
       return sendSuccess(res, existing, 'Document updated', 200);
@@ -563,9 +595,15 @@ router.post('/:id/documents', requirePermission('drivers.manage_docs'), (req, re
       expiryDate: req.body.expiryDate || null,
     });
 
+    const parts = [`${docTypeLabel} uploaded (${req.file.originalname})`];
+    if (doc.expiryDate) parts.push(`expiry: ${fmtDate(doc.expiryDate)}`);
     await logEvent(req, req.params.id, 'document_uploaded', {
       documentType: req.body.docType,
-      description: `${req.body.docType.replace(/_/g, ' ')} uploaded`,
+      description: parts.join(' — '),
+      metadata: {
+        fileName: req.file.originalname,
+        expiryDate: doc.expiryDate,
+      },
     }, req.user._id);
     await evaluateAndTransition(req, req.params.id, req.user._id);
 

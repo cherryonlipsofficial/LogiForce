@@ -117,6 +117,7 @@ app.use('/api/settings', require('./src/modules/shared/settings.routes'));
 app.use('/api/simcards', require('./src/modules/telecom/simcards.routes'));
 app.use('/api/driver-clearance', require('./src/modules/compliance/driverClearance.routes'));
 app.use('/api/driver-visas', require('./src/modules/compliance/driverVisas.routes'));
+app.use('/api/activity-log', require('./src/modules/shared/activityLog.routes'));
 
 // Error handler
 app.use(errorHandler);
