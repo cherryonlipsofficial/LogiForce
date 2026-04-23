@@ -170,7 +170,37 @@ async function changeStatusManual(req, driverId, newStatus, reason, userId) {
     description = `Status changed by ${user.email || 'user'}`;
   }
 
+  // Detect force activation: admin moves a driver to `active` while bypassing
+  // the normal KYC / pending_verification flow. Flag the driver so their
+  // outstanding mandatory documents are tracked on the Expired Documents
+  // screen until KYC is completed.
+  const isForceActivation =
+    isAdmin &&
+    newStatus === 'active' &&
+    ['draft', 'pending_kyc', 'pending_verification'].includes(currentStatus);
+
+  if (isForceActivation) {
+    driver.isForceActivated = true;
+    driver.forceActivatedAt = new Date();
+    driver.forceActivatedBy = userId;
+    driver.forceActivationReason = reason.trim();
+    await driver.save();
+  }
+
   await applyStatusChange(req, driver, newStatus, reason, description, userId);
+
+  if (isForceActivation) {
+    const kycValid = await checkKycDocsValid(req, driverId);
+    const pendingDocTypes = kycValid.issues.map((i) => i.docType);
+    await logEvent(req, driverId, 'driver_force_activated', {
+      description: `Force-activated from ${currentStatus} by ${user.email || 'admin'}. KYC pending: ${pendingDocTypes.join(', ') || 'none'}`,
+      reason: reason.trim(),
+      metadata: {
+        fromStatus: currentStatus,
+        pendingMandatoryDocs: pendingDocTypes,
+      },
+    }, userId);
+  }
 
   // Auto-open a DriverClearance record when a driver resigns or is offboarded.
   // The clearance must be completed (client + supplier + internal) before

@@ -58,9 +58,9 @@ const ExpiredDocuments = () => {
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Header */}
       <div>
-        <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Expired documents</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Expired &amp; missing documents</h1>
         <p style={{ fontSize: 13, color: 'var(--text3)', margin: '4px 0 0' }}>
-          Drivers with expired documents that need immediate attention
+          Drivers with expired documents or with mandatory KYC documents still pending after a force activation
         </p>
       </div>
 
@@ -124,7 +124,7 @@ const ExpiredDocuments = () => {
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
             <div style={{ fontSize: 32, marginBottom: 8, color: '#22c55e' }}>&#10003;</div>
             <div style={{ fontSize: 14, color: 'var(--text3)' }}>
-              No expired {docType !== 'all' ? DOC_TYPE_LABELS[docType]?.toLowerCase() + ' ' : ''}documents found
+              No expired or missing {docType !== 'all' ? DOC_TYPE_LABELS[docType]?.toLowerCase() + ' ' : ''}documents found
             </div>
           </div>
         </Card>
@@ -134,7 +134,7 @@ const ExpiredDocuments = () => {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  {['Driver', 'Employee Code', 'Document type', 'Expired on', 'Days overdue', 'Status', 'Action'].map((h) => (
+                  {['Driver', 'Employee Code', 'Document type', 'Issue', 'Expired on', 'Days overdue', 'Status', 'Action'].map((h) => (
                     <th key={h} style={{
                       padding: '8px 10px', fontSize: 11, color: 'var(--text3)', fontWeight: 500,
                       textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.04em',
@@ -145,59 +145,76 @@ const ExpiredDocuments = () => {
                 </tr>
               </thead>
               <tbody>
-                {records.map((r, i) => (
-                  <tr key={`${r.driverId}-${r.docType}-${i}`} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '10px', fontSize: 12 }}>
-                      <div style={{ fontWeight: 500 }}>{r.driverName || '--'}</div>
-                      {r.clientName && (
-                        <div style={{ fontSize: 10, color: 'var(--text3)' }}>{r.clientName}</div>
-                      )}
-                    </td>
-                    <td style={{ padding: '10px', fontFamily: '"DM Mono", var(--mono)', fontSize: 12, color: 'var(--text2)' }}>
-                      {r.employeeCode || '--'}
-                    </td>
-                    <td style={{ padding: '10px' }}>
-                      <Badge variant={r.docType === 'guarantee_passport' ? 'warning' : 'info'}>
-                        {DOC_TYPE_LABELS[r.docType] || r.docType}
-                      </Badge>
-                      {r.guarantorName && (
-                        <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>
-                          Guarantor: {r.guarantorName}
-                        </div>
-                      )}
-                    </td>
-                    <td style={{ padding: '10px', fontSize: 12, color: 'var(--text2)' }}>
-                      {formatDate(r.expiryDate)}
-                    </td>
-                    <td style={{ padding: '10px' }}>
-                      <Badge variant={r.daysOverdue > 30 ? 'danger' : r.daysOverdue > 7 ? 'warning' : 'danger'}>
-                        {r.daysOverdue}d overdue
-                      </Badge>
-                    </td>
-                    <td style={{ padding: '10px' }}>
-                      <Badge variant={r.driverStatus === 'active' ? 'success' : r.driverStatus === 'suspended' ? 'danger' : 'info'}>
-                        {r.driverStatus || '--'}
-                      </Badge>
-                    </td>
-                    <td style={{ padding: '10px' }}>
-                      <button
-                        onClick={() => navigate(`/drivers?search=${encodeURIComponent(r.employeeCode || r.driverName || '')}`)}
-                        style={{
-                          padding: '4px 10px', borderRadius: 6, fontSize: 11,
-                          border: '1px solid var(--border2)', background: 'transparent',
-                          color: 'var(--accent)', cursor: 'pointer',
-                        }}
-                      >
-                        View driver →
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {records.map((r, i) => {
+                  const isMissing = r.issue === 'not_uploaded';
+                  return (
+                    <tr key={`${r.driverId}-${r.docType}-${r.issue || 'expired'}-${i}`} style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td style={{ padding: '10px', fontSize: 12 }}>
+                        <div style={{ fontWeight: 500 }}>{r.driverName || '--'}</div>
+                        {r.clientName && (
+                          <div style={{ fontSize: 10, color: 'var(--text3)' }}>{r.clientName}</div>
+                        )}
+                        {r.isForceActivated && (
+                          <div style={{ fontSize: 10, color: '#f59e0b', marginTop: 2, fontWeight: 500 }}>
+                            Force-activated{r.forceActivatedAt ? ` on ${formatDate(r.forceActivatedAt)}` : ''}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: '10px', fontFamily: '"DM Mono", var(--mono)', fontSize: 12, color: 'var(--text2)' }}>
+                        {r.employeeCode || '--'}
+                      </td>
+                      <td style={{ padding: '10px' }}>
+                        <Badge variant={r.docType === 'guarantee_passport' ? 'warning' : 'info'}>
+                          {DOC_TYPE_LABELS[r.docType] || r.docType}
+                        </Badge>
+                        {r.guarantorName && (
+                          <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>
+                            Guarantor: {r.guarantorName}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: '10px' }}>
+                        <Badge variant={isMissing ? 'warning' : 'danger'}>
+                          {isMissing ? 'Missing' : 'Expired'}
+                        </Badge>
+                      </td>
+                      <td style={{ padding: '10px', fontSize: 12, color: 'var(--text2)' }}>
+                        {isMissing ? '--' : formatDate(r.expiryDate)}
+                      </td>
+                      <td style={{ padding: '10px' }}>
+                        {r.daysOverdue != null ? (
+                          <Badge variant={r.daysOverdue > 30 ? 'danger' : r.daysOverdue > 7 ? 'warning' : 'danger'}>
+                            {r.daysOverdue}d {isMissing ? 'pending' : 'overdue'}
+                          </Badge>
+                        ) : (
+                          <span style={{ fontSize: 11, color: 'var(--text3)' }}>--</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '10px' }}>
+                        <Badge variant={r.driverStatus === 'active' ? 'success' : r.driverStatus === 'suspended' ? 'danger' : 'info'}>
+                          {r.driverStatus || '--'}
+                        </Badge>
+                      </td>
+                      <td style={{ padding: '10px' }}>
+                        <button
+                          onClick={() => navigate(`/drivers?search=${encodeURIComponent(r.employeeCode || r.driverName || '')}`)}
+                          style={{
+                            padding: '4px 10px', borderRadius: 6, fontSize: 11,
+                            border: '1px solid var(--border2)', background: 'transparent',
+                            color: 'var(--accent)', cursor: 'pointer',
+                          }}
+                        >
+                          View driver →
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
           <div style={{ padding: '10px', fontSize: 12, color: 'var(--text3)', borderTop: '1px solid var(--border)' }}>
-            Showing {records.length} expired document{records.length !== 1 ? 's' : ''}
+            Showing {records.length} record{records.length !== 1 ? 's' : ''}
           </div>
         </Card>
       )}

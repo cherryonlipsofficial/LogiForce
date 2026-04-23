@@ -120,6 +120,15 @@ const driverSchema = new mongoose.Schema(
     // Tracks whether driver was manually activated from pending_verification
     activatedManually:      { type: Boolean, default: false },
 
+    // Tracks drivers who were force-activated by an admin, bypassing the
+    // normal KYC / pending_verification flow. These drivers must still
+    // complete KYC — surfaced on the Expired Documents screen as "missing
+    // mandatory documents" until the required KYC docs are uploaded.
+    isForceActivated:       { type: Boolean, default: false, index: true },
+    forceActivatedAt:       { type: Date },
+    forceActivatedBy:       { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    forceActivationReason:  { type: String },
+
     // Tracks whether Compliance has confirmed personal verification of the driver
     personalVerificationDone:  { type: Boolean, default: false },
     personalVerificationBy:    { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
