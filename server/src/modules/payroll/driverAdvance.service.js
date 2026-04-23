@@ -55,7 +55,7 @@ async function requestAdvance(req, data, requestedByUserId) {
   });
 
   // Notify Accounts users
-  await notifyByPermission('advances.approve', {
+  await notifyByPermission(req, 'advances.approve', {
     type: 'advance_requested',
     title: 'Driver advance request',
     message: `${requestingUser.name} requested AED ${data.amount} advance for driver ${driver.fullName}. Reason: ${data.reason}`,
@@ -102,7 +102,7 @@ async function reviewAdvance(req, advanceId, decision, reviewData, reviewerUserI
     await advance.save();
 
     // Notify requester
-    await notifyUsers([advance.requestedBy], {
+    await notifyUsers(req, [advance.requestedBy], {
       type: 'advance_rejected',
       title: 'Advance request rejected',
       message: `Your advance request of AED ${advance.amount} for ${advance.driverId.fullName} has been rejected.${reviewData.reviewNotes ? ' Reason: ' + reviewData.reviewNotes : ''}`,
@@ -223,7 +223,7 @@ async function reviewAdvance(req, advanceId, decision, reviewData, reviewerUserI
   }
 
   // Notify requester
-  await notifyUsers([advance.requestedBy], {
+  await notifyUsers(req, [advance.requestedBy], {
     type: 'advance_approved',
     title: 'Advance request approved',
     message: `Advance of AED ${advance.amount} for ${advance.driverId.fullName} approved. Recovery: ${schedule.length} installment(s).`,

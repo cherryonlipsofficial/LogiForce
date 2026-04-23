@@ -838,7 +838,7 @@ const approveByOps = async (req, runId, userId, remarks) => {
 
   // Notify users with compliance approval permission
   const { notifyByPermission } = require('../shared/notification.service');
-  await notifyByPermission('salary.approve_compliance', {
+  await notifyByPermission(req, 'salary.approve_compliance', {
     type: 'salary_ops_approved',
     title: 'Salary run ready for compliance review',
     message: `Salary run ${salaryRun.runId} has been approved by Operations and is awaiting compliance review.`,
@@ -875,7 +875,7 @@ const approveByCompliance = async (req, runId, userId, remarks) => {
 
   // Notify users with accounts approval permission
   const { notifyByPermission } = require('../shared/notification.service');
-  await notifyByPermission('salary.approve_accounts', {
+  await notifyByPermission(req, 'salary.approve_accounts', {
     type: 'salary_compliance_approved',
     title: 'Salary run ready for accounts review',
     message: `Salary run ${salaryRun.runId} has been approved by Compliance and is awaiting accounts review.`,
@@ -912,7 +912,7 @@ const approveByAccounts = async (req, runId, userId, remarks) => {
 
   // Notify users with salary.process permission
   const { notifyByPermission } = require('../shared/notification.service');
-  await notifyByPermission('salary.process', {
+  await notifyByPermission(req, 'salary.process', {
     type: 'salary_accounts_approved',
     title: 'Salary run ready for processing',
     message: `Salary run ${salaryRun.runId} has received all approvals and is ready to be processed.`,
@@ -1103,7 +1103,7 @@ const processSalaryRun = async (req, runId, userId) => {
 
   // Notify users with salary.pay permission
   const { notifyByPermission } = require('../shared/notification.service');
-  await notifyByPermission('salary.pay', {
+  await notifyByPermission(req, 'salary.pay', {
     type: 'salary_processed',
     title: 'Salary run processed',
     message: `Salary run ${salaryRun.runId} has been processed and is ready for payment.`,
