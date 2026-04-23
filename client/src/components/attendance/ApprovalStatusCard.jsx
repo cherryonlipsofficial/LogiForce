@@ -169,13 +169,20 @@ const ApprovalStatusCard = ({ batch, onApprove, onDispute, onRespondDispute, onG
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Badge variant="success">✓ Invoice generated — {batch.invoiceNo || batch.invoice?.invoiceNo || ''}</Badge>
           </div>
-          {(batch.invoiceId || batch.invoice?._id) && (
-            <div style={{ marginTop: 6 }}>
-              <a href={`/invoices/${batch.invoiceId || batch.invoice?._id}`} style={{ fontSize: 12, color: 'var(--accent)' }}>
-                View invoice →
-              </a>
-            </div>
-          )}
+          {(() => {
+            const invoiceId = (batch.invoiceId && typeof batch.invoiceId === 'object')
+              ? batch.invoiceId._id
+              : batch.invoiceId;
+            const resolvedId = invoiceId || batch.invoice?._id;
+            if (!resolvedId) return null;
+            return (
+              <div style={{ marginTop: 6 }}>
+                <a href={`/invoices?invoiceId=${resolvedId}`} style={{ fontSize: 12, color: 'var(--accent)' }}>
+                  View invoice →
+                </a>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>
