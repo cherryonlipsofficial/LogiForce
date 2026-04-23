@@ -78,6 +78,7 @@ router.post('/run', requirePermission('salary.run'), validate(runSalaryValidatio
   }
 
   const result = await salaryService.runPayroll(
+    req,
     clientId,
     projectId,
     parseInt(year),
@@ -143,21 +144,21 @@ router.get('/runs/:id', requirePermission('salary.view'), async (req, res) => {
 
 // PUT /api/salary/runs/:id/approve/ops — Operations approval (draft → ops_approved)
 router.put('/runs/:id/approve/ops', requirePermission('salary.approve_ops'), validate(approvalRemarksValidation), async (req, res) => {
-  const run = await salaryService.approveByOps(req.params.id, req.user._id, req.body.remarks);
+  const run = await salaryService.approveByOps(req, req.params.id, req.user._id, req.body.remarks);
   await auditLogger.logChange('SalaryRun', req.params.id, 'status', 'draft', 'ops_approved', req.user._id, 'salary_ops_approval');
   sendSuccess(res, run, 'Salary run approved by Operations');
 });
 
 // PUT /api/salary/runs/:id/approve/compliance — Compliance approval (ops_approved → compliance_approved)
 router.put('/runs/:id/approve/compliance', requirePermission('salary.approve_compliance'), validate(approvalRemarksValidation), async (req, res) => {
-  const run = await salaryService.approveByCompliance(req.params.id, req.user._id, req.body.remarks);
+  const run = await salaryService.approveByCompliance(req, req.params.id, req.user._id, req.body.remarks);
   await auditLogger.logChange('SalaryRun', req.params.id, 'status', 'ops_approved', 'compliance_approved', req.user._id, 'salary_compliance_approval');
   sendSuccess(res, run, 'Salary run approved by Compliance');
 });
 
 // PUT /api/salary/runs/:id/approve/accounts — Junior Accounts approval (compliance_approved → accounts_approved)
 router.put('/runs/:id/approve/accounts', requirePermission('salary.approve_accounts'), validate(approvalRemarksValidation), async (req, res) => {
-  const run = await salaryService.approveByAccounts(req.params.id, req.user._id, req.body.remarks);
+  const run = await salaryService.approveByAccounts(req, req.params.id, req.user._id, req.body.remarks);
   await auditLogger.logChange('SalaryRun', req.params.id, 'status', 'compliance_approved', 'accounts_approved', req.user._id, 'salary_accounts_approval');
   sendSuccess(res, run, 'Salary run approved by Accounts');
 });
@@ -172,7 +173,7 @@ router.put('/runs/:id/process', requirePermission('salary.process'), async (req,
 // PUT /api/salary/bulk-approve/ops — Bulk operations approval
 router.put('/bulk-approve/ops', requirePermission('salary.approve_ops'), validate(bulkApprovalValidation), async (req, res) => {
   const { runIds, remarks } = req.body;
-  const results = await salaryService.bulkApproveByOps(runIds, req.user._id, remarks);
+  const results = await salaryService.bulkApproveByOps(req, runIds, req.user._id, remarks);
 
   for (const item of results.approved) {
     await auditLogger.logChange('SalaryRun', item._id, 'status', 'draft', 'ops_approved', req.user._id, 'salary_bulk_ops_approval');
@@ -185,7 +186,7 @@ router.put('/bulk-approve/ops', requirePermission('salary.approve_ops'), validat
 // PUT /api/salary/bulk-approve/compliance — Bulk compliance approval
 router.put('/bulk-approve/compliance', requirePermission('salary.approve_compliance'), validate(bulkApprovalValidation), async (req, res) => {
   const { runIds, remarks } = req.body;
-  const results = await salaryService.bulkApproveByCompliance(runIds, req.user._id, remarks);
+  const results = await salaryService.bulkApproveByCompliance(req, runIds, req.user._id, remarks);
 
   for (const item of results.approved) {
     await auditLogger.logChange('SalaryRun', item._id, 'status', 'ops_approved', 'compliance_approved', req.user._id, 'salary_bulk_compliance_approval');
@@ -198,7 +199,7 @@ router.put('/bulk-approve/compliance', requirePermission('salary.approve_complia
 // PUT /api/salary/bulk-approve/accounts — Bulk accounts approval
 router.put('/bulk-approve/accounts', requirePermission('salary.approve_accounts'), validate(bulkApprovalValidation), async (req, res) => {
   const { runIds, remarks } = req.body;
-  const results = await salaryService.bulkApproveByAccounts(runIds, req.user._id, remarks);
+  const results = await salaryService.bulkApproveByAccounts(req, runIds, req.user._id, remarks);
 
   for (const item of results.approved) {
     await auditLogger.logChange('SalaryRun', item._id, 'status', 'compliance_approved', 'accounts_approved', req.user._id, 'salary_bulk_accounts_approval');
@@ -211,7 +212,7 @@ router.put('/bulk-approve/accounts', requirePermission('salary.approve_accounts'
 // PUT /api/salary/bulk-process — Bulk process salary runs
 router.put('/bulk-process', requirePermission('salary.process'), validate(bulkApprovalValidation), async (req, res) => {
   const { runIds } = req.body;
-  const results = await salaryService.bulkProcess(runIds, req.user._id);
+  const results = await salaryService.bulkProcess(req, runIds, req.user._id);
 
   for (const item of results.processed) {
     await auditLogger.logChange('SalaryRun', item._id, 'status', 'accounts_approved', 'processed', req.user._id, 'salary_bulk_processing');
@@ -224,7 +225,7 @@ router.put('/bulk-process', requirePermission('salary.process'), validate(bulkAp
 // PUT /api/salary/bulk-pay — Bulk mark salary runs as paid
 router.put('/bulk-pay', requirePermission('salary.pay'), validate(bulkApprovalValidation), async (req, res) => {
   const { runIds } = req.body;
-  const results = await salaryService.bulkMarkAsPaid(runIds, req.user._id);
+  const results = await salaryService.bulkMarkAsPaid(req, runIds, req.user._id);
 
   for (const item of results.paid) {
     await auditLogger.logChange('SalaryRun', item._id, 'status', 'processed', 'paid', req.user._id, 'salary_bulk_payment');
@@ -325,6 +326,7 @@ router.post('/runs/:id/deduction', requirePermission('salary.manage_deductions')
   const { type, amount, description } = req.body;
 
   const run = await salaryService.addManualDeduction(
+    req,
     req.params.id,
     { type, amount, description },
     req.user._id
@@ -487,6 +489,7 @@ router.get('/wps-file', requirePermission('salary.export_wps'), async (req, res)
   }
 
   const csvContent = await salaryService.generateWpsFile(
+    req,
     clientId || null,
     parseInt(year),
     parseInt(month)
