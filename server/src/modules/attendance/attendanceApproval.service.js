@@ -15,7 +15,7 @@ async function sendUploadNotification(req, batchId, uploadedByUserId) {
   const monthName = getMonthName(batch.period.year, batch.period.month);
   const projectLabel = `${batch.projectId.name} (${batch.clientId.name})`;
 
-  const count1 = await notifyByPermission('attendance.approve_sales', {
+  const count1 = await notifyByPermission(req, 'attendance.approve_sales', {
     type: 'attendance_uploaded',
     title: 'Attendance uploaded — review required',
     message: `Attendance for ${projectLabel} — ${monthName} ${batch.period.year} has been uploaded and needs your review. Please approve or raise a dispute.`,
@@ -24,7 +24,7 @@ async function sendUploadNotification(req, batchId, uploadedByUserId) {
     triggeredBy: uploadedByUserId,
     triggeredByName: batch.uploadedByName,
   });
-  const count2 = await notifyByPermission('attendance.approve_ops', {
+  const count2 = await notifyByPermission(req, 'attendance.approve_ops', {
     type: 'attendance_uploaded',
     title: 'Attendance uploaded — review required',
     message: `Attendance for ${projectLabel} — ${monthName} ${batch.period.year} has been uploaded and needs your review. Please approve or raise a dispute.`,
@@ -135,7 +135,7 @@ async function approveAttendance(req, batchId, userId, notes) {
     batch.status = 'fully_approved';
 
     if (batch.uploadedBy) {
-      await notifyUsers([batch.uploadedBy], {
+      await notifyUsers(req, [batch.uploadedBy], {
         type: 'attendance_fully_approved',
         title: 'Attendance fully approved',
         message: `${label} attendance for ${monthName} ${batch.period.year} approved by both Sales and Operations. You can now generate the invoice and run salaries.`,
@@ -218,7 +218,7 @@ async function raiseDispute(req, batchId, userId, data) {
   const label = `${batch.projectId.name} (${batch.clientId.name})`;
 
   if (batch.uploadedBy) {
-    await notifyUsers([batch.uploadedBy], {
+    await notifyUsers(req, [batch.uploadedBy], {
       type: 'attendance_disputed',
       title: 'Attendance dispute raised',
       message: `${user.name} raised a dispute on ${label} attendance for ${monthName} ${batch.period.year}. Please coordinate with the client, get revised attendance, and re-upload. Reason: ${data.reason.substring(0, 100)}`,
@@ -230,7 +230,7 @@ async function raiseDispute(req, batchId, userId, data) {
   }
 
   // Notify users who can respond to disputes (Accounts team)
-  await notifyByPermission('attendance.respond_dispute', {
+  await notifyByPermission(req, 'attendance.respond_dispute', {
     type: 'attendance_disputed',
     title: 'Attendance dispute — action required',
     message: `${user.name} (${isSalesApprover ? 'Sales' : 'Operations'}) raised a ${data.disputeType.replace(/_/g, ' ')} dispute on ${label} attendance for ${monthName} ${batch.period.year}. Please review and respond. Reason: ${data.reason.substring(0, 100)}`,
@@ -276,7 +276,7 @@ async function respondToDispute(req, disputeId, userId, message) {
   }
   await batch.save();
 
-  await notifyUsers([dispute.raisedBy], {
+  await notifyUsers(req, [dispute.raisedBy], {
     type: 'dispute_responded',
     title: 'Revised attendance uploaded — please re-review',
     message: `${user.name} has uploaded revised attendance. Please re-review and approve or raise a new dispute.`,

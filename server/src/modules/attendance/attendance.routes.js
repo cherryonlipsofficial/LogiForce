@@ -153,7 +153,7 @@ router.post('/upload', requirePermission('attendance.upload'), attendanceUpload.
   }
 
   // Send notifications to Sales and Ops for review
-  await sendUploadNotification(batch._id, req.user._id);
+  await sendUploadNotification(req, batch._id, req.user._id);
 
   sendSuccess(res, { batch, stats }, 'Attendance file uploaded and processed', 201);
 });
@@ -235,6 +235,7 @@ router.put('/records/:id/override', requirePermission('attendance.override'), va
 // POST /api/attendance/batches/:id/approve — Sales or Ops approves a batch
 router.post('/batches/:id/approve', requireAnyPermission(['attendance.approve_sales', 'attendance.approve_ops']), async (req, res) => {
   const result = await approveAttendance(
+    req,
     req.params.id,
     req.user._id,
     req.body.notes
@@ -266,6 +267,7 @@ router.post('/batches/:id/dispute', requirePermission('attendance.dispute'), asy
   }
 
   const result = await raiseDispute(
+    req,
     req.params.id,
     req.user._id,
     req.body
@@ -287,6 +289,7 @@ router.post('/disputes/:id/respond', requirePermission('attendance.respond_dispu
   }
 
   const result = await respondToDispute(
+    req,
     req.params.id,
     req.user._id,
     req.body.message
