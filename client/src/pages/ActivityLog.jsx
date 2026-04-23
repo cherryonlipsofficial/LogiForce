@@ -22,9 +22,19 @@ const SOURCE_LABELS = {
   audit_log: 'System',
 };
 
-const getInitials = (name) => {
-  if (!name) return '?';
-  return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
+const getInitials = (name, email) => {
+  if (name) return name.trim().split(/\s+/).map((n) => n[0]).join('').toUpperCase().slice(0, 2);
+  if (email) return email.trim()[0].toUpperCase();
+  return '?';
+};
+
+// Some legacy records store the literal string "Unknown" as the user role —
+// treat it as "no role" so the column doesn't flag it as real data.
+const cleanRole = (role) => {
+  if (!role) return null;
+  const trimmed = String(role).trim();
+  if (!trimmed || trimmed.toLowerCase() === 'unknown') return null;
+  return trimmed;
 };
 
 const formatDateTime = (d) => {
@@ -198,6 +208,9 @@ const ActivityLog = () => {
                 {entries.map((e) => {
                   const sourceLabel = SOURCE_LABELS[e.source] || e.source;
                   const methodColor = e.method ? METHOD_COLORS[e.method] : null;
+                  const displayRole = cleanRole(e.userRole);
+                  const hasUser = Boolean(e.userName || e.userEmail);
+                  const primaryLabel = e.userName || e.userEmail || 'System';
                   return (
                     <tr key={e._id} style={{ borderBottom: '1px solid var(--border)' }}>
                       <td style={{ padding: '10px 12px', color: 'var(--text2)', whiteSpace: 'nowrap', fontSize: 11 }}>
@@ -205,14 +218,17 @@ const ActivityLog = () => {
                       </td>
                       <td style={{ padding: '10px 12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <Avatar initials={getInitials(e.userName)} size={22} />
+                          <Avatar initials={getInitials(e.userName, e.userEmail)} size={22} />
                           <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontSize: 12, fontWeight: 500 }}>{e.userName || 'System'}</span>
-                            {e.userEmail && (
+                            <span style={{ fontSize: 12, fontWeight: 500 }}>{primaryLabel}</span>
+                            {e.userName && e.userEmail && (
                               <span style={{ fontSize: 10, color: 'var(--text3)' }}>{e.userEmail}</span>
                             )}
-                            {e.userRole && (
-                              <span style={{ fontSize: 10, color: 'var(--accent)' }}>{e.userRole}</span>
+                            {displayRole && (
+                              <span style={{ fontSize: 10, color: 'var(--accent)' }}>{displayRole}</span>
+                            )}
+                            {!hasUser && (
+                              <span style={{ fontSize: 10, color: 'var(--text3)' }}>Automated / system</span>
                             )}
                           </div>
                         </div>

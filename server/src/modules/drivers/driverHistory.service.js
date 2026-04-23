@@ -8,13 +8,26 @@ async function logEvent(req, driverId, eventType, details, performedBy) {
   const DriverHistory = getModel(req, 'DriverHistory');
   const User = getModel(req, 'User');
 
-  const user = typeof performedBy === 'object' ? performedBy : await User.findById(performedBy).populate('roleId');
+  let user = typeof performedBy === 'object' ? performedBy : await User.findById(performedBy).populate('roleId');
+  // If roleId wasn't populated (just an ObjectId / string), resolve it so we record a real role label.
+  // Handles both Mongoose docs (populate) and plain/lean objects (Role.findById).
+  if (user && user.roleId && typeof user.roleId !== 'object') {
+    try {
+      if (typeof user.populate === 'function') {
+        await user.populate('roleId');
+      } else {
+        const Role = getModel(req, 'Role');
+        const role = await Role.findById(user.roleId).select('name displayName').lean();
+        if (role) user.roleId = role;
+      }
+    } catch (_) { /* best-effort */ }
+  }
   await DriverHistory.create({
     driverId,
     eventType,
     performedBy:      user._id,
     performedByName:  user.name,
-    performedByRole:  user.roleId?.displayName || user.roleId?.name || 'Unknown',
+    performedByRole:  user.roleId?.displayName || user.roleId?.name || null,
     description:      details.description,
     statusFrom:       details.statusFrom,
     statusTo:         details.statusTo,
