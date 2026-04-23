@@ -50,7 +50,7 @@ router.get('/expired-documents', requirePermission('expired_documents.view'), as
 
     if (docType !== 'guarantee_passport' && fieldsToCheck.length > 0) {
       for (const [docKey, fieldName] of fieldsToCheck) {
-        const query = { [fieldName]: { $lt: now, $ne: null }, status: { $nin: ['offboarded', 'resigned'] } };
+        const query = { [fieldName]: { $lt: now, $ne: null }, status: { $nin: ['draft', 'offboarded', 'resigned'] } };
         const drivers = await Driver.find(query)
           .select(`fullName employeeCode ${fieldName} status clientId projectId isForceActivated forceActivatedAt forceActivationReason`)
           .populate('clientId', 'name')
@@ -104,6 +104,7 @@ router.get('/expired-documents', requirePermission('expired_documents.view'), as
 
       for (const g of expiredGuarantees) {
         const driver = g.driverId || {};
+        if (!driver._id || driver.status === 'draft') continue;
         const expiryDate = g.expiryDate;
         const daysOverdue = Math.ceil((now - new Date(expiryDate)) / (1000 * 60 * 60 * 24));
         results.push({
@@ -138,7 +139,7 @@ router.get('/expired-documents', requirePermission('expired_documents.view'), as
         : REQUIRED_KYC_DOCS.filter((t) => t === docType);
 
       const drivers = await Driver.find({
-        status: { $nin: ['offboarded', 'resigned'] },
+        status: { $nin: ['draft', 'offboarded', 'resigned'] },
       })
         .select('fullName employeeCode status clientId projectId isForceActivated forceActivatedAt forceActivationReason createdAt')
         .populate('clientId', 'name')
