@@ -1,41 +1,25 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import Card from '../components/ui/Card';
 import Avatar from '../components/ui/Avatar';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
-import { getActivityLog, getActivityLogUsers } from '../api/activityLogApi';
+import {
+  getActivityLog,
+  getActivityLogUsers,
+  getActivityLogEntityTypes,
+} from '../api/activityLogApi';
 
-const EVENT_TYPE_OPTIONS = [
-  { value: '', label: 'All events' },
-  { value: 'status_change', label: 'Status change' },
-  { value: 'document_uploaded', label: 'Document uploaded' },
-  { value: 'document_verified', label: 'Document verified' },
-  { value: 'document_expired', label: 'Document expired' },
-  { value: 'field_updated', label: 'Field updated' },
-  { value: 'driver_created', label: 'Driver created' },
-  { value: 'driver_deleted', label: 'Driver deleted' },
-  { value: 'driver_activated', label: 'Driver activated' },
-  { value: 'contacts_verified', label: 'Contacts verified' },
-  { value: 'client_user_id_set', label: 'Client User ID set' },
-  { value: 'personal_verification_confirmed', label: 'Personal verification confirmed' },
-  { value: 'note_added', label: 'Note added' },
-];
+const METHOD_COLORS = {
+  POST: '#4ade80',
+  PUT: '#fbbf24',
+  PATCH: '#fbbf24',
+  DELETE: '#f87171',
+};
 
-const EVENT_COLORS = {
-  status_change: '#fbbf24',
-  document_uploaded: '#7eb3fc',
-  document_verified: '#4ade80',
-  document_expired: '#f87171',
-  field_updated: '#60a5fa',
-  driver_created: '#4ade80',
-  driver_deleted: '#f87171',
-  driver_activated: '#4ade80',
-  contacts_verified: '#4ade9a',
-  client_user_id_set: '#a78bfa',
-  note_added: 'var(--text3)',
-  personal_verification_confirmed: '#4ade9a',
+const SOURCE_LABELS = {
+  driver_history: 'Driver',
+  audit_log: 'System',
 };
 
 const getInitials = (name) => {
@@ -48,18 +32,15 @@ const formatDateTime = (d) => {
   const date = new Date(d);
   if (isNaN(date)) return '';
   return date.toLocaleString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
   });
 };
 
 const ActivityLog = () => {
-  const navigate = useNavigate();
   const [userId, setUserId] = useState('');
-  const [eventType, setEventType] = useState('');
+  const [entityType, setEntityType] = useState('');
+  const [action, setAction] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [page, setPage] = useState(1);
@@ -72,9 +53,17 @@ const ActivityLog = () => {
   });
   const users = usersData?.data || [];
 
+  const { data: entityTypesData } = useQuery({
+    queryKey: ['activity-log-entity-types'],
+    queryFn: () => getActivityLogEntityTypes(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const entityTypes = entityTypesData?.data || [];
+
   const filters = { page, limit };
   if (userId) filters.userId = userId;
-  if (eventType) filters.eventType = eventType;
+  if (entityType) filters.entityType = entityType;
+  if (action) filters.action = action;
   if (from) filters.from = from;
   if (to) filters.to = to;
 
@@ -91,7 +80,8 @@ const ActivityLog = () => {
 
   const resetFilters = () => {
     setUserId('');
-    setEventType('');
+    setEntityType('');
+    setAction('');
     setFrom('');
     setTo('');
     setPage(1);
@@ -112,7 +102,7 @@ const ActivityLog = () => {
       <div>
         <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Activity log</h1>
         <p style={{ fontSize: 13, color: 'var(--text3)', margin: '4px 0 0' }}>
-          System-wide log of user activity. Identify who did what across all drivers.
+          System-wide log of every mutating action — who did what, across all modules.
         </p>
       </div>
 
@@ -134,48 +124,45 @@ const ActivityLog = () => {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: 11, color: 'var(--text3)' }}>Event type</label>
+            <label style={{ fontSize: 11, color: 'var(--text3)' }}>Module</label>
             <select
-              value={eventType}
-              onChange={(e) => { setEventType(e.target.value); setPage(1); }}
+              value={entityType}
+              onChange={(e) => { setEntityType(e.target.value); setPage(1); }}
               style={inputStyle}
             >
-              {EVENT_TYPE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
+              <option value="">All modules</option>
+              {entityTypes.map((t) => (
+                <option key={t} value={t}>{t}</option>
               ))}
             </select>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: 11, color: 'var(--text3)' }}>From</label>
+            <label style={{ fontSize: 11, color: 'var(--text3)' }}>Action</label>
             <input
-              type="date"
-              value={from}
-              onChange={(e) => { setFrom(e.target.value); setPage(1); }}
-              style={inputStyle}
+              type="text"
+              value={action}
+              placeholder="e.g. drivers.update"
+              onChange={(e) => { setAction(e.target.value); setPage(1); }}
+              style={{ ...inputStyle, minWidth: 170 }}
             />
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: 11, color: 'var(--text3)' }}>From</label>
+            <input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} style={inputStyle} />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <label style={{ fontSize: 11, color: 'var(--text3)' }}>To</label>
-            <input
-              type="date"
-              value={to}
-              onChange={(e) => { setTo(e.target.value); setPage(1); }}
-              style={inputStyle}
-            />
+            <input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} style={inputStyle} />
           </div>
 
           <button
             onClick={resetFilters}
             style={{
-              padding: '7px 14px',
-              borderRadius: 6,
-              border: '1px solid var(--border2)',
-              background: 'transparent',
-              color: 'var(--text2)',
-              fontSize: 12,
-              cursor: 'pointer',
+              padding: '7px 14px', borderRadius: 6, border: '1px solid var(--border2)',
+              background: 'transparent', color: 'var(--text2)', fontSize: 12, cursor: 'pointer',
             }}
           >
             Reset
@@ -202,69 +189,67 @@ const ActivityLog = () => {
                 <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
                   <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 500, color: 'var(--text3)', fontSize: 11 }}>When</th>
                   <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 500, color: 'var(--text3)', fontSize: 11 }}>User</th>
-                  <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 500, color: 'var(--text3)', fontSize: 11 }}>Event</th>
-                  <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 500, color: 'var(--text3)', fontSize: 11 }}>Driver</th>
+                  <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 500, color: 'var(--text3)', fontSize: 11 }}>Action</th>
+                  <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 500, color: 'var(--text3)', fontSize: 11 }}>Module</th>
                   <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 500, color: 'var(--text3)', fontSize: 11 }}>Description</th>
                 </tr>
               </thead>
               <tbody>
                 {entries.map((e) => {
-                  const color = EVENT_COLORS[e.eventType] || 'var(--text3)';
-                  const driverName = e.driverId?.fullName || '—';
-                  const employeeCode = e.driverId?.employeeCode || '';
-                  const driverIdStr = typeof e.driverId === 'object' ? e.driverId?._id : e.driverId;
+                  const sourceLabel = SOURCE_LABELS[e.source] || e.source;
+                  const methodColor = e.method ? METHOD_COLORS[e.method] : null;
                   return (
-                    <tr
-                      key={e._id}
-                      style={{ borderBottom: '1px solid var(--border)' }}
-                    >
-                      <td style={{ padding: '10px 12px', color: 'var(--text2)', whiteSpace: 'nowrap' }}>
-                        {formatDateTime(e.createdAt)}
+                    <tr key={e._id} style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td style={{ padding: '10px 12px', color: 'var(--text2)', whiteSpace: 'nowrap', fontSize: 11 }}>
+                        {formatDateTime(e.timestamp)}
                       </td>
                       <td style={{ padding: '10px 12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <Avatar initials={getInitials(e.performedByName)} size={22} />
+                          <Avatar initials={getInitials(e.userName)} size={22} />
                           <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontSize: 12, fontWeight: 500 }}>{e.performedByName || 'Unknown'}</span>
-                            {e.performedBy?.email && (
-                              <span style={{ fontSize: 10, color: 'var(--text3)' }}>{e.performedBy.email}</span>
+                            <span style={{ fontSize: 12, fontWeight: 500 }}>{e.userName || 'System'}</span>
+                            {e.userEmail && (
+                              <span style={{ fontSize: 10, color: 'var(--text3)' }}>{e.userEmail}</span>
                             )}
-                            {e.performedByRole && (
-                              <span style={{ fontSize: 10, color: 'var(--accent)' }}>{e.performedByRole}</span>
+                            {e.userRole && (
+                              <span style={{ fontSize: 10, color: 'var(--accent)' }}>{e.userRole}</span>
                             )}
                           </div>
                         </div>
                       </td>
                       <td style={{ padding: '10px 12px' }}>
-                        <span style={{
-                          display: 'inline-block',
-                          padding: '2px 8px',
-                          borderRadius: 9999,
-                          fontSize: 11,
-                          fontWeight: 500,
-                          background: 'var(--surface2)',
-                          border: `1px solid ${color}`,
-                          color,
-                        }}>
-                          {e.eventType?.replace(/_/g, ' ')}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--text2)' }}>
+                            {e.action}
+                          </span>
+                          {e.method && (
+                            <span style={{
+                              fontSize: 10, fontWeight: 600, color: methodColor,
+                              fontFamily: 'monospace',
+                            }}>
+                              {e.method}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td style={{ padding: '10px 12px' }}>
-                        {driverIdStr ? (
-                          <button
-                            onClick={() => navigate(`/drivers?driverId=${driverIdStr}`)}
-                            style={{
-                              background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-                              color: 'var(--accent)', fontSize: 12, textAlign: 'left',
-                            }}
-                          >
-                            {employeeCode ? `${employeeCode} · ` : ''}{driverName}
-                          </button>
-                        ) : '—'}
+                        <span style={{
+                          display: 'inline-block', padding: '2px 8px', borderRadius: 9999,
+                          fontSize: 11, fontWeight: 500,
+                          background: 'var(--surface2)',
+                          border: '1px solid var(--border)',
+                          color: 'var(--text2)',
+                        }}>
+                          {e.entityType || '—'}
+                        </span>
+                        <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>
+                          {sourceLabel}
+                          {e.entityLabel ? ` · ${e.entityLabel}` : ''}
+                        </div>
                       </td>
-                      <td style={{ padding: '10px 12px', color: 'var(--text2)' }}>
+                      <td style={{ padding: '10px 12px', color: 'var(--text2)', fontSize: 12 }}>
                         <div>{e.description}</div>
-                        {e.eventType === 'field_updated' && e.oldValue && e.newValue && (
+                        {e.oldValue && e.newValue && (
                           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
                             <span style={{ textDecoration: 'line-through', color: '#f87171' }}>{e.oldValue}</span>
                             {' → '}
@@ -274,6 +259,11 @@ const ActivityLog = () => {
                         {e.reason && (
                           <div style={{ fontSize: 11, color: 'var(--text3)', fontStyle: 'italic', marginTop: 2 }}>
                             Reason: {e.reason}
+                          </div>
+                        )}
+                        {e.ip && (
+                          <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>
+                            IP: {e.ip}
                           </div>
                         )}
                       </td>
@@ -291,16 +281,14 @@ const ActivityLog = () => {
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             padding: '10px 14px', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--text3)',
           }}>
-            <span>
-              Page {page} of {totalPages}
-            </span>
+            <span>Page {page} of {totalPages}</span>
             <div style={{ display: 'flex', gap: 6 }}>
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
                 style={{
-                  padding: '5px 12px', borderRadius: 6,
-                  border: '1px solid var(--border2)', background: 'var(--surface2)',
+                  padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border2)',
+                  background: 'var(--surface2)',
                   color: page === 1 ? 'var(--text3)' : 'var(--text)',
                   cursor: page === 1 ? 'default' : 'pointer',
                   opacity: page === 1 ? 0.5 : 1, fontSize: 12,
@@ -312,8 +300,8 @@ const ActivityLog = () => {
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
                 style={{
-                  padding: '5px 12px', borderRadius: 6,
-                  border: '1px solid var(--border2)', background: 'var(--surface2)',
+                  padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border2)',
+                  background: 'var(--surface2)',
                   color: page >= totalPages ? 'var(--text3)' : 'var(--text)',
                   cursor: page >= totalPages ? 'default' : 'pointer',
                   opacity: page >= totalPages ? 0.5 : 1, fontSize: 12,

@@ -40,18 +40,71 @@ router.post('/register', validate(registerValidation), async (req, res) => {
 
 // POST /api/auth/login
 router.post('/login', loginLimiter, validate(loginValidation), async (req, res) => {
+  const { email, password } = req.body;
+  const writeAuditSafe = async (payload) => {
+    try {
+      const AuditLog = getModel(req, 'AuditLog');
+      await AuditLog.create({ ...payload, ip: req.ip, userAgent: req.get('user-agent') });
+    } catch (_) { /* auditing must never break auth */ }
+  };
+
   try {
-    const { email, password } = req.body;
     const { token, user } = await authService.login(req, email, password);
     const authData = await authService.buildAuthResponse(req, user);
+
+    await writeAuditSafe({
+      userId: user._id,
+      userName: user.name,
+      userEmail: user.email,
+      userRole: authData.user?.role || null,
+      method: 'POST',
+      path: '/api/auth/login',
+      statusCode: 200,
+      action: 'auth.login',
+      entityType: 'auth',
+      description: `Logged in as ${user.email}`,
+    });
+
     sendSuccess(res, { token, ...authData });
   } catch (err) {
+    await writeAuditSafe({
+      userEmail: email,
+      method: 'POST',
+      path: '/api/auth/login',
+      statusCode: err.statusCode || 401,
+      action: 'auth.login_failed',
+      entityType: 'auth',
+      description: `Failed login for ${email}: ${err.message}`,
+    });
+
     res.status(err.statusCode || 400).json({
       success: false,
       message: err.message,
       code:    err.code || 'LOGIN_FAILED',
     });
   }
+});
+
+// POST /api/auth/logout — client-driven, but still worth auditing for session tracking
+router.post('/logout', protect, async (req, res) => {
+  try {
+    const AuditLog = getModel(req, 'AuditLog');
+    await AuditLog.create({
+      userId: req.user._id,
+      userName: req.user.name,
+      userEmail: req.user.email,
+      userRole: req.user.roleId?.displayName || req.user.roleId?.name,
+      method: 'POST',
+      path: '/api/auth/logout',
+      statusCode: 200,
+      action: 'auth.logout',
+      entityType: 'auth',
+      description: `Logged out ${req.user.email}`,
+      ip: req.ip,
+      userAgent: req.get('user-agent'),
+    });
+  } catch (_) {}
+  sendSuccess(res, { message: 'Logged out' });
 });
 
 // GET /api/auth/me

@@ -94,6 +94,11 @@ app.get('/api/health', async (req, res) => {
 // Tenant middleware: ALL /api routes below require a tenant
 app.use('/api', resolveTenant);
 
+// Audit middleware: logs every successful mutating request to AuditLog once the
+// response is sent. Registered before the route handlers so its res.on('finish')
+// hook runs after each route's protect middleware has populated req.user.
+app.use('/api', require('./src/middleware/auditActivity'));
+
 // Routes
 app.use('/api/auth', require('./src/modules/shared/auth.routes'));
 app.use('/api/drivers', require('./src/modules/drivers/drivers.routes'));

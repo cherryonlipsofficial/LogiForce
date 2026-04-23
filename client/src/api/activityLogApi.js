@@ -5,3 +5,6 @@ export const getActivityLog = (params = {}) =>
 
 export const getActivityLogUsers = () =>
   axiosInstance.get('/activity-log/users').then((r) => r.data);
+
+export const getActivityLogEntityTypes = () =>
+  axiosInstance.get('/activity-log/entity-types').then((r) => r.data);
