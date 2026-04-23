@@ -360,10 +360,11 @@ const AddDriverModal = ({ onClose }) => {
       onClose();
     } catch (err) {
       const apiErrors = err?.response?.data?.errors;
-      if (apiErrors && Array.isArray(apiErrors)) {
+      if (Array.isArray(apiErrors) && apiErrors.length > 0) {
         apiErrors.forEach(({ field, message }) => {
-          setError(field, { type: 'server', message });
+          if (field) setError(field, { type: 'server', message });
         });
+        toast.error(apiErrors.map(({ message }) => message).join('; '));
       } else {
         toast.error(err?.response?.data?.message || 'Failed to create driver');
       }

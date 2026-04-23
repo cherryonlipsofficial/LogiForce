@@ -366,6 +366,33 @@ const RunDetail = ({ run, onClose }) => {
           {detail.paidAt && <InfoRow label="Paid on" value={formatDate(detail.paidAt)} />}
         </div>
 
+        {/* Offboarding Clearance banner — shown when driver is resigned/offboarded */}
+        {['resigned', 'offboarded'].includes(detail.driverId?.status) && (
+          <div style={{
+            marginBottom: 16,
+            padding: '10px 12px',
+            borderRadius: 8,
+            border: '1px solid',
+            borderColor: detail.clearanceRef?.overallStatus === 'completed' ? 'rgba(34,197,94,0.25)' : 'rgba(245,158,11,0.25)',
+            background: detail.clearanceRef?.overallStatus === 'completed' ? 'rgba(34,197,94,0.08)' : 'rgba(245,158,11,0.08)',
+            fontSize: 12,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+              <div>
+                <div style={{ fontWeight: 600, color: 'var(--text)' }}>
+                  Offboarding clearance {detail.clearanceRef?.overallStatus === 'completed' ? 'completed' : 'required'}
+                </div>
+                <div style={{ color: 'var(--text3)', marginTop: 2 }}>
+                  {detail.clearanceRef
+                    ? `Clearance ${detail.clearanceRef.clearanceNo} — status: ${detail.clearanceRef.overallStatus?.replace('_', ' ')}. Salary cannot be processed until client, supplier, and internal clearances are all logged.`
+                    : 'Driver is resigned/offboarded. A clearance record must exist and be completed before final salary can be processed.'}
+                </div>
+              </div>
+              <Btn small onClick={() => navigate('/driver-clearance')}>Open clearance</Btn>
+            </div>
+          </div>
+        )}
+
         {/* Approval Progress Tracker */}
         <ApprovalTracker detail={detail} />
 
@@ -587,13 +614,22 @@ const RunDetail = ({ run, onClose }) => {
               )}
             </>
           )}
-          {currentStatus === 'accounts_approved' && canActOnCurrentStage && (
-            <PermissionGate permission="salary.process">
-              <Btn variant="primary" onClick={() => processMut()} disabled={processing}>
-                {processing ? 'Processing...' : 'Process Salary'}
-              </Btn>
-            </PermissionGate>
-          )}
+          {currentStatus === 'accounts_approved' && canActOnCurrentStage && (() => {
+            const needsClearance = ['resigned', 'offboarded'].includes(detail.driverId?.status);
+            const clearanceBlocked = needsClearance && detail.clearanceRef?.overallStatus !== 'completed';
+            return (
+              <PermissionGate permission="salary.process">
+                <Btn
+                  variant="primary"
+                  onClick={() => processMut()}
+                  disabled={processing || clearanceBlocked}
+                  title={clearanceBlocked ? 'Clearance must be completed before processing final salary for a resigned/offboarded driver' : undefined}
+                >
+                  {processing ? 'Processing...' : clearanceBlocked ? 'Process Salary (Clearance pending)' : 'Process Salary'}
+                </Btn>
+              </PermissionGate>
+            );
+          })()}
           <PermissionGate permission="salary.pay">
             {(currentStatus === 'processed' || currentStatus === 'approved') && (
               !confirmPay ? (
@@ -968,7 +1004,17 @@ const Salary = () => {
                           />
                         )}
                       </td>
-                      <td style={{ padding: '11px 14px', fontSize: 12 }}>{r.driverId?.fullName || '—'}</td>
+                      <td style={{ padding: '11px 14px', fontSize: 12 }}>
+                        {r.driverId?.fullName || '—'}
+                        {['resigned', 'offboarded'].includes(r.driverId?.status) && r.clearanceRef?.overallStatus !== 'completed' && (
+                          <span
+                            title="Offboarding clearance not completed — salary cannot be processed"
+                            style={{ marginLeft: 6, fontSize: 10, background: 'rgba(245,158,11,0.15)', color: '#fbbf24', padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}
+                          >
+                            clearance pending
+                          </span>
+                        )}
+                      </td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{r.projectId?.name || '—'}</td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{formatPeriod(r.period)}</td>
                       <td style={{ padding: '11px 14px' }}>

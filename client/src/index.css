@@ -1,22 +1,22 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
 :root{
-  --bg:#0d0f14;
-  --surface:#141720;
-  --surface2:#1c2030;
-  --surface3:#232840;
-  --border:rgba(255,255,255,0.07);
-  --border2:rgba(255,255,255,0.12);
-  --accent:#4f8ef7;
-  --accent2:#7c5ff0;
-  --teal:#1DB388;
-  --red:#ef4444;
+  --bg:#1e1f22;
+  --surface:#26272b;
+  --surface2:#2e2f34;
+  --surface3:#383a42;
+  --border:rgba(255,255,255,0.09);
+  --border2:rgba(255,255,255,0.16);
+  --accent:#6ba3ff;
+  --accent2:#9680ff;
+  --teal:#2dd4aa;
+  --red:#f87171;
   --yellow:#fbbf24;
-  --green:#22c55e;
-  --text:#e8eaf0;
-  --text2:#8b909e;
-  --text3:#555c70;
-  --shadow:0 1px 3px rgba(0,0,0,0.3);
+  --green:#4ade80;
+  --text:#e4e4e0;
+  --text2:#a8aab2;
+  --text3:#70737a;
+  --shadow:0 1px 3px rgba(0,0,0,0.25);
   --mono:'DM Mono',monospace;
   --sans:'DM Sans',sans-serif;
   --display:'Playfair Display',serif;
@@ -29,22 +29,22 @@
 }
 
 [data-theme="light"]{
-  --bg:#f5f6fa;
-  --surface:#ffffff;
-  --surface2:#eef0f6;
-  --surface3:#e2e5ef;
-  --border:rgba(0,0,0,0.08);
-  --border2:rgba(0,0,0,0.13);
-  --accent:#3b7de8;
-  --accent2:#6a4dd6;
-  --teal:#159970;
-  --red:#dc2626;
-  --yellow:#d97706;
-  --green:#16a34a;
-  --text:#1a1d27;
-  --text2:#5b6070;
-  --text3:#8b909e;
-  --shadow:0 1px 3px rgba(0,0,0,0.1);
+  --bg:#f2efe8;
+  --surface:#faf9f5;
+  --surface2:#ece9e0;
+  --surface3:#ddd9cd;
+  --border:rgba(60,50,40,0.11);
+  --border2:rgba(60,50,40,0.18);
+  --accent:#2f6fd6;
+  --accent2:#5a3fc5;
+  --teal:#0f7a5a;
+  --red:#c53030;
+  --yellow:#b45309;
+  --green:#15803d;
+  --text:#2a2a28;
+  --text2:#595a5c;
+  --text3:#8a8b8f;
+  --shadow:0 1px 3px rgba(60,50,40,0.08);
 }
 
 html{font-size:14px}
@@ -127,6 +127,11 @@ h1,h2,h3,h4,h5,h6{
   to{opacity:1;transform:translateY(0)}
 }
 
+@keyframes pageEnter{
+  from{opacity:0}
+  to{opacity:1}
+}
+
 @keyframes slideIn{
   from{opacity:0;transform:translateX(-12px)}
   to{opacity:1;transform:translateX(0)}
@@ -147,7 +152,7 @@ h1,h2,h3,h4,h5,h6{
 }
 
 .page-enter{
-  animation:fadeIn .25s ease forwards;
+  animation:pageEnter .25s ease;
 }
 
 /* ── Responsive overrides ── */

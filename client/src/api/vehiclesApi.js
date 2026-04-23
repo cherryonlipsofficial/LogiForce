@@ -66,3 +66,31 @@ export const getCurrentDriverVehicle = (driverId) =>
 
 export const getDriverVehicleHistory = (driverId, page = 1, limit = 20) =>
   axiosInstance.get(`/drivers/${driverId}/vehicle-history`, { params: { page, limit } }).then((r) => r.data);
+
+// Fleet dashboard
+export const getFleetDashboard = () =>
+  axiosInstance.get('/vehicles/fleet-dashboard').then((r) => r.data);
+
+// Vehicle timeline
+export const getVehicleTimeline = (vehicleId) =>
+  axiosInstance.get(`/vehicles/${vehicleId}/timeline`).then((r) => r.data);
+
+// Mileage update
+export const updateMileage = (vehicleId, data) =>
+  axiosInstance.put(`/vehicles/${vehicleId}/mileage`, data).then((r) => r.data);
+
+// Delete vehicle
+export const deleteVehicle = (id) =>
+  axiosInstance.delete(`/vehicles/${id}`).then((r) => r.data);
+
+// Bulk import
+export const bulkUploadVehicles = (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return axiosInstance.post('/vehicles/bulk-upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data);
+};
+
+export const downloadVehicleTemplate = () =>
+  axiosInstance.get('/vehicles/bulk-template', { responseType: 'blob' }).then((r) => r);

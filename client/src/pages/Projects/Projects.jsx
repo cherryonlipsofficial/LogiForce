@@ -143,7 +143,7 @@ const Projects = () => {
                     </td>
                     <td style={{ padding: '11px 14px', fontSize: 12 }}>
                       <div>{p.clientId?.name || '—'}</div>
-                      {p.clientId?._id && <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>{p.clientId._id}</div>}
+                      {p.clientId?.tradeLicenceNo && <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>{p.clientId.tradeLicenceNo}</div>}
                     </td>
                     <td style={{ padding: '11px 14px', fontFamily: 'var(--mono)', fontSize: 12 }}>{formatCurrencyFull(p.ratePerDriver)}</td>
                     <td style={{ padding: '11px 14px', fontFamily: 'var(--mono)', fontSize: 12 }}>{p.driverCount || 0}</td>

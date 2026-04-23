@@ -15,6 +15,13 @@ module.exports = {
     'drivers.update_client_id': { label: 'Update Client User ID',   module: 'Drivers',    description: 'Set or update the Client User ID on active drivers' },
     'drivers.manage_passport': { label: 'Manage passport submission', module: 'Drivers', description: 'Record passport submission, guarantee passports, request extensions' },
 
+    // ── DRIVER VISAS ──
+    'driver_visas.view':       { label: 'View driver visa records',   module: 'Driver Visas', description: 'See driver visa cost records, statement and recovery status' },
+    'driver_visas.create':     { label: 'Add driver visa record',     module: 'Driver Visas', description: 'Create a new driver visa record (Sales / Compliance)' },
+    'driver_visas.edit':       { label: 'Edit visa non-financial fields', module: 'Driver Visas', description: 'Update visa number, dates, label and remarks' },
+    'driver_visas.manage':     { label: 'Manage visa financials & deduction', module: 'Driver Visas', description: 'Edit charges, discount, cash received, monthly deduction; add / remove statement line items; waive or cancel (Admin / Finance / Accounts only)' },
+    'driver_visas.log_processing': { label: 'Log visa processing date', module: 'Driver Visas', description: 'Record the date the visa was processed / stamped (Operations)' },
+
     // ── COMPLIANCE ──
     'guarantee_passports.view':  { label: 'View guarantee passports',  module: 'Compliance', description: 'View all guarantee passports and their status' },
     'expired_documents.view':    { label: 'View expired documents',    module: 'Compliance', description: 'View drivers with expired documents across all document types' },
@@ -47,11 +54,14 @@ module.exports = {
     'vehicles.off_hire':       { label: 'Off-hire vehicles',       module: 'Vehicles',   description: 'Off-hire and terminate vehicle contracts' },
     'vehicles.manage_contracts': { label: 'Manage vehicle contracts', module: 'Vehicles', description: 'Create, renew, terminate vehicle lease contracts' },
     'vehicles.manage_catalog': { label: 'Manage vehicle catalog',  module: 'Vehicles',   description: 'Add/edit vehicle categories per supplier' },
+    'vehicles.manage_fines':   { label: 'Manage vehicle fines',    module: 'Vehicles',   description: 'Add, edit, waive traffic fines and salik charges' },
+    'vehicles.view_fines':     { label: 'View vehicle fines',      module: 'Vehicles',   description: 'View fines and salik history for vehicles' },
+    'vehicles.view_timeline':  { label: 'View vehicle timeline',   module: 'Vehicles',   description: 'View full assignment timeline of a vehicle' },
+    'vehicles.fleet_dashboard': { label: 'Fleet dashboard',        module: 'Vehicles',   description: 'Access the fleet management dashboard with KPIs' },
 
     // ── ATTENDANCE ──
     'attendance.view':         { label: 'View attendance',         module: 'Attendance', description: 'See attendance batches and records' },
     'attendance.upload':       { label: 'Upload attendance',       module: 'Attendance', description: 'Upload CSV/Excel attendance files' },
-    'attendance.approve':      { label: 'Approve attendance (legacy)', module: 'Attendance', description: '@deprecated — use attendance.approve_sales / attendance.approve_ops instead' },
     'attendance.approve_sales': { label: 'Approve attendance (sales)', module: 'Attendance', description: 'Sales team attendance approval' },
     'attendance.approve_ops':  { label: 'Approve attendance (ops)', module: 'Attendance', description: 'Operations team attendance approval' },
     'attendance.reject':       { label: 'Reject attendance',       module: 'Attendance', description: 'Reject attendance batches' },
@@ -71,9 +81,15 @@ module.exports = {
     'salary.export_wps':       { label: 'Export WPS file',         module: 'Salary',     description: 'Download WPS salary transfer file' },
     'salary.view_payslip':     { label: 'View & download payslips', module: 'Salary',    description: 'Generate, view and download payslip PDFs' },
     'salary.delete':           { label: 'Delete salary runs',      module: 'Salary',     description: 'Delete salary runs in draft or approved status' },
-    'salary.manage_deductions': { label: 'Manage deductions',      module: 'Salary',     description: 'Manually add or edit salary deductions (telecom, vehicle, salik, advance, penalty, carryover, other)' },
+    'salary.manage_deductions': { label: 'Manage deductions',      module: 'Salary',     description: 'Manually add or edit salary deductions (telecom, vehicle, salik, advance, penalty, carryover, visa cost, other)' },
     'salary.pay':              { label: 'Mark salary as paid',     module: 'Salary',     description: 'Mark approved salary runs as paid' },
     'salary.dispute':          { label: 'Dispute salary',          module: 'Salary',     description: 'Raise a dispute on a salary run' },
+
+    // ── DRIVER CLEARANCE ──
+    'clearance.view':           { label: 'View driver clearances',  module: 'Clearance',  description: 'View the driver offboarding clearance list and details' },
+    'clearance.log_client':     { label: 'Log client clearance',    module: 'Clearance',  description: 'Operations logs client-side clearance received via email' },
+    'clearance.log_supplier':   { label: 'Log supplier clearance',  module: 'Clearance',  description: 'Operations logs supplier-side clearance and adds vehicle-related deductions' },
+    'clearance.log_internal':   { label: 'Log internal clearance',  module: 'Clearance',  description: 'Accounts logs internal financial clearance (ledger/advances reconciled)' },
 
     // ── INVOICES ──
     'invoices.view':           { label: 'View invoices',           module: 'Invoices',   description: 'See invoice list and details' },
@@ -111,10 +127,78 @@ module.exports = {
     'reports.financial':       { label: 'Financial reports',       module: 'Reports',    description: 'Access P&L, cost and revenue reports' },
     'reports.statement_of_accounts': { label: 'Statement of accounts', module: 'Reports', description: 'View statement of accounts per project with invoices, credit notes, and payments' },
 
+    // Operations Reports
+    'reports.ops_driver_availability':     { label: 'Driver availability report',        module: 'Reports', description: 'View daily driver availability by status per project' },
+    'reports.ops_attendance_tracker':      { label: 'Attendance approval tracker',        module: 'Reports', description: 'View attendance batch approval pipeline status' },
+    'reports.ops_dispute_log':             { label: 'Attendance dispute log',             module: 'Reports', description: 'View attendance dispute history and turnaround times' },
+    'reports.ops_assignment_history':      { label: 'Driver assignment history',          module: 'Reports', description: 'View driver-to-project assignment history' },
+    'reports.ops_vehicle_utilization':     { label: 'Vehicle utilization report',         module: 'Reports', description: 'View vehicle assignment status and idle tracking' },
+    'reports.ops_vehicle_return':          { label: 'Vehicle return condition report',    module: 'Reports', description: 'View vehicle return conditions and damage trends' },
+    'reports.ops_onboarding_pipeline':     { label: 'Driver onboarding pipeline',         module: 'Reports', description: 'View driver onboarding stages and bottlenecks' },
+    'reports.ops_sim_allocation':          { label: 'SIM card allocation report',         module: 'Reports', description: 'View SIM card assignments and unallocated SIMs' },
+    'reports.ops_salary_pipeline':         { label: 'Salary approval pipeline',           module: 'Reports', description: 'View salary run approval stage tracking' },
+    'reports.ops_headcount_vs_plan':       { label: 'Project headcount vs plan',          module: 'Reports', description: 'View actual vs planned driver count per project' },
+
+    // Sales Reports
+    'reports.sales_revenue_by_client':     { label: 'Revenue by client',                  module: 'Reports', description: 'View invoiced revenue per client with trends' },
+    'reports.sales_client_profitability':  { label: 'Client profitability analysis',      module: 'Reports', description: 'View revenue minus cost per client (gross margin)' },
+    'reports.sales_credit_note_impact':    { label: 'Credit note impact report',          module: 'Reports', description: 'View credit note amounts and impact on revenue per client' },
+    'reports.sales_contract_pipeline':     { label: 'Contract expiry & renewal pipeline', module: 'Reports', description: 'View contracts expiring in 30/60/90 days' },
+    'reports.sales_fill_rate':             { label: 'Driver fill rate by project',        module: 'Reports', description: 'View active vs planned headcount fill rate' },
+    'reports.sales_new_drivers':           { label: 'New driver additions report',        module: 'Reports', description: 'View drivers added per client/project per period' },
+    'reports.sales_rate_comparison':       { label: 'Client rate comparison',             module: 'Reports', description: 'View rate per driver across projects per client' },
+
+    // Compliance / HR Reports
+    'reports.compliance_kyc_status':       { label: 'KYC compliance status',              module: 'Reports', description: 'View per-client KYC rule compliance rates' },
+    'reports.compliance_status_transitions': { label: 'Driver status transitions',        module: 'Reports', description: 'View all driver status changes with reasons' },
+    'reports.compliance_headcount':        { label: 'Workforce headcount report',         module: 'Reports', description: 'View total drivers by status, nationality, client' },
+    'reports.compliance_verification':     { label: 'Personal verification audit',        module: 'Reports', description: 'View drivers pending personal/contacts verification' },
+    'reports.compliance_expired_action':   { label: 'Expired document action report',     module: 'Reports', description: 'View expired docs on active drivers (violations)' },
+    'reports.compliance_sim_compliance':   { label: 'SIM card compliance report',         module: 'Reports', description: 'View SIM cards on resigned/offboarded drivers' },
+    'reports.compliance_attrition':        { label: 'Driver attrition & tenure',          module: 'Reports', description: 'View attrition rates and average tenure' },
+
+    // Accounts Reports
+    'reports.accounts_deduction_breakdown': { label: 'Deduction breakdown report',        module: 'Reports', description: 'View all deductions by type across salary runs' },
+    'reports.accounts_advance_schedule':   { label: 'Advance recovery schedule',          module: 'Reports', description: 'View advance recovery installment forecast' },
+    'reports.accounts_receivables_aging':  { label: 'Driver receivables aging',           module: 'Reports', description: 'View outstanding driver receivables by age' },
+    'reports.accounts_cn_reconciliation':  { label: 'Credit note reconciliation',         module: 'Reports', description: 'View credit note client-side and driver-side settlement' },
+    'reports.accounts_invoice_reconciliation': { label: 'Invoice vs payment reconciliation', module: 'Reports', description: 'View invoice amounts vs payments received' },
+    'reports.accounts_fine_deductions':    { label: 'Vehicle fine deduction report',      module: 'Reports', description: 'View vehicle fines and salary deduction status' },
+    'reports.accounts_wps_reconciliation': { label: 'WPS export reconciliation',          module: 'Reports', description: 'View paid salary runs with bank details for WPS' },
+    'reports.accounts_ledger_summary':     { label: 'Driver ledger summary',              module: 'Reports', description: 'View per-driver running balance from all ledger entries' },
+    'reports.accounts_sim_cost':           { label: 'SIM cost deduction report',          module: 'Reports', description: 'View telecom SIM charges per driver per month' },
+
+    // Finance Reports
+    'reports.finance_pnl':                 { label: 'Profit & loss report',               module: 'Reports', description: 'View revenue vs costs per client (gross/net margin)' },
+    'reports.finance_revenue_forecast':    { label: 'Revenue forecast',                   module: 'Reports', description: 'View projected vs actual revenue from contracts' },
+    'reports.finance_cash_flow':           { label: 'Cash flow projection',               module: 'Reports', description: 'View expected inflows vs outflows over 60 days' },
+    'reports.finance_fleet_cost':          { label: 'Vehicle fleet cost report',           module: 'Reports', description: 'View total fleet cost by supplier' },
+    'reports.finance_cn_financial':        { label: 'Credit note financial impact',        module: 'Reports', description: 'View credit notes issued vs recovered amounts' },
+    'reports.finance_supplier_payment':    { label: 'Supplier payment summary',            module: 'Reports', description: 'View total payable per vehicle supplier' },
+    'reports.finance_outstanding':         { label: 'Outstanding receivables dashboard',   module: 'Reports', description: 'View consolidated unpaid invoices + receivables + advances' },
+
+    // Admin Reports
+    'reports.admin_audit_trail':           { label: 'Audit trail report',                  module: 'Reports', description: 'View full audit log of all system changes' },
+    'reports.admin_user_activity':         { label: 'User activity report',                module: 'Reports', description: 'View user login frequency and actions performed' },
+    'reports.admin_role_matrix':           { label: 'Role & permission matrix',            module: 'Reports', description: 'View exportable role vs permission matrix' },
+    'reports.admin_data_quality':          { label: 'Data quality report',                 module: 'Reports', description: 'View drivers with missing critical data fields' },
+    'reports.admin_executive_summary':     { label: 'Monthly executive summary',           module: 'Reports', description: 'View consolidated KPI dashboard' },
+    'reports.admin_trend':                 { label: 'Multi-period trend report',           module: 'Reports', description: 'View 6-12 month trends on key business metrics' },
+    'reports.admin_sim_inventory':         { label: 'SIM card inventory report',           module: 'Reports', description: 'View full SIM inventory with assignment status' },
+
     // ── DASHBOARD ──
     'dashboard.default':       { label: 'Default dashboard',       module: 'Dashboard',  description: 'Access the default admin/ops dashboard view' },
     'dashboard.compliance':    { label: 'Compliance dashboard',    module: 'Dashboard',  description: 'Access the compliance-focused dashboard view' },
     'dashboard.sales':         { label: 'Sales dashboard',         module: 'Dashboard',  description: 'Access the sales-focused dashboard view' },
+
+    // ── SIM CARDS ──
+    'simcards.view':           { label: 'View SIM cards',          module: 'SIM Cards', description: 'View SIM card list and details' },
+    'simcards.create':         { label: 'Add SIM cards',           module: 'SIM Cards', description: 'Add new SIM cards' },
+    'simcards.edit':           { label: 'Edit SIM cards',          module: 'SIM Cards', description: 'Edit SIM card details' },
+    'simcards.assign':         { label: 'Assign SIM cards',        module: 'SIM Cards', description: 'Assign and return SIM cards to/from drivers' },
+    'simcards.bulk_import':    { label: 'Bulk import SIM cards',    module: 'SIM Cards', description: 'Bulk import SIM cards from CSV file' },
+    'simcards.import_bills':   { label: 'Import SIM bills',        module: 'SIM Cards', description: 'Bulk import monthly telecom bills' },
+    'simcards.manage_bills':   { label: 'Manage SIM bills',        module: 'SIM Cards', description: 'Edit bill allocations and waive charges' },
 
     // ── SETTINGS ──
     'settings.view':           { label: 'View settings',           module: 'Settings',   description: 'Access system settings' },
@@ -124,6 +208,7 @@ module.exports = {
     'users.edit':              { label: 'Edit users',              module: 'Users',      description: 'Update user details and roles' },
     'users.delete':            { label: 'Delete users',            module: 'Users',      description: 'Remove user accounts' },
     'roles.manage':            { label: 'Manage roles & permissions', module: 'Users',   description: 'Create roles and configure permissions — super admin only' },
+    'activity_log.view':       { label: 'View activity log',       module: 'Users',      description: 'View system-wide activity log showing who did what across the platform — super admin only' },
   },
 
 };

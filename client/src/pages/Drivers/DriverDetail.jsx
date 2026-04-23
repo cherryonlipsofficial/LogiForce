@@ -17,6 +17,7 @@ import PassportSubmissionField from '../../components/drivers/PassportSubmission
 import GuaranteePassportCard from '../../components/drivers/GuaranteePassportCard';
 import { getProjects } from '../../api/projectsApi';
 import { getVehicle, getCurrentDriverVehicle, getDriverVehicleHistory } from '../../api/vehiclesApi';
+import { getSimCard, getDriverSimHistory } from '../../api/simcardsApi';
 import DriverStatusBanner from '../../components/drivers/DriverStatusBanner';
 import ChangeStatusModalNew from '../../components/drivers/ChangeStatusModal';
 import DriverHistoryTab from '../../components/drivers/DriverHistoryTab';
@@ -79,19 +80,55 @@ const DriverDetail = ({ driver, onClose }) => {
   const [deleting, setDeleting] = useState(false);
 
   const handleViewFile = async (fileKey, fileUrl) => {
+    const extFromName = (name) => {
+      if (!name) return '';
+      const m = name.split(/[?#]/)[0].match(/\.([a-z0-9]+)$/i);
+      return m ? m[1].toLowerCase() : '';
+    };
+    const typeFromExt = (ext) => {
+      if (!ext) return 'application/octet-stream';
+      if (ext === 'pdf') return 'application/pdf';
+      if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+      if (ext === 'png') return 'image/png';
+      if (ext === 'webp') return 'image/webp';
+      if (ext === 'gif') return 'image/gif';
+      return `image/${ext}`;
+    };
     try {
+      setViewingFile({ loading: true, fileName: fileKey });
       if (fileUrl) {
-        // Use Cloudinary URL directly — persistent and doesn't expire
-        const isPdf = fileUrl.toLowerCase().includes('.pdf') || fileKey.toLowerCase().includes('.pdf');
-        setViewingFile({ blobUrl: fileUrl, contentType: isPdf ? 'application/pdf' : 'image', fileName: fileKey, isDirect: true });
-      } else {
-        // Fallback for legacy documents stored on local filesystem
-        const res = await fetchDocumentFile(fileKey);
-        const blobUrl = URL.createObjectURL(res.data);
-        const contentType = res.data.type || '';
-        setViewingFile({ blobUrl, contentType, fileName: fileKey, isDirect: false });
+        const ext = extFromName(fileUrl) || extFromName(fileKey);
+        setViewingFile({
+          blobUrl: fileUrl,
+          openUrl: fileUrl,
+          contentType: typeFromExt(ext),
+          fileName: fileKey,
+          isDirect: true,
+        });
+        return;
       }
+      const res = await fetchDocumentFile(fileKey);
+      const ext = extFromName(fileKey);
+      // Trust the file extension over response headers — the server sometimes
+      // stores docs without a contentType and returns application/octet-stream,
+      // which with nosniff makes browsers refuse to render the image.
+      const contentType = typeFromExt(ext);
+      // res.data is an ArrayBuffer; reject empty bodies (e.g. mishandled 304)
+      // up front so the user sees a real error instead of a blank preview.
+      if (!res.data || !res.data.byteLength) {
+        throw new Error('Empty document body');
+      }
+      const typedBlob = new Blob([res.data], { type: contentType });
+      const blobUrl = URL.createObjectURL(typedBlob);
+      setViewingFile({
+        blobUrl,
+        openUrl: blobUrl,
+        contentType,
+        fileName: fileKey,
+        isDirect: false,
+      });
     } catch {
+      setViewingFile(null);
       toast.error('Failed to load document');
     }
   };
@@ -150,6 +187,13 @@ const DriverDetail = ({ driver, onClose }) => {
   const currentVehicle = vehicleData?.vehicle || null;
   const currentVehicleAssignment = vehicleData?.assignment || null;
 
+  const { data: currentSimData } = useQuery({
+    queryKey: ['driver-current-sim', driverId],
+    queryFn: () => getSimCard(d.telecomSimId),
+    enabled: !!d?.telecomSimId,
+  });
+  const currentSim = currentSimData?.data || null;
+
 const { data: statusSummaryData } = useQuery({
     queryKey: ['driver-status-summary', driverId],
     queryFn: () => getStatusSummary(driverId),
@@ -198,6 +242,9 @@ const grossSalary = financialSummary?.grossSalary || d.baseSalary || 0;
       fileUrl: uploaded?.fileUrl || null,
       uploadStatus: uploaded?.status || null,
       hasFile: !!uploaded?.fileKey,
+      uploadedByName: uploaded?.uploadedByName || null,
+      uploadedByRole: uploaded?.uploadedByRole || null,
+      uploadedAt: uploaded?.uploadedAt || uploaded?.updatedAt || uploaded?.createdAt || null,
     };
   });
 
@@ -442,6 +489,50 @@ const grossSalary = financialSummary?.grossSalary || d.baseSalary || 0;
               </div>
             ) : null}
 
+            {/* SIM card sub-section */}
+            {d.telecomSimId && currentSim ? (
+              <div style={{
+                background: 'var(--surface2)',
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+                padding: '12px 14px',
+                marginBottom: 14,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 500 }}>SIM: {currentSim.simNumber}</span>
+                  <StatusBadge status={currentSim.status} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>
+                  <span>{currentSim.operator} · {currentSim.planName || 'No plan'}</span>
+                  <span>AED {n(currentSim.monthlyPlanCost || 0)}/mo</span>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>
+                  Assigned since: {currentSim.assignedSince ? formatDate(currentSim.assignedSince) : '—'}
+                </div>
+                <div style={{ fontSize: 11, color: d.deductSimCharges === false ? '#fbbf24' : '#4ade80' }}>
+                  SIM charges: {d.deductSimCharges === false ? 'Not deducted from salary' : 'Deducted from salary'}
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  <button
+                    onClick={() => { navigate('/simcards'); }}
+                    style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 11, cursor: 'pointer', padding: 0 }}
+                  >
+                    View SIM details →
+                  </button>
+                </div>
+              </div>
+            ) : !d.telecomSimId ? (
+              <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 14, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>No SIM assigned</span>
+                <button
+                  onClick={() => { navigate('/simcards'); }}
+                  style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 11, cursor: 'pointer', padding: 0 }}
+                >
+                  Assign SIM →
+                </button>
+              </div>
+            ) : null}
+
             {financialSummary?.period && (
               <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 8 }}>
                 Latest salary run: {['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][financialSummary.period.month]} {financialSummary.period.year}
@@ -602,6 +693,13 @@ const grossSalary = financialSummary?.grossSalary || d.baseSalary || 0;
                       <div style={{ fontSize: 11, color: 'var(--text3)' }}>
                         {doc.expiry ? `Expires ${formatDate(doc.expiry)}` : 'No expiry set'}
                       </div>
+                      {doc.hasFile && doc.uploadedByName && (
+                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                          Uploaded by <span style={{ color: 'var(--text2)', fontWeight: 500 }}>{doc.uploadedByName}</span>
+                          {doc.uploadedByRole ? ` (${doc.uploadedByRole})` : ''}
+                          {doc.uploadedAt ? ` on ${formatDate(doc.uploadedAt)}` : ''}
+                        </div>
+                      )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Badge variant={badgeVariant}>{statusLabel}</Badge>
@@ -807,29 +905,58 @@ const grossSalary = financialSummary?.grossSalary || d.baseSalary || 0;
       )}
 
       {viewingFile && (
-        <Modal title="Document viewer" onClose={() => { if (!viewingFile.isDirect) URL.revokeObjectURL(viewingFile.blobUrl); setViewingFile(null); }} width={700}>
+        <Modal
+          title="Document viewer"
+          onClose={() => {
+            if (viewingFile.blobUrl && !viewingFile.isDirect) URL.revokeObjectURL(viewingFile.blobUrl);
+            setViewingFile(null);
+          }}
+          width={700}
+        >
           <div style={{ textAlign: 'center' }}>
-            {viewingFile.contentType.includes('pdf') ? (
+            {viewingFile.loading || !viewingFile.blobUrl ? (
+              <div style={{ padding: 40 }}>
+                <LoadingSpinner />
+              </div>
+            ) : viewingFile.renderError ? (
+              <div style={{ padding: 24, color: 'var(--text2)', fontSize: 13 }}>
+                Preview unavailable. Use the links below to open or download the file.
+              </div>
+            ) : (viewingFile.contentType || '').includes('pdf') ? (
               <iframe
                 src={viewingFile.blobUrl}
                 title="Document"
+                onError={() => setViewingFile((v) => v && { ...v, renderError: true })}
                 style={{ width: '100%', height: '70vh', border: 'none', borderRadius: 8 }}
               />
             ) : (
               <img
                 src={viewingFile.blobUrl}
                 alt="Document"
+                onError={() => setViewingFile((v) => v && { ...v, renderError: true })}
                 style={{ maxWidth: '100%', maxHeight: '70vh', borderRadius: 8 }}
               />
             )}
-            <div style={{ marginTop: 12 }}>
-              <button
-                onClick={handleDownloadFile}
-                style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}
-              >
-                Download file
-              </button>
-            </div>
+            {!viewingFile.loading && viewingFile.blobUrl && (
+              <div style={{ marginTop: 12, display: 'flex', gap: 16, justifyContent: 'center' }}>
+                {viewingFile.openUrl && (
+                  <a
+                    href={viewingFile.openUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: 'var(--accent)', fontSize: 13, textDecoration: 'underline' }}
+                  >
+                    Open in new tab
+                  </a>
+                )}
+                <button
+                  onClick={handleDownloadFile}
+                  style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  Download file
+                </button>
+              </div>
+            )}
           </div>
         </Modal>
       )}
@@ -849,7 +976,7 @@ const editTabs = ['profile', 'employment', 'documents'];
 const EditDriverModal = ({ driver, onClose, onSaved }) => {
   const { isMobile } = useBreakpoint();
   const [editTab, setEditTab] = useState('profile');
-  const { register, handleSubmit, getValues, setValue, watch, formState: { errors } } = useForm({
+  const { register, handleSubmit, getValues, setValue, setError, watch, formState: { errors } } = useForm({
     defaultValues: {
       fullName: driver.fullName || driver.name || '',
       nationality: driver.nationality || '',
@@ -869,6 +996,7 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
       emiratesIdExpiry: toDateInput(driver.emiratesIdExpiry),
       drivingLicenceExpiry: toDateInput(driver.drivingLicenceExpiry),
       mulkiyaExpiry: toDateInput(driver.mulkiyaExpiry),
+      deductSimCharges: driver.deductSimCharges ?? true,
       passportData: {
         isPassportSubmitted: driver.isPassportSubmitted || false,
         passportSubmissionType: driver.passportSubmissionType || null,
@@ -918,13 +1046,22 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
         emiratesIdExpiry: formData.emiratesIdExpiry || undefined,
         drivingLicenceExpiry: formData.drivingLicenceExpiry || undefined,
         mulkiyaExpiry: formData.mulkiyaExpiry || undefined,
+        deductSimCharges: formData.deductSimCharges,
         isPassportSubmitted: formData.passportData?.isPassportSubmitted || false,
         passportSubmissionType: formData.passportData?.passportSubmissionType || null,
       });
       toast.success('Driver updated successfully');
       onSaved();
     } catch (err) {
-      toast.error(err?.response?.data?.message || 'Failed to update driver');
+      const apiErrors = err?.response?.data?.errors;
+      if (Array.isArray(apiErrors) && apiErrors.length > 0) {
+        apiErrors.forEach(({ field, message }) => {
+          if (field) setError(field, { type: 'server', message });
+        });
+        toast.error(apiErrors.map(({ message }) => message).join('; '));
+      } else {
+        toast.error(err?.response?.data?.message || 'Failed to update driver');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -1072,6 +1209,18 @@ const EditDriverModal = ({ driver, onClose, onSaved }) => {
               <label style={labelStyle}>Joining date</label>
               <input type="date" {...register('joinDate')} />
             </div>
+            {driver.telecomSimId && (
+              <div style={{ ...fieldStyle, gridColumn: '1 / -1', marginTop: 4 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text2)', cursor: 'pointer', margin: 0 }}>
+                  <input
+                    type="checkbox"
+                    {...register('deductSimCharges')}
+                    style={{ width: 16, height: 16, margin: 0, cursor: 'pointer', flexShrink: 0 }}
+                  />
+                  <span>Deduct SIM charges from salary</span>
+                </label>
+              </div>
+            )}
           </div>
         )}
 

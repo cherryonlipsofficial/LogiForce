@@ -112,7 +112,7 @@ const ApprovalStatusCard = ({ batch, onApprove, onDispute, onRespondDispute, onG
 
       {showApproveActions && (
         <div style={{ display: 'flex', gap: 8, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-          <PermissionGate anyOf={['attendance.approve', 'attendance.approve_sales', 'attendance.approve_ops']}>
+          <PermissionGate anyOf={['attendance.approve_sales', 'attendance.approve_ops']}>
             <Btn variant="success" onClick={onApprove}>✓ Approve attendance</Btn>
           </PermissionGate>
           <PermissionGate permission="attendance.dispute">

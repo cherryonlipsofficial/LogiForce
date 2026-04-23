@@ -10,6 +10,7 @@ const mainNavItems = [
   { path: '/drivers', label: 'Drivers', icon: '◈', permission: 'drivers.view' },
   { path: '/attendance', label: 'Attendance', icon: '◉', permission: 'attendance.view' },
   { path: '/salary', label: 'Salary runs', icon: '◎', permission: 'salary.view' },
+  { path: '/driver-clearance', label: 'Driver clearance', icon: '◈', permission: 'clearance.view' },
   { path: '/invoices', label: 'Invoices', icon: '◳', permission: 'invoices.view' },
   { path: '/credit-notes', label: 'Credit notes', icon: '◳', permission: 'credit_notes.view' },
   { path: '/advances', label: 'Advances', icon: '◎', permission: 'advances.view' },
@@ -17,6 +18,8 @@ const mainNavItems = [
   { path: '/projects', label: 'Projects', icon: '◪', permission: 'projects.view' },
   { path: '/suppliers', label: 'Suppliers', icon: '◑', permission: 'suppliers.view' },
   { path: '/vehicles', label: 'Vehicles', icon: '◫', permission: 'vehicles.view' },
+  { path: '/simcards', label: 'SIM cards', icon: '◎', permission: 'simcards.view' },
+  { path: '/driver-visas', label: 'Driver visas', icon: '◎', permission: 'driver_visas.view' },
   { path: '/reports', label: 'Reports', icon: '▨', permission: 'reports.view' },
   { path: '/statement-of-accounts', label: 'Statement of accounts', icon: '▨', permission: 'reports.statement_of_accounts' },
   { path: '/guarantee-passports', label: 'Guarantee passports', icon: '◎', permission: 'guarantee_passports.view' },
@@ -26,6 +29,7 @@ const mainNavItems = [
 const adminNavItems = [
   { path: '/users', label: 'Users', icon: '◎', permission: 'users.view' },
   { path: '/roles', label: 'Roles & access', icon: '◈', permission: 'roles.manage' },
+  { path: '/activity-log', label: 'Activity log', icon: '◉', permission: 'activity_log.view' },
   { path: '/guarantee-extensions', label: 'Guarantee approvals', icon: '◎', permission: 'roles.manage', hasBadge: true },
   { path: '/settings', label: 'Settings', icon: '⚙', permission: 'settings.view' },
 ];

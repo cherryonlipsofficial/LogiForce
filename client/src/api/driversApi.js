@@ -38,7 +38,10 @@ export const getDocumentFileUrl = (fileKey) => {
 };
 
 export const fetchDocumentFile = (fileKey) =>
-  axiosInstance.get(`/drivers/uploads/${fileKey}`, { responseType: 'blob' }).then(r => r);
+  axiosInstance.get(`/drivers/uploads/${fileKey}`, {
+    responseType: 'arraybuffer',
+    headers: { 'Cache-Control': 'no-cache' },
+  }).then(r => r);
 
 export const getDocumentDirectUrl = (fileUrl, fileKey) => {
   const base = axiosInstance.defaults.baseURL;

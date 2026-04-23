@@ -230,12 +230,103 @@ const Topbar = ({ page, onMenuToggle, showMenuButton }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifPage, setNotifPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchIndex, setSearchIndex] = useState(0);
   const menuRef = useRef(null);
+  const searchContainerRef = useRef(null);
+
+  // Searchable navigation targets (label, path, optional permission, keywords)
+  const searchTargets = [
+    { label: 'Finance overview', path: '/dashboard', keywords: 'dashboard home finance overview' },
+    { label: 'Drivers', path: '/drivers', permission: 'drivers.view', keywords: 'drivers driver management staff' },
+    { label: 'Attendance', path: '/attendance', permission: 'attendance.view', keywords: 'attendance timesheet hours' },
+    { label: 'Salary', path: '/salary', permission: 'salary.view', keywords: 'salary payroll wages run' },
+    { label: 'Driver clearance', path: '/driver-clearance', permission: 'clearance.view', keywords: 'driver clearance offboarding' },
+    { label: 'Invoices', path: '/invoices', permission: 'invoices.view', keywords: 'invoices billing' },
+    { label: 'Credit notes', path: '/credit-notes', permission: 'credit_notes.view', keywords: 'credit notes refunds' },
+    { label: 'Advances', path: '/advances', permission: 'advances.view', keywords: 'advances loans' },
+    { label: 'Clients', path: '/clients', permission: 'clients.view', keywords: 'clients customers' },
+    { label: 'Projects', path: '/projects', permission: 'projects.view', keywords: 'projects contracts' },
+    { label: 'Suppliers', path: '/suppliers', permission: 'suppliers.view', keywords: 'suppliers vendors' },
+    { label: 'Vehicles', path: '/vehicles', permission: 'vehicles.view', keywords: 'vehicles fleet cars trucks' },
+    { label: 'SIM cards', path: '/simcards', permission: 'simcards.view', keywords: 'sim cards telecom phone' },
+    { label: 'Driver visas', path: '/driver-visas', permission: 'driver_visas.view', keywords: 'driver visas immigration' },
+    { label: 'Reports', path: '/reports', permission: 'reports.view', keywords: 'reports analytics' },
+    { label: 'Statement of accounts', path: '/statement-of-accounts', permission: 'reports.statement_of_accounts', keywords: 'statement accounts soa' },
+    { label: 'Guarantee extensions', path: '/guarantee-extensions', permission: 'roles.manage', keywords: 'guarantee extensions' },
+    { label: 'Guarantee passports', path: '/guarantee-passports', permission: 'guarantee_passports.view', keywords: 'guarantee passports' },
+    { label: 'Expired documents', path: '/expired-documents', permission: 'expired_documents.view', keywords: 'expired documents compliance' },
+    { label: 'Settings', path: '/settings', permission: 'settings.view', keywords: 'settings configuration' },
+    { label: 'Users', path: '/users', permission: 'users.view', keywords: 'users accounts manage' },
+    { label: 'Roles', path: '/roles', permission: 'roles.manage', keywords: 'roles permissions' },
+    { label: 'Your profile', path: '/profile', keywords: 'profile account me' },
+    { label: 'Notifications', path: '/notifications', keywords: 'notifications alerts' },
+  ];
+
+  const trimmedQuery = searchQuery.trim().toLowerCase();
+  const searchResults = trimmedQuery
+    ? searchTargets
+        .filter((t) => !t.permission || hasPermission(t.permission))
+        .filter((t) =>
+          t.label.toLowerCase().includes(trimmedQuery) ||
+          (t.keywords && t.keywords.includes(trimmedQuery))
+        )
+        .slice(0, 8)
+    : [];
+
+  const goToResult = (target) => {
+    if (!target) return;
+    navigate(target.path);
+    setSearchQuery('');
+    setSearchOpen(false);
+    setSearchIndex(0);
+    searchRef.current?.blur();
+  };
+
+  const handleSearchKeyDown = (e) => {
+    if (!searchOpen && (e.key === 'ArrowDown' || e.key === 'Enter')) {
+      setSearchOpen(true);
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSearchIndex((i) => Math.min(i + 1, Math.max(searchResults.length - 1, 0)));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSearchIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (searchResults.length > 0) {
+        goToResult(searchResults[searchIndex] || searchResults[0]);
+      }
+    } else if (e.key === 'Escape') {
+      setSearchOpen(false);
+      setSearchQuery('');
+      searchRef.current?.blur();
+    }
+  };
+
+  // Close search dropdown on click outside
+  useEffect(() => {
+    if (!searchOpen) return;
+    const handler = (e) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [searchOpen]);
+
+  // Reset highlighted index when query changes
+  useEffect(() => {
+    setSearchIndex(0);
+  }, [trimmedQuery]);
 
   // Poll unread count every 30 seconds
   const { data: countData } = useQuery({
     queryKey: ['notif-unread-count'],
-    queryFn: () => getUnreadCount().then(r => r.data),
+    queryFn: () => getUnreadCount().then(r => r.data?.data || r.data),
     refetchInterval: 30000,
     enabled: isAuthenticated,
   });
@@ -244,7 +335,7 @@ const Topbar = ({ page, onMenuToggle, showMenuButton }) => {
   // Fetch notifications when panel opens
   const { data: notifData, isLoading: notifLoading } = useQuery({
     queryKey: ['notifications', notifPage],
-    queryFn: () => getNotifications(notifPage).then(r => r.data),
+    queryFn: () => getNotifications(notifPage).then(r => r.data?.data || r.data),
     enabled: notifOpen,
   });
   const notifications = notifData?.notifications || [];
@@ -373,9 +464,16 @@ const Topbar = ({ page, onMenuToggle, showMenuButton }) => {
 
         {/* Search bar: hidden on mobile, flexible on tablet, fixed on desktop */}
         {!isMobile && (
-          <div style={{ position: 'relative', width: isTablet ? undefined : 220, flex: isTablet ? 1 : undefined, maxWidth: isTablet ? 280 : undefined }}>
+          <div
+            ref={searchContainerRef}
+            style={{ position: 'relative', width: isTablet ? undefined : 220, flex: isTablet ? 1 : undefined, maxWidth: isTablet ? 280 : undefined }}
+          >
             <input
               ref={searchRef}
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setSearchOpen(true); }}
+              onFocus={() => setSearchOpen(true)}
+              onKeyDown={handleSearchKeyDown}
               placeholder="Search drivers, invoices..."
               style={{ paddingLeft: 32, paddingRight: 40, fontSize: 12, height: 34, width: '100%' }}
             />
@@ -410,6 +508,54 @@ const Topbar = ({ page, onMenuToggle, showMenuButton }) => {
             >
               ⌘K
             </span>
+
+            {searchOpen && trimmedQuery && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  left: 0,
+                  right: 0,
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                  overflow: 'hidden',
+                  zIndex: 100,
+                  maxHeight: 320,
+                  overflowY: 'auto',
+                }}
+              >
+                {searchResults.length === 0 ? (
+                  <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text3)' }}>
+                    No matches for "{searchQuery}"
+                  </div>
+                ) : (
+                  searchResults.map((r, idx) => (
+                    <button
+                      key={r.path}
+                      onMouseDown={(e) => { e.preventDefault(); goToResult(r); }}
+                      onMouseEnter={() => setSearchIndex(idx)}
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        textAlign: 'left',
+                        padding: '8px 12px',
+                        border: 'none',
+                        background: idx === searchIndex ? 'var(--surface2)' : 'transparent',
+                        color: 'var(--text)',
+                        fontSize: 12,
+                        cursor: 'pointer',
+                        minHeight: 'auto',
+                      }}
+                    >
+                      <div style={{ fontWeight: 500 }}>{r.label}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>{r.path}</div>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         )}
 

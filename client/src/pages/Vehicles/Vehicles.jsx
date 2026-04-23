@@ -8,6 +8,10 @@ import VehicleCard from '../../components/vehicles/VehicleCard';
 import AssignVehicleModal from '../../components/vehicles/AssignVehicleModal';
 import ReturnVehicleModal from '../../components/vehicles/ReturnVehicleModal';
 import VehicleDetailPanel from '../../components/vehicles/VehicleDetailPanel';
+import BulkImportVehiclesModal from '../../components/vehicles/BulkImportVehiclesModal';
+import AddFleetVehicleModal from '../../components/vehicles/AddFleetVehicleModal';
+import PermissionGate from '../../components/ui/PermissionGate';
+import Btn from '../../components/ui/Btn';
 
 const skeletonPulse = {
   animation: 'vehiclePulse 1.5s ease-in-out infinite',
@@ -32,6 +36,8 @@ const VehiclesPage = () => {
   const [assignVehicle, setAssignVehicle] = useState(null);
   const [returnVehicle, setReturnVehicle] = useState(null);
   const [detailVehicle, setDetailVehicle] = useState(null);
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [filters, setFilters] = useState({
     type: '',
     supplierId: '',
@@ -77,7 +83,7 @@ const VehiclesPage = () => {
           Vehicle fleet
         </h1>
 
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <button
             type="button"
             style={tabPill(view === 'fleet')}
@@ -92,6 +98,17 @@ const VehiclesPage = () => {
           >
             Supplier catalog
           </button>
+
+          <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 6px' }} />
+
+          <PermissionGate permission="vehicles.create">
+            <Btn small variant="ghost" onClick={() => setShowBulkImport(true)}>
+              Import
+            </Btn>
+            <Btn small variant="primary" onClick={() => setShowAddVehicle(true)}>
+              + Add vehicle
+            </Btn>
+          </PermissionGate>
         </div>
       </div>
 
@@ -198,6 +215,21 @@ const VehiclesPage = () => {
         <VehicleDetailPanel
           vehicleId={detailVehicle._id}
           onClose={() => setDetailVehicle(null)}
+        />
+      )}
+
+      {showBulkImport && (
+        <BulkImportVehiclesModal onClose={() => setShowBulkImport(false)} />
+      )}
+
+      {showAddVehicle && (
+        <AddFleetVehicleModal
+          onClose={() => setShowAddVehicle(false)}
+          onSuccess={() => {
+            setShowAddVehicle(false);
+            queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+            queryClient.invalidateQueries({ queryKey: ['fleet-summary'] });
+          }}
         />
       )}
     </div>

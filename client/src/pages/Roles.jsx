@@ -250,7 +250,7 @@ const CreateRoleModal = ({ onClose, roles, permissionsList }) => {
               style={inputStyle}
               value={displayName}
               onChange={e => { setDisplayName(e.target.value); if (!name) setName(e.target.value); }}
-              placeholder="Senior Accountant"
+              placeholder="Finance"
             />
           </div>
           <div style={{ marginBottom: 14 }}>
@@ -259,7 +259,7 @@ const CreateRoleModal = ({ onClose, roles, permissionsList }) => {
               style={inputStyle}
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="senior_accountant"
+              placeholder="finance"
             />
             {name && (
               <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4, fontFamily: 'var(--mono)' }}>
