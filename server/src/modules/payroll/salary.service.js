@@ -1084,7 +1084,7 @@ const processSalaryRun = async (req, runId, userId) => {
 
     // Check if entire CN is now settled
     const { checkAndSettleCreditNote } = require('../billing/creditNote.service');
-    await checkAndSettleCreditNote(cnId);
+    await checkAndSettleCreditNote(req, cnId);
   }
 
   // Mark vehicle fines as deducted

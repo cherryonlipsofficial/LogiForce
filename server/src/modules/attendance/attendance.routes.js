@@ -362,7 +362,7 @@ router.post('/batches/:id/generate-invoice', requirePermission('invoices.generat
 
 // POST /api/attendance/batches/:id/run-salary — generate salary runs from approved batch
 router.post('/batches/:id/run-salary', requirePermission('salary.run'), async (req, res) => {
-  const result = await runSalaryForBatch(req.params.id, req.user._id);
+  const result = await runSalaryForBatch(req, req.params.id, req.user._id);
   res.status(201).json({
     success: true,
     message: 'Salary runs processed.',
@@ -372,7 +372,7 @@ router.post('/batches/:id/run-salary', requirePermission('salary.run'), async (r
 
 // GET /api/attendance/batches/:id/salary-runs — list salary runs for a batch
 router.get('/batches/:id/salary-runs', requirePermission('salary.view'), async (req, res) => {
-  const runs = await getSalaryRunsByBatch(req.params.id);
+  const runs = await getSalaryRunsByBatch(req, req.params.id);
   res.json({ success: true, data: runs });
 });
 
