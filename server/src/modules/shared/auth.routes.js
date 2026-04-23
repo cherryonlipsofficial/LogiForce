@@ -56,7 +56,7 @@ router.post('/login', loginLimiter, validate(loginValidation), async (req, res) 
       userId: user._id,
       userName: user.name,
       userEmail: user.email,
-      userRole: authData.user?.role || null,
+      userRole: authData.user?.roleId?.displayName || authData.user?.roleId?.name || null,
       method: 'POST',
       path: '/api/auth/login',
       statusCode: 200,
@@ -67,8 +67,21 @@ router.post('/login', loginLimiter, validate(loginValidation), async (req, res) 
 
     sendSuccess(res, { token, ...authData });
   } catch (err) {
+    // Best-effort lookup so the activity log still shows who attempted to log in
+    let attemptedUser = null;
+    try {
+      const User = getModel(req, 'User');
+      attemptedUser = await User.findOne({ email: (email || '').toLowerCase() })
+        .populate('roleId', 'name displayName')
+        .select('_id name email roleId')
+        .lean();
+    } catch (_) { /* non-fatal — fall through with just the email */ }
+
     await writeAuditSafe({
-      userEmail: email,
+      userId: attemptedUser?._id,
+      userName: attemptedUser?.name,
+      userEmail: attemptedUser?.email || email,
+      userRole: attemptedUser?.roleId?.displayName || attemptedUser?.roleId?.name || null,
       method: 'POST',
       path: '/api/auth/login',
       statusCode: err.statusCode || 401,
@@ -231,11 +244,23 @@ router.put('/profile', protect, async (req, res) => {
 
   // Audit log
   try {
+    const actorRole = req.user.roleId?.displayName || req.user.roleId?.name || null;
+    const baseAudit = {
+      model: 'User',
+      documentId: user._id,
+      userId: req.user._id,
+      userName: req.user.name,
+      userEmail: req.user.email,
+      userRole: actorRole,
+      action: 'profile_update',
+      entityType: 'users',
+      entityId: String(user._id),
+    };
     if (oldName !== user.name) {
-      await AuditLog.create({ model: 'User', documentId: user._id, field: 'name', oldValue: oldName, newValue: user.name, userId: req.user._id, action: 'profile_update' });
+      await AuditLog.create({ ...baseAudit, field: 'name', oldValue: oldName, newValue: user.name, description: `Updated own name: ${oldName} → ${user.name}` });
     }
     if (oldEmail !== user.email) {
-      await AuditLog.create({ model: 'User', documentId: user._id, field: 'email', oldValue: oldEmail, newValue: user.email, userId: req.user._id, action: 'profile_update' });
+      await AuditLog.create({ ...baseAudit, field: 'email', oldValue: oldEmail, newValue: user.email, description: `Updated own email: ${oldEmail} → ${user.email}` });
     }
   } catch (_) { /* audit log failure should not block response */ }
 
