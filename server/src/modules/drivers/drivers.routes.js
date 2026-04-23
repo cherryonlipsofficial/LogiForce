@@ -124,21 +124,23 @@ router.get('/expired-documents', requirePermission('expired_documents.view'), as
       }
     }
 
-    // 3) Drivers force-activated by an admin who still have pending mandatory
-    //    KYC documents. Surface each outstanding required doc as its own row
-    //    with `issue: 'missing'` so compliance can chase them down from the
-    //    same screen.
+    // 3) Drivers who are past the pending_kyc stage but still have mandatory
+    //    KYC documents not uploaded. A driver can only reach active / on_leave
+    //    / suspended without a complete KYC if an admin force-activated them
+    //    (the normal pending_kyc → pending_verification → active flow requires
+    //    all required docs). Surface each outstanding required doc as its own
+    //    row with `issue: 'not_uploaded'` so compliance can chase them from
+    //    the same screen. Live-computed — rows drop off as docs are uploaded.
     if (docType === 'all' || REQUIRED_KYC_DOCS.includes(docType)) {
-      const forceActivated = await Driver.find({
-        isForceActivated: true,
-        status: { $nin: ['offboarded', 'resigned'] },
+      const candidates = await Driver.find({
+        status: { $in: ['active', 'on_leave', 'suspended'] },
       })
-        .select('fullName employeeCode status clientId projectId forceActivatedAt forceActivationReason')
+        .select('fullName employeeCode status clientId projectId isForceActivated forceActivatedAt forceActivationReason')
         .populate('clientId', 'name')
         .populate('projectId', 'name')
         .lean();
 
-      for (const d of forceActivated) {
+      for (const d of candidates) {
         const kycValid = await checkKycDocsValid(req, d._id);
         if (kycValid.valid) continue;
 
@@ -164,7 +166,7 @@ router.get('/expired-documents', requirePermission('expired_documents.view'), as
             issue: 'not_uploaded',
             expiryDate: null,
             daysOverdue: daysSinceActivation,
-            isForceActivated: true,
+            isForceActivated: !!d.isForceActivated,
             forceActivatedAt: d.forceActivatedAt || null,
             forceActivationReason: d.forceActivationReason || null,
           });
