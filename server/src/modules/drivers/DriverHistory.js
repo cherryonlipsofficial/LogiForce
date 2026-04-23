@@ -22,6 +22,7 @@ const driverHistorySchema = new Schema({
       'contacts_verified',     // Compliance clicked Verified
       'client_user_id_set',    // Operations entered client_user_id
       'driver_activated',      // driver manually activated from pending_verification
+      'driver_force_activated', // admin force-activated a driver bypassing KYC
       'personal_verification_confirmed', // Compliance confirmed personal verification
       'field_updated',         // general profile field update
       'note_added',            // manual note added

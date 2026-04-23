@@ -12,7 +12,7 @@ const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseH
 const validate = require('../../middleware/validate');
 const { createDriverValidation, updateDriverValidation, changeStatusValidation } = require('./driver.validators');
 const auditLogger = require('../../utils/auditLogger');
-const { evaluateAndTransition } = require('./driverStatusEngine.service');
+const { evaluateAndTransition, checkKycDocsValid, REQUIRED_KYC_DOCS } = require('./driverStatusEngine.service');
 const { logEvent } = require('./driverHistory.service');
 
 // All routes are protected
@@ -52,7 +52,7 @@ router.get('/expired-documents', requirePermission('expired_documents.view'), as
       for (const [docKey, fieldName] of fieldsToCheck) {
         const query = { [fieldName]: { $lt: now, $ne: null }, status: { $nin: ['offboarded', 'resigned'] } };
         const drivers = await Driver.find(query)
-          .select(`fullName employeeCode ${fieldName} status clientId projectId`)
+          .select(`fullName employeeCode ${fieldName} status clientId projectId isForceActivated forceActivatedAt forceActivationReason`)
           .populate('clientId', 'name')
           .populate('projectId', 'name')
           .lean();
@@ -68,8 +68,12 @@ router.get('/expired-documents', requirePermission('expired_documents.view'), as
             clientName: d.clientId?.name || null,
             projectName: d.projectId?.name || null,
             docType: docKey,
+            issue: 'expired',
             expiryDate,
             daysOverdue,
+            isForceActivated: !!d.isForceActivated,
+            forceActivatedAt: d.forceActivatedAt || null,
+            forceActivationReason: d.forceActivationReason || null,
           });
         }
       }
@@ -120,8 +124,56 @@ router.get('/expired-documents', requirePermission('expired_documents.view'), as
       }
     }
 
-    // Sort by most overdue first
-    results.sort((a, b) => b.daysOverdue - a.daysOverdue);
+    // 3) Drivers force-activated by an admin who still have pending mandatory
+    //    KYC documents. Surface each outstanding required doc as its own row
+    //    with `issue: 'missing'` so compliance can chase them down from the
+    //    same screen.
+    if (docType === 'all' || REQUIRED_KYC_DOCS.includes(docType)) {
+      const forceActivated = await Driver.find({
+        isForceActivated: true,
+        status: { $nin: ['offboarded', 'resigned'] },
+      })
+        .select('fullName employeeCode status clientId projectId forceActivatedAt forceActivationReason')
+        .populate('clientId', 'name')
+        .populate('projectId', 'name')
+        .lean();
+
+      for (const d of forceActivated) {
+        const kycValid = await checkKycDocsValid(req, d._id);
+        if (kycValid.valid) continue;
+
+        // Only surface not-uploaded docs here; expired docs on these drivers
+        // are already caught by the Driver-model expiry block above.
+        const notUploaded = kycValid.issues.filter((iss) => iss.issue === 'not_uploaded');
+        const relevant = docType === 'all'
+          ? notUploaded
+          : notUploaded.filter((iss) => iss.docType === docType);
+
+        for (const issue of relevant) {
+          const daysSinceActivation = d.forceActivatedAt
+            ? Math.ceil((now - new Date(d.forceActivatedAt)) / (1000 * 60 * 60 * 24))
+            : null;
+          results.push({
+            driverId: d._id,
+            driverName: d.fullName,
+            employeeCode: d.employeeCode,
+            driverStatus: d.status,
+            clientName: d.clientId?.name || null,
+            projectName: d.projectId?.name || null,
+            docType: issue.docType,
+            issue: 'not_uploaded',
+            expiryDate: null,
+            daysOverdue: daysSinceActivation,
+            isForceActivated: true,
+            forceActivatedAt: d.forceActivatedAt || null,
+            forceActivationReason: d.forceActivationReason || null,
+          });
+        }
+      }
+    }
+
+    // Sort by most overdue first (rows without daysOverdue sink to the bottom)
+    results.sort((a, b) => (b.daysOverdue ?? -1) - (a.daysOverdue ?? -1));
 
     sendSuccess(res, results);
   } catch (err) {
