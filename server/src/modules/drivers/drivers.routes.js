@@ -137,8 +137,17 @@ router.get('/uploads/:fileKey', async (req, res) => {
     if (!doc || !doc.fileData) {
       return sendError(res, 'File not found', 404);
     }
+    const name = doc.originalName || doc.fileKey || 'file';
+    // Strip characters that would break the Content-Disposition quoted filename,
+    // then add an RFC 5987 filename* with full UTF-8 support.
+    const asciiName = name.replace(/[\\"\r\n]/g, '_');
+    const encodedName = encodeURIComponent(name);
     res.set('Content-Type', doc.contentType || 'application/octet-stream');
-    res.set('Content-Disposition', `inline; filename="${doc.originalName || doc.fileKey}"`);
+    res.set(
+      'Content-Disposition',
+      `inline; filename="${asciiName}"; filename*=UTF-8''${encodedName}`
+    );
+    res.set('Cache-Control', 'private, max-age=300');
     res.send(doc.fileData);
   } catch (err) {
     sendError(res, err.message || 'Failed to retrieve file', 500);
