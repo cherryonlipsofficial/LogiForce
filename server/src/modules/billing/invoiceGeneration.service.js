@@ -3,6 +3,134 @@ const { notifyByPermission } = require('../shared/notification.service')
 const { computeLineAmount } = require('../../utils/rateCalculator')
 
 /**
+ * Resolve the effective billing rate and basis for a batch's project.
+ * Priority: active ProjectContract → project fallback.
+ */
+async function resolveProjectRate(req, project) {
+  const ProjectContract = getModel(req, 'ProjectContract')
+  let ratePerDriver = project?.ratePerDriver || 0
+  let rateBasis = project?.rateBasis || 'monthly_fixed'
+
+  if (project?._id) {
+    const activeContract = await ProjectContract.findOne({
+      projectId: project._id,
+      status: 'active',
+    }).select('ratePerDriver rateBasis').lean()
+
+    if (activeContract?.ratePerDriver) ratePerDriver = activeContract.ratePerDriver
+    if (activeContract?.rateBasis) rateBasis = activeContract.rateBasis
+  }
+
+  return { ratePerDriver, rateBasis }
+}
+
+/**
+ * Build per-driver line items from attendance records using the given rate/basis.
+ */
+function buildLineItems(records, ratePerDriver, rateBasis, period) {
+  const lineItems = []
+  let subtotal = 0
+
+  for (const record of records) {
+    const driver = record.driverId
+    if (!driver) continue
+
+    const workingDays = record.workingDays || 0
+    const totalOrders = record.totalOrders || 0
+
+    if (rateBasis === 'per_order' && totalOrders <= 0) continue
+    if (rateBasis !== 'per_order' && workingDays <= 0) continue
+
+    const { dailyRate, amount } = computeLineAmount(ratePerDriver, rateBasis, workingDays, {
+      year: period?.year,
+      month: period?.month,
+      totalOrders,
+    })
+
+    const vatAmount_item = parseFloat((amount * 0.05).toFixed(2))
+    const totalWithVat = parseFloat((amount + vatAmount_item).toFixed(2))
+
+    lineItems.push({
+      driverId: driver._id,
+      driverName: driver.fullName,
+      employeeCode: driver.employeeCode,
+      workingDays,
+      totalOrders,
+      ratePerDriver,
+      rateBasis,
+      dailyRate,
+      amount,
+      vatRate: 0.05,
+      vatAmount: vatAmount_item,
+      totalWithVat,
+    })
+
+    subtotal += amount
+  }
+
+  subtotal = parseFloat(subtotal.toFixed(2))
+  const vatAmount = parseFloat((subtotal * 0.05).toFixed(2))
+  const total = parseFloat((subtotal + vatAmount).toFixed(2))
+
+  return { lineItems, subtotal, vatAmount, total }
+}
+
+/**
+ * Dry-run computation of the invoice that would be generated for a batch.
+ * Shares rate resolution and line-item logic with generateInvoice so the
+ * preview and the final invoice always match.
+ */
+async function previewInvoice(req, batchId) {
+  const AttendanceBatch = getModel(req, 'AttendanceBatch')
+  const AttendanceRecord = getModel(req, 'AttendanceRecord')
+
+  const batch = await AttendanceBatch.findById(batchId)
+    .populate('projectId', 'name projectCode ratePerDriver rateBasis clientId')
+    .populate('clientId', 'name vatNo paymentTerms')
+    .lean()
+
+  if (!batch) throw Object.assign(new Error('Batch not found'), { statusCode: 404 })
+  if (!batch.projectId) {
+    throw Object.assign(new Error('Batch has no project assigned'), { statusCode: 400 })
+  }
+
+  const records = await AttendanceRecord.find({
+    batchId,
+    status: { $ne: 'error' },
+  })
+    .populate('driverId', 'fullName employeeCode')
+    .lean()
+
+  const { ratePerDriver, rateBasis } = await resolveProjectRate(req, batch.projectId)
+  const { lineItems, subtotal, vatAmount, total } = buildLineItems(
+    records, ratePerDriver, rateBasis, batch.period
+  )
+
+  return {
+    batchId: batch._id,
+    period: batch.period,
+    project: {
+      _id: batch.projectId._id,
+      name: batch.projectId.name,
+      projectCode: batch.projectId.projectCode,
+    },
+    client: batch.clientId ? {
+      _id: batch.clientId._id,
+      name: batch.clientId.name,
+    } : null,
+    ratePerDriver,
+    rateBasis,
+    driverCount: lineItems.length,
+    lineItems,
+    subtotal,
+    vatRate: 0.05,
+    vatAmount,
+    total,
+    rateConfigured: ratePerDriver > 0,
+  }
+}
+
+/**
  * Generate an invoice from a fully-approved attendance batch.
  * Rate is taken from the project. VAT is 5%.
  * Only accounts users can generate invoices.
@@ -11,8 +139,6 @@ async function generateInvoice(req, batchId, accountsUserId) {
   const AttendanceBatch = getModel(req, 'AttendanceBatch');
   const AttendanceRecord = getModel(req, 'AttendanceRecord');
   const Invoice = getModel(req, 'Invoice');
-  const ProjectContract = getModel(req, 'ProjectContract');
-  const DriverProjectAssignment = getModel(req, 'DriverProjectAssignment');
   const User = getModel(req, 'User');
   // STEP 1 — Validate batch
   const batch = await AttendanceBatch.findById(batchId)
@@ -50,7 +176,7 @@ async function generateInvoice(req, batchId, accountsUserId) {
   // STEP 2 — Fetch attendance records for this batch
   const records = await AttendanceRecord.find({
     batchId,
-    status: { $ne: 'error' },  // skip errored rows
+    status: { $ne: 'error' },
   })
   .populate('driverId', 'fullName employeeCode projectId')
   .lean()
@@ -62,22 +188,8 @@ async function generateInvoice(req, batchId, accountsUserId) {
     )
   }
 
-  // STEP 3 — Get billing rate and basis from project
-  // Priority: active ProjectContract rate → project.ratePerDriver fallback
-  let ratePerDriver = batch.projectId.ratePerDriver
-  let rateBasis = batch.projectId.rateBasis || 'monthly_fixed'
-
-  const activeContract = await ProjectContract.findOne({
-    projectId: batch.projectId._id,
-    status:    'active',
-  }).select('ratePerDriver rateBasis')
-
-  if (activeContract?.ratePerDriver) {
-    ratePerDriver = activeContract.ratePerDriver
-  }
-  if (activeContract?.rateBasis) {
-    rateBasis = activeContract.rateBasis
-  }
+  // STEP 3 — Resolve rate (active contract overrides project default)
+  const { ratePerDriver, rateBasis } = await resolveProjectRate(req, batch.projectId)
 
   if (!ratePerDriver || ratePerDriver <= 0) {
     throw Object.assign(
@@ -90,44 +202,9 @@ async function generateInvoice(req, batchId, accountsUserId) {
   }
 
   // STEP 4 — Build line items (one per driver)
-  const lineItems = []
-  let subtotal = 0
-
-  for (const record of records) {
-    const driver = record.driverId
-    if (!driver) continue
-
-    const workingDays = record.workingDays || 0
-    const totalOrders = record.totalOrders || 0
-
-    // Skip records that contribute nothing: for per_order, check totalOrders; otherwise check workingDays
-    if (rateBasis === 'per_order' && totalOrders <= 0) continue
-    if (rateBasis !== 'per_order' && workingDays <= 0) continue
-
-    const { dailyRate, amount } = computeLineAmount(ratePerDriver, rateBasis, workingDays, {
-      year: batch.period.year, month: batch.period.month, totalOrders,
-    })
-
-    const vatAmount_item = parseFloat((amount * 0.05).toFixed(2))
-    const totalWithVat   = parseFloat((amount + vatAmount_item).toFixed(2))
-
-    lineItems.push({
-      driverId:     driver._id,
-      driverName:   driver.fullName,
-      employeeCode: driver.employeeCode,
-      workingDays,
-      totalOrders,
-      ratePerDriver,
-      rateBasis,
-      dailyRate,
-      amount,
-      vatRate:      0.05,
-      vatAmount:    vatAmount_item,
-      totalWithVat,
-    })
-
-    subtotal += amount
-  }
+  const { lineItems, subtotal, vatAmount, total } = buildLineItems(
+    records, ratePerDriver, rateBasis, batch.period
+  )
 
   if (!lineItems.length) {
     throw Object.assign(
@@ -135,10 +212,6 @@ async function generateInvoice(req, batchId, accountsUserId) {
       { statusCode: 400 }
     )
   }
-
-  subtotal  = parseFloat(subtotal.toFixed(2))
-  const vatAmount = parseFloat((subtotal * 0.05).toFixed(2))
-  const total     = parseFloat((subtotal + vatAmount).toFixed(2))
 
   // STEP 5 — Generate invoice number
   const monthStr  = String(batch.period.month).padStart(2, '0')
@@ -221,4 +294,4 @@ async function generateInvoice(req, batchId, accountsUserId) {
   }
 }
 
-module.exports = { generateInvoice }
+module.exports = { generateInvoice, previewInvoice }

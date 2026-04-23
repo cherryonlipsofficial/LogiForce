@@ -7,7 +7,7 @@ const {
   sendUploadNotification, approveAttendance, raiseDispute,
   respondToDispute,
 } = require('./attendanceApproval.service');
-const { generateInvoice } = require('../billing/invoiceGeneration.service');
+const { generateInvoice, previewInvoice } = require('../billing/invoiceGeneration.service');
 const { runSalaryForBatch, getSalaryRunsByBatch } = require('../payroll/salaryRun.service');
 const { getModel } = require('../../config/modelRegistry');
 const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseHelper');
@@ -336,14 +336,28 @@ router.get('/batches/:id/disputes', requirePermission('attendance.view'), async 
   res.json({ success: true, data: disputes });
 });
 
+// GET /api/attendance/batches/:id/invoice-preview — dry-run invoice computation
+router.get('/batches/:id/invoice-preview', requirePermission('attendance.view'), async (req, res) => {
+  try {
+    const preview = await previewInvoice(req, req.params.id);
+    sendSuccess(res, preview);
+  } catch (err) {
+    sendError(res, err.message, err.statusCode || 500);
+  }
+});
+
 // POST /api/attendance/batches/:id/generate-invoice — generate invoice from approved batch
 router.post('/batches/:id/generate-invoice', requirePermission('invoices.generate'), async (req, res) => {
-  const result = await generateInvoice(req.params.id, req.user._id);
-  res.status(201).json({
-    success: true,
-    message: `Invoice ${result.invoice.invoiceNo} generated successfully`,
-    data: result,
-  });
+  try {
+    const result = await generateInvoice(req, req.params.id, req.user._id);
+    res.status(201).json({
+      success: true,
+      message: `Invoice ${result.invoice.invoiceNo} generated successfully`,
+      data: result,
+    });
+  } catch (err) {
+    sendError(res, err.message, err.statusCode || 500);
+  }
 });
 
 // POST /api/attendance/batches/:id/run-salary — generate salary runs from approved batch
