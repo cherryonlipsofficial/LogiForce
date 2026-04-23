@@ -1071,7 +1071,7 @@ const generateCreditNotePDF = (creditNote, client, project, companySettings) => 
           String(i + 1),
           lineTypeLabel,
           daName,
-          item.employeeCode || '',
+          item.clientUserId || '',
           item.referenceNo || '',
           formatCurrency(item.amount || 0),
           formatCurrency(item.vatAmount || 0),
