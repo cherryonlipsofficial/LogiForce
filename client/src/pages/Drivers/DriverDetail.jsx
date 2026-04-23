@@ -80,19 +80,29 @@ const DriverDetail = ({ driver, onClose }) => {
   const [deleting, setDeleting] = useState(false);
 
   const handleViewFile = async (fileKey, fileUrl) => {
+    const extFromName = (name) => {
+      if (!name) return '';
+      const m = name.split(/[?#]/)[0].match(/\.([a-z0-9]+)$/i);
+      return m ? m[1].toLowerCase() : '';
+    };
+    const isPdfExt = (ext) => ext === 'pdf';
     try {
+      setViewingFile({ loading: true, fileName: fileKey });
       if (fileUrl) {
-        // Use Cloudinary URL directly — persistent and doesn't expire
-        const isPdf = fileUrl.toLowerCase().includes('.pdf') || fileKey.toLowerCase().includes('.pdf');
-        setViewingFile({ blobUrl: fileUrl, contentType: isPdf ? 'application/pdf' : 'image', fileName: fileKey, isDirect: true });
-      } else {
-        // Fallback for legacy documents stored on local filesystem
-        const res = await fetchDocumentFile(fileKey);
-        const blobUrl = URL.createObjectURL(res.data);
-        const contentType = res.data.type || '';
-        setViewingFile({ blobUrl, contentType, fileName: fileKey, isDirect: false });
+        const ext = extFromName(fileUrl) || extFromName(fileKey);
+        const contentType = isPdfExt(ext) ? 'application/pdf' : `image/${ext || 'jpeg'}`;
+        setViewingFile({ blobUrl: fileUrl, contentType, fileName: fileKey, isDirect: true });
+        return;
       }
+      const res = await fetchDocumentFile(fileKey);
+      const headerType = (res.headers?.['content-type'] || '').split(';')[0].trim();
+      const ext = extFromName(fileKey);
+      const contentType = headerType || res.data.type || (isPdfExt(ext) ? 'application/pdf' : 'image/jpeg');
+      const typedBlob = res.data.type ? res.data : new Blob([res.data], { type: contentType });
+      const blobUrl = URL.createObjectURL(typedBlob);
+      setViewingFile({ blobUrl, contentType, fileName: fileKey, isDirect: false });
     } catch {
+      setViewingFile(null);
       toast.error('Failed to load document');
     }
   };
@@ -869,9 +879,20 @@ const grossSalary = financialSummary?.grossSalary || d.baseSalary || 0;
       )}
 
       {viewingFile && (
-        <Modal title="Document viewer" onClose={() => { if (!viewingFile.isDirect) URL.revokeObjectURL(viewingFile.blobUrl); setViewingFile(null); }} width={700}>
+        <Modal
+          title="Document viewer"
+          onClose={() => {
+            if (viewingFile.blobUrl && !viewingFile.isDirect) URL.revokeObjectURL(viewingFile.blobUrl);
+            setViewingFile(null);
+          }}
+          width={700}
+        >
           <div style={{ textAlign: 'center' }}>
-            {viewingFile.contentType.includes('pdf') ? (
+            {viewingFile.loading || !viewingFile.blobUrl ? (
+              <div style={{ padding: 40 }}>
+                <LoadingSpinner />
+              </div>
+            ) : (viewingFile.contentType || '').includes('pdf') ? (
               <iframe
                 src={viewingFile.blobUrl}
                 title="Document"
@@ -884,14 +905,16 @@ const grossSalary = financialSummary?.grossSalary || d.baseSalary || 0;
                 style={{ maxWidth: '100%', maxHeight: '70vh', borderRadius: 8 }}
               />
             )}
-            <div style={{ marginTop: 12 }}>
-              <button
-                onClick={handleDownloadFile}
-                style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}
-              >
-                Download file
-              </button>
-            </div>
+            {!viewingFile.loading && viewingFile.blobUrl && (
+              <div style={{ marginTop: 12 }}>
+                <button
+                  onClick={handleDownloadFile}
+                  style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  Download file
+                </button>
+              </div>
+            )}
           </div>
         </Modal>
       )}
