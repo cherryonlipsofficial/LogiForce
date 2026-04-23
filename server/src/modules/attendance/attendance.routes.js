@@ -97,6 +97,7 @@ router.post('/upload', requirePermission('attendance.upload'), attendanceUpload.
 
   // Parse and validate file
   const { rows, stats } = await attendanceService.parseAttendanceFile(
+    req,
     req.file,
     mapping,
     clientId,
