@@ -138,8 +138,6 @@ router.get('/uploads/:fileKey', async (req, res) => {
       return sendError(res, 'File not found', 404);
     }
     const name = doc.originalName || doc.fileKey || 'file';
-    // Strip characters that would break the Content-Disposition quoted filename,
-    // then add an RFC 5987 filename* with full UTF-8 support.
     const asciiName = name.replace(/[\\"\r\n]/g, '_');
     const encodedName = encodeURIComponent(name);
     res.set('Content-Type', doc.contentType || 'application/octet-stream');
@@ -147,7 +145,11 @@ router.get('/uploads/:fileKey', async (req, res) => {
       'Content-Disposition',
       `inline; filename="${asciiName}"; filename*=UTF-8''${encodedName}`
     );
-    res.set('Cache-Control', 'private, max-age=300');
+    // Disable conditional-GET: Express auto-generates an ETag for res.send(Buffer),
+    // and a 304 response carries no body, which makes axios reject (or return an
+    // empty blob) and leaves the viewer stuck. Force fresh 200 responses.
+    res.removeHeader('ETag');
+    res.set('Cache-Control', 'no-store');
     res.send(doc.fileData);
   } catch (err) {
     sendError(res, err.message || 'Failed to retrieve file', 500);

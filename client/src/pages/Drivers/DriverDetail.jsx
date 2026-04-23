@@ -113,6 +113,11 @@ const DriverDetail = ({ driver, onClose }) => {
       // stores docs without a contentType and returns application/octet-stream,
       // which with nosniff makes browsers refuse to render the image.
       const contentType = typeFromExt(ext);
+      // res.data is an ArrayBuffer; reject empty bodies (e.g. mishandled 304)
+      // up front so the user sees a real error instead of a blank preview.
+      if (!res.data || !res.data.byteLength) {
+        throw new Error('Empty document body');
+      }
       const typedBlob = new Blob([res.data], { type: contentType });
       const blobUrl = URL.createObjectURL(typedBlob);
       setViewingFile({
