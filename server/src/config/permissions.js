@@ -62,7 +62,6 @@ module.exports = {
     // ── ATTENDANCE ──
     'attendance.view':         { label: 'View attendance',         module: 'Attendance', description: 'See attendance batches and records' },
     'attendance.upload':       { label: 'Upload attendance',       module: 'Attendance', description: 'Upload CSV/Excel attendance files' },
-    'attendance.approve':      { label: 'Approve attendance (legacy)', module: 'Attendance', description: '@deprecated — use attendance.approve_sales / attendance.approve_ops instead' },
     'attendance.approve_sales': { label: 'Approve attendance (sales)', module: 'Attendance', description: 'Sales team attendance approval' },
     'attendance.approve_ops':  { label: 'Approve attendance (ops)', module: 'Attendance', description: 'Operations team attendance approval' },
     'attendance.reject':       { label: 'Reject attendance',       module: 'Attendance', description: 'Reject attendance batches' },

@@ -17,13 +17,13 @@ async function migrate() {
       'notifications.view',
     ],
     sales: [
-      'attendance.view', 'attendance.approve', 'attendance.dispute',
+      'attendance.view', 'attendance.dispute',
       'invoices.view', 'invoices.download',
       'salary.view', 'advances.view', 'advances.request',
       'notifications.view',
     ],
     ops: [
-      'attendance.view', 'attendance.approve', 'attendance.dispute',
+      'attendance.view', 'attendance.dispute',
       'attendance.override', 'invoices.view', 'invoices.download',
       'salary.view', 'advances.view', 'advances.request',
       'notifications.view',
@@ -38,8 +38,8 @@ async function migrate() {
     ],
   };
 
-  // Remove old permission keys that were renamed
-  const removals = ['advances.issue', 'advances.recover'];
+  // Remove old permission keys that were renamed or deprecated
+  const removals = ['advances.issue', 'advances.recover', 'attendance.approve'];
 
   for (const [roleName, newPerms] of Object.entries(additions)) {
     // First remove old keys, then add new ones
@@ -59,6 +59,18 @@ async function migrate() {
       console.log(`${roleName}: permissions updated to ${result.permissions?.length} total`);
     } else {
       console.log(`${roleName}: role not found — skipping`);
+    }
+  }
+
+  // Drop deprecated keys from ALL roles (including custom ones)
+  const deprecatedKeys = ['attendance.approve'];
+  for (const key of deprecatedKeys) {
+    const result = await db.collection('roles').updateMany(
+      { permissions: key },
+      { $pull: { permissions: key } }
+    );
+    if (result.modifiedCount > 0) {
+      console.log(`Removed deprecated ${key} from ${result.modifiedCount} role(s)`);
     }
   }
 
