@@ -206,6 +206,9 @@ const grossSalary = financialSummary?.grossSalary || d.baseSalary || 0;
       fileUrl: uploaded?.fileUrl || null,
       uploadStatus: uploaded?.status || null,
       hasFile: !!uploaded?.fileKey,
+      uploadedByName: uploaded?.uploadedByName || null,
+      uploadedByRole: uploaded?.uploadedByRole || null,
+      uploadedAt: uploaded?.uploadedAt || uploaded?.updatedAt || uploaded?.createdAt || null,
     };
   });
 
@@ -654,6 +657,13 @@ const grossSalary = financialSummary?.grossSalary || d.baseSalary || 0;
                       <div style={{ fontSize: 11, color: 'var(--text3)' }}>
                         {doc.expiry ? `Expires ${formatDate(doc.expiry)}` : 'No expiry set'}
                       </div>
+                      {doc.hasFile && doc.uploadedByName && (
+                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                          Uploaded by <span style={{ color: 'var(--text2)', fontWeight: 500 }}>{doc.uploadedByName}</span>
+                          {doc.uploadedByRole ? ` (${doc.uploadedByRole})` : ''}
+                          {doc.uploadedAt ? ` on ${formatDate(doc.uploadedAt)}` : ''}
+                        </div>
+                      )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Badge variant={badgeVariant}>{statusLabel}</Badge>

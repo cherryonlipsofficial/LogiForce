@@ -50,6 +50,7 @@ import StatementOfAccounts from './pages/StatementOfAccounts/StatementOfAccounts
 import SimCards from './pages/SimCards/SimCards';
 import DriverClearance from './pages/DriverClearance/DriverClearance';
 import DriverVisas from './pages/DriverVisas/DriverVisas';
+import ActivityLog from './pages/ActivityLog';
 import NotFound from './pages/NotFound';
 
 const queryClient = new QueryClient();
@@ -112,6 +113,7 @@ const RouterContent = () => (
         <Route path="/guarantee-extensions" element={<ProtectedPage permission="roles.manage"><GuaranteeExtensions /></ProtectedPage>} />
         <Route path="/guarantee-passports" element={<ProtectedPage permission="guarantee_passports.view"><GuaranteePassports /></ProtectedPage>} />
         <Route path="/expired-documents" element={<ProtectedPage permission="expired_documents.view"><ExpiredDocuments /></ProtectedPage>} />
+        <Route path="/activity-log" element={<ProtectedPage permission="activity_log.view"><ActivityLog /></ProtectedPage>} />
         <Route path="/profile" element={<ProtectedPage><ProfilePage /></ProtectedPage>} />
         <Route path="/notifications" element={<ProtectedPage><NotificationsPage /></ProtectedPage>} />
         <Route path="*" element={<NotFound />} />
