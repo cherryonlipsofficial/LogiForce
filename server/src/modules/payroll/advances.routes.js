@@ -140,6 +140,7 @@ router.post('/driver', requirePermission('advances.request'), async (req, res) =
   }
 
   const advance = await requestAdvance(
+    req,
     { driverId, projectId, clientId, amount, reason },
     req.user._id
   );
@@ -220,6 +221,7 @@ router.put('/driver/:id/review', requirePermission('advances.approve'), async (r
   }
 
   const advance = await reviewAdvance(
+    req,
     req.params.id,
     decision,
     { reviewNotes, recoverySchedule },

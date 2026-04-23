@@ -20,7 +20,7 @@ const submitOwnPassport = async (req, driverId, userId) => {
   driver.activeGuaranteePassportId = null;
   await driver.save();
 
-  await logEvent(driverId, 'field_updated', {
+  await logEvent(req, driverId, 'field_updated', {
     description: 'Passport submission confirmed (own passport)',
     fieldName: 'isPassportSubmitted',
   }, userId);
@@ -72,7 +72,7 @@ const recordGuaranteePassport = async (req, driverId, data, userId) => {
   await driver.save();
 
   const expiryFormatted = guarantee.expiryDate.toLocaleDateString('en-GB');
-  await logEvent(driverId, 'field_updated', {
+  await logEvent(req, driverId, 'field_updated', {
     description: `Guarantee passport recorded — Guarantor: ${data.guarantorName} (${data.guarantorRelation}), Valid until: ${expiryFormatted}`,
     fieldName: 'isPassportSubmitted',
     metadata: { guaranteeId: guarantee._id },
@@ -127,7 +127,7 @@ const requestExtension = async (req, guaranteeId, data, userId) => {
   };
   await guarantee.save();
 
-  await logEvent(guarantee.driverId, 'field_updated', {
+  await logEvent(req, guarantee.driverId, 'field_updated', {
     description: `Guarantee passport extension requested — ${requestedDays} extra days. Reason: ${data.reason}`,
     fieldName: 'guaranteePassportValid',
     metadata: { guaranteeId: guarantee._id },
@@ -166,7 +166,7 @@ const reviewExtension = async (req, guaranteeId, decision, reviewNotes, adminUse
     }
 
     const expiryFormatted = guarantee.extensionRequest.newExpiryDate.toLocaleDateString('en-GB');
-    await logEvent(guarantee.driverId, 'field_updated', {
+    await logEvent(req, guarantee.driverId, 'field_updated', {
       description: `Guarantee passport extension APPROVED by admin — New expiry: ${expiryFormatted}`,
       fieldName: 'guaranteePassportValid',
       metadata: { guaranteeId: guarantee._id },
@@ -178,7 +178,7 @@ const reviewExtension = async (req, guaranteeId, decision, reviewNotes, adminUse
     guarantee.extensionRequest.reviewedAt = new Date();
     guarantee.extensionRequest.reviewNotes = reviewNotes;
 
-    await logEvent(guarantee.driverId, 'field_updated', {
+    await logEvent(req, guarantee.driverId, 'field_updated', {
       description: `Guarantee passport extension REJECTED by admin. Reason: ${reviewNotes}`,
       fieldName: 'guaranteePassportValid',
       metadata: { guaranteeId: guarantee._id },
@@ -217,7 +217,7 @@ const returnGuarantee = async (req, guaranteeId, notes, userId) => {
     await driver.save();
   }
 
-  await logEvent(guarantee.driverId, 'field_updated', {
+  await logEvent(req, guarantee.driverId, 'field_updated', {
     description: 'Guarantee passport returned to guarantor',
     fieldName: 'isPassportSubmitted',
     metadata: { guaranteeId: guarantee._id },
@@ -250,7 +250,7 @@ const runExpiryCheck = async (req) => {
       guaranteePassportValid: false,
     });
 
-    await logEvent(guarantee.driverId, 'field_updated', {
+    await logEvent(req, guarantee.driverId, 'field_updated', {
       description: `Guarantee passport EXPIRED — Guarantor: ${guarantee.guarantorName}. Driver may need new passport or guarantee.`,
       fieldName: 'guaranteePassportValid',
       oldValue: 'true',

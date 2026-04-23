@@ -15,6 +15,7 @@ router.post(
   requirePermission('drivers.manage_passport'),
   async (req, res) => {
     const driver = await guaranteePassportService.submitOwnPassport(
+      req,
       req.params.driverId,
       req.user._id
     );
@@ -39,6 +40,7 @@ router.post(
     }
 
     const result = await guaranteePassportService.recordGuaranteePassport(
+      req,
       req.params.driverId,
       req.body,
       req.user._id
@@ -71,7 +73,7 @@ router.get(
   '/drivers/:driverId/passport/guarantee/history',
   requirePermission('drivers.view'),
   async (req, res) => {
-    const history = await guaranteePassportService.getGuaranteeHistory(req.params.driverId);
+    const history = await guaranteePassportService.getGuaranteeHistory(req, req.params.driverId);
     sendSuccess(res, history);
   }
 );
@@ -159,7 +161,7 @@ router.post(
   '/guarantee-passports/run-expiry-check',
   requirePermission('roles.manage'),
   async (req, res) => {
-    const result = await guaranteePassportService.runExpiryCheck();
+    const result = await guaranteePassportService.runExpiryCheck(req);
     sendSuccess(res, result, 'Expiry check completed');
   }
 );
@@ -179,6 +181,7 @@ router.post(
     }
 
     const guarantee = await guaranteePassportService.requestExtension(
+      req,
       req.params.id,
       req.body,
       req.user._id
@@ -202,6 +205,7 @@ router.put(
     }
 
     const guarantee = await guaranteePassportService.reviewExtension(
+      req,
       req.params.id,
       decision,
       reviewNotes,
@@ -217,6 +221,7 @@ router.post(
   requirePermission('drivers.manage_passport'),
   async (req, res) => {
     const result = await guaranteePassportService.returnGuarantee(
+      req,
       req.params.id,
       req.body.notes,
       req.user._id

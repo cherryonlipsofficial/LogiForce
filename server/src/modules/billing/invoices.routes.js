@@ -53,6 +53,7 @@ router.post('/generate', requirePermission('invoices.generate'), validate(genera
   const { clientId, year, month, projectId, attendanceBatchIds } = req.body;
 
   const invoice = await invoiceService.generateInvoice(
+    req,
     clientId,
     parseInt(year),
     parseInt(month),
@@ -168,6 +169,7 @@ router.put('/:id/payment', requirePermission('invoices.edit'), async (req, res) 
 
   const creditNoteService = require('./creditNote.service');
   const invoice = await creditNoteService.recordInvoicePayment(
+    req,
     req.params.id,
     { amountReceived: parseFloat(amountReceived), paymentReference, paymentDate },
     req.user._id
