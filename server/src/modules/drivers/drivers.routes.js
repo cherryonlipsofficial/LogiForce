@@ -12,7 +12,7 @@ const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseH
 const validate = require('../../middleware/validate');
 const { createDriverValidation, updateDriverValidation, changeStatusValidation } = require('./driver.validators');
 const auditLogger = require('../../utils/auditLogger');
-const { evaluateAndTransition, checkKycDocsValid, REQUIRED_KYC_DOCS } = require('./driverStatusEngine.service');
+const { evaluateAndTransition, REQUIRED_KYC_DOCS } = require('./driverStatusEngine.service');
 const { logEvent } = require('./driverHistory.service');
 
 // All routes are protected
@@ -124,35 +124,54 @@ router.get('/expired-documents', requirePermission('expired_documents.view'), as
       }
     }
 
-    // 3) Drivers force-activated by an admin who still have pending mandatory
-    //    KYC documents. Surface each outstanding required doc as its own row
-    //    with `issue: 'missing'` so compliance can chase them down from the
-    //    same screen.
+    // 3) Drivers with missing mandatory KYC documents. Surface each outstanding
+    //    required doc as its own row with `issue: 'not_uploaded'` so compliance
+    //    can chase them down from the same screen.
+    //
+    //    Expired docs on the Driver model are already caught by block 1, so
+    //    here we only flag documents that are completely absent (or rejected)
+    //    from the DriverDocument collection.
     if (docType === 'all' || REQUIRED_KYC_DOCS.includes(docType)) {
-      const forceActivated = await Driver.find({
-        isForceActivated: true,
+      const DriverDocument = getModel(req, 'DriverDocument');
+      const relevantDocTypes = docType === 'all'
+        ? REQUIRED_KYC_DOCS
+        : REQUIRED_KYC_DOCS.filter((t) => t === docType);
+
+      const drivers = await Driver.find({
         status: { $nin: ['offboarded', 'resigned'] },
       })
-        .select('fullName employeeCode status clientId projectId forceActivatedAt forceActivationReason')
+        .select('fullName employeeCode status clientId projectId isForceActivated forceActivatedAt forceActivationReason createdAt')
         .populate('clientId', 'name')
         .populate('projectId', 'name')
         .lean();
 
-      for (const d of forceActivated) {
-        const kycValid = await checkKycDocsValid(req, d._id);
-        if (kycValid.valid) continue;
+      const driverIds = drivers.map((d) => d._id);
+      const uploadedDocs = await DriverDocument.find({
+        driverId: { $in: driverIds },
+        docType: { $in: relevantDocTypes },
+        status: { $ne: 'rejected' },
+      })
+        .select('driverId docType')
+        .lean();
 
-        // Only surface not-uploaded docs here; expired docs on these drivers
-        // are already caught by the Driver-model expiry block above.
-        const notUploaded = kycValid.issues.filter((iss) => iss.issue === 'not_uploaded');
-        const relevant = docType === 'all'
-          ? notUploaded
-          : notUploaded.filter((iss) => iss.docType === docType);
+      const uploadedByDriver = new Map();
+      for (const doc of uploadedDocs) {
+        const key = String(doc.driverId);
+        if (!uploadedByDriver.has(key)) uploadedByDriver.set(key, new Set());
+        uploadedByDriver.get(key).add(doc.docType);
+      }
 
-        for (const issue of relevant) {
-          const daysSinceActivation = d.forceActivatedAt
-            ? Math.ceil((now - new Date(d.forceActivatedAt)) / (1000 * 60 * 60 * 24))
-            : null;
+      for (const d of drivers) {
+        const uploaded = uploadedByDriver.get(String(d._id)) || new Set();
+        const missing = relevantDocTypes.filter((t) => !uploaded.has(t));
+        if (missing.length === 0) continue;
+
+        const referenceDate = d.forceActivatedAt || d.createdAt;
+        const daysOverdue = referenceDate
+          ? Math.ceil((now - new Date(referenceDate)) / (1000 * 60 * 60 * 24))
+          : null;
+
+        for (const missingType of missing) {
           results.push({
             driverId: d._id,
             driverName: d.fullName,
@@ -160,11 +179,11 @@ router.get('/expired-documents', requirePermission('expired_documents.view'), as
             driverStatus: d.status,
             clientName: d.clientId?.name || null,
             projectName: d.projectId?.name || null,
-            docType: issue.docType,
+            docType: missingType,
             issue: 'not_uploaded',
             expiryDate: null,
-            daysOverdue: daysSinceActivation,
-            isForceActivated: true,
+            daysOverdue,
+            isForceActivated: !!d.isForceActivated,
             forceActivatedAt: d.forceActivatedAt || null,
             forceActivationReason: d.forceActivationReason || null,
           });
