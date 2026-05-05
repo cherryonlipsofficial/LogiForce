@@ -21,7 +21,7 @@ export const verifyResetToken = (token) =>
 export const resetPassword = (token, password) =>
   axiosInstance.post('/auth/reset-password', { token, password }).then(r => r.data);
 
-// ─── OTP-based flows (no SMTP setup needed on the server side) ──────────────
+// ─── OTP-based flows ────────────────────────────────────────────────────────
 
 export const registerWithOtp = ({ name, email, password }) =>
   axiosInstance.post('/auth/register-with-otp', { name, email, password }).then(r => r.data);

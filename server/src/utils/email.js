@@ -1,98 +1,57 @@
-const nodemailer = require('nodemailer');
 const logger = require('./logger');
 
-// Two-track email delivery:
-//   1. RESEND_API_KEY  → use Resend's HTTP API. No SMTP host/port to configure;
-//                        the default sender "onboarding@resend.dev" works
-//                        without a verified domain. This is the recommended
-//                        zero-setup path.
-//   2. SMTP_HOST + …   → fall back to nodemailer + SMTP if a full set of SMTP
-//                        env vars is provided (legacy / self-hosted).
+// Email delivery uses Resend (https://resend.com) — an HTTP API. There is no
+// SMTP server to point at: just set RESEND_API_KEY and the app sends mail.
+// The default sender "onboarding@resend.dev" works on the free tier without
+// any domain verification, so password-reset and OTP emails work out of
+// the box. Override the sender by setting EMAIL_FROM once you've verified
+// your own domain.
 
 let resendClient = null;
-let smtpTransporter = null;
 let providerError = null;
 
-const buildResendClient = () => {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) return null;
-  // Lazy-load so apps without the dep installed still boot.
-  const { Resend } = require('resend');
-  const client = new Resend(apiKey);
-  logger.info('Email provider: Resend (HTTP API)');
-  return client;
-};
-
-const buildSmtpTransporter = () => {
-  const host = process.env.SMTP_HOST;
-  const port = parseInt(process.env.SMTP_PORT, 10);
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-
-  if (!host || !port || !user || !pass) return null;
-
-  // port 465 → implicit TLS; 587/25 → STARTTLS
-  const secure = port === 465;
-  const t = nodemailer.createTransport({ host, port, secure, auth: { user, pass } });
-  t.verify().then(
-    () => logger.info(`Email provider: SMTP (${host}:${port})`),
-    (err) => logger.error('SMTP verify failed', { error: err.message }),
-  );
-  return t;
-};
-
 const initProvider = () => {
-  if (resendClient || smtpTransporter) return;
-
-  resendClient = buildResendClient();
   if (resendClient) return;
 
-  smtpTransporter = buildSmtpTransporter();
-  if (smtpTransporter) return;
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    providerError = 'Email service is not configured. Set RESEND_API_KEY (https://resend.com).';
+    logger.warn(providerError);
+    return;
+  }
 
-  providerError =
-    'Email service is not configured. Set RESEND_API_KEY (recommended — no SMTP setup needed) ' +
-    'or the full SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS set.';
-  logger.warn(providerError);
+  // Lazy-load so apps that haven't installed the dep can still boot.
+  const { Resend } = require('resend');
+  resendClient = new Resend(apiKey);
+  providerError = null;
+  logger.info('Email provider: Resend (HTTP API)');
 };
 
 const isEmailConfigured = () => {
   initProvider();
-  return Boolean(resendClient || smtpTransporter);
+  return Boolean(resendClient);
 };
 
-const defaultFromAddress = () => {
-  if (process.env.EMAIL_FROM) return process.env.EMAIL_FROM;
-  if (process.env.SMTP_FROM) return process.env.SMTP_FROM;
-  // Resend lets unverified accounts use this sender for free.
-  if (resendClient) return 'LogiForce <onboarding@resend.dev>';
-  return `LogiForce <${process.env.SMTP_USER || 'no-reply@logiforce.app'}>`;
-};
+const defaultFromAddress = () =>
+  process.env.EMAIL_FROM || 'LogiForce <onboarding@resend.dev>';
 
 /**
  * Send an email. Throws on failure so callers can roll back any state they
- * persisted in anticipation of the email going out (e.g. reset tokens, OTPs).
+ * persisted in anticipation of the email going out (reset tokens, OTPs).
  */
 const sendMail = async ({ to, subject, html, text }) => {
   initProvider();
-  if (!resendClient && !smtpTransporter) {
+  if (!resendClient) {
     throw new Error(providerError || 'Email service is not configured');
   }
 
   const from = defaultFromAddress();
-
-  if (resendClient) {
-    const { data, error } = await resendClient.emails.send({ from, to, subject, html, text });
-    if (error) {
-      throw new Error(error.message || 'Resend rejected the email');
-    }
-    logger.info('Email sent via Resend', { to, subject, id: data?.id });
-    return data;
+  const { data, error } = await resendClient.emails.send({ from, to, subject, html, text });
+  if (error) {
+    throw new Error(error.message || 'Resend rejected the email');
   }
-
-  const info = await smtpTransporter.sendMail({ from, to, subject, html, text });
-  logger.info('Email sent via SMTP', { to, subject, messageId: info.messageId });
-  return info;
+  logger.info('Email sent', { to, subject, id: data?.id });
+  return data;
 };
 
 const escapeHtml = (s = '') =>
@@ -103,7 +62,7 @@ const escapeHtml = (s = '') =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-// Shared inline-styled wrapper. Inlined CSS because most email clients still
+// Shared inline-styled wrapper. CSS is inlined because most email clients
 // strip <style> blocks.
 const renderShell = ({ tenant, heading, bodyHtml }) => `
 <!doctype html>
@@ -172,9 +131,9 @@ const sendOtpEmail = async ({ to, name, code, purpose, tenantName, expiresMinute
   const minutes = expiresMinutes || 10;
 
   const purposeCopy = {
-    verify_email:    { subject: `Verify your ${tenant} email`,    heading: 'Verify your email',    intro: 'Use the code below to verify your email address and activate your account.' },
-    login:           { subject: `Your ${tenant} sign-in code`,    heading: 'Sign in to your account', intro: 'Use the code below to sign in.' },
-    password_reset:  { subject: `Your ${tenant} password reset code`, heading: 'Reset your password', intro: 'Use the code below to choose a new password.' },
+    verify_email:    { subject: `Verify your ${tenant} email`,        heading: 'Verify your email',       intro: 'Use the code below to verify your email address and activate your account.' },
+    login:           { subject: `Your ${tenant} sign-in code`,        heading: 'Sign in to your account', intro: 'Use the code below to sign in.' },
+    password_reset:  { subject: `Your ${tenant} password reset code`, heading: 'Reset your password',     intro: 'Use the code below to choose a new password.' },
   };
   const copy = purposeCopy[purpose] || purposeCopy.verify_email;
 

@@ -322,7 +322,7 @@ router.post('/forgot-password', passwordResetLimiter, async (req, res) => {
   if (!email) return genericResponse();
 
   if (!isEmailConfigured()) {
-    logger.warn('forgot-password called but SMTP is not configured');
+    logger.warn('forgot-password called but no email provider is configured');
     // Don't expose configuration state to anonymous callers — respond generically.
     return genericResponse();
   }
@@ -411,9 +411,9 @@ router.post('/reset-password', passwordResetLimiter, async (req, res) => {
 });
 
 // ─── OTP-based flows ────────────────────────────────────────────────────────
-// These work without any SMTP setup as long as RESEND_API_KEY is configured
-// (or, if you must, full SMTP_* vars). Resend's "onboarding@resend.dev"
-// sender works on the free tier with no domain verification.
+// Email is delivered through Resend's HTTP API — set RESEND_API_KEY and
+// the app sends mail. The default "onboarding@resend.dev" sender works on
+// the free tier with no domain verification, so this works out of the box.
 
 // 5 OTP-related requests per 15 minutes per IP — covers send + verify + resend
 const otpLimiter = rateLimit({
@@ -472,7 +472,7 @@ router.post('/register-with-otp', otpLimiter, async (req, res) => {
   if (!isEmailConfigured()) {
     return sendError(
       res,
-      'Email service is not configured on the server. Set RESEND_API_KEY (recommended) or SMTP_* env vars.',
+      'Email service is not configured on the server. Set RESEND_API_KEY to enable email delivery.',
       503,
     );
   }
