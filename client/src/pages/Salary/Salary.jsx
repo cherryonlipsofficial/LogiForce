@@ -450,7 +450,7 @@ const RunDetail = ({ run, onClose }) => {
                 return (
                   <div key={ded.referenceId || `${ded.type}-${dedIdx}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12, gap: 8 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ color: 'var(--text)' }}>{ded.description || ded.type?.replace(/_/g, ' ')}</div>
+                      <div style={{ color: 'var(--text)', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{ded.description || ded.type?.replace(/_/g, ' ')}</div>
                       {ded.type === 'vehicle_rental' && run.vehiclePlate && (
                         <div
                           onClick={() => navigate(`/vehicles?plate=${encodeURIComponent(run.vehiclePlate)}`)}
