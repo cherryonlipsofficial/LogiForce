@@ -13,7 +13,7 @@ import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
 import ProjectSelect from '../../components/ui/ProjectSelect';
 import { useNavigate } from 'react-router-dom';
-import { getRuns, runPayroll, getWpsFile, getPayslipPdf, getRun, addDeduction, deleteRun, markAsPaid, disputeRun, approveByOps, approveByCompliance, approveByAccounts, processRun, bulkApproveByOps, bulkApproveByCompliance, bulkApproveByAccounts, bulkProcess, bulkMarkAsPaid } from '../../api/salaryApi';
+import { getRuns, runPayroll, getWpsFile, getPayslipPdf, getRun, addDeduction, removeCreditNoteDeduction, deleteRun, markAsPaid, disputeRun, approveByOps, approveByCompliance, approveByAccounts, processRun, bulkApproveByOps, bulkApproveByCompliance, bulkApproveByAccounts, bulkProcess, bulkMarkAsPaid } from '../../api/salaryApi';
 import { formatDate } from '../../utils/formatters';
 import { useFormatters } from '../../hooks/useFormatters';
 import Pagination from '../../components/ui/Pagination';
@@ -186,6 +186,7 @@ const RunDetail = ({ run, onClose }) => {
   const [dedType, setDedType] = useState('telecom_sim');
   const [dedAmount, setDedAmount] = useState('');
   const [dedDesc, setDedDesc] = useState('');
+  const [removingCnRef, setRemovingCnRef] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showDisputeForm, setShowDisputeForm] = useState(false);
   const [disputeReason, setDisputeReason] = useState('');
@@ -224,6 +225,27 @@ const RunDetail = ({ run, onClose }) => {
       setDedDesc('');
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to add deduction'),
+  });
+
+  const { mutate: removeCnDeduction, isPending: removingCnDeduction } = useMutation({
+    mutationFn: (referenceId) => removeCreditNoteDeduction(run._id, referenceId),
+    onSuccess: (res) => {
+      const data = res?.data || {};
+      if (data.movedToRunId) {
+        toast.success(`Credit note moved to ${data.movedToRunId}`);
+      } else if (data.pendingNext) {
+        toast.success('Credit note removed — will apply on next payroll run');
+      } else {
+        toast.success('Credit note deduction removed');
+      }
+      qc.invalidateQueries(['salary-runs']);
+      qc.invalidateQueries(['salary-run-detail', run._id]);
+      setRemovingCnRef(null);
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.message || 'Failed to remove credit note deduction');
+      setRemovingCnRef(null);
+    },
   });
 
   const { mutate: removeRun, isPending: deleting } = useMutation({
@@ -419,24 +441,93 @@ const RunDetail = ({ run, onClose }) => {
           <SectionHeader color="#f87171">Deductions</SectionHeader>
           {(detail.deductions && detail.deductions.length > 0) ? (
             <>
-              {detail.deductions.filter(d => d.amount > 0).map((ded) => (
-                <div key={ded.type || ded.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
-                  <div>
-                    <div style={{ color: 'var(--text)' }}>{ded.description || ded.type?.replace(/_/g, ' ')}</div>
-                    {ded.type === 'vehicle_rental' && run.vehiclePlate && (
-                      <div
-                        onClick={() => navigate(`/vehicles?plate=${encodeURIComponent(run.vehiclePlate)}`)}
-                        style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text3)', marginTop: 2, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}
-                      >
-                        {run.vehiclePlate} <span style={{ fontSize: 9 }}>&#8599;</span>
-                      </div>
-                    )}
+              {detail.deductions.filter(d => d.amount > 0).map((ded, dedIdx) => {
+                const cnEditable = ded.type === 'credit_note'
+                  && ded.referenceId
+                  && ['draft', 'ops_approved', 'compliance_approved'].includes(currentStatus)
+                  && hasPermission('salary.manage_deductions');
+                const isConfirming = cnEditable && removingCnRef === ded.referenceId;
+                return (
+                  <div key={ded.referenceId || `${ded.type}-${dedIdx}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12, gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: 'var(--text)' }}>{ded.description || ded.type?.replace(/_/g, ' ')}</div>
+                      {ded.type === 'vehicle_rental' && run.vehiclePlate && (
+                        <div
+                          onClick={() => navigate(`/vehicles?plate=${encodeURIComponent(run.vehiclePlate)}`)}
+                          style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text3)', marginTop: 2, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                        >
+                          {run.vehiclePlate} <span style={{ fontSize: 9 }}>&#8599;</span>
+                        </div>
+                      )}
+                      {isConfirming && (
+                        <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>
+                          This credit note will be moved to the next month's payroll (or auto-applied when the next run is created).
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#f87171' }}>
+                        {formatCurrencyFull(ded.amount)}
+                      </span>
+                      {cnEditable && !isConfirming && (
+                        <button
+                          type="button"
+                          onClick={() => setRemovingCnRef(ded.referenceId)}
+                          title="Remove this credit note from the current payroll and defer to next month"
+                          style={{
+                            background: 'transparent',
+                            border: '1px solid var(--border2)',
+                            color: 'var(--text3)',
+                            borderRadius: 6,
+                            padding: '2px 6px',
+                            fontSize: 11,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Remove
+                        </button>
+                      )}
+                      {isConfirming && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => removeCnDeduction(ded.referenceId)}
+                            disabled={removingCnDeduction}
+                            style={{
+                              background: 'rgba(248,113,113,0.15)',
+                              border: '1px solid rgba(248,113,113,0.4)',
+                              color: '#f87171',
+                              borderRadius: 6,
+                              padding: '2px 8px',
+                              fontSize: 11,
+                              cursor: removingCnDeduction ? 'not-allowed' : 'pointer',
+                              fontWeight: 500,
+                            }}
+                          >
+                            {removingCnDeduction ? 'Removing...' : 'Confirm'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRemovingCnRef(null)}
+                            disabled={removingCnDeduction}
+                            style={{
+                              background: 'transparent',
+                              border: '1px solid var(--border2)',
+                              color: 'var(--text3)',
+                              borderRadius: 6,
+                              padding: '2px 8px',
+                              fontSize: 11,
+                              cursor: removingCnDeduction ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#f87171' }}>
-                    {formatCurrencyFull(ded.amount)}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
               <BreakdownRow label="Total Deductions" value={formatCurrencyFull(detail.totalDeductions)} bold color="#f87171" />
             </>
           ) : (

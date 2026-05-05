@@ -6,7 +6,7 @@ const { getModel } = require('../../config/modelRegistry');
 const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseHelper');
 const { PAGINATION } = require('../../config/constants');
 const validate = require('../../middleware/validate');
-const { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation, manualDeductionValidation, approvalRemarksValidation, bulkApprovalValidation } = require('./salary.validators');
+const { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation, manualDeductionValidation, removeCreditNoteDeductionValidation, approvalRemarksValidation, bulkApprovalValidation } = require('./salary.validators');
 const auditLogger = require('../../utils/auditLogger');
 const { generatePayslipPDF } = require('../../utils/pdfGenerator');
 
@@ -332,6 +332,40 @@ router.put('/runs/:id/adjust', requirePermission('salary.adjust'), validate(adju
 
   await run.save();
   sendSuccess(res, run, 'Salary run adjusted');
+});
+
+// DELETE /api/salary/runs/:id/credit-note-deduction — remove a CN deduction
+// from this run and push it to the next month's payroll. Body: { referenceId }.
+router.delete('/runs/:id/credit-note-deduction', requirePermission('salary.manage_deductions'), validate(removeCreditNoteDeductionValidation), async (req, res) => {
+  const { referenceId } = req.body;
+
+  const result = await salaryService.removeCreditNoteDeduction(
+    req,
+    req.params.id,
+    referenceId,
+    req.user._id
+  );
+
+  await auditLogger.logChange(
+    'SalaryRun',
+    req.params.id,
+    'credit_note_deduction_removed',
+    referenceId,
+    result.movedToRunId
+      ? `Moved to ${result.movedToRunId}`
+      : (result.pendingNext ? 'Pending next salary run' : 'Removed'),
+    req.user._id,
+    'credit_note_deduction_removal'
+  );
+
+  let message = 'Credit note deduction removed';
+  if (result.movedToRunId) {
+    message += ` and moved to ${result.movedToRunId}`;
+  } else if (result.pendingNext) {
+    message += ' — will be auto-applied in the next payroll run';
+  }
+
+  sendSuccess(res, result, message);
 });
 
 // POST /api/salary/runs/:id/deduction — manually add a typed deduction (role-gated)
