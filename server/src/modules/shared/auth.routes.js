@@ -411,9 +411,11 @@ router.post('/reset-password', passwordResetLimiter, async (req, res) => {
 });
 
 // ─── OTP-based flows ────────────────────────────────────────────────────────
-// Email is delivered through Resend's HTTP API — set RESEND_API_KEY and
-// the app sends mail. The default "onboarding@resend.dev" sender works on
-// the free tier with no domain verification, so this works out of the box.
+// Email is delivered through Resend's HTTP API — set RESEND_API_KEY and the
+// app sends mail. The shared "onboarding@resend.dev" sender only delivers to
+// the account owner's email; to send to any other recipient verify a domain
+// at resend.com/domains and set EMAIL_FROM. For local dev without a domain,
+// set EMAIL_DEV_LOG=true to log emails (and OTP codes) to the server console.
 
 // 5 OTP-related requests per 15 minutes per IP — covers send + verify + resend
 const otpLimiter = rateLimit({
