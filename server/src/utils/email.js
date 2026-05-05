@@ -2,20 +2,30 @@ const logger = require('./logger');
 
 // Email delivery uses Resend (https://resend.com) — an HTTP API. There is no
 // SMTP server to point at: just set RESEND_API_KEY and the app sends mail.
-// The default sender "onboarding@resend.dev" works on the free tier without
-// any domain verification, so password-reset and OTP emails work out of
-// the box. Override the sender by setting EMAIL_FROM once you've verified
-// your own domain.
+//
+// IMPORTANT: the shared "onboarding@resend.dev" sender is restricted by Resend
+// to a single recipient — the email address that owns the API key. To send to
+// any other recipient you MUST verify your own domain at resend.com/domains
+// and set EMAIL_FROM to an address on that domain.
+//
+// For local development without a verified domain, set EMAIL_DEV_LOG=true to
+// log emails (including OTP codes) to the server console instead of calling
+// Resend. This lets the registration / password-reset flows complete end to
+// end without sending real mail.
+
+const isDevLogMode = () =>
+  String(process.env.EMAIL_DEV_LOG || '').toLowerCase() === 'true';
 
 let resendClient = null;
 let providerError = null;
 
 const initProvider = () => {
   if (resendClient) return;
+  if (isDevLogMode()) return; // Dev-log mode bypasses Resend entirely.
 
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    providerError = 'Email service is not configured. Set RESEND_API_KEY (https://resend.com).';
+    providerError = 'Email service is not configured. Set RESEND_API_KEY (https://resend.com) or EMAIL_DEV_LOG=true for local development.';
     logger.warn(providerError);
     return;
   }
@@ -28,6 +38,7 @@ const initProvider = () => {
 };
 
 const isEmailConfigured = () => {
+  if (isDevLogMode()) return true;
   initProvider();
   return Boolean(resendClient);
 };
@@ -35,11 +46,26 @@ const isEmailConfigured = () => {
 const defaultFromAddress = () =>
   process.env.EMAIL_FROM || 'LogiForce <onboarding@resend.dev>';
 
+// Resend rejects sends to non-owner addresses when the API key has no verified
+// domain. The message is verbose; rewrite it to something actionable.
+const isResendTestingModeError = (msg = '') =>
+  /only send testing emails to your own email address/i.test(msg) ||
+  /verify a domain at resend\.com\/domains/i.test(msg);
+
 /**
  * Send an email. Throws on failure so callers can roll back any state they
  * persisted in anticipation of the email going out (reset tokens, OTPs).
  */
 const sendMail = async ({ to, subject, html, text }) => {
+  if (isDevLogMode()) {
+    logger.warn('EMAIL_DEV_LOG: email not sent — logged to console instead', {
+      to,
+      subject,
+      text,
+    });
+    return { id: 'dev-log', devLog: true };
+  }
+
   initProvider();
   if (!resendClient) {
     throw new Error(providerError || 'Email service is not configured');
@@ -48,7 +74,13 @@ const sendMail = async ({ to, subject, html, text }) => {
   const from = defaultFromAddress();
   const { data, error } = await resendClient.emails.send({ from, to, subject, html, text });
   if (error) {
-    throw new Error(error.message || 'Resend rejected the email');
+    const raw = error.message || 'Resend rejected the email';
+    if (isResendTestingModeError(raw)) {
+      throw new Error(
+        'Resend is in testing mode for this API key, so it can only send to the account owner. Verify a domain at resend.com/domains and set EMAIL_FROM to an address on that domain, or set EMAIL_DEV_LOG=true on the server to log emails to the console for local development.',
+      );
+    }
+    throw new Error(raw);
   }
   logger.info('Email sent', { to, subject, id: data?.id });
   return data;
