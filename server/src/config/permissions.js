@@ -82,6 +82,7 @@ module.exports = {
     'salary.view_payslip':     { label: 'View & download payslips', module: 'Salary',    description: 'Generate, view and download payslip PDFs' },
     'salary.delete':           { label: 'Delete salary runs',      module: 'Salary',     description: 'Delete salary runs in draft or approved status' },
     'salary.manage_deductions': { label: 'Manage deductions',      module: 'Salary',     description: 'Manually add or edit salary deductions (telecom, vehicle, salik, advance, penalty, carryover, visa cost, other)' },
+    'salary.remove_credit_note': { label: 'Remove credit note from salary', module: 'Salary', description: 'Remove a credit note deduction from a draft / pre-process salary run and defer it to the next month\'s payroll' },
     'salary.pay':              { label: 'Mark salary as paid',     module: 'Salary',     description: 'Mark approved salary runs as paid' },
     'salary.dispute':          { label: 'Dispute salary',          module: 'Salary',     description: 'Raise a dispute on a salary run' },
 

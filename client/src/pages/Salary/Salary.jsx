@@ -445,7 +445,7 @@ const RunDetail = ({ run, onClose }) => {
                 const cnEditable = ded.type === 'credit_note'
                   && ded.referenceId
                   && ['draft', 'ops_approved', 'compliance_approved'].includes(currentStatus)
-                  && hasPermission('salary.manage_deductions');
+                  && hasPermission('salary.remove_credit_note');
                 const isConfirming = cnEditable && removingCnRef === ded.referenceId;
                 return (
                   <div key={ded.referenceId || `${ded.type}-${dedIdx}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12, gap: 8 }}>
