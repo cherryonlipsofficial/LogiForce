@@ -216,6 +216,7 @@ const ProjectDetail = ({ project, onClose, onEdit, onDelete, hasPermission }) =>
           <InfoRow label="Client" value={project.clientId?.name} />
           <InfoRow label="Rate per driver" value={formatCurrencyFull(project.ratePerDriver)} />
           <InfoRow label="Rate basis" value={project.rateBasis?.replace('_', ' ')} />
+          <InfoRow label="OT rate" value={project.otRate ? `${formatCurrencyFull(project.otRate)} / ${(project.otRateBasis || 'per_hour').replace('per_', '')}` : '—'} />
           <InfoRow label="Currency" value={project.currency || 'AED'} />
           <InfoRow label="Location" value={project.location} />
           <InfoRow label="Service type" value={project.serviceType} />
@@ -327,6 +328,8 @@ const ProjectFormModal = ({ project, onClose }) => {
       clientId: project.clientId?._id || project.clientId || '',
       ratePerDriver: project.ratePerDriver || '',
       rateBasis: project.rateBasis || 'monthly_fixed',
+      otRate: project.otRate ?? '',
+      otRateBasis: project.otRateBasis || 'per_hour',
       currency: project.currency || 'AED',
       operationsContactName: project.operationsContactName || '',
       operationsContactPhone: project.operationsContactPhone || '',
@@ -338,6 +341,8 @@ const ProjectFormModal = ({ project, onClose }) => {
       salaryReleaseDay: project.salaryReleaseDay || 25,
     } : {
       rateBasis: 'monthly_fixed',
+      otRate: '',
+      otRateBasis: 'per_hour',
       currency: 'AED',
       status: 'active',
       plannedDriverCount: 0,
@@ -351,6 +356,7 @@ const ProjectFormModal = ({ project, onClose }) => {
       const payload = {
         ...data,
         ratePerDriver: Number(data.ratePerDriver),
+        otRate: data.otRate === '' || data.otRate == null ? 0 : Number(data.otRate),
         plannedDriverCount: Number(data.plannedDriverCount) || 0,
         salaryReleaseDay: Number(data.salaryReleaseDay) || 25,
       };
@@ -395,6 +401,18 @@ const ProjectFormModal = ({ project, onClose }) => {
               <option value="monthly_fixed">Monthly fixed</option>
               <option value="daily_rate">Daily rate</option>
               <option value="per_order">Per order</option>
+            </select>
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>OT rate</label>
+            <input type="number" step="any" min="0" {...register('otRate', { min: 0 })} placeholder="80" />
+            {errors.otRate && <span style={{ color: '#f87171', fontSize: 11 }}>Must be a positive number</span>}
+          </div>
+          <div style={fieldStyle}>
+            <label style={labelStyle}>OT rate basis</label>
+            <select {...register('otRateBasis')}>
+              <option value="per_hour">Per hour</option>
+              <option value="per_day">Per day</option>
             </select>
           </div>
           <div style={fieldStyle}>
