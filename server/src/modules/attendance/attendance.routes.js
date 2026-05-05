@@ -31,6 +31,7 @@ router.get('/batches', requirePermission('attendance.view'), async (req, res) =>
   if (req.query.status) query.status = req.query.status;
   if (req.query.year) query['period.year'] = parseInt(req.query.year);
   if (req.query.month) query['period.month'] = parseInt(req.query.month);
+  if (req.query.batchType) query.batchType = req.query.batchType;
 
   const [batches, total] = await Promise.all([
     AttendanceBatch.find(query)
@@ -55,6 +56,7 @@ router.post('/upload', requirePermission('attendance.upload'), attendanceUpload.
   const AttendanceRecord = getModel(req, 'AttendanceRecord');
   const Project = getModel(req, 'Project');
   const { projectId, year, month, columnMapping } = req.body;
+  const batchType = req.body.batchType === 'overtime' ? 'overtime' : 'regular';
 
   // Look up project to derive clientId
   const project = await Project.findById(projectId).select('clientId').lean();
@@ -70,20 +72,23 @@ router.post('/upload', requirePermission('attendance.upload'), attendanceUpload.
 
   const period = { year: parseInt(year), month: parseInt(month) };
 
-  // Check for existing batch for same project + period (to allow revised uploads)
+  // Check for an existing batch of the same type for this project + period
+  // (regular and overtime batches are tracked independently).
   let version = 1;
   let previousBatchId = null;
   const existingBatch = await AttendanceBatch.findOne({
     projectId,
     'period.year': period.year,
     'period.month': period.month,
+    batchType,
   }).sort({ version: -1 });
 
   if (existingBatch) {
     if (!['disputed', 'rejected'].includes(existingBatch.status)) {
+      const typeLabel = batchType === 'overtime' ? 'overtime attendance' : 'attendance';
       return sendError(
         res,
-        'An attendance batch already exists for this project and period. Only disputed or rejected batches can be revised.',
+        `An ${typeLabel} batch already exists for this project and period. Only disputed or rejected batches can be revised.`,
         409
       );
     }
@@ -109,6 +114,7 @@ router.post('/upload', requirePermission('attendance.upload'), attendanceUpload.
     clientId,
     projectId,
     period,
+    batchType,
     version,
     previousBatchId,
     status: 'uploaded',

@@ -35,13 +35,30 @@ const migrateAttendanceBatchIndexes = async () => {
     // Index already dropped or doesn't exist — nothing to do
   }
 
+  // Drop the previous unique index that didn't include batchType. The new
+  // schema-defined index (with batchType) is created via syncIndexes below.
+  try {
+    await collection.dropIndex('projectId_1_period.year_1_period.month_1_version_1');
+    logger.info('Dropped stale attendancebatches index (without batchType)');
+  } catch {
+    // Index already dropped or doesn't exist — nothing to do
+  }
+
   // Backfill version=1 on any old documents missing it
   await collection.updateMany(
     { version: { $exists: false } },
     { $set: { version: 1 } }
   );
 
-  // Let Mongoose create the correct index (with version) if missing
+  // Backfill batchType=regular on any old documents missing it. Without this,
+  // the new compound unique index would treat existing rows as having
+  // batchType=null, blocking later inserts that reuse the same key.
+  await collection.updateMany(
+    { batchType: { $exists: false } },
+    { $set: { batchType: 'regular' } }
+  );
+
+  // Let Mongoose create the correct index (with batchType) if missing
   const AttendanceBatch = require('../modules/attendance/AttendanceBatch');
   await AttendanceBatch.syncIndexes();
 };
