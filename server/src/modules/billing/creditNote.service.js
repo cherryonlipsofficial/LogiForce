@@ -200,6 +200,12 @@ const adjustCreditNote = async (req, creditNoteId, invoiceId, userId) => {
   invoice.adjustedTotal = Math.round((invoice.total - totalLinkedCN) * 100) / 100;
   await invoice.save();
 
+  // Driver side may already be resolved (lines queued on a salary run, salary
+  // deducted, manually resolved, etc.); now that the client side is adjusted,
+  // re-run the settlement check so the CN can roll straight through to
+  // 'settled' without waiting for another salary-run event.
+  const updatedCn = await checkAndSettleCreditNote(req, creditNoteId);
+
   try {
     const { notifyByPermission } = require('../shared/notification.service');
     await notifyByPermission(req, 'credit_notes.adjust', {
@@ -214,7 +220,7 @@ const adjustCreditNote = async (req, creditNoteId, invoiceId, userId) => {
     logger.warn('Non-critical operation failed', { error: err.message });
   }
 
-  return cn;
+  return updatedCn || cn;
 };
 
 /**
@@ -251,22 +257,29 @@ const manuallyResolveLine = async (req, creditNoteId, lineItemId, note, userId) 
 
 /**
  * Check if a credit note is fully settled (all lines settled + client side adjusted).
+ *
+ * A line counts as settled when any of these is true:
+ * - salaryDeducted (the salary run was processed and the debit posted)
+ * - manuallyResolved (waived, recovered via receivable, or written off)
+ * - salaryRunId is set (the line is queued on an active salary run; the
+ *   deduction will post when that run is processed). The salary-run delete /
+ *   credit-note-removal paths clear this back to null and re-run this check,
+ *   reverting the CN status if the queued state no longer holds.
  */
 const checkAndSettleCreditNote = async (req, creditNoteId) => {
   const CreditNote = getModel(req, 'CreditNote');
 
   const cn = await CreditNote.findById(creditNoteId);
-  if (!cn || cn.status === 'settled' || cn.status === 'cancelled') return cn;
+  if (!cn || cn.status === 'cancelled') return cn;
 
   // Client side must be adjusted
   if (!cn.linkedInvoiceId) return cn;
 
-  // All lines must be settled (salary deducted, manually resolved, or receivable created & resolved)
   const allSettled = cn.lineItems.every(
-    (line) => line.salaryDeducted || line.manuallyResolved
+    (line) => line.salaryDeducted || line.manuallyResolved || line.salaryRunId
   );
 
-  if (allSettled) {
+  if (allSettled && cn.status !== 'settled') {
     cn.status = 'settled';
     await cn.save();
 
@@ -282,6 +295,12 @@ const checkAndSettleCreditNote = async (req, creditNoteId) => {
     } catch (err) {
       logger.warn('Non-critical operation failed', { error: err.message });
     }
+  } else if (!allSettled && cn.status === 'settled') {
+    // Settlement is no longer satisfied (e.g. a queued salary run was deleted
+    // or its CN deduction was removed). Revert to 'adjusted' so the CN goes
+    // back into the actionable list.
+    cn.status = 'adjusted';
+    await cn.save();
   }
 
   return cn;
@@ -487,29 +506,38 @@ const adjustDraftSalaryRuns = async (req, creditNote) => {
     }).sort({ 'period.year': 1, 'period.month': 1 });
 
     if (draftRun) {
-      // Check if already added
       const alreadyAdded = draftRun.deductions.some(
         (d) => d.type === 'credit_note' && d.referenceId === refId
       );
-      if (alreadyAdded) continue;
 
-      draftRun.deductions.push({
-        type: 'credit_note',
-        referenceId: refId,
-        amount: deductionAmount,
-        description: `${creditNote.creditNoteNo} - ${(line.noteType || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}${line.referenceNo ? ' - ' + line.referenceNo : ''}`,
-        status: 'applied',
-      });
+      if (!alreadyAdded) {
+        draftRun.deductions.push({
+          type: 'credit_note',
+          referenceId: refId,
+          amount: deductionAmount,
+          description: `${creditNote.creditNoteNo} - ${(line.noteType || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}${line.referenceNo ? ' - ' + line.referenceNo : ''}`,
+          status: 'applied',
+        });
 
-      draftRun.totalDeductions = Math.round(
-        draftRun.deductions.filter((d) => d.amount > 0).reduce((sum, d) => sum + d.amount, 0) * 100
-      ) / 100;
-      draftRun.netSalary = Math.max(
-        0,
-        Math.round((draftRun.grossSalary - draftRun.totalDeductions) * 100) / 100
-      );
+        draftRun.totalDeductions = Math.round(
+          draftRun.deductions.filter((d) => d.amount > 0).reduce((sum, d) => sum + d.amount, 0) * 100
+        ) / 100;
+        draftRun.netSalary = Math.max(
+          0,
+          Math.round((draftRun.grossSalary - draftRun.totalDeductions) * 100) / 100
+        );
 
-      await draftRun.save();
+        await draftRun.save();
+      }
+
+      // Track the queued salary run on the CN line. Set this even when the
+      // deduction was already on the run (retrigger case) so existing CNs
+      // pick up the linkage without needing a backfill migration. Cleared
+      // again by revertCreditNoteDeductions / removeCreditNoteDeduction.
+      if (!line.salaryRunId || String(line.salaryRunId) !== String(draftRun._id)) {
+        line.salaryRunId = draftRun._id;
+      }
+
       adjustmentSummary.adjustedInSalary.push({
         driverId: line.driverId,
         driverName: line.driverName,
@@ -582,8 +610,13 @@ const adjustDraftSalaryRuns = async (req, creditNote) => {
     }
   }
 
-  // Save updated line items (pendingNextSalary / receivableCreated flags)
+  // Save updated line items (pendingNextSalary / receivableCreated /
+  // salaryRunId flags) before the settlement check reads from the DB.
   await creditNote.save();
+
+  // If every line is now queued/deducted/resolved AND the client side is
+  // already adjusted, the CN should roll straight to 'settled'.
+  await checkAndSettleCreditNote(req, creditNote._id);
 
   // Send notifications for items that couldn't be auto-adjusted
   try {

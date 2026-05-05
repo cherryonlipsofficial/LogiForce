@@ -138,6 +138,30 @@ const calculateDriverSalary = async (req, driverId, year, month, processedBy, { 
     await storeDeductionCarryover(req, driverId, year, month, deductionCarryover);
   }
 
+  // Mark each CN line that was pulled into this run with salaryRunId so the
+  // CN can settle as soon as the client side is adjusted, instead of staying
+  // at 'adjusted' until the run is processed days later.
+  const cnDeductions = (salaryRun.deductions || []).filter(
+    (d) => d.type === 'credit_note' && d.referenceId
+  );
+  if (cnDeductions.length > 0) {
+    const CreditNote = getModel(req, 'CreditNote');
+    const affectedCnIds = new Set();
+    for (const ded of cnDeductions) {
+      const [cnId, lineId] = ded.referenceId.split(':');
+      if (!cnId || !lineId) continue;
+      affectedCnIds.add(cnId);
+      await CreditNote.findOneAndUpdate(
+        { _id: cnId, 'lineItems._id': lineId },
+        { $set: { 'lineItems.$.salaryRunId': salaryRun._id } }
+      );
+    }
+    const { checkAndSettleCreditNote } = require('../billing/creditNote.service');
+    for (const cnId of affectedCnIds) {
+      await checkAndSettleCreditNote(req, cnId);
+    }
+  }
+
   return salaryRun;
 };
 
@@ -747,6 +771,7 @@ const syncCreditNoteDeductions = async (req, salaryRun) => {
 
   const driverId = salaryRun.driverId;
   let changed = false;
+  const affectedCnIds = new Set();
 
   const unsettledCNs = await CreditNote.find({
     'lineItems': {
@@ -816,12 +841,16 @@ const syncCreditNoteDeductions = async (req, salaryRun) => {
         status: 'applied',
       });
 
-      // Clear pendingNextSalary flag
+      // Track that this CN line is now queued on this salary run so the CN
+      // can settle without waiting for the run to be processed. Also clears
+      // pendingNextSalary, which is mutually exclusive with being on a run.
+      line.salaryRunId = salaryRun._id;
       if (line.pendingNextSalary) {
         line.pendingNextSalary = false;
-        await cn.save();
       }
+      await cn.save();
 
+      affectedCnIds.add(String(cn._id));
       changed = true;
     }
   }
@@ -874,6 +903,14 @@ const syncCreditNoteDeductions = async (req, salaryRun) => {
       if (salaryRun.notes && salaryRun.notes.startsWith('Deduction carryover')) {
         salaryRun.notes = undefined;
       }
+    }
+  }
+
+  // Re-evaluate settlement for every CN whose line was queued on this run.
+  if (affectedCnIds.size > 0) {
+    const { checkAndSettleCreditNote } = require('../billing/creditNote.service');
+    for (const cnId of affectedCnIds) {
+      await checkAndSettleCreditNote(req, cnId);
     }
   }
 
@@ -1443,6 +1480,11 @@ const removeCreditNoteDeduction = async (req, runId, referenceId, removedBy) => 
   let movedToPeriod = null;
   let pendingNext = false;
 
+  // Re-point or clear the CN line's salaryRunId so the settlement check stays
+  // accurate. If we move it to a later draft, salaryRunId follows; otherwise
+  // (pending next salary) we clear it so the CN drops out of 'settled'.
+  const [cnId, lineId] = referenceId.split(':');
+
   if (laterDraft) {
     const alreadyAdded = laterDraft.deductions.some(
       (d) => d.type === 'credit_note' && d.referenceId === referenceId
@@ -1464,10 +1506,16 @@ const removeCreditNoteDeduction = async (req, runId, referenceId, removedBy) => 
     }
     movedToRunId = laterDraft.runId;
     movedToPeriod = laterDraft.period;
+
+    if (cnId && lineId) {
+      await CreditNote.findOneAndUpdate(
+        { _id: cnId, 'lineItems._id': lineId },
+        { $set: { 'lineItems.$.salaryRunId': laterDraft._id } }
+      );
+    }
   } else {
     // No later draft exists yet — flag the CN line so the next payroll run
     // picks it up automatically via calculateDeductions.
-    const [cnId, lineId] = referenceId.split(':');
     if (cnId && lineId) {
       const cn = await CreditNote.findById(cnId);
       if (cn) {
@@ -1475,11 +1523,21 @@ const removeCreditNoteDeduction = async (req, runId, referenceId, removedBy) => 
         if (line && !line.salaryDeducted && !line.manuallyResolved && !line.receivableCreated) {
           line.pendingNextSalary = true;
           line.pendingNextSalaryAt = new Date();
+          // Drop the salaryRunId since the line is no longer queued anywhere.
+          line.salaryRunId = null;
+          line.salaryDeductedAt = null;
           await cn.save();
           pendingNext = true;
         }
       }
     }
+  }
+
+  // Recheck CN settlement — if the line is now unqueued, the CN should fall
+  // back to 'adjusted' from 'settled'.
+  if (cnId) {
+    const { checkAndSettleCreditNote } = require('../billing/creditNote.service');
+    await checkAndSettleCreditNote(req, cnId);
   }
 
   return {
