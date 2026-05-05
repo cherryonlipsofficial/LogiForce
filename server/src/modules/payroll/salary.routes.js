@@ -41,12 +41,15 @@ const revertCreditNoteDeductions = async (salaryRun, CreditNote) => {
     );
   }
 
-  // Revert any credit notes that were marked as 'settled' back to their prior status
+  // Revert any credit notes that were marked as 'settled' back to their prior
+  // status. checkAndSettleCreditNote handles the salaryRunId-cleared case
+  // (line is no longer queued, so CN drops back to 'adjusted'); we only need
+  // the explicit 'sent' fallback here for CNs whose client-side adjustment
+  // doesn't exist (linkedInvoiceId unset), which checkAndSettle short-circuits.
   for (const cnId of affectedCreditNoteIds) {
     const cn = await CreditNote.findById(cnId);
     if (!cn || cn.status !== 'settled') continue;
 
-    // If client-side adjustment exists, revert to 'adjusted'; otherwise 'sent'
     cn.status = cn.linkedInvoiceId ? 'adjusted' : 'sent';
     await cn.save();
   }
