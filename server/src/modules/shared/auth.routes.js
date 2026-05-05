@@ -5,16 +5,17 @@ const { protect } = require('../../middleware/auth');
 const authService = require('./auth.service');
 const { getModel } = require('../../config/modelRegistry');
 const bcrypt = require('bcryptjs');
+const logger = require('../../utils/logger');
 const { sendSuccess, sendError } = require('../../utils/responseHelper');
 const validate = require('../../middleware/validate');
-const logger = require('../../utils/logger');
+const { loginValidation, registerValidation, changePasswordValidation } = require('./auth.validators');
+const { sendPasswordResetEmail, isEmailConfigured } = require('../../utils/email');
 const {
-  loginValidation,
-  registerValidation,
-  changePasswordValidation,
-  forgotPasswordValidation,
-  resetPasswordValidation,
-} = require('./auth.validators');
+  buildResetPasswordUrl,
+  generateResetToken,
+  hashResetToken,
+  PASSWORD_RESET_TTL_MS,
+} = require('./passwordReset.helpers');
 
 // Rate limit on login: 5 requests per minute
 const loginLimiter = rateLimit({
@@ -24,35 +25,6 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
-
-// Rate limit on forgot-password: 5 per hour per IP — prevents enumeration & spam
-const forgotPasswordLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 5,
-  message: { success: false, message: 'Too many password reset requests. Please try again later.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Rate limit on reset-password: 10 per hour per IP — prevents brute-forcing the token
-const resetPasswordLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 10,
-  message: { success: false, message: 'Too many reset attempts. Please try again later.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-const buildResetUrl = (req, token) => {
-  const fromHeader = req.get('origin') || req.get('referer');
-  const base =
-    process.env.CLIENT_RESET_PASSWORD_URL ||
-    (fromHeader ? fromHeader.replace(/\/+$/, '') : null) ||
-    process.env.CLIENT_URL?.split(',')[0] ||
-    '';
-  if (!base) return `/reset-password?token=${token}`;
-  return `${base.replace(/\/+$/, '')}/reset-password?token=${token}`;
-};
 
 // POST /api/auth/register — admin only in production
 router.post('/register', validate(registerValidation), async (req, res) => {
@@ -133,104 +105,6 @@ router.post('/login', loginLimiter, validate(loginValidation), async (req, res) 
     });
   }
 });
-
-// POST /api/auth/forgot-password — request a password reset link
-router.post(
-  '/forgot-password',
-  forgotPasswordLimiter,
-  validate(forgotPasswordValidation),
-  async (req, res) => {
-    const { email } = req.body;
-    const genericMessage =
-      'If an account exists for that email, a password reset link has been sent.';
-
-    try {
-      const result = await authService.requestPasswordReset(req, email);
-
-      if (result.delivered) {
-        const resetUrl = buildResetUrl(req, result.token);
-
-        // Audit log — record that a reset was requested (does not include the token)
-        try {
-          const AuditLog = getModel(req, 'AuditLog');
-          await AuditLog.create({
-            userId: result.user._id,
-            userName: result.user.name,
-            userEmail: result.user.email,
-            method: 'POST',
-            path: '/api/auth/forgot-password',
-            statusCode: 200,
-            action: 'auth.password_reset_requested',
-            entityType: 'auth',
-            description: `Password reset requested for ${result.user.email}`,
-            ip: req.ip,
-            userAgent: req.get('user-agent'),
-          });
-        } catch (_) { /* non-fatal */ }
-
-        // No email service is wired up in this repo — surface the link via logs
-        // so an operator can deliver it. In production, swap this for a mailer.
-        logger.info(
-          `[auth] Password reset link for ${result.user.email}: ${resetUrl} (expires ${result.expiresAt.toISOString()})`
-        );
-
-        // In non-production environments, return the reset URL directly so
-        // developers and tests can complete the flow without an email service.
-        if (process.env.NODE_ENV !== 'production') {
-          return sendSuccess(res, {
-            message: genericMessage,
-            devResetUrl: resetUrl,
-            devToken: result.token,
-            expiresAt: result.expiresAt,
-          });
-        }
-      }
-
-      return sendSuccess(res, { message: genericMessage });
-    } catch (err) {
-      // Never leak details — always respond with the same generic message
-      logger.error('Forgot password error', { error: err.message });
-      return sendSuccess(res, { message: genericMessage });
-    }
-  }
-);
-
-// POST /api/auth/reset-password — consume a reset token and set a new password
-router.post(
-  '/reset-password',
-  resetPasswordLimiter,
-  validate(resetPasswordValidation),
-  async (req, res) => {
-    const { token, newPassword } = req.body;
-
-    try {
-      const user = await authService.resetPassword(req, token, newPassword);
-
-      try {
-        const AuditLog = getModel(req, 'AuditLog');
-        await AuditLog.create({
-          userId: user._id,
-          userName: user.name,
-          userEmail: user.email,
-          method: 'POST',
-          path: '/api/auth/reset-password',
-          statusCode: 200,
-          action: 'auth.password_reset_completed',
-          entityType: 'auth',
-          description: `Password reset completed for ${user.email}`,
-          ip: req.ip,
-          userAgent: req.get('user-agent'),
-        });
-      } catch (_) { /* non-fatal */ }
-
-      return sendSuccess(res, {
-        message: 'Your password has been reset. You can now sign in with your new password.',
-      });
-    } catch (err) {
-      return sendError(res, err.message || 'Reset failed', err.statusCode || 400);
-    }
-  }
-);
 
 // POST /api/auth/logout — client-driven, but still worth auditing for session tracking
 router.post('/logout', protect, async (req, res) => {
@@ -421,6 +295,115 @@ router.put('/profile/avatar', protect, async (req, res) => {
 
   const updated = await User.findById(user._id).select('-password').lean();
   sendSuccess(res, { user: updated });
+});
+
+// Rate limit on forgot/reset endpoints: 5 per 15 minutes per IP
+const passwordResetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { success: false, message: 'Too many password reset requests. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// POST /api/auth/forgot-password — request a reset email (public)
+// Always responds 200 to avoid leaking whether an email is registered.
+router.post('/forgot-password', passwordResetLimiter, async (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+
+  const genericResponse = () => sendSuccess(res, {
+    message: 'If an account exists for that email, a reset link has been sent.',
+  });
+
+  if (!email) return genericResponse();
+
+  if (!isEmailConfigured()) {
+    logger.warn('forgot-password called but SMTP is not configured');
+    // Don't expose configuration state to anonymous callers — respond generically.
+    return genericResponse();
+  }
+
+  const User = getModel(req, 'User');
+  const user = await User.findOne({ email });
+  if (!user || !user.isActive) {
+    // Don't reveal whether the email exists or is active
+    return genericResponse();
+  }
+
+  const { token, tokenHash } = generateResetToken();
+  user.passwordResetTokenHash = tokenHash;
+  user.passwordResetExpires = new Date(Date.now() + PASSWORD_RESET_TTL_MS);
+  await user.save({ validateBeforeSave: false });
+
+  const resetUrl = buildResetPasswordUrl(req, token);
+  try {
+    await sendPasswordResetEmail({
+      to: user.email,
+      name: user.name,
+      resetUrl,
+      tenantName: req.tenant?.name,
+      expiresMinutes: Math.floor(PASSWORD_RESET_TTL_MS / 60000),
+    });
+  } catch (err) {
+    logger.error('Failed to send password reset email', {
+      to: user.email,
+      error: err.message,
+    });
+    // Roll back so a failed send doesn't leave a live token in the DB
+    user.passwordResetTokenHash = null;
+    user.passwordResetExpires = null;
+    await user.save({ validateBeforeSave: false });
+  }
+
+  return genericResponse();
+});
+
+// GET /api/auth/reset-password/:token — verify a reset token (public)
+router.get('/reset-password/:token', passwordResetLimiter, async (req, res) => {
+  const { token } = req.params;
+  if (!token || token.length < 32) return sendError(res, 'Invalid reset token', 400);
+
+  const User = getModel(req, 'User');
+  const user = await User.findOne({
+    passwordResetTokenHash: hashResetToken(token),
+    passwordResetExpires: { $gt: new Date() },
+  }).select('email name passwordResetExpires');
+
+  if (!user) return sendError(res, 'This reset link is invalid or has expired', 400);
+
+  return sendSuccess(res, {
+    email: user.email,
+    name: user.name,
+    expiresAt: user.passwordResetExpires,
+  });
+});
+
+// POST /api/auth/reset-password — set a new password using a token (public)
+router.post('/reset-password', passwordResetLimiter, async (req, res) => {
+  const { token, password } = req.body || {};
+  if (!token) return sendError(res, 'Reset token is required', 400);
+  if (!password || password.length < 8) {
+    return sendError(res, 'New password must be at least 8 characters', 400);
+  }
+
+  const User = getModel(req, 'User');
+  const user = await User.findOne({
+    passwordResetTokenHash: hashResetToken(token),
+    passwordResetExpires: { $gt: new Date() },
+  }).select('+password +passwordResetTokenHash +passwordResetExpires email name');
+
+  if (!user) return sendError(res, 'This reset link is invalid or has expired', 400);
+
+  // Reject reusing the same password
+  const isSame = await bcrypt.compare(password, user.password);
+  if (isSame) return sendError(res, 'New password must be different from your current password', 400);
+
+  user.password = password; // pre-save hook hashes
+  user.passwordResetTokenHash = null;
+  user.passwordResetExpires = null;
+  await user.save();
+
+  return sendSuccess(res, { email: user.email }, 'Password has been reset. You can now log in.');
 });
 
 module.exports = router;

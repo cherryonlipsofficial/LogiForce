@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import PermissionGate from '../ui/PermissionGate';
+import { sendPasswordResetEmail } from '../../api/usersApi';
 
 const itemStyle = {
   padding: '9px 14px',
@@ -27,6 +28,23 @@ export default function ActionsDropdown({
 }) {
   const ref = useRef(null);
   const [pos, setPos] = useState(null);
+  const [resetting, setResetting] = useState(false);
+
+  const handleResetPassword = async () => {
+    if (resetting) return;
+    setResetting(true);
+    const toastId = toast.loading(`Sending reset email to ${user.email}...`);
+    try {
+      const res = await sendPasswordResetEmail(user._id);
+      toast.success(res?.message || `Password reset email sent to ${user.email}`, { id: toastId });
+      onClose();
+    } catch (err) {
+      const msg = err?.response?.data?.message || err.message || 'Failed to send reset email';
+      toast.error(msg, { id: toastId });
+    } finally {
+      setResetting(false);
+    }
+  };
 
   // Compute fixed-position coordinates from the anchor (trigger button)
   useLayoutEffect(() => {
@@ -121,15 +139,13 @@ export default function ActionsDropdown({
       </PermissionGate>
 
       <button
-        style={itemStyle}
-        onClick={() => {
-          toast.success(`Password reset email sent to ${user.email}`);
-          onClose();
-        }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface3)'; e.currentTarget.style.color = 'var(--text)'; }}
+        style={{ ...itemStyle, opacity: resetting ? 0.6 : 1, cursor: resetting ? 'wait' : 'pointer' }}
+        disabled={resetting}
+        onClick={handleResetPassword}
+        onMouseEnter={e => { if (!resetting) { e.currentTarget.style.background = 'var(--surface3)'; e.currentTarget.style.color = 'var(--text)'; } }}
         onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text2)'; }}
       >
-        Reset password
+        {resetting ? 'Sending...' : 'Reset password'}
       </button>
 
       {!isSelf && (

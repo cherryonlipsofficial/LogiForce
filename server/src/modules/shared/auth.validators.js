@@ -34,26 +34,4 @@ const changePasswordValidation = [
     .isLength({ min: 6 }).withMessage('New password must be at least 6 characters'),
 ];
 
-const forgotPasswordValidation = [
-  body('email')
-    .trim()
-    .notEmpty().withMessage('Email is required')
-    .isEmail().withMessage('Must be a valid email'),
-];
-
-const resetPasswordValidation = [
-  body('token')
-    .trim()
-    .notEmpty().withMessage('Reset token is required'),
-  body('newPassword')
-    .notEmpty().withMessage('New password is required')
-    .isLength({ min: 8 }).withMessage('New password must be at least 8 characters'),
-];
-
-module.exports = {
-  loginValidation,
-  registerValidation,
-  changePasswordValidation,
-  forgotPasswordValidation,
-  resetPasswordValidation,
-};
+module.exports = { loginValidation, registerValidation, changePasswordValidation };

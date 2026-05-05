@@ -1,78 +1,10 @@
-const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { getModel } = require('../../config/modelRegistry');
-
-const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 const generateToken = (userId) => {
   return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   });
-};
-
-const hashResetToken = (token) =>
-  crypto.createHash('sha256').update(token).digest('hex');
-
-/**
- * Generate a password reset token for the given email.
- * Always returns success to avoid leaking which emails are registered.
- * Returns the raw token + expiry so the caller (route handler) can deliver it
- * (email service, dev log, etc.).
- */
-const requestPasswordReset = async (req, email) => {
-  const User = getModel(req, 'User');
-  const normalizedEmail = (email || '').toLowerCase().trim();
-  const user = await User.findOne({ email: normalizedEmail });
-
-  if (!user || !user.isActive) {
-    // Silent no-op — caller should still respond with a generic success message
-    return { delivered: false, user: null, token: null, expiresAt: null };
-  }
-
-  const rawToken = crypto.randomBytes(32).toString('hex');
-  const expiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_TTL_MS);
-
-  user.passwordResetTokenHash = hashResetToken(rawToken);
-  user.passwordResetExpires = expiresAt;
-  await user.save({ validateBeforeSave: false });
-
-  return { delivered: true, user, token: rawToken, expiresAt };
-};
-
-/**
- * Validate a password reset token and update the user's password.
- * Throws on invalid/expired token. Clears the token on success.
- */
-const resetPassword = async (req, token, newPassword) => {
-  if (!token || typeof token !== 'string') {
-    const err = new Error('Reset token is required');
-    err.statusCode = 400;
-    throw err;
-  }
-  if (!newPassword || newPassword.length < 8) {
-    const err = new Error('New password must be at least 8 characters');
-    err.statusCode = 400;
-    throw err;
-  }
-
-  const User = getModel(req, 'User');
-  const tokenHash = hashResetToken(token);
-
-  const user = await User.findOne({ passwordResetTokenHash: tokenHash })
-    .select('+password +passwordResetTokenHash +passwordResetExpires');
-
-  if (!user || !user.passwordResetExpires || user.passwordResetExpires < new Date()) {
-    const err = new Error('Reset link is invalid or has expired');
-    err.statusCode = 400;
-    throw err;
-  }
-
-  user.password = newPassword;
-  user.passwordResetTokenHash = null;
-  user.passwordResetExpires = null;
-  await user.save();
-
-  return user;
 };
 
 const login = async (req, email, password) => {
@@ -151,12 +83,4 @@ const buildAuthResponse = async (req, user) => {
   };
 };
 
-module.exports = {
-  generateToken,
-  login,
-  register,
-  buildAuthResponse,
-  requestPasswordReset,
-  resetPassword,
-  PASSWORD_RESET_TOKEN_TTL_MS,
-};
+module.exports = { generateToken, login, register, buildAuthResponse };

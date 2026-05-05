@@ -76,7 +76,7 @@ const RouterContent = () => (
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<ProtectedPage><DashboardSwitch /></ProtectedPage>} />
         <Route path="/drivers" element={<ProtectedPage permission="drivers.view"><Drivers /></ProtectedPage>} />

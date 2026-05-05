@@ -13,7 +13,10 @@ export const updatePreferences = (data) =>
   axiosInstance.put('/auth/profile/avatar', data);
 
 export const forgotPassword = (email) =>
-  axiosInstance.post('/auth/forgot-password', { email });
+  axiosInstance.post('/auth/forgot-password', { email }).then(r => r.data);
 
-export const resetPassword = ({ token, newPassword }) =>
-  axiosInstance.post('/auth/reset-password', { token, newPassword });
+export const verifyResetToken = (token) =>
+  axiosInstance.get(`/auth/reset-password/${token}`).then(r => r.data);
+
+export const resetPassword = (token, password) =>
+  axiosInstance.post('/auth/reset-password', { token, password }).then(r => r.data);

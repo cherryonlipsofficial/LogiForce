@@ -65,13 +65,13 @@ const userSchema = new mongoose.Schema(
     },
     passwordResetTokenHash: {
       type: String,
-      default: null,
       select: false,
+      default: null,
     },
     passwordResetExpires: {
       type: Date,
-      default: null,
       select: false,
+      default: null,
     },
   },
   {

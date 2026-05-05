@@ -1,114 +1,129 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { resetPassword } from '../api/authApi';
-import PasswordStrengthBar from '../components/settings/PasswordStrengthBar';
+import toast from 'react-hot-toast';
+import { verifyResetToken, resetPassword } from '../api/authApi';
 
-const ResetPassword = () => {
-  const [searchParams] = useSearchParams();
+const wrapperStyle = {
+  minHeight: '100vh',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: 'var(--bg)',
+};
+
+const cardStyle = {
+  width: '100%',
+  maxWidth: 380,
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-lg)',
+  padding: '40px 32px',
+  margin: '0 12px',
+};
+
+const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 6 };
+const inputStyle = { width: '100%', height: 40, fontSize: 13 };
+
+export default function ResetPassword() {
+  const { token } = useParams();
   const navigate = useNavigate();
-  const token = searchParams.get('token') || '';
-  const [success, setSuccess] = useState(false);
   const {
     register,
     handleSubmit,
-    setError,
     watch,
     formState: { errors, isSubmitting },
-  } = useForm({
-    defaultValues: { newPassword: '', confirmPassword: '' },
-  });
+  } = useForm();
 
-  const newPassword = watch('newPassword') || '';
+  const [status, setStatus] = useState('verifying'); // verifying | valid | invalid | done
+  const [accountInfo, setAccountInfo] = useState(null);
+  const [serverError, setServerError] = useState('');
 
-  const onSubmit = async (data) => {
-    if (data.newPassword !== data.confirmPassword) {
-      setError('confirmPassword', { message: 'Passwords do not match' });
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await verifyResetToken(token);
+        if (cancelled) return;
+        setAccountInfo(res?.data || null);
+        setStatus('valid');
+      } catch (err) {
+        if (cancelled) return;
+        setServerError(err?.response?.data?.message || 'This reset link is invalid or has expired');
+        setStatus('invalid');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
+
+  const onSubmit = async ({ password, confirmPassword }) => {
+    setServerError('');
+    if (password !== confirmPassword) {
+      setServerError('Passwords do not match');
       return;
     }
     try {
-      await resetPassword({ token, newPassword: data.newPassword });
-      setSuccess(true);
-      setTimeout(() => navigate('/login'), 2500);
+      await resetPassword(token, password);
+      toast.success('Password reset successful. You can now sign in.');
+      setStatus('done');
+      setTimeout(() => navigate('/login'), 1500);
     } catch (err) {
-      const msg = err.response?.data?.message || 'Unable to reset password. Please try again.';
-      setError('root', { message: msg });
+      setServerError(err?.response?.data?.message || 'Could not reset password');
     }
   };
 
-  const cardWrapperStyle = {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: 'var(--bg)',
-  };
-  const cardStyle = {
-    width: '100%',
-    maxWidth: 380,
-    background: 'var(--surface)',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-lg)',
-    padding: '40px 32px',
-    margin: '0 12px',
-  };
-  const brandStyle = {
-    fontSize: 24,
-    fontWeight: 700,
-    letterSpacing: '-0.5px',
-    marginBottom: 4,
-    background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-  };
+  const renderHeader = (subtitle) => (
+    <div style={{ textAlign: 'center', marginBottom: 28 }}>
+      <div style={{
+        fontSize: 24,
+        fontWeight: 700,
+        letterSpacing: '-0.5px',
+        marginBottom: 4,
+        background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+      }}>LogiForce</div>
+      <div style={{ fontSize: 13, color: 'var(--text3)' }}>{subtitle}</div>
+    </div>
+  );
 
-  if (!token) {
+  if (status === 'verifying') {
     return (
-      <div style={cardWrapperStyle}>
+      <div style={wrapperStyle}>
         <div style={cardStyle}>
-          <div style={{ textAlign: 'center', marginBottom: 24 }}>
-            <div style={brandStyle}>LogiForce</div>
+          {renderHeader('Verifying reset link...')}
+          <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--text2)' }}>
+            One moment.
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'invalid') {
+    return (
+      <div style={wrapperStyle}>
+        <div style={cardStyle}>
+          {renderHeader('Reset link unavailable')}
           <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 16,
-            textAlign: 'center',
+            background: 'rgba(239,68,68,0.08)',
+            border: '1px solid rgba(239,68,68,0.2)',
+            borderRadius: 8,
+            padding: '10px 14px',
+            fontSize: 12,
+            color: '#f87171',
+            marginBottom: 16,
+            lineHeight: 1.6,
           }}>
-            <div style={{
-              width: 64,
-              height: 64,
-              borderRadius: '50%',
-              background: 'rgba(239,68,68,0.12)',
-              border: '1px solid rgba(239,68,68,0.3)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 28,
-              color: '#f87171',
-            }}>
-              !
-            </div>
-            <div>
-              <h2 style={{ fontSize: 18, fontWeight: 500, marginBottom: 8 }}>
-                Invalid reset link
-              </h2>
-              <p style={{ fontSize: 13, color: 'var(--text2)', maxWidth: 320, lineHeight: 1.6 }}>
-                This password reset link is missing or malformed. Please request
-                a new one.
-              </p>
-            </div>
-            <Link
-              to="/forgot-password"
-              style={{
-                fontSize: 13,
-                color: 'var(--accent)',
-                textDecoration: 'none',
-                marginTop: 4,
-              }}
-            >
-              Request a new reset link &rarr;
+            {serverError}
+          </div>
+          <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6 }}>
+            Reset links expire after one hour. Ask your administrator to send a new one,
+            or request a fresh link from the login page.
+          </p>
+          <div style={{ marginTop: 20, textAlign: 'center' }}>
+            <Link to="/login" style={{ color: 'var(--accent)', fontSize: 13 }}>
+              &larr; Back to sign in
             </Link>
           </div>
         </div>
@@ -116,52 +131,13 @@ const ResetPassword = () => {
     );
   }
 
-  if (success) {
+  if (status === 'done') {
     return (
-      <div style={cardWrapperStyle}>
+      <div style={wrapperStyle}>
         <div style={cardStyle}>
-          <div style={{ textAlign: 'center', marginBottom: 24 }}>
-            <div style={brandStyle}>LogiForce</div>
-          </div>
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 16,
-            textAlign: 'center',
-          }}>
-            <div style={{
-              width: 64,
-              height: 64,
-              borderRadius: '50%',
-              background: 'rgba(34,197,94,0.12)',
-              border: '1px solid rgba(34,197,94,0.3)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 28,
-              color: '#22c55e',
-            }}>
-              ✓
-            </div>
-            <div>
-              <h2 style={{ fontSize: 18, fontWeight: 500, marginBottom: 8 }}>
-                Password reset
-              </h2>
-              <p style={{ fontSize: 13, color: 'var(--text2)', maxWidth: 320, lineHeight: 1.6 }}>
-                Your password has been updated. Redirecting you to sign in&hellip;
-              </p>
-            </div>
-            <Link
-              to="/login"
-              style={{
-                fontSize: 13,
-                color: 'var(--accent)',
-                textDecoration: 'none',
-              }}
-            >
-              Go to sign in &rarr;
-            </Link>
+          {renderHeader('Password updated')}
+          <div style={{ fontSize: 13, color: 'var(--text2)', textAlign: 'center', lineHeight: 1.6 }}>
+            Redirecting you to sign in...
           </div>
         </div>
       </div>
@@ -169,17 +145,12 @@ const ResetPassword = () => {
   }
 
   return (
-    <div style={cardWrapperStyle}>
+    <div style={wrapperStyle}>
       <div style={cardStyle}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={brandStyle}>LogiForce</div>
-          <div style={{ fontSize: 13, color: 'var(--text3)' }}>
-            Choose a new password
-          </div>
-        </div>
+        {renderHeader(accountInfo?.email ? `Choose a new password for ${accountInfo.email}` : 'Choose a new password')}
 
         <form onSubmit={handleSubmit(onSubmit)}>
-          {errors.root && (
+          {serverError && (
             <div style={{
               background: 'rgba(239,68,68,0.08)',
               border: '1px solid rgba(239,68,68,0.2)',
@@ -189,45 +160,38 @@ const ResetPassword = () => {
               color: '#f87171',
               marginBottom: 16,
             }}>
-              {errors.root.message}
+              {serverError}
             </div>
           )}
 
           <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 6 }}>
-              New password
-            </label>
+            <label style={labelStyle}>New password</label>
             <input
               type="password"
-              {...register('newPassword', {
-                required: 'New password is required',
+              autoComplete="new-password"
+              {...register('password', {
+                required: 'Password is required',
                 minLength: { value: 8, message: 'Password must be at least 8 characters' },
               })}
-              placeholder="At least 8 characters"
-              style={{ width: '100%', height: 40, fontSize: 13 }}
-              autoComplete="new-password"
-              autoFocus
+              style={inputStyle}
             />
-            <PasswordStrengthBar password={newPassword} />
-            {errors.newPassword && (
+            {errors.password && (
               <span style={{ color: '#f87171', fontSize: 11, marginTop: 2, display: 'block' }}>
-                {errors.newPassword.message}
+                {errors.password.message}
               </span>
             )}
           </div>
 
           <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 6 }}>
-              Confirm new password
-            </label>
+            <label style={labelStyle}>Confirm password</label>
             <input
               type="password"
+              autoComplete="new-password"
               {...register('confirmPassword', {
                 required: 'Please confirm your password',
+                validate: (v) => v === watch('password') || 'Passwords do not match',
               })}
-              placeholder="Re-enter your new password"
-              style={{ width: '100%', height: 40, fontSize: 13 }}
-              autoComplete="new-password"
+              style={inputStyle}
             />
             {errors.confirmPassword && (
               <span style={{ color: '#f87171', fontSize: 11, marginTop: 2, display: 'block' }}>
@@ -253,25 +217,16 @@ const ResetPassword = () => {
               transition: 'opacity .15s',
             }}
           >
-            {isSubmitting ? 'Resetting...' : 'Reset password'}
+            {isSubmitting ? 'Updating...' : 'Update password'}
           </button>
-
-          <div style={{ textAlign: 'center', marginTop: 20 }}>
-            <Link
-              to="/login"
-              style={{
-                fontSize: 12,
-                color: 'var(--accent)',
-                textDecoration: 'none',
-              }}
-            >
-              &larr; Back to sign in
-            </Link>
-          </div>
         </form>
+
+        <div style={{ marginTop: 20, textAlign: 'center' }}>
+          <Link to="/login" style={{ color: 'var(--accent)', fontSize: 13 }}>
+            &larr; Back to sign in
+          </Link>
+        </div>
       </div>
     </div>
   );
-};
-
-export default ResetPassword;
+}
