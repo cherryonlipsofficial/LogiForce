@@ -12,10 +12,18 @@ import {
   addDriverVisaLineItem,
   removeDriverVisaLineItem,
   logDriverVisaProcessing,
+  updateDriverVisaBasics,
   updateDriverVisaFinancials,
   waiveDriverVisa,
   cancelDriverVisa,
 } from '../../api/driverVisasApi';
+
+const toDateInput = (d) => {
+  if (!d) return '';
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return '';
+  return dt.toISOString().slice(0, 10);
+};
 
 const fmt = (n) => {
   if (n == null) return '—';
@@ -33,6 +41,7 @@ const DriverVisaStatement = ({ visaId, onClose }) => {
   const queryClient = useQueryClient();
 
   const canManage = hasPermission('driver_visas.manage');
+  const canEdit = hasPermission('driver_visas.edit') || canManage;
   const canLogProcessing = hasPermission('driver_visas.log_processing');
 
   const [addingLine, setAddingLine] = useState(null); // 'expense' | 'received' | null
@@ -40,6 +49,8 @@ const DriverVisaStatement = ({ visaId, onClose }) => {
   const [procDate, setProcDate] = useState('');
   const [editingPlan, setEditingPlan] = useState(false);
   const [plan, setPlan] = useState({});
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [details, setDetails] = useState({});
 
   const { data, isLoading } = useQuery({
     queryKey: ['driver-visa', visaId],
@@ -81,6 +92,14 @@ const DriverVisaStatement = ({ visaId, onClose }) => {
     onSuccess: () => {
       invalidate();
       setEditingPlan(false);
+    },
+  });
+
+  const updateDetailsMut = useMutation({
+    mutationFn: (payload) => updateDriverVisaBasics(visaId, payload),
+    onSuccess: () => {
+      invalidate();
+      setEditingDetails(false);
     },
   });
 
@@ -417,27 +436,44 @@ const DriverVisaStatement = ({ visaId, onClose }) => {
       </div>
 
       {/* Add line item controls */}
-      {canManage && visa.status === 'active' && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-          <Btn small variant="secondary" onClick={() => setAddingLine('expense')}>+ Add Expense</Btn>
-          <Btn small variant="secondary" onClick={() => setAddingLine('received')}>+ Add Received</Btn>
-          <Btn small variant="ghost" onClick={() => { setEditingPlan(true); setPlan({
-            totalCost: visa.totalCost,
-            medicalInsuranceCost: visa.medicalInsuranceCost,
-            discountAmount: visa.discountAmount,
-            cashPaid: visa.cashPaid,
-            monthlyDeduction: visa.monthlyDeduction,
-          }); }}>Edit plan</Btn>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-            <Btn small variant="ghost" onClick={() => {
-              const reason = prompt('Reason to waive remaining balance?');
-              if (reason != null) waiveMut.mutate(reason);
-            }}>Waive</Btn>
-            <Btn small variant="danger" onClick={() => {
-              const reason = prompt('Reason to cancel this visa record?');
-              if (reason != null) cancelMut.mutate(reason);
-            }}>Cancel record</Btn>
-          </div>
+      {(canManage || canEdit) && visa.status === 'active' && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+          {canManage && (
+            <>
+              <Btn small variant="secondary" onClick={() => setAddingLine('expense')}>+ Add Expense</Btn>
+              <Btn small variant="secondary" onClick={() => setAddingLine('received')}>+ Add Received</Btn>
+              <Btn small variant="ghost" onClick={() => { setEditingPlan(true); setPlan({
+                totalCost: visa.totalCost,
+                medicalInsuranceCost: visa.medicalInsuranceCost,
+                discountAmount: visa.discountAmount,
+                cashPaid: visa.cashPaid,
+                monthlyDeduction: visa.monthlyDeduction,
+              }); }}>Edit plan</Btn>
+            </>
+          )}
+          {canEdit && (
+            <Btn small variant="ghost" onClick={() => { setEditingDetails(true); setDetails({
+              visaCategory: visa.visaCategory || 'company_visa',
+              visaLabel: visa.visaLabel || '',
+              referenceName: visa.referenceName || '',
+              visaNumber: visa.visaNumber || '',
+              issueDate: toDateInput(visa.issueDate),
+              expiryDate: toDateInput(visa.expiryDate),
+              remarks: visa.remarks || '',
+            }); }}>Edit details</Btn>
+          )}
+          {canManage && (
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+              <Btn small variant="ghost" onClick={() => {
+                const reason = prompt('Reason to waive remaining balance?');
+                if (reason != null) waiveMut.mutate(reason);
+              }}>Waive</Btn>
+              <Btn small variant="danger" onClick={() => {
+                const reason = prompt('Reason to cancel this visa record?');
+                if (reason != null) cancelMut.mutate(reason);
+              }}>Cancel record</Btn>
+            </div>
+          )}
         </div>
       )}
 
@@ -507,6 +543,120 @@ const DriverVisaStatement = ({ visaId, onClose }) => {
           {addLineMut.isError && (
             <div style={{ color: '#f87171', fontSize: 11, marginTop: 6 }}>
               {addLineMut.error?.response?.data?.message || addLineMut.error?.message}
+            </div>
+          )}
+        </div>
+      )}
+
+      {editingDetails && (
+        <div
+          style={{
+            padding: 12,
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            background: 'var(--surface2)',
+            marginBottom: 10,
+          }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Edit visa details</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+            <label style={detailsLabelStyle}>
+              Visa category
+              <select
+                value={details.visaCategory ?? 'company_visa'}
+                onChange={(e) => setDetails({ ...details, visaCategory: e.target.value })}
+                style={inputStyle}
+              >
+                <option value="company_visa">Company Visa</option>
+                <option value="twp">TWP (Temporary Work Permit)</option>
+              </select>
+            </label>
+            <label style={detailsLabelStyle}>
+              Visa label (header)
+              <input
+                type="text"
+                maxLength={64}
+                value={details.visaLabel ?? ''}
+                onChange={(e) => setDetails({ ...details, visaLabel: e.target.value })}
+                style={inputStyle}
+                placeholder="e.g. HM Visa"
+              />
+            </label>
+            <label style={detailsLabelStyle}>
+              Reference name
+              <input
+                type="text"
+                maxLength={128}
+                value={details.referenceName ?? ''}
+                onChange={(e) => setDetails({ ...details, referenceName: e.target.value })}
+                style={inputStyle}
+                placeholder="Referrer's name"
+              />
+            </label>
+            <label style={detailsLabelStyle}>
+              Visa number
+              <input
+                type="text"
+                maxLength={64}
+                value={details.visaNumber ?? ''}
+                onChange={(e) => setDetails({ ...details, visaNumber: e.target.value })}
+                style={inputStyle}
+              />
+            </label>
+            <label style={detailsLabelStyle}>
+              Issue date
+              <input
+                type="date"
+                value={details.issueDate ?? ''}
+                onChange={(e) => setDetails({ ...details, issueDate: e.target.value })}
+                style={inputStyle}
+              />
+            </label>
+            <label style={detailsLabelStyle}>
+              Expiry date
+              <input
+                type="date"
+                value={details.expiryDate ?? ''}
+                onChange={(e) => setDetails({ ...details, expiryDate: e.target.value })}
+                style={inputStyle}
+              />
+            </label>
+            <label style={{ ...detailsLabelStyle, gridColumn: '1 / -1' }}>
+              Remarks
+              <textarea
+                rows={3}
+                maxLength={1000}
+                value={details.remarks ?? ''}
+                onChange={(e) => setDetails({ ...details, remarks: e.target.value })}
+                style={{ ...inputStyle, resize: 'vertical' }}
+              />
+            </label>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
+            <Btn small variant="ghost" onClick={() => setEditingDetails(false)}>Cancel</Btn>
+            <Btn
+              small
+              variant="primary"
+              disabled={updateDetailsMut.isLoading}
+              onClick={() => {
+                const payload = {
+                  visaCategory: details.visaCategory,
+                  visaLabel: details.visaLabel || '',
+                  referenceName: details.referenceName || '',
+                  visaNumber: details.visaNumber || '',
+                  remarks: details.remarks || '',
+                };
+                if (details.issueDate) payload.issueDate = details.issueDate;
+                if (details.expiryDate) payload.expiryDate = details.expiryDate;
+                updateDetailsMut.mutate(payload);
+              }}
+            >
+              {updateDetailsMut.isLoading ? 'Saving…' : 'Save details'}
+            </Btn>
+          </div>
+          {updateDetailsMut.isError && (
+            <div style={{ color: '#f87171', fontSize: 11, marginTop: 6 }}>
+              {updateDetailsMut.error?.response?.data?.message || updateDetailsMut.error?.message}
             </div>
           )}
         </div>
@@ -609,6 +759,14 @@ const inputStyle = {
   color: 'var(--text)',
   fontSize: 12,
   width: '100%',
+};
+
+const detailsLabelStyle = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 3,
+  fontSize: 11,
+  color: 'var(--text3)',
 };
 
 export default DriverVisaStatement;
