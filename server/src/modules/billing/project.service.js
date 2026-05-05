@@ -190,6 +190,7 @@ const createProject = async (req, data, userId) => {
 
 const updateProject = async (req, id, data, userId) => {
   const Project = getModel(req, 'Project');
+  const ProjectContract = getModel(req, 'ProjectContract');
 
   const project = await Project.findById(id);
   if (!project) throwErr('Project not found', 404);
@@ -207,12 +208,23 @@ const updateProject = async (req, id, data, userId) => {
     );
   }
 
+  const rateBasisChanged = data.rateBasis && data.rateBasis !== project.rateBasis;
+
   // Do NOT allow changing clientId (would break assignments)
   delete data.clientId;
   delete data.projectCode;
 
   Object.assign(project, data);
   await project.save();
+
+  // Keep the active contract's rateBasis in sync with the project so that
+  // historical contract snapshots don't override current invoicing logic.
+  if (rateBasisChanged) {
+    await ProjectContract.updateOne(
+      { projectId: id, status: 'active' },
+      { $set: { rateBasis: data.rateBasis } }
+    );
+  }
 
   return project;
 };

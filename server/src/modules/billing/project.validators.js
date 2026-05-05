@@ -8,6 +8,11 @@ const salaryReleaseDayRule = body('salaryReleaseDay')
   .optional()
   .isInt({ min: 1, max: 28 }).withMessage('Salary release day must be between 1 and 28');
 
+const rateBasisRule = body('rateBasis')
+  .optional()
+  .isIn(['monthly_fixed', 'daily_rate', 'per_order'])
+  .withMessage('Rate basis must be monthly_fixed, daily_rate, or per_order');
+
 const createProjectValidation = [
   body('name')
     .trim()
@@ -23,6 +28,7 @@ const createProjectValidation = [
     .isEmail().withMessage('Must be a valid email'),
   phoneRule,
   salaryReleaseDayRule,
+  rateBasisRule,
 ];
 
 const updateProjectValidation = [
@@ -38,6 +44,7 @@ const updateProjectValidation = [
     .isEmail().withMessage('Must be a valid email'),
   phoneRule,
   salaryReleaseDayRule,
+  rateBasisRule,
 ];
 
 module.exports = { createProjectValidation, updateProjectValidation };
