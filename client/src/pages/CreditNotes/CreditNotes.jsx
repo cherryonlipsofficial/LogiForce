@@ -540,7 +540,7 @@ const CreateCreditNoteModal = ({ onClose }) => {
   const totalVat = lineItems.reduce((s, l) => {
     const amt = parseFloat(l.amount) || 0;
     const vr = parseFloat(l.vatRate) || 0;
-    return s + amt * vr;
+    return s + amt * (vr / 100);
   }, 0);
   const totalAmount = subtotal + totalVat;
 
