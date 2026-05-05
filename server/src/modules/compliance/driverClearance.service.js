@@ -1,6 +1,71 @@
 const { getModel } = require('../../config/modelRegistry');
 
 /**
+ * Resolve client, project, and supplier IDs for a driver, falling back to the
+ * driver's active project assignment and current vehicle when the denormalized
+ * fields on the driver record are not set. Vehicle assignment, in particular,
+ * does not copy supplierId onto the driver — it lives on the Vehicle.
+ */
+async function resolveClearanceContext(req, driver) {
+  let clientId = driver.clientId || null;
+  let projectId = driver.projectId || null;
+  let supplierId = driver.supplierId || null;
+
+  if (!clientId || !projectId) {
+    const DriverProjectAssignment = getModel(req, 'DriverProjectAssignment');
+    const assignment = await DriverProjectAssignment.findOne({
+      driverId: driver._id,
+      status: 'active',
+    }).lean();
+    if (assignment) {
+      clientId = clientId || assignment.clientId || null;
+      projectId = projectId || assignment.projectId || null;
+    }
+  }
+
+  if (!supplierId) {
+    let vehicleId = driver.currentVehicleId || null;
+    if (!vehicleId) {
+      const VehicleAssignment = getModel(req, 'VehicleAssignment');
+      const vAssignment = await VehicleAssignment.findOne({
+        driverId: driver._id,
+        status: 'active',
+      }).lean();
+      vehicleId = vAssignment ? vAssignment.vehicleId : null;
+    }
+    if (vehicleId) {
+      const Vehicle = getModel(req, 'Vehicle');
+      const vehicle = await Vehicle.findById(vehicleId).select('supplierId').lean();
+      if (vehicle && vehicle.supplierId) supplierId = vehicle.supplierId;
+    }
+  }
+
+  return { clientId, projectId, supplierId };
+}
+
+/**
+ * If a clearance record is missing client/project/supplier IDs, resolve them
+ * from the driver's chain and persist. Returns true when the record was updated.
+ */
+async function backfillClearanceContext(req, doc) {
+  if (!doc) return false;
+  if (doc.clientId && doc.projectId && doc.supplierId) return false;
+
+  const Driver = getModel(req, 'Driver');
+  const driver = await Driver.findById(doc.driverId).lean();
+  if (!driver) return false;
+
+  const { clientId, projectId, supplierId } = await resolveClearanceContext(req, driver);
+
+  let dirty = false;
+  if (!doc.clientId && clientId) { doc.clientId = clientId; dirty = true; }
+  if (!doc.projectId && projectId) { doc.projectId = projectId; dirty = true; }
+  if (!doc.supplierId && supplierId) { doc.supplierId = supplierId; dirty = true; }
+  if (dirty) await doc.save();
+  return dirty;
+}
+
+/**
  * Create (or return existing) open DriverClearance for a driver being offboarded/resigned.
  * Intended to be called from driverWorkflow.service when status transitions to
  * 'resigned' or 'offboarded'.
@@ -10,7 +75,10 @@ async function openClearanceForOffboarding(req, driverId, newStatus, userId, opt
   const Driver = getModel(req, 'Driver');
 
   const existing = await DriverClearance.findOne({ driverId, isDeleted: false });
-  if (existing) return existing;
+  if (existing) {
+    await backfillClearanceContext(req, existing);
+    return existing;
+  }
 
   const driver = await Driver.findById(driverId).lean();
   if (!driver) {
@@ -19,7 +87,9 @@ async function openClearanceForOffboarding(req, driverId, newStatus, userId, opt
     throw err;
   }
 
-  const usesCompanyVehicle = !driver.ownVehicle && Boolean(driver.supplierId || driver.currentVehicleId);
+  const { clientId, projectId, supplierId } = await resolveClearanceContext(req, driver);
+
+  const usesCompanyVehicle = !driver.ownVehicle && Boolean(supplierId || driver.currentVehicleId);
 
   const lastWorkingDate = opts.lastWorkingDate
     ? new Date(opts.lastWorkingDate)
@@ -29,9 +99,9 @@ async function openClearanceForOffboarding(req, driverId, newStatus, userId, opt
     driverId,
     driverName: driver.fullName,
     employeeCode: driver.employeeCode,
-    projectId: driver.projectId || undefined,
-    clientId: driver.clientId || undefined,
-    supplierId: driver.supplierId || undefined,
+    projectId: projectId || undefined,
+    clientId: clientId || undefined,
+    supplierId: supplierId || undefined,
     lastWorkingDate,
     triggerStatus: newStatus,
     usesCompanyVehicle,
@@ -109,6 +179,21 @@ async function listClearances(req, filters = {}, { page = 1, limit = 20 } = {}) 
   if (filters.projectId) query.projectId = filters.projectId;
 
   const skip = (page - 1) * limit;
+
+  // Backfill any records on this page that are missing client/project/supplier
+  // IDs (older records created before resolveClearanceContext existed) so the
+  // subsequent populate returns the actual names instead of '—' placeholders.
+  const pageDocs = await DriverClearance.find(query)
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .select('_id driverId clientId projectId supplierId');
+  for (const doc of pageDocs) {
+    if (!doc.clientId || !doc.projectId || !doc.supplierId) {
+      await backfillClearanceContext(req, doc);
+    }
+  }
+
   const [items, total] = await Promise.all([
     DriverClearance.find(query)
       .populate('driverId', 'fullName employeeCode status')
@@ -126,6 +211,16 @@ async function listClearances(req, filters = {}, { page = 1, limit = 20 } = {}) 
 
 async function getClearance(req, id) {
   const DriverClearance = getModel(req, 'DriverClearance');
+
+  const raw = await DriverClearance.findOne({ _id: id, isDeleted: false })
+    .select('_id driverId clientId projectId supplierId');
+  if (!raw) {
+    const err = new Error('Clearance record not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  await backfillClearanceContext(req, raw);
+
   const doc = await DriverClearance.findOne({ _id: id, isDeleted: false })
     .populate('driverId', 'fullName employeeCode status ownVehicle')
     .populate('clientId', 'name')
@@ -134,11 +229,6 @@ async function getClearance(req, id) {
     .populate('clientClearance.loggedBy', 'name email')
     .populate('supplierClearance.loggedBy', 'name email')
     .populate('internalClearance.loggedBy', 'name email');
-  if (!doc) {
-    const err = new Error('Clearance record not found');
-    err.statusCode = 404;
-    throw err;
-  }
   return doc;
 }
 
