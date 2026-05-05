@@ -360,14 +360,14 @@ const calculateDeductions = async (req, driverId, year, month, grossSalary) => {
     isDeleted: { $ne: true },
   });
 
-  // CN line items aren't marked salaryDeducted: true until the run is processed,
-  // so collect refs already booked in any other non-deleted salary run for this
-  // driver. Without this guard, an in-progress prior-month run still holds those
-  // CNs as deductions and the carryover already captures their unpaid portion —
-  // re-pulling them here would double-deduct.
+  // Negative-net runs can't reach 'paid' but can reach 'processed', so any
+  // prior run for this driver that's been processed (or paid) has already
+  // committed those CN deductions — its carryover is what should flow into
+  // this run, not the same CN refs again. Collect those refs and skip them.
   const SalaryRun = getModel(req, 'SalaryRun');
   const otherRuns = await SalaryRun.find({
     driverId,
+    status: { $in: ['processed', 'paid'] },
     isDeleted: { $ne: true },
     $or: [
       { 'period.year': { $ne: year } },
@@ -747,12 +747,14 @@ const syncCreditNoteDeductions = async (req, salaryRun) => {
     isDeleted: { $ne: true },
   });
 
-  // Collect CN refs already booked on OTHER non-deleted runs so we don't pull
-  // the same CN line into multiple monthly runs while the earlier one still
-  // hasn't been processed (which is when salaryDeducted gets flipped to true).
+  // Only treat CNs as "already booked" when the other run has reached the
+  // processed (or paid) state — that's the lifecycle stage where deductions
+  // are committed (and salaryDeducted gets flipped to true). Negative-net
+  // runs can still reach 'processed', so this covers them.
   const otherRuns = await SalaryRun.find({
     driverId,
     _id: { $ne: salaryRun._id },
+    status: { $in: ['processed', 'paid'] },
     isDeleted: { $ne: true },
   }).select('deductions');
 
