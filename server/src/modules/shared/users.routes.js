@@ -118,7 +118,7 @@ router.post('/:id/reset-password', requirePermission('users.edit'), async (req, 
   if (!isEmailConfigured()) {
     return sendError(
       res,
-      'Email service is not configured on the server. Set SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS to enable password reset emails.',
+      'Email service is not configured on the server. Set RESEND_API_KEY to enable password reset emails.',
       503,
     );
   }

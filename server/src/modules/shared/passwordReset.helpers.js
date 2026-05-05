@@ -1,6 +1,8 @@
 const crypto = require('crypto');
 
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
+const EMAIL_OTP_TTL_MS = 10 * 60 * 1000;       // 10 minutes
+const EMAIL_OTP_MAX_ATTEMPTS = 5;
 
 const generateResetToken = () => {
   const token = crypto.randomBytes(32).toString('hex');
@@ -10,6 +12,18 @@ const generateResetToken = () => {
 
 const hashResetToken = (token) =>
   crypto.createHash('sha256').update(String(token)).digest('hex');
+
+/**
+ * 6-digit numeric OTP. randomInt is uniform — no modulo bias.
+ */
+const generateEmailOtp = () => {
+  const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+  const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+  return { code, codeHash };
+};
+
+const hashEmailOtp = (code) =>
+  crypto.createHash('sha256').update(String(code)).digest('hex');
 
 /**
  * Build a tenant-aware reset URL. Prefers the request Origin/Referer so the
@@ -31,7 +45,11 @@ const buildResetPasswordUrl = (req, token) => {
 
 module.exports = {
   PASSWORD_RESET_TTL_MS,
+  EMAIL_OTP_TTL_MS,
+  EMAIL_OTP_MAX_ATTEMPTS,
   generateResetToken,
   hashResetToken,
+  generateEmailOtp,
+  hashEmailOtp,
   buildResetPasswordUrl,
 };

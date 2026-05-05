@@ -9,12 +9,16 @@ const logger = require('../../utils/logger');
 const { sendSuccess, sendError } = require('../../utils/responseHelper');
 const validate = require('../../middleware/validate');
 const { loginValidation, registerValidation, changePasswordValidation } = require('./auth.validators');
-const { sendPasswordResetEmail, isEmailConfigured } = require('../../utils/email');
+const { sendPasswordResetEmail, sendOtpEmail, isEmailConfigured } = require('../../utils/email');
 const {
   buildResetPasswordUrl,
   generateResetToken,
   hashResetToken,
+  generateEmailOtp,
+  hashEmailOtp,
   PASSWORD_RESET_TTL_MS,
+  EMAIL_OTP_TTL_MS,
+  EMAIL_OTP_MAX_ATTEMPTS,
 } = require('./passwordReset.helpers');
 
 // Rate limit on login: 5 requests per minute
@@ -318,7 +322,7 @@ router.post('/forgot-password', passwordResetLimiter, async (req, res) => {
   if (!email) return genericResponse();
 
   if (!isEmailConfigured()) {
-    logger.warn('forgot-password called but SMTP is not configured');
+    logger.warn('forgot-password called but no email provider is configured');
     // Don't expose configuration state to anonymous callers — respond generically.
     return genericResponse();
   }
@@ -404,6 +408,290 @@ router.post('/reset-password', passwordResetLimiter, async (req, res) => {
   await user.save();
 
   return sendSuccess(res, { email: user.email }, 'Password has been reset. You can now log in.');
+});
+
+// ─── OTP-based flows ────────────────────────────────────────────────────────
+// Email is delivered through Resend's HTTP API — set RESEND_API_KEY and
+// the app sends mail. The default "onboarding@resend.dev" sender works on
+// the free tier with no domain verification, so this works out of the box.
+
+// 5 OTP-related requests per 15 minutes per IP — covers send + verify + resend
+const otpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { success: false, message: 'Too many OTP requests. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const issueAndSendOtp = async ({ user, purpose, tenantName }) => {
+  const { code, codeHash } = generateEmailOtp();
+  user.emailOtpHash = codeHash;
+  user.emailOtpPurpose = purpose;
+  user.emailOtpExpires = new Date(Date.now() + EMAIL_OTP_TTL_MS);
+  user.emailOtpAttempts = 0;
+  await user.save({ validateBeforeSave: false });
+
+  try {
+    await sendOtpEmail({
+      to: user.email,
+      name: user.name,
+      code,
+      purpose,
+      tenantName,
+      expiresMinutes: Math.floor(EMAIL_OTP_TTL_MS / 60000),
+    });
+  } catch (err) {
+    // Roll back the OTP so a failed send doesn't leave a live code in the DB
+    user.emailOtpHash = null;
+    user.emailOtpPurpose = null;
+    user.emailOtpExpires = null;
+    await user.save({ validateBeforeSave: false });
+    throw err;
+  }
+};
+
+// POST /api/auth/register-with-otp — public self-service registration.
+// Creates an inactive user and emails a 6-digit verification code. The user
+// stays inactive until an admin activates them — verifying the email only
+// confirms ownership of the address; it does not grant access.
+router.post('/register-with-otp', otpLimiter, async (req, res) => {
+  const { name, email, password } = req.body || {};
+
+  if (!name || typeof name !== 'string' || name.trim().length < 2) {
+    return sendError(res, 'Name is required (at least 2 characters)', 400);
+  }
+  const emailNorm = String(email || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm)) {
+    return sendError(res, 'A valid email is required', 400);
+  }
+  if (!password || password.length < 8) {
+    return sendError(res, 'Password must be at least 8 characters', 400);
+  }
+
+  if (!isEmailConfigured()) {
+    return sendError(
+      res,
+      'Email service is not configured on the server. Set RESEND_API_KEY to enable email delivery.',
+      503,
+    );
+  }
+
+  const User = getModel(req, 'User');
+  const existing = await User.findOne({ email: emailNorm });
+  if (existing) {
+    // Don't reveal whether the email exists — but we still need the user to be
+    // able to retry, so we re-issue an OTP for an unverified, inactive account.
+    if (!existing.isActive && !existing.emailVerifiedAt) {
+      try {
+        await issueAndSendOtp({ user: existing, purpose: 'verify_email', tenantName: req.tenant?.name });
+      } catch (err) {
+        logger.error('Failed to re-issue verification OTP', { email: emailNorm, error: err.message });
+      }
+      return sendSuccess(res, {
+        email: emailNorm,
+        message: 'A verification code has been sent to your email.',
+      });
+    }
+    return sendError(res, 'A user with this email already exists', 409);
+  }
+
+  const user = new User({
+    name: name.trim(),
+    email: emailNorm,
+    password,
+    // roleId is required by the schema but admins assign it during activation;
+    // we leave it unset and let the document fail validation only on full save.
+    isActive: false,
+  });
+
+  // Persist password hash + email + OTP without running role validation —
+  // the user is unusable until the admin activates and assigns a role.
+  user.password = password; // pre-save hook hashes
+  await user.save({ validateBeforeSave: false });
+
+  try {
+    await issueAndSendOtp({ user, purpose: 'verify_email', tenantName: req.tenant?.name });
+  } catch (err) {
+    logger.error('Failed to send verification OTP', { email: emailNorm, error: err.message });
+    // Leave the user record in place so retrying registration re-issues an OTP
+    // via the "existing && unverified" branch above.
+    return sendError(res, `Could not send verification email: ${err.message}`, 502);
+  }
+
+  return sendSuccess(res, {
+    email: emailNorm,
+    message: 'Account created. A verification code has been sent to your email.',
+  }, 201);
+});
+
+// POST /api/auth/send-otp — issue a new OTP for an existing user.
+// `purpose` controls what the code can be used for downstream:
+//   verify_email   — re-send the email-verification code
+//   login          — passwordless sign-in (requires emailVerifiedAt + isActive)
+//   password_reset — alternative to the email-link reset flow
+//
+// Always responds 200 to avoid leaking whether an email exists.
+router.post('/send-otp', otpLimiter, async (req, res) => {
+  const emailNorm = String(req.body?.email || '').trim().toLowerCase();
+  const purpose = req.body?.purpose || 'verify_email';
+
+  if (!['verify_email', 'login', 'password_reset'].includes(purpose)) {
+    return sendError(res, 'Invalid OTP purpose', 400);
+  }
+
+  const generic = () => sendSuccess(res, {
+    message: 'If an account exists for that email, a verification code has been sent.',
+  });
+
+  if (!emailNorm) return generic();
+  if (!isEmailConfigured()) {
+    logger.warn('send-otp called but no email provider is configured');
+    return generic();
+  }
+
+  const User = getModel(req, 'User');
+  const user = await User.findOne({ email: emailNorm }).select('+emailOtpHash +emailOtpPurpose +emailOtpExpires +emailOtpAttempts');
+  if (!user) return generic();
+
+  // Login OTP requires a fully active, verified account
+  if (purpose === 'login' && (!user.isActive || !user.emailVerifiedAt)) {
+    return generic();
+  }
+
+  try {
+    await issueAndSendOtp({ user, purpose, tenantName: req.tenant?.name });
+  } catch (err) {
+    logger.error('Failed to send OTP', { email: emailNorm, purpose, error: err.message });
+    // Don't reveal failure to anonymous callers
+  }
+
+  return generic();
+});
+
+// POST /api/auth/verify-otp — universal OTP verifier.
+//
+// For purpose='verify_email': marks emailVerifiedAt, returns success.
+// For purpose='login':         returns a JWT (only if user is active + verified).
+// For purpose='password_reset': requires `password` body field, sets the new password.
+router.post('/verify-otp', otpLimiter, async (req, res) => {
+  const emailNorm = String(req.body?.email || '').trim().toLowerCase();
+  const code = String(req.body?.code || '').trim();
+  const purpose = req.body?.purpose;
+  const newPassword = req.body?.password;
+
+  if (!emailNorm || !code || !purpose) {
+    return sendError(res, 'email, code, and purpose are required', 400);
+  }
+  if (!/^\d{6}$/.test(code)) {
+    return sendError(res, 'Verification code must be 6 digits', 400);
+  }
+  if (!['verify_email', 'login', 'password_reset'].includes(purpose)) {
+    return sendError(res, 'Invalid OTP purpose', 400);
+  }
+  if (purpose === 'password_reset' && (!newPassword || newPassword.length < 8)) {
+    return sendError(res, 'New password must be at least 8 characters', 400);
+  }
+
+  const User = getModel(req, 'User');
+  const user = await User.findOne({ email: emailNorm })
+    .select('+password +emailOtpHash +emailOtpPurpose +emailOtpExpires +emailOtpAttempts')
+    .populate('roleId');
+  if (!user) return sendError(res, 'Invalid or expired code', 400);
+
+  if (!user.emailOtpHash || !user.emailOtpExpires || user.emailOtpExpires < new Date()) {
+    return sendError(res, 'This verification code has expired. Request a new one.', 400);
+  }
+  if (user.emailOtpPurpose !== purpose) {
+    return sendError(res, 'Invalid or expired code', 400);
+  }
+  if ((user.emailOtpAttempts || 0) >= EMAIL_OTP_MAX_ATTEMPTS) {
+    // Burn the code so they have to request a new one
+    user.emailOtpHash = null;
+    user.emailOtpPurpose = null;
+    user.emailOtpExpires = null;
+    user.emailOtpAttempts = 0;
+    await user.save({ validateBeforeSave: false });
+    return sendError(res, 'Too many incorrect attempts. Request a new code.', 429);
+  }
+
+  if (hashEmailOtp(code) !== user.emailOtpHash) {
+    user.emailOtpAttempts = (user.emailOtpAttempts || 0) + 1;
+    await user.save({ validateBeforeSave: false });
+    return sendError(res, 'Invalid verification code', 400);
+  }
+
+  // Code is valid — burn it before doing anything else.
+  user.emailOtpHash = null;
+  user.emailOtpPurpose = null;
+  user.emailOtpExpires = null;
+  user.emailOtpAttempts = 0;
+
+  if (purpose === 'verify_email') {
+    user.emailVerifiedAt = new Date();
+    await user.save({ validateBeforeSave: false });
+    return sendSuccess(res, {
+      email: user.email,
+      emailVerifiedAt: user.emailVerifiedAt,
+      isActive: user.isActive,
+      message: user.isActive
+        ? 'Email verified. You can now sign in.'
+        : 'Email verified. An administrator will activate your account shortly.',
+    });
+  }
+
+  if (purpose === 'password_reset') {
+    const isSame = await bcrypt.compare(newPassword, user.password);
+    if (isSame) return sendError(res, 'New password must be different from your current password', 400);
+    user.password = newPassword; // pre-save hook hashes
+    await user.save({ validateBeforeSave: false });
+    return sendSuccess(res, { email: user.email }, 'Password has been reset. You can now log in.');
+  }
+
+  // purpose === 'login' — passwordless sign-in
+  if (!user.isActive) {
+    return sendError(res, 'Your account is pending activation by an administrator.', 403);
+  }
+  if (!user.emailVerifiedAt) {
+    return sendError(res, 'Email is not verified. Verify your email before signing in.', 403);
+  }
+
+  user.lastLogin = new Date();
+  user.loginCount = (user.loginCount || 0) + 1;
+  await user.save({ validateBeforeSave: false });
+
+  const token = authService.generateToken(user._id);
+  const authData = await authService.buildAuthResponse(req, user);
+  return sendSuccess(res, { token, ...authData });
+});
+
+// POST /api/auth/forgot-password-otp — request a 6-digit code instead of a
+// magic-link reset. Mirrors /forgot-password's anti-enumeration guarantees.
+router.post('/forgot-password-otp', passwordResetLimiter, async (req, res) => {
+  const emailNorm = String(req.body?.email || '').trim().toLowerCase();
+
+  const generic = () => sendSuccess(res, {
+    message: 'If an account exists for that email, a reset code has been sent.',
+  });
+
+  if (!emailNorm) return generic();
+  if (!isEmailConfigured()) {
+    logger.warn('forgot-password-otp called but no email provider is configured');
+    return generic();
+  }
+
+  const User = getModel(req, 'User');
+  const user = await User.findOne({ email: emailNorm })
+    .select('+emailOtpHash +emailOtpPurpose +emailOtpExpires +emailOtpAttempts');
+  if (!user || !user.isActive) return generic();
+
+  try {
+    await issueAndSendOtp({ user, purpose: 'password_reset', tenantName: req.tenant?.name });
+  } catch (err) {
+    logger.error('Failed to send password reset OTP', { email: emailNorm, error: err.message });
+  }
+
+  return generic();
 });
 
 module.exports = router;

@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { forgotPassword } from '../api/authApi';
+import { forgotPassword, forgotPasswordOtp } from '../api/authApi';
 
 const wrapperStyle = {
   minHeight: '100vh',
@@ -22,16 +22,26 @@ const cardStyle = {
 };
 
 export default function ForgotPassword() {
+  const navigate = useNavigate();
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm();
+  const [method, setMethod] = useState('link'); // 'link' | 'otp'
   const [submitted, setSubmitted] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState('');
 
   const onSubmit = async ({ email }) => {
     try {
+      if (method === 'otp') {
+        await forgotPasswordOtp(email);
+        // Both endpoints return 200 even when the email doesn't exist, so we
+        // can't gate navigation on the response. Take the user to the OTP
+        // screen — if no email arrives, they'll see "code is invalid" later.
+        navigate('/verify-otp', { state: { email, purpose: 'password_reset' } });
+        return;
+      }
       await forgotPassword(email);
     } catch (_) {
       // Backend always returns 200 to avoid enumeration; ignore network failures here too.
@@ -77,10 +87,10 @@ export default function ForgotPassword() {
         ) : (
           <form onSubmit={handleSubmit(onSubmit)}>
             <p style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.6, marginBottom: 16 }}>
-              Enter your account email and we'll send you a link to choose a new password.
+              Enter your account email and we'll send you a {method === 'otp' ? '6-digit code' : 'link'} to choose a new password.
             </p>
 
-            <div style={{ marginBottom: 20 }}>
+            <div style={{ marginBottom: 14 }}>
               <label style={{ display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 6 }}>
                 Email
               </label>
@@ -96,6 +106,40 @@ export default function ForgotPassword() {
                   {errors.email.message}
                 </span>
               )}
+            </div>
+
+            <div style={{
+              display: 'flex',
+              gap: 8,
+              padding: 4,
+              background: 'var(--surface2, #1a1c22)',
+              borderRadius: 8,
+              marginBottom: 18,
+            }}>
+              {[
+                { value: 'link', label: 'Email me a link' },
+                { value: 'otp',  label: 'Email me a code' },
+              ].map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setMethod(opt.value)}
+                  style={{
+                    flex: 1,
+                    height: 32,
+                    background: method === opt.value
+                      ? 'linear-gradient(135deg, var(--accent), var(--accent2))'
+                      : 'transparent',
+                    color: method === opt.value ? '#fff' : 'var(--text2)',
+                    border: 'none',
+                    borderRadius: 6,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
             </div>
 
             <button
@@ -115,7 +159,9 @@ export default function ForgotPassword() {
                 transition: 'opacity .15s',
               }}
             >
-              {isSubmitting ? 'Sending...' : 'Send reset link'}
+              {isSubmitting
+                ? 'Sending...'
+                : (method === 'otp' ? 'Send reset code' : 'Send reset link')}
             </button>
 
             <div style={{ marginTop: 16, textAlign: 'center' }}>
