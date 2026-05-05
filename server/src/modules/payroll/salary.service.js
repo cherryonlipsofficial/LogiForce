@@ -360,6 +360,30 @@ const calculateDeductions = async (req, driverId, year, month, grossSalary) => {
     isDeleted: { $ne: true },
   });
 
+  // Negative-net runs can't reach 'paid' but can reach 'processed', so any
+  // prior run for this driver that's been processed (or paid) has already
+  // committed those CN deductions — its carryover is what should flow into
+  // this run, not the same CN refs again. Collect those refs and skip them.
+  const SalaryRun = getModel(req, 'SalaryRun');
+  const otherRuns = await SalaryRun.find({
+    driverId,
+    status: { $in: ['processed', 'paid'] },
+    isDeleted: { $ne: true },
+    $or: [
+      { 'period.year': { $ne: year } },
+      { 'period.month': { $ne: month } },
+    ],
+  }).select('deductions');
+
+  const bookedCNRefs = new Set();
+  for (const r of otherRuns) {
+    for (const d of r.deductions || []) {
+      if (d.type === 'credit_note' && d.referenceId) {
+        bookedCNRefs.add(d.referenceId);
+      }
+    }
+  }
+
   for (const cn of unsettledCNLines) {
     for (const line of cn.lineItems) {
       if (
@@ -368,9 +392,12 @@ const calculateDeductions = async (req, driverId, year, month, grossSalary) => {
         !line.manuallyResolved &&
         !line.receivableCreated
       ) {
+        const refId = String(cn._id) + ':' + String(line._id);
+        if (bookedCNRefs.has(refId)) continue;
+
         deductions.push({
           type: 'credit_note',
-          referenceId: String(cn._id) + ':' + String(line._id),
+          referenceId: refId,
           amount: Math.round(line.totalWithVat * 100) / 100,
           description: `${cn.creditNoteNo} - ${(line.noteType || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}${line.referenceNo ? ' - ' + line.referenceNo : ''}`,
           status: 'applied',
@@ -701,6 +728,7 @@ const updateAdvanceRecoveries = async (req, salaryRun) => {
  */
 const syncCreditNoteDeductions = async (req, salaryRun) => {
   const CreditNote = getModel(req, 'CreditNote');
+  const SalaryRun = getModel(req, 'SalaryRun');
   const DriverLedger = getModel(req, 'DriverLedger');
 
   const driverId = salaryRun.driverId;
@@ -719,6 +747,26 @@ const syncCreditNoteDeductions = async (req, salaryRun) => {
     isDeleted: { $ne: true },
   });
 
+  // Only treat CNs as "already booked" when the other run has reached the
+  // processed (or paid) state — that's the lifecycle stage where deductions
+  // are committed (and salaryDeducted gets flipped to true). Negative-net
+  // runs can still reach 'processed', so this covers them.
+  const otherRuns = await SalaryRun.find({
+    driverId,
+    _id: { $ne: salaryRun._id },
+    status: { $in: ['processed', 'paid'] },
+    isDeleted: { $ne: true },
+  }).select('deductions');
+
+  const bookedCNRefs = new Set();
+  for (const r of otherRuns) {
+    for (const d of r.deductions || []) {
+      if (d.type === 'credit_note' && d.referenceId) {
+        bookedCNRefs.add(d.referenceId);
+      }
+    }
+  }
+
   for (const cn of unsettledCNs) {
     for (const line of cn.lineItems) {
       if (
@@ -735,6 +783,9 @@ const syncCreditNoteDeductions = async (req, salaryRun) => {
         (d) => d.type === 'credit_note' && d.referenceId === refId
       );
       if (alreadyAdded) continue;
+
+      // Skip if already booked on another in-progress salary run
+      if (bookedCNRefs.has(refId)) continue;
 
       const deductionAmount = Math.round(line.totalWithVat * 100) / 100;
 
