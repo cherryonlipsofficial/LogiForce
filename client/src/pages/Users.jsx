@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { getUsers, updateUser, activateUser, deactivateUser, getInactiveUsers } from '../api/usersApi';
@@ -177,14 +177,6 @@ export default function UsersPage() {
     else if (statusFilter === 'deactivated') matchStatus = !u.isActive && !!u.activatedAt;
     return matchSearch && matchRole && matchStatus;
   });
-
-  // Close actions dropdown on outside click
-  useEffect(() => {
-    if (!actionsDropdownId) return;
-    const handler = () => setActionsDropdownId(null);
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [actionsDropdownId]);
 
   // Deactivate mutation
   const deactivateMutation = useMutation({
