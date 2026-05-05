@@ -357,6 +357,9 @@ const listVisaRecords = async (
     query.visaProcessedDate = { $in: [null] };
   }
 
+  // Don't add `.lean({ virtuals: true })` — the `mongoose-lean-virtuals`
+  // plugin isn't installed, so the option is silently ignored and virtuals
+  // (outstandingAmount, daysUntilExpiry) get stripped from the response.
   const [items, total] = await Promise.all([
     DriverVisa.find(query)
       .populate('driverId', 'fullName employeeCode visaType phoneUae')
@@ -365,8 +368,7 @@ const listVisaRecords = async (
       .populate('visaProcessedBy', 'name')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
-      .limit(limit)
-      .lean({ virtuals: true }),
+      .limit(limit),
     DriverVisa.countDocuments(query),
   ]);
 
