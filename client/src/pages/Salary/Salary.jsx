@@ -474,17 +474,26 @@ const RunDetail = ({ run, onClose }) => {
                           type="button"
                           onClick={() => setRemovingCnRef(ded.referenceId)}
                           title="Remove this credit note from the current payroll and defer to next month"
+                          aria-label="Remove credit note deduction"
                           style={{
                             background: 'transparent',
-                            border: '1px solid var(--border2)',
+                            border: 'none',
                             color: 'var(--text3)',
-                            borderRadius: 6,
-                            padding: '2px 6px',
-                            fontSize: 11,
+                            borderRadius: 4,
+                            width: 18,
+                            height: 18,
+                            padding: 0,
+                            fontSize: 14,
+                            lineHeight: 1,
                             cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
                           }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = '#f87171'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text3)'; }}
                         >
-                          Remove
+                          &times;
                         </button>
                       )}
                       {isConfirming && (
