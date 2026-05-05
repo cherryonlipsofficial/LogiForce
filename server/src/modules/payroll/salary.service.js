@@ -454,6 +454,15 @@ const storeDeductionCarryover = async (req, driverId, year, month, amount) => {
     nextYear = year + 1;
   }
 
+  // Carryover is a tracking marker for the *next* month's deduction; it should
+  // not move the running balance in the current period. Mirror the previous
+  // entry's runningBalance so the ledger chain stays valid (otherwise a later
+  // postLedgerEntries call would read undefined and produce NaN).
+  const lastEntry = await DriverLedger.findOne({ driverId, isDeleted: { $ne: true } })
+    .sort({ createdAt: -1 })
+    .lean();
+  const carriedRunningBalance = Number(lastEntry?.runningBalance) || 0;
+
   // Upsert to avoid duplicate carryover entries for the same source period
   await DriverLedger.findOneAndUpdate(
     {
@@ -467,6 +476,7 @@ const storeDeductionCarryover = async (req, driverId, year, month, amount) => {
       $set: {
         debit: amount,
         credit: 0,
+        runningBalance: carriedRunningBalance,
         description: `Deduction carryover from ${year}-${String(month).padStart(2, '0')}`,
       },
       $setOnInsert: {
@@ -620,20 +630,23 @@ const postLedgerEntries = async (req, salaryRun, createdBy) => {
 
   const { driverId, period } = salaryRun;
 
-  // Get the last running balance for this driver
+  // Get the last running balance for this driver. Older ledger entries (e.g.
+  // carryover upserts) may have been written without a runningBalance field,
+  // so fall back to 0 if it's null/undefined to avoid NaN propagation.
   const lastEntry = await DriverLedger.findOne({ driverId, isDeleted: { $ne: true } })
     .sort({ createdAt: -1 })
     .limit(1);
-  let runningBalance = lastEntry ? lastEntry.runningBalance : 0;
+  let runningBalance = Number(lastEntry?.runningBalance) || 0;
 
   // 1. Post salary credit entry
-  runningBalance += salaryRun.netSalary;
+  const netSalary = Number(salaryRun.netSalary) || 0;
+  runningBalance += netSalary;
   await DriverLedger.create({
     driverId,
     salaryRunId: salaryRun._id,
     entryType: 'salary_credit',
     debit: 0,
-    credit: salaryRun.netSalary,
+    credit: netSalary,
     runningBalance,
     description: `Salary credit for ${period.year}-${String(period.month).padStart(2, '0')}`,
     referenceId: salaryRun.runId,
@@ -643,14 +656,15 @@ const postLedgerEntries = async (req, salaryRun, createdBy) => {
 
   // 2. Post deduction entries
   for (const deduction of salaryRun.deductions) {
-    if (deduction.amount <= 0) continue;
+    const amount = Number(deduction.amount) || 0;
+    if (amount <= 0) continue;
 
-    runningBalance -= deduction.amount;
+    runningBalance -= amount;
     await DriverLedger.create({
       driverId,
       salaryRunId: salaryRun._id,
       entryType: deduction.type === 'advance_recovery' ? 'advance_recovery' : 'deduction_debit',
-      debit: deduction.amount,
+      debit: amount,
       credit: 0,
       runningBalance,
       description: deduction.description,
@@ -1061,12 +1075,17 @@ const processSalaryRun = async (req, runId, userId) => {
     }
   }
 
-  salaryRun.status = 'processed';
-  salaryRun.processedBy = userId;
-  salaryRun.processedAt = new Date();
-  await salaryRun.save();
+  // If clearance deductions were synced into the run above, persist them
+  // before posting ledger entries so the on-disk run reflects the deductions
+  // we're about to credit/debit.
+  if (salaryRun.isModified()) {
+    await salaryRun.save();
+  }
 
-  // Post ledger entries on processing (moved from old approval step)
+  // Post ledger entries on processing (moved from old approval step).
+  // Run side-effects BEFORE flipping status to 'processed' so that a failure
+  // here leaves the run at 'accounts_approved' and the user can safely retry,
+  // rather than stranding it in 'processed' with no ledger entries.
   await postLedgerEntries(req, salaryRun, userId);
 
   // Update advance recoveries
@@ -1118,15 +1137,16 @@ const processSalaryRun = async (req, runId, userId) => {
     // Post debit entry to DriverLedger
     const lastEntry = await DriverLedger.findOne({ driverId: salaryRun.driverId, isDeleted: { $ne: true } })
       .sort({ createdAt: -1 });
-    const previousBalance = lastEntry?.runningBalance || 0;
+    const previousBalance = Number(lastEntry?.runningBalance) || 0;
+    const dedAmount = Number(ded.amount) || 0;
 
     await DriverLedger.create({
       driverId: salaryRun.driverId,
       salaryRunId: salaryRun._id,
       entryType: 'credit_note_debit',
-      debit: ded.amount,
+      debit: dedAmount,
       credit: 0,
-      runningBalance: previousBalance - ded.amount,
+      runningBalance: previousBalance - dedAmount,
       description: ded.description,
       referenceId: ded.referenceId,
       period: salaryRun.period,
@@ -1151,6 +1171,14 @@ const processSalaryRun = async (req, runId, userId) => {
       });
     }
   }
+
+  // Flip status to 'processed' last, so that any failure in the side-effects
+  // above leaves the run at 'accounts_approved' for safe retry rather than
+  // stranding it in 'processed' with partial ledger/recovery state.
+  salaryRun.status = 'processed';
+  salaryRun.processedBy = userId;
+  salaryRun.processedAt = new Date();
+  await salaryRun.save();
 
   // Notify users with salary.pay permission
   const { notifyByPermission } = require('../shared/notification.service');

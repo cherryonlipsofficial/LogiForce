@@ -552,12 +552,21 @@ const adjustDraftSalaryRuns = async (req, creditNote) => {
       line.receivableCreated = true;
       line.receivableId = receivable._id;
 
-      // Post ledger entry for visibility
+      // Post ledger entry for visibility. Compute runningBalance from the
+      // previous entry so the chain stays valid for later postLedgerEntries
+      // calls (otherwise an undefined runningBalance propagates to NaN).
+      const lastEntry = await DriverLedger.findOne({ driverId: driver._id, isDeleted: { $ne: true } })
+        .sort({ createdAt: -1 })
+        .lean();
+      const previousBalance = Number(lastEntry?.runningBalance) || 0;
+      const dedAmount = Number(deductionAmount) || 0;
+
       await DriverLedger.create({
         driverId: driver._id,
         entryType: 'credit_note_debit',
-        debit: deductionAmount,
+        debit: dedAmount,
         credit: 0,
+        runningBalance: previousBalance - dedAmount,
         description: `Receivable created — Credit note ${creditNote.creditNoteNo} - ${line.noteType} (driver ${driver.status})`,
         referenceId: String(receivable._id),
         period: creditNote.period,
