@@ -33,6 +33,7 @@ const normalizeInvoice = (inv) => {
     period: inv.period?.year ? `${MONTHS[(inv.period.month || 1) - 1]} ${inv.period.year}` : inv.period,
     amount: inv.total ?? inv.amount,
     issueDate: inv.issuedDate || inv.issueDate,
+    driverCount: inv.driverCount ?? inv.lineItems?.length ?? 0,
   };
 };
 
