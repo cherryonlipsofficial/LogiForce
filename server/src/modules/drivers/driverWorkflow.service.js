@@ -125,7 +125,7 @@ async function activateDriver(req, driverId, userId, { personalVerificationConfi
   return updated;
 }
 
-async function changeStatusManual(req, driverId, newStatus, reason, userId) {
+async function changeStatusManual(req, driverId, newStatus, reason, userId, opts = {}) {
   const Driver = getModel(req, 'Driver');
   const User = getModel(req, 'User');
   const driver = await Driver.findById(driverId);
@@ -152,6 +152,36 @@ async function changeStatusManual(req, driverId, newStatus, reason, userId) {
     const err = new Error('Reason is required for manual status changes');
     err.statusCode = 400;
     throw err;
+  }
+
+  // Last working day is required when transitioning into resigned/offboarded.
+  // Captured here so the auto-created clearance record carries the actual
+  // departure date instead of the day the status change was recorded.
+  let parsedLastWorkingDay = null;
+  if (['resigned', 'offboarded'].includes(newStatus) && !['resigned', 'offboarded'].includes(driver.status)) {
+    if (!opts.lastWorkingDay) {
+      const err = new Error('Last working day is required when marking a driver as resigned or offboarded');
+      err.statusCode = 400;
+      throw err;
+    }
+    parsedLastWorkingDay = new Date(opts.lastWorkingDay);
+    if (Number.isNaN(parsedLastWorkingDay.getTime())) {
+      const err = new Error('Last working day must be a valid date');
+      err.statusCode = 400;
+      throw err;
+    }
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    if (parsedLastWorkingDay > today) {
+      const err = new Error('Last working day cannot be in the future');
+      err.statusCode = 400;
+      throw err;
+    }
+    if (driver.joinDate && parsedLastWorkingDay < new Date(driver.joinDate)) {
+      const err = new Error('Last working day cannot be before the join date');
+      err.statusCode = 400;
+      throw err;
+    }
   }
 
   const currentStatus = driver.status;
@@ -206,8 +236,14 @@ async function changeStatusManual(req, driverId, newStatus, reason, userId) {
   // The clearance must be completed (client + supplier + internal) before
   // their final salary run can be processed.
   if (['resigned', 'offboarded'].includes(newStatus) && !['resigned', 'offboarded'].includes(currentStatus)) {
+    if (parsedLastWorkingDay) {
+      driver.lastWorkingDay = parsedLastWorkingDay;
+      await driver.save();
+    }
     try {
-      await openClearanceForOffboarding(req, driverId, newStatus, userId);
+      await openClearanceForOffboarding(req, driverId, newStatus, userId, {
+        lastWorkingDate: parsedLastWorkingDay,
+      });
     } catch (err) {
       // Don't block the status change if clearance creation fails — log and continue.
       // eslint-disable-next-line no-console

@@ -18,6 +18,7 @@ import {
   logInternalClearance,
   addSupplierDeduction,
   removeSupplierDeduction,
+  updateLastWorkingDate,
 } from '../../api/driverClearanceApi';
 
 const statusVariant = {
@@ -270,6 +271,64 @@ const Field = ({ label, children }) => (
   </div>
 );
 
+const LastWorkingDateField = ({ clearance }) => {
+  const qc = useQueryClient();
+  const { hasPermission } = useAuth();
+  const canEdit = hasPermission('clearance.log_client');
+  const [editing, setEditing] = useState(false);
+  const initial = clearance.lastWorkingDate
+    ? new Date(clearance.lastWorkingDate).toISOString().slice(0, 10)
+    : '';
+  const [value, setValue] = useState(initial);
+
+  const mutation = useMutation({
+    mutationFn: () => updateLastWorkingDate(clearance._id, value),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['driver-clearance'] });
+      toast.success('Last working date updated');
+      setEditing(false);
+    },
+    onError: (err) => toast.error(err?.response?.data?.message || 'Failed to update'),
+  });
+
+  if (!editing) {
+    return (
+      <div>
+        <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Last working date
+        </div>
+        <div style={{ fontSize: 12, marginTop: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>{formatDate(clearance.lastWorkingDate)}</span>
+          {canEdit && (
+            <Btn small onClick={() => { setValue(initial); setEditing(true); }}>Edit</Btn>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        Last working date
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+        <input
+          type="date"
+          value={value}
+          max={new Date().toISOString().slice(0, 10)}
+          onChange={(e) => setValue(e.target.value)}
+          style={{ ...inputStyle, maxWidth: 160 }}
+        />
+        <Btn small variant="primary" onClick={() => mutation.mutate()} disabled={!value || mutation.isPending}>
+          {mutation.isPending ? '…' : 'Save'}
+        </Btn>
+        <Btn small onClick={() => setEditing(false)}>Cancel</Btn>
+      </div>
+    </div>
+  );
+};
+
 const ClearanceDetail = ({ id, onClose }) => {
   const [logSection, setLogSection] = useState(null);
   const { data, isLoading } = useQuery({
@@ -296,7 +355,7 @@ const ClearanceDetail = ({ id, onClose }) => {
             <InfoRow label="Client" value={data.clientId?.name || '—'} />
             <InfoRow label="Project" value={data.projectId?.name || '—'} />
             <InfoRow label="Supplier" value={data.supplierId?.name || '—'} />
-            <InfoRow label="Last working date" value={formatDate(data.lastWorkingDate)} />
+            <LastWorkingDateField clearance={data} />
             <InfoRow label="Trigger status" value={data.triggerStatus} />
             <InfoRow label="Uses company vehicle" value={data.usesCompanyVehicle ? 'Yes' : 'No'} />
           </div>
