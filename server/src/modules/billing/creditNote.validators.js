@@ -34,7 +34,7 @@ const createCreditNoteValidation = [
     .trim(),
   body('lineItems.*.vatRate')
     .optional()
-    .isFloat({ min: 0, max: 1 }).withMessage('VAT rate must be between 0 and 1'),
+    .isFloat({ min: 0, max: 100 }).withMessage('VAT rate must be between 0 and 100'),
 ];
 
 const adjustCreditNoteValidation = [

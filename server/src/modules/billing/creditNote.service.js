@@ -43,7 +43,7 @@ const createCreditNote = async (req, data, createdBy) => {
 
     const amount = Math.round(item.amount * 100) / 100;
     const vatRate = item.vatRate || 0;
-    const vatAmount = Math.round(amount * vatRate * 100) / 100;
+    const vatAmount = Math.round(amount * (vatRate / 100) * 100) / 100;
     const totalWithVat = Math.round((amount + vatAmount) * 100) / 100;
 
     processedItems.push({
