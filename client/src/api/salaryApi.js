@@ -3,6 +3,9 @@ import axiosInstance from './axiosInstance';
 export const getRuns = (params) =>
   axiosInstance.get('/salary/runs', { params }).then(r => r.data);
 
+export const exportRuns = (params) =>
+  axiosInstance.get('/salary/runs/export', { params, responseType: 'blob' }).then(r => r.data);
+
 export const runPayroll = (data) =>
   axiosInstance.post('/salary/run', data).then(r => r.data);
 
