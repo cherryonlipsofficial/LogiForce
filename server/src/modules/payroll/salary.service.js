@@ -781,6 +781,8 @@ const syncCreditNoteDeductions = async (req, salaryRun) => {
     }
   }
 
+  const excludedRefs = new Set(salaryRun.excludedCreditNoteRefs || []);
+
   for (const cn of unsettledCNs) {
     for (const line of cn.lineItems) {
       if (
@@ -800,6 +802,9 @@ const syncCreditNoteDeductions = async (req, salaryRun) => {
 
       // Skip if already booked on another in-progress salary run
       if (bookedCNRefs.has(refId)) continue;
+
+      // Skip if this CN ref was manually excluded from this run
+      if (excludedRefs.has(refId)) continue;
 
       const deductionAmount = Math.round(line.totalWithVat * 100) / 100;
 
@@ -1339,6 +1344,154 @@ const addManualDeduction = async (req, runId, { type, amount, description }, add
 };
 
 /**
+ * Recalculate totalDeductions / netSalary / deductionCarryover after the
+ * deductions array has been mutated. Handles the storeDeductionCarryover
+ * upsert / cleanup so that the next-month carryover ledger entry stays in sync.
+ */
+const recalculateRunTotals = async (req, run) => {
+  run.totalDeductions = Math.round(
+    run.deductions.filter((d) => d.amount > 0).reduce((sum, d) => sum + d.amount, 0) * 100
+  ) / 100;
+
+  const rawNet = Math.round((run.grossSalary - run.totalDeductions) * 100) / 100;
+  const { year, month } = run.period;
+
+  if (rawNet < 0) {
+    const carryoverAmount = Math.abs(rawNet);
+    run.netSalary = 0;
+    run.deductionCarryover = carryoverAmount;
+    run.notes = `Deduction carryover of ${carryoverAmount} AED to next month`;
+    await storeDeductionCarryover(req, run.driverId, year, month, carryoverAmount);
+  } else {
+    run.netSalary = rawNet;
+    run.deductionCarryover = 0;
+    await clearDeductionCarryover(req, run.driverId, year, month);
+    if (run.notes && run.notes.startsWith('Deduction carryover')) {
+      run.notes = undefined;
+    }
+  }
+};
+
+/**
+ * Remove a credit-note deduction from a salary run and push it to the next
+ * month's payroll. Used when finance wants to manually defer a specific CN
+ * from the current month.
+ *
+ * - The current run is recalculated and the CN ref is recorded in
+ *   `excludedCreditNoteRefs` so `syncCreditNoteDeductions` can't re-inject it
+ *   on the next approval step.
+ * - If a draft run already exists for this driver in a later period, the
+ *   deduction is injected there and totals are recalculated.
+ * - Otherwise the CN line item is flagged `pendingNextSalary` so the next
+ *   payroll run picks it up via `calculateDeductions`.
+ */
+const removeCreditNoteDeduction = async (req, runId, referenceId, removedBy) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
+  const CreditNote = getModel(req, 'CreditNote');
+
+  const run = await SalaryRun.findById(runId);
+  if (!run) {
+    const err = new Error('Salary run not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const editableStatuses = ['draft', 'ops_approved', 'compliance_approved'];
+  if (!editableStatuses.includes(run.status)) {
+    const err = new Error(
+      `Cannot remove credit note deduction — salary run is '${run.status}'. Only draft / ops_approved / compliance_approved runs can be edited.`
+    );
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const idx = run.deductions.findIndex(
+    (d) => d.type === 'credit_note' && d.referenceId === referenceId
+  );
+  if (idx === -1) {
+    const err = new Error('Credit note deduction not found on this salary run');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const removed = run.deductions[idx];
+  run.deductions.splice(idx, 1);
+
+  if (!run.excludedCreditNoteRefs) run.excludedCreditNoteRefs = [];
+  if (!run.excludedCreditNoteRefs.includes(referenceId)) {
+    run.excludedCreditNoteRefs.push(referenceId);
+  }
+
+  await recalculateRunTotals(req, run);
+  await run.save();
+
+  // Find the next available draft for this driver in a later period and
+  // inject the CN deduction. We sort by period ASC and skip any run whose
+  // (year, month) is <= current run's period.
+  const laterDraft = await SalaryRun.findOne({
+    driverId: run.driverId,
+    _id: { $ne: run._id },
+    status: 'draft',
+    isDeleted: { $ne: true },
+    $or: [
+      { 'period.year': { $gt: run.period.year } },
+      { 'period.year': run.period.year, 'period.month': { $gt: run.period.month } },
+    ],
+  }).sort({ 'period.year': 1, 'period.month': 1 });
+
+  let movedToRunId = null;
+  let movedToPeriod = null;
+  let pendingNext = false;
+
+  if (laterDraft) {
+    const alreadyAdded = laterDraft.deductions.some(
+      (d) => d.type === 'credit_note' && d.referenceId === referenceId
+    );
+    if (!alreadyAdded) {
+      laterDraft.deductions.push({
+        type: 'credit_note',
+        referenceId,
+        amount: removed.amount,
+        description: removed.description,
+        status: 'applied',
+      });
+      // Make sure a previous exclusion on the destination run doesn't keep it out.
+      laterDraft.excludedCreditNoteRefs = (laterDraft.excludedCreditNoteRefs || []).filter(
+        (r) => r !== referenceId
+      );
+      await recalculateRunTotals(req, laterDraft);
+      await laterDraft.save();
+    }
+    movedToRunId = laterDraft.runId;
+    movedToPeriod = laterDraft.period;
+  } else {
+    // No later draft exists yet — flag the CN line so the next payroll run
+    // picks it up automatically via calculateDeductions.
+    const [cnId, lineId] = referenceId.split(':');
+    if (cnId && lineId) {
+      const cn = await CreditNote.findById(cnId);
+      if (cn) {
+        const line = cn.lineItems.id(lineId);
+        if (line && !line.salaryDeducted && !line.manuallyResolved && !line.receivableCreated) {
+          line.pendingNextSalary = true;
+          line.pendingNextSalaryAt = new Date();
+          await cn.save();
+          pendingNext = true;
+        }
+      }
+    }
+  }
+
+  return {
+    run,
+    removedAmount: removed.amount,
+    movedToRunId,
+    movedToPeriod,
+    pendingNext,
+  };
+};
+
+/**
  * Bulk approve salary runs for a given stage.
  * Iterates through each ID, applies the stage-specific approval, and tracks successes/errors.
  */
@@ -1435,4 +1588,5 @@ module.exports = {
   bulkMarkAsPaid,
   generateWpsFile,
   addManualDeduction,
+  removeCreditNoteDeduction,
 };
