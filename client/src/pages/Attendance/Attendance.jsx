@@ -52,6 +52,7 @@ const normalizeBatch = (b) => {
     project: b.projectId?.name || b.project || '',
     projectCode: b.projectId?.projectCode || b.projectCode || '',
     period: b.period?.year ? `${MONTHS[(b.period.month || 1) - 1]} ${b.period.year}` : b.period,
+    batchType: b.batchType || 'regular',
     uploadedBy: b.uploadedBy?.name || b.uploadedBy || '',
     uploadedAt: b.createdAt || b.uploadedAt,
     status: b.status === 'pending_approval' ? 'pending_review' : b.status,
@@ -167,6 +168,9 @@ const Attendance = () => {
                     >
                       <td style={{ padding: '11px 14px' }}>
                         <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>{b.batchId || b._id}</span>
+                        {b.batchType === 'overtime' && (
+                          <Badge variant="info" style={{ marginLeft: 6 }}>OT</Badge>
+                        )}
                       </td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{b.project || b.projectCode}</td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{b.client}</td>
@@ -287,7 +291,10 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
     <SidePanel onClose={onClose}>
       <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 500 }}>Batch {displayId}</div>
+          <div style={{ fontSize: 16, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}>
+            Batch {displayId}
+            {batch.batchType === 'overtime' && <Badge variant="info">OT</Badge>}
+          </div>
           <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{batch.project || batch.projectCode} &middot; {batch.client} &middot; {batch.period}</div>
         </div>
         <button onClick={onClose} style={{ background: 'var(--surface3)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 8, padding: '4px 10px', fontSize: 16 }}>&times;</button>
@@ -345,6 +352,7 @@ const BatchDetail = ({ batch, onClose, hasPermission }) => {
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 24 }}>
           <InfoRow label="Project" value={batch.project ? `${batch.project} (${batch.projectCode})` : batch.projectCode || '—'} />
           <InfoRow label="Client" value={batch.client || '—'} />
+          <InfoRow label="Batch type" value={batch.batchType === 'overtime' ? 'Overtime (OT)' : 'Regular'} />
           <InfoRow label="File" value={fileName || '—'} />
           <InfoRow label="Status" value={<Badge variant={st.variant}>{st.label}</Badge>} />
           <InfoRow label="Total records" value={batch.totalRecords} />
@@ -545,6 +553,7 @@ const UploadModal = ({ onClose }) => {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  const [batchType, setBatchType] = useState('regular');
   const [file, setFile] = useState(null);
   const qc = useQueryClient();
 
@@ -573,6 +582,7 @@ const UploadModal = ({ onClose }) => {
     fd.append('projectId', projectId);
     fd.append('year', year);
     fd.append('month', month);
+    fd.append('batchType', batchType);
     fd.append('columnMapping', JSON.stringify({ employeeCode: 'employee_code', workingDays: 'working_days', overtimeHours: 'overtime_hours', totalOrders: 'total_orders' }));
     upload(fd);
   };
@@ -656,6 +666,16 @@ const UploadModal = ({ onClose }) => {
                 <option key={m} value={i + 1}>{m}</option>
               ))}
             </select>
+          </div>
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>Batch type *</label>
+          <select value={batchType} onChange={(e) => setBatchType(e.target.value)} style={{ width: '100%' }}>
+            <option value="regular">Regular attendance</option>
+            <option value="overtime">Overtime (OT) only</option>
+          </select>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6, lineHeight: 1.5 }}>
+            Choose <strong>Overtime (OT) only</strong> to upload an OT-specific batch alongside the regular attendance batch for the same project &amp; period.
           </div>
         </div>
         <div style={{ marginBottom: 14 }}>

@@ -10,6 +10,9 @@ const uploadAttendanceValidation = [
   body('month')
     .notEmpty().withMessage('Month is required')
     .isInt({ min: 1, max: 12 }).withMessage('Month must be between 1 and 12'),
+  body('batchType')
+    .optional()
+    .isIn(['regular', 'overtime']).withMessage('batchType must be either "regular" or "overtime"'),
 ];
 
 const overrideRecordValidation = [
