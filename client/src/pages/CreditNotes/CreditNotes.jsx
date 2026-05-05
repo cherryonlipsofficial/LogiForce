@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -501,6 +501,7 @@ const CreateCreditNoteModal = ({ onClose }) => {
   const [lineItems, setLineItems] = useState([{ driverId: '', driverSearch: '', noteType: 'traffic_fine', referenceNo: '', amount: '', vatRate: '0' }]);
   const [driverResults, setDriverResults] = useState({});
   const [searchingDriver, setSearchingDriver] = useState({});
+  const lastQueryRef = useRef({});
   const qc = useQueryClient();
 
   const addLine = () => setLineItems([...lineItems, { driverId: '', driverSearch: '', noteType: 'traffic_fine', referenceNo: '', amount: '', vatRate: '0' }]);
@@ -514,6 +515,7 @@ const CreateCreditNoteModal = ({ onClose }) => {
   };
 
   const searchDrivers = async (idx, query) => {
+    lastQueryRef.current[idx] = query;
     if (!query || query.length < 2) {
       setDriverResults((prev) => ({ ...prev, [idx]: [] }));
       return;
@@ -521,9 +523,11 @@ const CreateCreditNoteModal = ({ onClose }) => {
     setSearchingDriver((prev) => ({ ...prev, [idx]: true }));
     try {
       const res = await axiosInstance.get('/drivers', { params: { search: query, limit: 10, projectId: projectId || undefined } });
+      if (lastQueryRef.current[idx] !== query) return;
       const drivers = res.data?.data || [];
       setDriverResults((prev) => ({ ...prev, [idx]: drivers }));
     } catch {
+      if (lastQueryRef.current[idx] !== query) return;
       setDriverResults((prev) => ({ ...prev, [idx]: [] }));
     } finally {
       setSearchingDriver((prev) => ({ ...prev, [idx]: false }));
@@ -531,6 +535,7 @@ const CreateCreditNoteModal = ({ onClose }) => {
   };
 
   const selectDriver = (idx, driver) => {
+    lastQueryRef.current[idx] = null;
     updateLine(idx, 'driverId', driver._id);
     updateLine(idx, 'driverSearch', `${driver.fullName} (${driver.employeeCode || driver._id})`);
     setDriverResults((prev) => ({ ...prev, [idx]: [] }));
