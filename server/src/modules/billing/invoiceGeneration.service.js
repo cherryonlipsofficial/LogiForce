@@ -291,6 +291,7 @@ async function generateInvoice(req, batchId, accountsUserId) {
     servicePeriodFrom,
     servicePeriodTo,
     lineItems,
+    driverCount: lineItems.length,
     subtotal,
     vatRate:    0.05,
     vatAmount,
