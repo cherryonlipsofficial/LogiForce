@@ -13,6 +13,15 @@ const rateBasisRule = body('rateBasis')
   .isIn(['monthly_fixed', 'daily_rate', 'per_order'])
   .withMessage('Rate basis must be monthly_fixed, daily_rate, or per_order');
 
+const otRateRule = body('otRate')
+  .optional({ nullable: true })
+  .isFloat({ min: 0 }).withMessage('OT rate must be a positive number');
+
+const otRateBasisRule = body('otRateBasis')
+  .optional()
+  .isIn(['per_hour', 'per_day'])
+  .withMessage('OT rate basis must be per_hour or per_day');
+
 const createProjectValidation = [
   body('name')
     .trim()
@@ -29,6 +38,8 @@ const createProjectValidation = [
   phoneRule,
   salaryReleaseDayRule,
   rateBasisRule,
+  otRateRule,
+  otRateBasisRule,
 ];
 
 const updateProjectValidation = [
@@ -45,6 +56,8 @@ const updateProjectValidation = [
   phoneRule,
   salaryReleaseDayRule,
   rateBasisRule,
+  otRateRule,
+  otRateBasisRule,
 ];
 
 module.exports = { createProjectValidation, updateProjectValidation };

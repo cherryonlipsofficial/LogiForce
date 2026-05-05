@@ -67,7 +67,7 @@ const listProjects = async (req, clientId, filters = {}, pagination = {}) => {
       projectId: { $in: projectIds },
       status: 'active',
     })
-      .select('projectId contractType startDate endDate ratePerDriver durationMonths')
+      .select('projectId contractType startDate endDate ratePerDriver durationMonths otRate otRateBasis')
       .lean(),
     Driver.aggregate([
       {
@@ -176,6 +176,8 @@ const createProject = async (req, data, userId) => {
         clientId: project.clientId,
         ratePerDriver: contractData.ratePerDriver || project.ratePerDriver,
         rateBasis: contractData.rateBasis || project.rateBasis,
+        otRate: contractData.otRate != null ? contractData.otRate : project.otRate,
+        otRateBasis: contractData.otRateBasis || project.otRateBasis,
       },
       userId
     );
@@ -208,7 +210,21 @@ const updateProject = async (req, id, data, userId) => {
     );
   }
 
+  if (data.otRate != null && data.otRate !== project.otRate) {
+    await auditLogger.logChange(
+      'Project',
+      id,
+      'otRate',
+      project.otRate,
+      data.otRate,
+      userId,
+      'rate_change'
+    );
+  }
+
   const rateBasisChanged = data.rateBasis && data.rateBasis !== project.rateBasis;
+  const otRateChanged = data.otRate != null && data.otRate !== project.otRate;
+  const otRateBasisChanged = data.otRateBasis && data.otRateBasis !== project.otRateBasis;
 
   // Do NOT allow changing clientId (would break assignments)
   delete data.clientId;
@@ -223,6 +239,16 @@ const updateProject = async (req, id, data, userId) => {
     await ProjectContract.updateOne(
       { projectId: id, status: 'active' },
       { $set: { rateBasis: data.rateBasis } }
+    );
+  }
+
+  if (otRateChanged || otRateBasisChanged) {
+    const update = {};
+    if (otRateChanged) update.otRate = data.otRate;
+    if (otRateBasisChanged) update.otRateBasis = data.otRateBasis;
+    await ProjectContract.updateOne(
+      { projectId: id, status: 'active' },
+      { $set: update }
     );
   }
 
@@ -269,6 +295,8 @@ const createProjectContract = async (req, projectId, contractData, userId) => {
     endDate,
     ratePerDriver: contractData.ratePerDriver || project.ratePerDriver,
     rateBasis: contractData.rateBasis || project.rateBasis,
+    otRate: contractData.otRate != null ? contractData.otRate : project.otRate,
+    otRateBasis: contractData.otRateBasis || project.otRateBasis,
     minDrivers: contractData.minDrivers,
     maxDrivers: contractData.maxDrivers,
     notes: contractData.notes,
@@ -320,6 +348,8 @@ const renewProjectContract = async (req, projectId, newContractData, userId) => 
     endDate,
     ratePerDriver: newContractData.ratePerDriver || oldContract.ratePerDriver,
     rateBasis: newContractData.rateBasis || oldContract.rateBasis,
+    otRate: newContractData.otRate != null ? newContractData.otRate : oldContract.otRate,
+    otRateBasis: newContractData.otRateBasis || oldContract.otRateBasis,
     minDrivers: newContractData.minDrivers,
     maxDrivers: newContractData.maxDrivers,
     notes: newContractData.notes,
@@ -569,7 +599,7 @@ const getProjectSummary = async (req, id) => {
   const SalaryRun = getModel(req, 'SalaryRun');
 
   const project = await Project.findById(id)
-    .select('name projectCode status ratePerDriver')
+    .select('name projectCode status ratePerDriver otRate otRateBasis')
     .populate('clientId', 'name')
     .lean();
   if (!project) throwErr('Project not found', 404);

@@ -33,6 +33,21 @@ const projectSchema = new Schema(
       enum: ['monthly_fixed', 'daily_rate', 'per_order'],
       default: 'monthly_fixed',
     },
+    // Overtime rate — billed separately on OT invoices.
+    // otRateBasis controls how `otRate` is multiplied:
+    //   per_hour: amount = otRate × overtimeHours
+    //   per_day:  amount = otRate × overtimeHours (overtimeHours is interpreted
+    //             as overtime days when basis is per_day — operations enters
+    //             a daily count instead of an hourly one).
+    otRate: {
+      type: Number,
+      default: 0,
+    },
+    otRateBasis: {
+      type: String,
+      enum: ['per_hour', 'per_day'],
+      default: 'per_hour',
+    },
     currency: {
       type: String,
       default: 'AED',

@@ -46,6 +46,16 @@ const projectContractSchema = new Schema(
       type: String,
       enum: ['monthly_fixed', 'daily_rate', 'per_order'],
     },
+    // Overtime rate snapshot (billed on a separate OT invoice)
+    otRate: {
+      type: Number,
+      default: 0,
+    },
+    otRateBasis: {
+      type: String,
+      enum: ['per_hour', 'per_day'],
+      default: 'per_hour',
+    },
     // Headcount bounds
     minDrivers: {
       type: Number,

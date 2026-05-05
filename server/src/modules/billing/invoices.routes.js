@@ -22,6 +22,11 @@ router.get('/approved-batches', async (req, res) => {
   if (req.query.year) query['period.year'] = parseInt(req.query.year);
   if (req.query.month) query['period.month'] = parseInt(req.query.month);
 
+  // OT invoices live separately from regular invoices, so a batch already
+  // tied to a regular invoice is still eligible for an OT invoice (and vice
+  // versa). The "already invoiced" filter only applies within the same type.
+  const invoiceType = req.query.invoiceType === 'overtime' ? 'overtime' : 'regular';
+
   try {
     const batches = await AttendanceBatch.find(query)
       .populate('clientId', 'name')
@@ -31,12 +36,45 @@ router.get('/approved-batches', async (req, res) => {
       .limit(100)
       .lean();
 
-    // Filter out batches that have an active (non-deleted) invoice
+    // Find OT invoices that already cover these batches' (clientId, period[, projectId])
+    let otCoveredKeys = new Set();
+    if (invoiceType === 'overtime' && batches.length > 0) {
+      const periodOrs = [...new Set(batches.map((b) => `${b.clientId?._id || b.clientId}|${b.projectId?._id || b.projectId || ''}|${b.period?.year}|${b.period?.month}`))];
+      const conditions = periodOrs.map((k) => {
+        const [cId, pId, y, m] = k.split('|');
+        const cond = { clientId: cId, 'period.year': Number(y), 'period.month': Number(m) };
+        if (pId) cond.projectId = pId;
+        return cond;
+      });
+      const otInvoices = await Invoice.find({
+        invoiceType: 'overtime',
+        isDeleted: { $ne: true },
+        $or: conditions,
+      }).select('clientId projectId period').lean();
+      otCoveredKeys = new Set(
+        otInvoices.map((inv) => `${inv.clientId}|${inv.projectId || ''}|${inv.period?.year}|${inv.period?.month}`)
+      );
+    }
+
+    if (invoiceType === 'overtime') {
+      // For OT: hide batches that are already covered by an OT invoice
+      const available = batches.filter((b) => {
+        const key = `${b.clientId?._id || b.clientId}|${b.projectId?._id || b.projectId || ''}|${b.period?.year}|${b.period?.month}`;
+        return !otCoveredKeys.has(key);
+      });
+      return sendSuccess(res, available);
+    }
+
+    // Regular: filter out batches that have an active (non-deleted) regular invoice
     const batchesWithInvoice = batches.filter((b) => b.invoiceId);
     let activeInvoiceIds = new Set();
     if (batchesWithInvoice.length > 0) {
       const invoiceIds = [...new Set(batchesWithInvoice.map((b) => b.invoiceId.toString()))];
-      const existing = await Invoice.find({ _id: { $in: invoiceIds }, isDeleted: { $ne: true } }).select('_id').lean();
+      const existing = await Invoice.find({
+        _id: { $in: invoiceIds },
+        isDeleted: { $ne: true },
+        invoiceType: { $ne: 'overtime' },
+      }).select('_id').lean();
       activeInvoiceIds = new Set(existing.map((inv) => inv._id.toString()));
     }
 
@@ -50,9 +88,28 @@ router.get('/approved-batches', async (req, res) => {
 
 // POST /api/invoices/generate — generate invoice for client/period
 router.post('/generate', requirePermission('invoices.generate'), validate(generateInvoiceValidation), async (req, res) => {
-  const { clientId, year, month, projectId, attendanceBatchIds } = req.body;
+  const { clientId, year, month, projectId, attendanceBatchIds, invoiceType } = req.body;
 
   const invoice = await invoiceService.generateInvoice(
+    req,
+    clientId,
+    parseInt(year),
+    parseInt(month),
+    req.user._id,
+    { projectId, attendanceBatchIds, invoiceType }
+  );
+
+  const message = invoiceType === 'overtime'
+    ? 'OT invoice generated successfully'
+    : 'Invoice generated successfully';
+  sendSuccess(res, invoice, message, 201);
+});
+
+// POST /api/invoices/generate-ot — explicit OT-invoice route
+router.post('/generate-ot', requirePermission('invoices.generate'), validate(generateInvoiceValidation), async (req, res) => {
+  const { clientId, year, month, projectId, attendanceBatchIds } = req.body;
+
+  const invoice = await invoiceService.generateOTInvoice(
     req,
     clientId,
     parseInt(year),
@@ -61,7 +118,7 @@ router.post('/generate', requirePermission('invoices.generate'), validate(genera
     { projectId, attendanceBatchIds }
   );
 
-  sendSuccess(res, invoice, 'Invoice generated successfully', 201);
+  sendSuccess(res, invoice, 'OT invoice generated successfully', 201);
 });
 
 // GET /api/invoices — list with filters
@@ -76,6 +133,7 @@ router.get('/', requirePermission('invoices.view'), async (req, res) => {
   if (req.query.status) query.status = req.query.status;
   if (req.query.year) query['period.year'] = parseInt(req.query.year);
   if (req.query.month) query['period.month'] = parseInt(req.query.month);
+  if (req.query.invoiceType) query.invoiceType = req.query.invoiceType;
 
   const [invoices, total] = await Promise.all([
     Invoice.find(query)

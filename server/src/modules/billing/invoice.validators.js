@@ -19,6 +19,9 @@ const generateInvoiceValidation = [
   body('attendanceBatchIds.*')
     .optional()
     .isMongoId().withMessage('Each attendanceBatchId must be a valid ID'),
+  body('invoiceType')
+    .optional()
+    .isIn(['regular', 'overtime']).withMessage('invoiceType must be regular or overtime'),
 ];
 
 const updateInvoiceStatusValidation = [

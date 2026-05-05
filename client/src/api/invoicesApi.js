@@ -3,6 +3,9 @@ import axiosInstance from './axiosInstance';
 export const generateInvoice = (data) =>
   axiosInstance.post('/invoices/generate', data).then(r => r.data);
 
+export const generateOTInvoice = (data) =>
+  axiosInstance.post('/invoices/generate-ot', data).then(r => r.data);
+
 export const getInvoices = (params) =>
   axiosInstance.get('/invoices', { params }).then(r => r.data);
 
