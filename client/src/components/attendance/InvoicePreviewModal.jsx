@@ -15,6 +15,29 @@ const RATE_BASIS_LABEL = {
   per_order: '/order',
 };
 
+const buildEmptyPreviewMessage = (rateBasis, diagnostics) => {
+  const d = diagnostics || {};
+  const considered = d.consideredRecords ?? 0;
+  const errors = d.errorRecords ?? 0;
+
+  if (considered === 0 && errors > 0) {
+    return `All ${errors} attendance row(s) failed validation (e.g. driver could not be matched). Override the records or re-upload the file with corrected data.`;
+  }
+  if (considered === 0) {
+    return 'No attendance records were uploaded for this batch. Re-upload the file.';
+  }
+  if (rateBasis === 'per_order' && d.skippedZeroOrders > 0) {
+    return `Project bills per order, but all ${d.skippedZeroOrders} record(s) have zero orders. Override the records with order counts or re-upload with the "total_orders" column populated.`;
+  }
+  if (rateBasis !== 'per_order' && d.skippedZeroDays > 0) {
+    return `All ${d.skippedZeroDays} record(s) have zero working days. Override the records with working days or re-upload with the "working_days" column populated.`;
+  }
+  if (d.skippedNoDriver > 0) {
+    return `${d.skippedNoDriver} record(s) reference a driver that no longer exists. Restore the drivers or re-upload the batch.`;
+  }
+  return 'No billable attendance records were found for this batch.';
+};
+
 const InvoicePreviewModal = ({ batch, onClose, onSuccess }) => {
   const { isMobile } = useBreakpoint();
   const { n } = useFormatters();
@@ -116,7 +139,7 @@ const InvoicePreviewModal = ({ batch, onClose, onSuccess }) => {
           background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
           borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 12, color: '#fbbf24',
         }}>
-          No billable attendance records were found for this batch.
+          {buildEmptyPreviewMessage(rateBasis, preview?.diagnostics)}
         </div>
       ) : (
         <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>

@@ -23,6 +23,9 @@ const overrideRecordValidation = [
   body('overtimeHours')
     .optional()
     .isFloat({ min: 0, max: 500 }).withMessage('Overtime hours must be 0-500'),
+  body('totalOrders')
+    .optional()
+    .isInt({ min: 0 }).withMessage('Total orders must be a non-negative integer'),
 ];
 
 module.exports = { uploadAttendanceValidation, overrideRecordValidation };
