@@ -104,6 +104,7 @@ router.get('/runs', requirePermission('salary.view'), async (req, res) => {
 
   const query = { isDeleted: { $ne: true } };
   if (req.query.clientId) query.clientId = req.query.clientId;
+  if (req.query.projectId) query.projectId = req.query.projectId;
   if (req.query.driverId) query.driverId = req.query.driverId;
   if (req.query.status) query.status = req.query.status;
   if (req.query.year) query['period.year'] = parseInt(req.query.year);
@@ -125,6 +126,95 @@ router.get('/runs', requirePermission('salary.view'), async (req, res) => {
   ]);
 
   sendPaginated(res, runs, total, page, limit);
+});
+
+// GET /api/salary/runs/export — export filtered salary runs as XLSX
+router.get('/runs/export', requirePermission('salary.view'), async (req, res) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
+  const XLSX = require('xlsx');
+
+  const query = { isDeleted: { $ne: true } };
+  if (req.query.clientId) query.clientId = req.query.clientId;
+  if (req.query.projectId) query.projectId = req.query.projectId;
+  if (req.query.driverId) query.driverId = req.query.driverId;
+  if (req.query.status) query.status = req.query.status;
+  if (req.query.year) query['period.year'] = parseInt(req.query.year);
+  if (req.query.month) query['period.month'] = parseInt(req.query.month);
+
+  const runs = await SalaryRun.find(query)
+    .populate('driverId', 'fullName employeeCode bankName iban')
+    .populate('clientId', 'name')
+    .populate('projectId', 'name projectCode')
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const formatPeriod = (p) => p && p.year != null && p.month != null
+    ? `${monthNames[p.month - 1] || ''} ${p.year}`
+    : '';
+
+  const headers = [
+    'Run ID', 'Driver', 'Employee Code', 'Client', 'Project',
+    'Period', 'Working Days', 'Overtime Hours', 'Total Orders',
+    'Base Salary', 'Prorated Salary', 'Overtime Pay', 'Gross Salary',
+    'Total Deductions', 'Carryover', 'Net Salary',
+    'Bank Name', 'IBAN', 'Status', 'Created At', 'Paid At',
+  ];
+
+  const rows = runs.map((r) => [
+    r.runId || '',
+    r.driverId?.fullName || '',
+    r.driverId?.employeeCode || '',
+    r.clientId?.name || '',
+    r.projectId?.name || '',
+    formatPeriod(r.period),
+    r.workingDays ?? '',
+    r.overtimeHours ?? '',
+    r.totalOrders ?? '',
+    r.baseSalary ?? 0,
+    r.proratedSalary ?? 0,
+    r.overtimePay ?? 0,
+    r.grossSalary ?? 0,
+    r.totalDeductions ?? 0,
+    r.deductionCarryover ?? 0,
+    r.netSalary ?? 0,
+    r.driverId?.bankName || '',
+    r.driverId?.iban || '',
+    r.status || '',
+    r.createdAt ? new Date(r.createdAt).toISOString().slice(0, 10) : '',
+    r.paidAt ? new Date(r.paidAt).toISOString().slice(0, 10) : '',
+  ]);
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+
+  // Force IBAN/Employee Code columns to text so Excel doesn't auto-convert
+  const textCols = ['Employee Code', 'IBAN'];
+  const textIdx = textCols.map((h) => headers.indexOf(h)).filter((i) => i !== -1);
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (const colIdx of textIdx) {
+    for (let row = range.s.r + 1; row <= range.e.r; row++) {
+      const cellRef = XLSX.utils.encode_cell({ r: row, c: colIdx });
+      if (ws[cellRef]) {
+        ws[cellRef].t = 's';
+        ws[cellRef].z = '@';
+      }
+    }
+  }
+
+  ws['!cols'] = headers.map((h) => ({ wch: Math.max(12, Math.min(28, h.length + 4)) }));
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Salary Runs');
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+  const periodSuffix = req.query.year && req.query.month
+    ? `_${req.query.year}_${String(req.query.month).padStart(2, '0')}`
+    : (req.query.year ? `_${req.query.year}` : '');
+  const filename = `salary-runs${periodSuffix}.xlsx`;
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(buf);
 });
 
 // GET /api/salary/runs/:id — get single run with full breakdown
