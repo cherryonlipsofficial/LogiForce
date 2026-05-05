@@ -13,9 +13,11 @@ const RATE_BASIS_LABEL = {
   monthly_fixed: '/month',
   daily_rate: '/day',
   per_order: '/order',
+  per_hour: '/hour',
+  per_day: '/day',
 };
 
-const buildEmptyPreviewMessage = (rateBasis, diagnostics) => {
+const buildEmptyPreviewMessage = (rateBasis, diagnostics, isOT) => {
   const d = diagnostics || {};
   const considered = d.consideredRecords ?? 0;
   const errors = d.errorRecords ?? 0;
@@ -26,17 +28,22 @@ const buildEmptyPreviewMessage = (rateBasis, diagnostics) => {
   if (considered === 0) {
     return 'No attendance records were uploaded for this batch. Re-upload the file.';
   }
+  if (isOT && d.skippedZeroOT > 0) {
+    return `All ${d.skippedZeroOT} attendance record(s) have zero overtime. Override the records with overtime hours/days or re-upload the OT batch with the "overtime_hours" column populated.`;
+  }
   if (rateBasis === 'per_order' && d.skippedZeroOrders > 0) {
     return `Project bills per order, but all ${d.skippedZeroOrders} record(s) have zero orders. Override the records with order counts or re-upload with the "total_orders" column populated.`;
   }
-  if (rateBasis !== 'per_order' && d.skippedZeroDays > 0) {
+  if (!isOT && rateBasis !== 'per_order' && d.skippedZeroDays > 0) {
     const basisLabel = rateBasis ? rateBasis.replace('_', ' ') : 'monthly fixed';
     return `Project bills "${basisLabel}", but all ${d.skippedZeroDays} record(s) have zero working days. If this project should bill per order, change the project's Rate basis to "Per order" and try again. Otherwise override the records with working days or re-upload with the "working_days" column populated.`;
   }
   if (d.skippedNoDriver > 0) {
     return `${d.skippedNoDriver} record(s) reference a driver that no longer exists. Restore the drivers or re-upload the batch.`;
   }
-  return 'No billable attendance records were found for this batch.';
+  return isOT
+    ? 'No billable overtime records were found for this batch.'
+    : 'No billable attendance records were found for this batch.';
 };
 
 const InvoicePreviewModal = ({ batch, onClose, onSuccess }) => {
@@ -79,10 +86,16 @@ const InvoicePreviewModal = ({ batch, onClose, onSuccess }) => {
   const vatAmount = preview?.vatAmount || 0;
   const total = preview?.total || 0;
   const lineItems = preview?.lineItems || [];
+  const isOT = preview?.batchType === 'overtime' || batch.batchType === 'overtime';
   const ratePerDriver = preview?.ratePerDriver || 0;
-  const rateBasis = preview?.rateBasis || 'monthly_fixed';
+  const rateBasis = preview?.rateBasis || (isOT ? 'per_hour' : 'monthly_fixed');
   const rateSuffix = RATE_BASIS_LABEL[rateBasis] || '';
   const rateConfigured = preview ? preview.rateConfigured : true;
+  const otQuantityLabel = rateBasis === 'per_day' ? 'OT days' : 'OT hours';
+  const quantityHeader = isOT ? otQuantityLabel : (rateBasis === 'per_order' ? 'Orders' : 'Days');
+  const getQuantity = (li) => isOT
+    ? (li.overtimeHours ?? 0)
+    : (rateBasis === 'per_order' ? li.totalOrders : li.workingDays);
 
   const thStyle = { padding: '8px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textAlign: 'left', background: 'var(--surface2)', borderBottom: '1px solid var(--border)' };
   const tdStyle = { padding: '7px 12px', fontSize: 12, borderBottom: '1px solid var(--border)' };
@@ -90,7 +103,7 @@ const InvoicePreviewModal = ({ batch, onClose, onSuccess }) => {
   const canGenerate = !loadingPreview && !previewError && rateConfigured && lineItems.length > 0;
 
   return (
-    <Modal title="Generate invoice — preview" onClose={onClose} width={640}>
+    <Modal title={isOT ? 'Generate OT invoice — preview' : 'Generate invoice — preview'} onClose={onClose} width={640}>
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 16 }}>
         <div>
           <div style={{ fontSize: 11, color: 'var(--text3)' }}>Client</div>
@@ -133,14 +146,16 @@ const InvoicePreviewModal = ({ batch, onClose, onSuccess }) => {
           background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
           borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 12, color: '#f87171',
         }}>
-          Project "{projectName}" has no rate configured. Set a rate per driver on the project before generating an invoice.
+          {isOT
+            ? `Project "${projectName}" has no OT rate configured. Set an OT rate on the project before generating an OT invoice.`
+            : `Project "${projectName}" has no rate configured. Set a rate per driver on the project before generating an invoice.`}
         </div>
       ) : lineItems.length === 0 ? (
         <div style={{
           background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
           borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 12, color: '#fbbf24',
         }}>
-          {buildEmptyPreviewMessage(rateBasis, preview?.diagnostics)}
+          {buildEmptyPreviewMessage(rateBasis, preview?.diagnostics, isOT)}
         </div>
       ) : (
         <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
@@ -149,9 +164,9 @@ const InvoicePreviewModal = ({ batch, onClose, onSuccess }) => {
               <tr>
                 <th style={thStyle}>Driver</th>
                 <th style={{ ...thStyle, textAlign: 'center' }}>
-                  {rateBasis === 'per_order' ? 'Orders' : 'Days'}
+                  {quantityHeader}
                 </th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>Rate</th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>{isOT ? 'OT rate' : 'Rate'}</th>
                 <th style={{ ...thStyle, textAlign: 'right' }}>Amount</th>
               </tr>
             </thead>
@@ -165,7 +180,7 @@ const InvoicePreviewModal = ({ batch, onClose, onSuccess }) => {
                     )}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'center' }}>
-                    {rateBasis === 'per_order' ? li.totalOrders : li.workingDays}
+                    {getQuantity(li)}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right', fontFamily: 'var(--mono)' }}>
                     AED {n(Number(ratePerDriver).toLocaleString())}{rateSuffix}
@@ -207,7 +222,9 @@ const InvoicePreviewModal = ({ batch, onClose, onSuccess }) => {
       )}
 
       <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>
-        This will create an invoice and mark the attendance batch as invoiced.
+        {isOT
+          ? 'This will create an OT invoice and mark the attendance batch as invoiced.'
+          : 'This will create an invoice and mark the attendance batch as invoiced.'}
       </div>
 
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -217,7 +234,7 @@ const InvoicePreviewModal = ({ batch, onClose, onSuccess }) => {
           onClick={() => { setApiError(''); generate(); }}
           disabled={isGenerating || !canGenerate}
         >
-          {isGenerating ? 'Generating...' : 'Generate invoice'}
+          {isGenerating ? 'Generating...' : (isOT ? 'Generate OT invoice' : 'Generate invoice')}
         </Btn>
       </div>
     </Modal>
