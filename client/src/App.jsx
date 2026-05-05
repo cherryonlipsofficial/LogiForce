@@ -119,7 +119,14 @@ const RouterContent = () => (
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
-    <Toaster position="top-right" />
+    <Toaster
+      position="top-right"
+      toastOptions={{
+        duration: 5000,
+        success: { duration: 5000 },
+        error: { duration: 6000 },
+      }}
+    />
   </>
 );
 
