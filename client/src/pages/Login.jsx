@@ -213,6 +213,13 @@ const Login = () => {
             >
               {isSubmitting ? 'Signing in...' : 'Sign in'}
             </button>
+
+            <div style={{ marginTop: 18, textAlign: 'center', fontSize: 12, color: 'var(--text3)' }}>
+              Don't have an account?{' '}
+              <Link to="/register" style={{ color: 'var(--accent)', textDecoration: 'none' }}>
+                Create one
+              </Link>
+            </div>
           </form>
         )}
       </div>
