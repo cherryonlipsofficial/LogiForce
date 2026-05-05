@@ -37,15 +37,24 @@ const BUTTON_TEXT = {
 
 const DESTRUCTIVE_STATUSES = ['suspended', 'resigned'];
 
+const REQUIRES_LAST_WORKING_DAY = ['resigned', 'offboarded'];
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
 const ChangeStatusModal = ({ driver, presetStatus, onClose, onSuccess }) => {
   const { isAdmin } = useAuth();
   const [newStatus, setNewStatus] = useState(presetStatus || '');
   const [reason, setReason] = useState('');
   const [reasonError, setReasonError] = useState('');
+  const [lastWorkingDay, setLastWorkingDay] = useState(todayIso());
+  const [lastWorkingDayError, setLastWorkingDayError] = useState('');
   const queryClient = useQueryClient();
   const driverId = driver._id || driver.id;
 
   const currentStatus = driver.status || 'draft';
+  const needsLastWorkingDay =
+    REQUIRES_LAST_WORKING_DAY.includes(newStatus) &&
+    !REQUIRES_LAST_WORKING_DAY.includes(currentStatus);
+  const joinDateIso = driver.joinDate ? new Date(driver.joinDate).toISOString().slice(0, 10) : null;
 
   // Determine available statuses
   // Non-admin (Operations) users can only change status from Active/On Leave/Suspended/Onboarding
@@ -68,13 +77,18 @@ const ChangeStatusModal = ({ driver, presetStatus, onClose, onSuccess }) => {
   const buttonVariant = isDestructive ? 'danger' : 'primary';
 
   const mutation = useMutation({
-    mutationFn: () => changeDriverStatus(driverId, { status: newStatus, reason }),
+    mutationFn: () => {
+      const payload = { status: newStatus, reason };
+      if (needsLastWorkingDay) payload.lastWorkingDay = lastWorkingDay;
+      return changeDriverStatus(driverId, payload);
+    },
     onSuccess: () => {
       const label = ALL_STATUSES.find((s) => s.value === newStatus)?.label || newStatus;
       toast.success(`Status changed to ${label}`);
       queryClient.invalidateQueries({ queryKey: ['driver', driverId] });
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
       queryClient.invalidateQueries({ queryKey: ['driverStatusCounts'] });
+      queryClient.invalidateQueries({ queryKey: ['driver-clearance'] });
       onSuccess?.();
       onClose();
     },
@@ -90,6 +104,28 @@ const ChangeStatusModal = ({ driver, presetStatus, onClose, onSuccess }) => {
       return;
     }
     setReasonError('');
+    if (needsLastWorkingDay) {
+      if (!lastWorkingDay) {
+        setLastWorkingDayError('Last working day is required');
+        return;
+      }
+      const picked = new Date(lastWorkingDay);
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (Number.isNaN(picked.getTime())) {
+        setLastWorkingDayError('Invalid date');
+        return;
+      }
+      if (picked > today) {
+        setLastWorkingDayError('Last working day cannot be in the future');
+        return;
+      }
+      if (joinDateIso && lastWorkingDay < joinDateIso) {
+        setLastWorkingDayError('Last working day cannot be before the join date');
+        return;
+      }
+      setLastWorkingDayError('');
+    }
     if (!newStatus) return;
     mutation.mutate();
   };
@@ -118,6 +154,24 @@ const ChangeStatusModal = ({ driver, presetStatus, onClose, onSuccess }) => {
             ))}
           </select>
         </div>
+
+        {needsLastWorkingDay && (
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>Last working day *</label>
+            <input
+              type="date"
+              value={lastWorkingDay}
+              max={todayIso()}
+              min={joinDateIso || undefined}
+              onChange={(e) => { setLastWorkingDay(e.target.value); setLastWorkingDayError(''); }}
+              style={{ width: '100%' }}
+            />
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+              The actual day the driver stopped working. Used as the clearance start date.
+            </div>
+            {lastWorkingDayError && <div style={errorStyle}>{lastWorkingDayError}</div>}
+          </div>
+        )}
 
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>Reason (required) *</label>

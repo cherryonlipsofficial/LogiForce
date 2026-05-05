@@ -33,6 +33,14 @@ router.get('/:id', requirePermission('clearance.view'), async (req, res) => {
   sendSuccess(res, doc);
 });
 
+// PUT /api/driver-clearance/:id/last-working-date — correct the captured date
+// (e.g. driver was already moved to resigned/offboarded with the auto-set date)
+router.put('/:id/last-working-date', requirePermission('clearance.log_client'), async (req, res) => {
+  const doc = await clearanceService.updateLastWorkingDate(req, req.params.id, req.body.lastWorkingDate, req.user._id);
+  await auditLogger.logChange('DriverClearance', req.params.id, 'lastWorkingDate', null, req.body.lastWorkingDate, req.user._id, 'clearance_last_working_date');
+  sendSuccess(res, doc, 'Last working date updated');
+});
+
 // PUT /api/driver-clearance/:id/client — Operations logs client clearance
 router.put('/:id/client', requirePermission('clearance.log_client'), async (req, res) => {
   const doc = await clearanceService.updateSection(req, req.params.id, 'clientClearance', req.body, req.user._id);

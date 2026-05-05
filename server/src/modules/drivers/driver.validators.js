@@ -146,6 +146,9 @@ const changeStatusValidation = [
     .optional()
     .trim()
     .isLength({ max: 500 }).withMessage('Reason must be under 500 characters'),
+  body('lastWorkingDay')
+    .optional({ values: 'falsy' })
+    .isISO8601().withMessage('Last working day must be a valid date'),
 ];
 
 module.exports = { createDriverValidation, updateDriverValidation, changeStatusValidation };

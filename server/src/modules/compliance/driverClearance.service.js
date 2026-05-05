@@ -5,7 +5,7 @@ const { getModel } = require('../../config/modelRegistry');
  * Intended to be called from driverWorkflow.service when status transitions to
  * 'resigned' or 'offboarded'.
  */
-async function openClearanceForOffboarding(req, driverId, newStatus, userId) {
+async function openClearanceForOffboarding(req, driverId, newStatus, userId, opts = {}) {
   const DriverClearance = getModel(req, 'DriverClearance');
   const Driver = getModel(req, 'Driver');
 
@@ -21,6 +21,10 @@ async function openClearanceForOffboarding(req, driverId, newStatus, userId) {
 
   const usesCompanyVehicle = !driver.ownVehicle && Boolean(driver.supplierId || driver.currentVehicleId);
 
+  const lastWorkingDate = opts.lastWorkingDate
+    ? new Date(opts.lastWorkingDate)
+    : (driver.lastWorkingDay ? new Date(driver.lastWorkingDay) : new Date());
+
   const clearance = new DriverClearance({
     driverId,
     driverName: driver.fullName,
@@ -28,7 +32,7 @@ async function openClearanceForOffboarding(req, driverId, newStatus, userId) {
     projectId: driver.projectId || undefined,
     clientId: driver.clientId || undefined,
     supplierId: driver.supplierId || undefined,
-    lastWorkingDate: new Date(),
+    lastWorkingDate,
     triggerStatus: newStatus,
     usesCompanyVehicle,
     clientClearance: { status: 'pending' },
@@ -41,6 +45,59 @@ async function openClearanceForOffboarding(req, driverId, newStatus, userId) {
 
   await clearance.save();
   return clearance;
+}
+
+/**
+ * Correct the lastWorkingDate on an existing clearance and mirror it back to
+ * the Driver record. Used when the driver was already moved to resigned/
+ * offboarded with the wrong (auto-set) date.
+ */
+async function updateLastWorkingDate(req, clearanceId, lastWorkingDate, userId) {
+  const DriverClearance = getModel(req, 'DriverClearance');
+  const Driver = getModel(req, 'Driver');
+
+  if (!lastWorkingDate) {
+    const err = new Error('lastWorkingDate is required');
+    err.statusCode = 400;
+    throw err;
+  }
+  const parsed = new Date(lastWorkingDate);
+  if (Number.isNaN(parsed.getTime())) {
+    const err = new Error('lastWorkingDate must be a valid date');
+    err.statusCode = 400;
+    throw err;
+  }
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+  if (parsed > today) {
+    const err = new Error('Last working date cannot be in the future');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const doc = await DriverClearance.findOne({ _id: clearanceId, isDeleted: false });
+  if (!doc) {
+    const err = new Error('Clearance record not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const driver = await Driver.findById(doc.driverId);
+  if (driver?.joinDate && parsed < new Date(driver.joinDate)) {
+    const err = new Error('Last working date cannot be before the driver join date');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  doc.lastWorkingDate = parsed;
+  await doc.save();
+
+  if (driver) {
+    driver.lastWorkingDay = parsed;
+    await driver.save();
+  }
+
+  return doc;
 }
 
 async function listClearances(req, filters = {}, { page = 1, limit = 20 } = {}) {
@@ -199,6 +256,7 @@ async function findOpenClearanceForDriver(req, driverId) {
 
 module.exports = {
   openClearanceForOffboarding,
+  updateLastWorkingDate,
   listClearances,
   getClearance,
   updateSection,
