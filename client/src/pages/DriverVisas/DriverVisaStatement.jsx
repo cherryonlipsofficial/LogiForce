@@ -224,9 +224,26 @@ const DriverVisaStatement = ({ visaId, onClose }) => {
               borderRadius: 8,
               fontSize: 12,
               border: '1px dashed rgba(251,191,36,0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
             }}
           >
-            Visa not yet processed
+            <span>Visa not yet processed</span>
+            {canLogProcessing && visa.status === 'active' && (
+              <Btn
+                small
+                variant="primary"
+                onClick={() => {
+                  if (confirm('Mark this visa as processed today?')) {
+                    logProcMut.mutate({});
+                  }
+                }}
+                disabled={logProcMut.isLoading}
+              >
+                {logProcMut.isLoading ? 'Saving…' : 'Mark as Processed'}
+              </Btn>
+            )}
           </div>
         )}
         {expiryBanner && (
@@ -259,7 +276,7 @@ const DriverVisaStatement = ({ visaId, onClose }) => {
             border: '1px solid var(--border)',
           }}
         >
-          <label style={{ fontSize: 12, color: 'var(--text3)' }}>Log processing date:</label>
+          <label style={{ fontSize: 12, color: 'var(--text3)' }}>Or log a past processing date:</label>
           <input
             type="date"
             value={procDate}
