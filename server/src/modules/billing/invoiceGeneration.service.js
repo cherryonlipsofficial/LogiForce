@@ -1,6 +1,6 @@
 const { getModel } = require('../../config/modelRegistry');
 const { notifyByPermission } = require('../shared/notification.service')
-const { computeLineAmount } = require('../../utils/rateCalculator')
+const { computeLineAmount, computeOTLineAmount } = require('../../utils/rateCalculator')
 
 /**
  * Resolve the effective billing rate and basis for a batch's project.
@@ -28,6 +28,29 @@ async function resolveProjectRate(req, project) {
   }
 
   return { ratePerDriver, rateBasis }
+}
+
+/**
+ * Resolve the effective OT rate and basis for a batch's project. Active
+ * contract values override the project defaults so OT batches get billed
+ * at the contracted OT rate (e.g., 80 AED per OT hour).
+ */
+async function resolveProjectOTRate(req, project) {
+  const ProjectContract = getModel(req, 'ProjectContract')
+  let otRate = Number(project?.otRate) || 0
+  let otRateBasis = project?.otRateBasis || 'per_hour'
+
+  if (project?._id) {
+    const activeContract = await ProjectContract.findOne({
+      projectId: project._id,
+      status: 'active',
+    }).select('otRate otRateBasis').lean()
+
+    if (activeContract?.otRate) otRate = activeContract.otRate
+    if (activeContract?.otRateBasis) otRateBasis = activeContract.otRateBasis
+  }
+
+  return { otRate, otRateBasis }
 }
 
 /**
@@ -115,6 +138,74 @@ function buildLineItems(records, ratePerDriver, rateBasis, period) {
 }
 
 /**
+ * Build per-driver OT line items from attendance records using the project's
+ * OT rate / basis. Skips records with zero overtimeHours and tracks reasons
+ * so callers can explain why a batch produced no billable OT.
+ */
+function buildOTLineItems(records, otRate, otRateBasis) {
+  const lineItems = []
+  let subtotal = 0
+  const skipped = { noDriver: 0, zeroOT: 0 }
+
+  for (const record of records) {
+    const driver = record.driverId
+    if (!driver) {
+      skipped.noDriver++
+      continue
+    }
+
+    const overtimeHours = Number(record.overtimeHours) || 0
+    if (overtimeHours <= 0) {
+      skipped.zeroOT++
+      continue
+    }
+
+    const { amount } = computeOTLineAmount(otRate, otRateBasis, overtimeHours)
+    if (amount <= 0) {
+      skipped.zeroOT++
+      continue
+    }
+
+    const vatAmount_item = parseFloat((amount * 0.05).toFixed(2))
+    const totalWithVat = parseFloat((amount + vatAmount_item).toFixed(2))
+
+    lineItems.push({
+      driverId: driver._id,
+      driverName: driver.fullName,
+      employeeCode: driver.employeeCode,
+      overtimeHours,
+      otRate,
+      otRateBasis,
+      amount,
+      vatRate: 0.05,
+      vatAmount: vatAmount_item,
+      totalWithVat,
+    })
+
+    subtotal += amount
+  }
+
+  subtotal = parseFloat(subtotal.toFixed(2))
+  const vatAmount = parseFloat((subtotal * 0.05).toFixed(2))
+  const total = parseFloat((subtotal + vatAmount).toFixed(2))
+
+  return { lineItems, subtotal, vatAmount, total, skipped }
+}
+
+function buildEmptyOTLineItemsMessage(considered, skipped) {
+  if (considered === 0) {
+    return 'No valid attendance records found for this OT batch. Re-upload the file or override the records.'
+  }
+  if (skipped.zeroOT > 0) {
+    return `All ${skipped.zeroOT} attendance record(s) have zero overtime. Override the records with overtime hours/days or re-upload the OT batch with the "overtime_hours" column populated.`
+  }
+  if (skipped.noDriver > 0) {
+    return `${skipped.noDriver} attendance record(s) reference a driver that no longer exists. Restore the drivers or re-upload the batch.`
+  }
+  return 'No billable overtime records to invoice.'
+}
+
+/**
  * Dry-run computation of the invoice that would be generated for a batch.
  * Shares rate resolution and line-item logic with generateInvoice so the
  * preview and the final invoice always match.
@@ -124,7 +215,7 @@ async function previewInvoice(req, batchId) {
   const AttendanceRecord = getModel(req, 'AttendanceRecord')
 
   const batch = await AttendanceBatch.findById(batchId)
-    .populate('projectId', 'name projectCode ratePerDriver rateBasis clientId')
+    .populate('projectId', 'name projectCode ratePerDriver rateBasis otRate otRateBasis clientId')
     .populate('clientId', 'name vatNo paymentTerms')
     .lean()
 
@@ -145,6 +236,52 @@ async function previewInvoice(req, batchId) {
     status: 'error',
   })
 
+  const projectInfo = {
+    _id: batch.projectId._id,
+    name: batch.projectId.name,
+    projectCode: batch.projectId.projectCode,
+  }
+  const clientInfo = batch.clientId ? {
+    _id: batch.clientId._id,
+    name: batch.clientId.name,
+  } : null
+
+  if (batch.batchType === 'overtime') {
+    const { otRate, otRateBasis } = await resolveProjectOTRate(req, batch.projectId)
+    const { lineItems, subtotal, vatAmount, total, skipped } = buildOTLineItems(
+      records, otRate, otRateBasis
+    )
+
+    return {
+      batchId: batch._id,
+      batchType: 'overtime',
+      invoiceType: 'overtime',
+      period: batch.period,
+      project: projectInfo,
+      client: clientInfo,
+      // Front-end uses ratePerDriver/rateBasis to render the rate column;
+      // for OT we surface the OT rate here so existing rendering still works.
+      ratePerDriver: otRate,
+      rateBasis: otRateBasis,
+      otRate,
+      otRateBasis,
+      driverCount: lineItems.length,
+      lineItems,
+      subtotal,
+      vatRate: 0.05,
+      vatAmount,
+      total,
+      rateConfigured: otRate > 0,
+      diagnostics: {
+        consideredRecords: records.length,
+        errorRecords: errorRecordCount,
+        billableRecords: lineItems.length,
+        skippedNoDriver: skipped.noDriver,
+        skippedZeroOT: skipped.zeroOT,
+      },
+    }
+  }
+
   const { ratePerDriver, rateBasis } = await resolveProjectRate(req, batch.projectId)
   const { lineItems, subtotal, vatAmount, total, skipped } = buildLineItems(
     records, ratePerDriver, rateBasis, batch.period
@@ -152,16 +289,11 @@ async function previewInvoice(req, batchId) {
 
   return {
     batchId: batch._id,
+    batchType: 'regular',
+    invoiceType: 'regular',
     period: batch.period,
-    project: {
-      _id: batch.projectId._id,
-      name: batch.projectId.name,
-      projectCode: batch.projectId.projectCode,
-    },
-    client: batch.clientId ? {
-      _id: batch.clientId._id,
-      name: batch.clientId.name,
-    } : null,
+    project: projectInfo,
+    client: clientInfo,
     ratePerDriver,
     rateBasis,
     driverCount: lineItems.length,
@@ -194,7 +326,7 @@ async function generateInvoice(req, batchId, accountsUserId) {
   const User = getModel(req, 'User');
   // STEP 1 — Validate batch
   const batch = await AttendanceBatch.findById(batchId)
-    .populate('projectId', 'name projectCode ratePerDriver rateBasis clientId')
+    .populate('projectId', 'name projectCode ratePerDriver rateBasis otRate otRateBasis clientId')
     .populate('clientId', 'name vatNo paymentTerms')
 
   if (!batch) throw Object.assign(new Error('Batch not found'), { statusCode: 404 })
@@ -240,50 +372,83 @@ async function generateInvoice(req, batchId, accountsUserId) {
     )
   }
 
-  // STEP 3 — Resolve rate (active contract overrides project default)
-  const { ratePerDriver, rateBasis } = await resolveProjectRate(req, batch.projectId)
+  const isOT = batch.batchType === 'overtime'
 
-  if (!ratePerDriver || ratePerDriver <= 0) {
-    throw Object.assign(
-      new Error(
-        `Project "${batch.projectId.name}" has no rate configured.
+  // STEP 3 — Resolve rate (active contract overrides project default).
+  // OT batches use the project's OT rate × overtimeHours; regular batches
+  // use the project rate × workingDays/orders.
+  let lineItems, subtotal, vatAmount, total, ratePerDriver, rateBasis
+  if (isOT) {
+    const { otRate, otRateBasis } = await resolveProjectOTRate(req, batch.projectId)
+
+    if (!otRate || otRate <= 0) {
+      throw Object.assign(
+        new Error(
+          `Project "${batch.projectId.name}" has no OT rate configured. ` +
+          `Set an OT rate on the project before generating an OT invoice.`
+        ),
+        { statusCode: 400 }
+      )
+    }
+
+    const built = buildOTLineItems(records, otRate, otRateBasis)
+    lineItems = built.lineItems
+    subtotal = built.subtotal
+    vatAmount = built.vatAmount
+    total = built.total
+    ratePerDriver = otRate
+    rateBasis = otRateBasis
+
+    if (!lineItems.length) {
+      throw Object.assign(
+        new Error(buildEmptyOTLineItemsMessage(records.length, built.skipped)),
+        { statusCode: 400 }
+      )
+    }
+  } else {
+    const resolved = await resolveProjectRate(req, batch.projectId)
+    ratePerDriver = resolved.ratePerDriver
+    rateBasis = resolved.rateBasis
+
+    if (!ratePerDriver || ratePerDriver <= 0) {
+      throw Object.assign(
+        new Error(
+          `Project "${batch.projectId.name}" has no rate configured.
          Set a rate per driver on the project before generating an invoice.`
-      ),
-      { statusCode: 400 }
-    )
+        ),
+        { statusCode: 400 }
+      )
+    }
+
+    const built = buildLineItems(records, ratePerDriver, rateBasis, batch.period)
+    lineItems = built.lineItems
+    subtotal = built.subtotal
+    vatAmount = built.vatAmount
+    total = built.total
+
+    if (!lineItems.length) {
+      throw Object.assign(
+        new Error(buildEmptyLineItemsMessage(rateBasis, records.length, built.skipped)),
+        { statusCode: 400 }
+      )
+    }
   }
 
-  // STEP 4 — Build line items (one per driver)
-  const { lineItems, subtotal, vatAmount, total, skipped } = buildLineItems(
-    records, ratePerDriver, rateBasis, batch.period
-  )
-
-  if (!lineItems.length) {
-    throw Object.assign(
-      new Error(buildEmptyLineItemsMessage(rateBasis, records.length, skipped)),
-      { statusCode: 400 }
-    )
-  }
-
-  // STEP 5 — Generate invoice number
-  const monthStr  = String(batch.period.month).padStart(2, '0')
-  const yearStr   = String(batch.period.year)
-  const count     = await Invoice.countDocuments() + 1
-  const invoiceNo = `INV-${yearStr}-${monthStr}-${String(count).padStart(4, '0')}`
-
-  // STEP 6 — Due date from payment terms
+  // STEP 5 — Due date from payment terms (invoice number is generated by the
+  // Invoice schema's pre-save hook, which switches between INV- and INV-OT-
+  // based on invoiceType).
   const paymentTerms = batch.clientId.paymentTerms || 'Net 30'
   const termDays     = parseInt(paymentTerms.replace(/\D/g, '')) || 30
   const dueDate      = new Date()
   dueDate.setDate(dueDate.getDate() + termDays)
 
-  // STEP 6b — Compute service period from/to
+  // STEP 6 — Compute service period from/to
   const servicePeriodFrom = new Date(batch.period.year, batch.period.month - 1, 1)
   const servicePeriodTo   = new Date(batch.period.year, batch.period.month, 0) // last day
 
   // STEP 7 — Create invoice
   const invoice = await Invoice.create({
-    invoiceNo,
+    invoiceType:       isOT ? 'overtime' : 'regular',
     projectId:         batch.projectId._id,
     clientId:          batch.clientId._id,
     attendanceBatchId: batchId,
@@ -301,6 +466,7 @@ async function generateInvoice(req, batchId, accountsUserId) {
     dueDate,
     createdBy:  accountsUserId,
   })
+  const invoiceNo = invoice.invoiceNo
 
   // STEP 8 — Mark batch as invoiced
   batch.status    = 'invoiced'
