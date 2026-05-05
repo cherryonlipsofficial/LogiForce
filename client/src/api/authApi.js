@@ -11,3 +11,9 @@ export const changePassword = (data) =>
 
 export const updatePreferences = (data) =>
   axiosInstance.put('/auth/profile/avatar', data);
+
+export const forgotPassword = (email) =>
+  axiosInstance.post('/auth/forgot-password', { email });
+
+export const resetPassword = ({ token, newPassword }) =>
+  axiosInstance.post('/auth/reset-password', { token, newPassword });

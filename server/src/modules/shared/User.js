@@ -63,6 +63,16 @@ const userSchema = new mongoose.Schema(
         default: 'blue',
       },
     },
+    passwordResetTokenHash: {
+      type: String,
+      default: null,
+      select: false,
+    },
+    passwordResetExpires: {
+      type: Date,
+      default: null,
+      select: false,
+    },
   },
   {
     timestamps: true,

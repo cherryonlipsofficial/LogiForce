@@ -7,6 +7,8 @@ import { UserPrefsProvider } from './hooks/useUserPrefs.jsx';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import MainLayout from './components/layout/MainLayout';
 import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard/Dashboard';
 import ComplianceDashboard from './pages/Dashboard/ComplianceDashboard';
 import SalesDashboard from './pages/Dashboard/SalesDashboard';
@@ -73,6 +75,8 @@ const RouterContent = () => (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<ProtectedPage><DashboardSwitch /></ProtectedPage>} />
         <Route path="/drivers" element={<ProtectedPage permission="drivers.view"><Drivers /></ProtectedPage>} />
