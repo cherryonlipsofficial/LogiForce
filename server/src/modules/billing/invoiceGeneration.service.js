@@ -25,21 +25,54 @@ async function resolveProjectRate(req, project) {
 }
 
 /**
+ * Compose an error/diagnostic message explaining why a batch produced
+ * zero billable line items. Caller passes the rate basis, total records
+ * considered, and the per-reason skip counts from buildLineItems.
+ */
+function buildEmptyLineItemsMessage(rateBasis, considered, skipped) {
+  if (considered === 0) {
+    return 'No valid attendance records found for this batch. Re-upload the file or override the records.'
+  }
+  if (rateBasis === 'per_order' && skipped.zeroOrders > 0) {
+    return `Project bills per order, but all ${skipped.zeroOrders} attendance record(s) have zero orders. Override the records with order counts or re-upload with a "total_orders" column populated.`
+  }
+  if (rateBasis !== 'per_order' && skipped.zeroDays > 0) {
+    return `All ${skipped.zeroDays} attendance record(s) have zero working days. Override the records with working days or re-upload with a "working_days" column populated.`
+  }
+  if (skipped.noDriver > 0) {
+    return `${skipped.noDriver} attendance record(s) reference a driver that no longer exists. Restore the drivers or re-upload the batch.`
+  }
+  return 'No valid driver records to invoice.'
+}
+
+/**
  * Build per-driver line items from attendance records using the given rate/basis.
+ * Also returns counts of records skipped per reason so callers can explain
+ * exactly why a batch produced no billable line items.
  */
 function buildLineItems(records, ratePerDriver, rateBasis, period) {
   const lineItems = []
   let subtotal = 0
+  const skipped = { noDriver: 0, zeroDays: 0, zeroOrders: 0 }
 
   for (const record of records) {
     const driver = record.driverId
-    if (!driver) continue
+    if (!driver) {
+      skipped.noDriver++
+      continue
+    }
 
     const workingDays = record.workingDays || 0
     const totalOrders = record.totalOrders || 0
 
-    if (rateBasis === 'per_order' && totalOrders <= 0) continue
-    if (rateBasis !== 'per_order' && workingDays <= 0) continue
+    if (rateBasis === 'per_order' && totalOrders <= 0) {
+      skipped.zeroOrders++
+      continue
+    }
+    if (rateBasis !== 'per_order' && workingDays <= 0) {
+      skipped.zeroDays++
+      continue
+    }
 
     const { dailyRate, amount } = computeLineAmount(ratePerDriver, rateBasis, workingDays, {
       year: period?.year,
@@ -72,7 +105,7 @@ function buildLineItems(records, ratePerDriver, rateBasis, period) {
   const vatAmount = parseFloat((subtotal * 0.05).toFixed(2))
   const total = parseFloat((subtotal + vatAmount).toFixed(2))
 
-  return { lineItems, subtotal, vatAmount, total }
+  return { lineItems, subtotal, vatAmount, total, skipped }
 }
 
 /**
@@ -101,8 +134,13 @@ async function previewInvoice(req, batchId) {
     .populate('driverId', 'fullName employeeCode')
     .lean()
 
+  const errorRecordCount = await AttendanceRecord.countDocuments({
+    batchId,
+    status: 'error',
+  })
+
   const { ratePerDriver, rateBasis } = await resolveProjectRate(req, batch.projectId)
-  const { lineItems, subtotal, vatAmount, total } = buildLineItems(
+  const { lineItems, subtotal, vatAmount, total, skipped } = buildLineItems(
     records, ratePerDriver, rateBasis, batch.period
   )
 
@@ -127,6 +165,14 @@ async function previewInvoice(req, batchId) {
     vatAmount,
     total,
     rateConfigured: ratePerDriver > 0,
+    diagnostics: {
+      consideredRecords: records.length,
+      errorRecords: errorRecordCount,
+      billableRecords: lineItems.length,
+      skippedNoDriver: skipped.noDriver,
+      skippedZeroDays: skipped.zeroDays,
+      skippedZeroOrders: skipped.zeroOrders,
+    },
   }
 }
 
@@ -202,13 +248,13 @@ async function generateInvoice(req, batchId, accountsUserId) {
   }
 
   // STEP 4 — Build line items (one per driver)
-  const { lineItems, subtotal, vatAmount, total } = buildLineItems(
+  const { lineItems, subtotal, vatAmount, total, skipped } = buildLineItems(
     records, ratePerDriver, rateBasis, batch.period
   )
 
   if (!lineItems.length) {
     throw Object.assign(
-      new Error('No valid driver records to invoice.'),
+      new Error(buildEmptyLineItemsMessage(rateBasis, records.length, skipped)),
       { statusCode: 400 }
     )
   }
