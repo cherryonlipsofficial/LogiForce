@@ -4,21 +4,27 @@ const { computeLineAmount } = require('../../utils/rateCalculator')
 
 /**
  * Resolve the effective billing rate and basis for a batch's project.
- * Priority: active ProjectContract → project fallback.
+ *
+ * - ratePerDriver: prefer the active contract's rate (the contracted amount),
+ *   fall back to the project's rate.
+ * - rateBasis: always use the project's value. Rate basis is the project's
+ *   billing model (monthly / daily / per-order); when it's changed on the
+ *   project, the next invoice should reflect it. The active contract's
+ *   rateBasis is kept as a snapshot for historical records but it must not
+ *   override the current project configuration during invoicing.
  */
 async function resolveProjectRate(req, project) {
   const ProjectContract = getModel(req, 'ProjectContract')
   let ratePerDriver = project?.ratePerDriver || 0
-  let rateBasis = project?.rateBasis || 'monthly_fixed'
+  const rateBasis = project?.rateBasis || 'monthly_fixed'
 
   if (project?._id) {
     const activeContract = await ProjectContract.findOne({
       projectId: project._id,
       status: 'active',
-    }).select('ratePerDriver rateBasis').lean()
+    }).select('ratePerDriver').lean()
 
     if (activeContract?.ratePerDriver) ratePerDriver = activeContract.ratePerDriver
-    if (activeContract?.rateBasis) rateBasis = activeContract.rateBasis
   }
 
   return { ratePerDriver, rateBasis }
@@ -37,7 +43,7 @@ function buildEmptyLineItemsMessage(rateBasis, considered, skipped) {
     return `Project bills per order, but all ${skipped.zeroOrders} attendance record(s) have zero orders. Override the records with order counts or re-upload with a "total_orders" column populated.`
   }
   if (rateBasis !== 'per_order' && skipped.zeroDays > 0) {
-    return `All ${skipped.zeroDays} attendance record(s) have zero working days. Override the records with working days or re-upload with a "working_days" column populated.`
+    return `Project bills "${rateBasis}", but all ${skipped.zeroDays} attendance record(s) have zero working days. If the project should bill per order, change Rate basis to "Per order" on the project and try again. Otherwise override the records with working days or re-upload with a "working_days" column populated.`
   }
   if (skipped.noDriver > 0) {
     return `${skipped.noDriver} attendance record(s) reference a driver that no longer exists. Restore the drivers or re-upload the batch.`

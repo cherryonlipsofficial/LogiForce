@@ -30,7 +30,8 @@ const buildEmptyPreviewMessage = (rateBasis, diagnostics) => {
     return `Project bills per order, but all ${d.skippedZeroOrders} record(s) have zero orders. Override the records with order counts or re-upload with the "total_orders" column populated.`;
   }
   if (rateBasis !== 'per_order' && d.skippedZeroDays > 0) {
-    return `All ${d.skippedZeroDays} record(s) have zero working days. Override the records with working days or re-upload with the "working_days" column populated.`;
+    const basisLabel = rateBasis ? rateBasis.replace('_', ' ') : 'monthly fixed';
+    return `Project bills "${basisLabel}", but all ${d.skippedZeroDays} record(s) have zero working days. If this project should bill per order, change the project's Rate basis to "Per order" and try again. Otherwise override the records with working days or re-upload with the "working_days" column populated.`;
   }
   if (d.skippedNoDriver > 0) {
     return `${d.skippedNoDriver} record(s) reference a driver that no longer exists. Restore the drivers or re-upload the batch.`;
