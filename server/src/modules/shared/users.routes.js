@@ -6,6 +6,12 @@ const { PERMISSIONS } = require('../../config/permissions');
 const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseHelper');
 const { PAGINATION } = require('../../config/constants');
 const logger = require('../../utils/logger');
+const { sendPasswordResetEmail, isEmailConfigured } = require('../../utils/email');
+const {
+  buildResetPasswordUrl,
+  generateResetToken,
+  PASSWORD_RESET_TTL_MS,
+} = require('./passwordReset.helpers');
 
 // All routes require authentication
 router.use(protect);
@@ -105,6 +111,52 @@ router.put('/:id/activate', requirePermission('users.edit'), async (req, res) =>
     message: `${user.name}'s account has been activated`,
     data: { _id: user._id, name: user.name, email: user.email, isActive: true },
   });
+});
+
+// POST /api/users/:id/reset-password — admin triggers a password reset email
+router.post('/:id/reset-password', requirePermission('users.edit'), async (req, res) => {
+  if (!isEmailConfigured()) {
+    return sendError(
+      res,
+      'Email service is not configured on the server. Set SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS to enable password reset emails.',
+      503,
+    );
+  }
+
+  const User = getModel(req, 'User');
+  const user = await User.findById(req.params.id);
+  if (!user) return sendError(res, 'User not found', 404);
+
+  const { token, tokenHash } = generateResetToken();
+  user.passwordResetTokenHash = tokenHash;
+  user.passwordResetExpires = new Date(Date.now() + PASSWORD_RESET_TTL_MS);
+  await user.save({ validateBeforeSave: false });
+
+  const resetUrl = buildResetPasswordUrl(req, token);
+  const expiresMinutes = Math.floor(PASSWORD_RESET_TTL_MS / 60000);
+
+  try {
+    await sendPasswordResetEmail({
+      to: user.email,
+      name: user.name,
+      resetUrl,
+      tenantName: req.tenant?.name,
+      expiresMinutes,
+    });
+  } catch (err) {
+    logger.error('Failed to send password reset email', {
+      to: user.email,
+      error: err.message,
+      stack: err.stack,
+    });
+    // Roll back the token so the failed request doesn't leave a live token behind
+    user.passwordResetTokenHash = null;
+    user.passwordResetExpires = null;
+    await user.save({ validateBeforeSave: false });
+    return sendError(res, `Could not send password reset email: ${err.message}`, 502);
+  }
+
+  return sendSuccess(res, { email: user.email }, `Password reset email sent to ${user.email}`);
 });
 
 // PUT /api/users/:id/deactivate — admin deactivates a user account

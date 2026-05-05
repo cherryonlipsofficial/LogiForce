@@ -5,9 +5,17 @@ const { protect } = require('../../middleware/auth');
 const authService = require('./auth.service');
 const { getModel } = require('../../config/modelRegistry');
 const bcrypt = require('bcryptjs');
+const logger = require('../../utils/logger');
 const { sendSuccess, sendError } = require('../../utils/responseHelper');
 const validate = require('../../middleware/validate');
 const { loginValidation, registerValidation, changePasswordValidation } = require('./auth.validators');
+const { sendPasswordResetEmail, isEmailConfigured } = require('../../utils/email');
+const {
+  buildResetPasswordUrl,
+  generateResetToken,
+  hashResetToken,
+  PASSWORD_RESET_TTL_MS,
+} = require('./passwordReset.helpers');
 
 // Rate limit on login: 5 requests per minute
 const loginLimiter = rateLimit({
@@ -287,6 +295,115 @@ router.put('/profile/avatar', protect, async (req, res) => {
 
   const updated = await User.findById(user._id).select('-password').lean();
   sendSuccess(res, { user: updated });
+});
+
+// Rate limit on forgot/reset endpoints: 5 per 15 minutes per IP
+const passwordResetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { success: false, message: 'Too many password reset requests. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// POST /api/auth/forgot-password — request a reset email (public)
+// Always responds 200 to avoid leaking whether an email is registered.
+router.post('/forgot-password', passwordResetLimiter, async (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+
+  const genericResponse = () => sendSuccess(res, {
+    message: 'If an account exists for that email, a reset link has been sent.',
+  });
+
+  if (!email) return genericResponse();
+
+  if (!isEmailConfigured()) {
+    logger.warn('forgot-password called but SMTP is not configured');
+    // Don't expose configuration state to anonymous callers — respond generically.
+    return genericResponse();
+  }
+
+  const User = getModel(req, 'User');
+  const user = await User.findOne({ email });
+  if (!user || !user.isActive) {
+    // Don't reveal whether the email exists or is active
+    return genericResponse();
+  }
+
+  const { token, tokenHash } = generateResetToken();
+  user.passwordResetTokenHash = tokenHash;
+  user.passwordResetExpires = new Date(Date.now() + PASSWORD_RESET_TTL_MS);
+  await user.save({ validateBeforeSave: false });
+
+  const resetUrl = buildResetPasswordUrl(req, token);
+  try {
+    await sendPasswordResetEmail({
+      to: user.email,
+      name: user.name,
+      resetUrl,
+      tenantName: req.tenant?.name,
+      expiresMinutes: Math.floor(PASSWORD_RESET_TTL_MS / 60000),
+    });
+  } catch (err) {
+    logger.error('Failed to send password reset email', {
+      to: user.email,
+      error: err.message,
+    });
+    // Roll back so a failed send doesn't leave a live token in the DB
+    user.passwordResetTokenHash = null;
+    user.passwordResetExpires = null;
+    await user.save({ validateBeforeSave: false });
+  }
+
+  return genericResponse();
+});
+
+// GET /api/auth/reset-password/:token — verify a reset token (public)
+router.get('/reset-password/:token', passwordResetLimiter, async (req, res) => {
+  const { token } = req.params;
+  if (!token || token.length < 32) return sendError(res, 'Invalid reset token', 400);
+
+  const User = getModel(req, 'User');
+  const user = await User.findOne({
+    passwordResetTokenHash: hashResetToken(token),
+    passwordResetExpires: { $gt: new Date() },
+  }).select('email name passwordResetExpires');
+
+  if (!user) return sendError(res, 'This reset link is invalid or has expired', 400);
+
+  return sendSuccess(res, {
+    email: user.email,
+    name: user.name,
+    expiresAt: user.passwordResetExpires,
+  });
+});
+
+// POST /api/auth/reset-password — set a new password using a token (public)
+router.post('/reset-password', passwordResetLimiter, async (req, res) => {
+  const { token, password } = req.body || {};
+  if (!token) return sendError(res, 'Reset token is required', 400);
+  if (!password || password.length < 8) {
+    return sendError(res, 'New password must be at least 8 characters', 400);
+  }
+
+  const User = getModel(req, 'User');
+  const user = await User.findOne({
+    passwordResetTokenHash: hashResetToken(token),
+    passwordResetExpires: { $gt: new Date() },
+  }).select('+password +passwordResetTokenHash +passwordResetExpires email name');
+
+  if (!user) return sendError(res, 'This reset link is invalid or has expired', 400);
+
+  // Reject reusing the same password
+  const isSame = await bcrypt.compare(password, user.password);
+  if (isSame) return sendError(res, 'New password must be different from your current password', 400);
+
+  user.password = password; // pre-save hook hashes
+  user.passwordResetTokenHash = null;
+  user.passwordResetExpires = null;
+  await user.save();
+
+  return sendSuccess(res, { email: user.email }, 'Password has been reset. You can now log in.');
 });
 
 module.exports = router;
