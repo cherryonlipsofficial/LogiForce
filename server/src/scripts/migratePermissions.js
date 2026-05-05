@@ -12,9 +12,12 @@ async function migrate() {
       'invoices.view', 'invoices.generate', 'invoices.edit',
       'invoices.download',
       'salary.view', 'salary.run',
-      'salary.adjust', 'salary.export_wps',
+      'salary.adjust', 'salary.export_wps', 'salary.remove_credit_note',
       'advances.view', 'advances.approve', 'advances.manage_recovery',
       'notifications.view',
+    ],
+    accounts: [
+      'salary.remove_credit_note',
     ],
     sales: [
       'attendance.view', 'attendance.dispute',

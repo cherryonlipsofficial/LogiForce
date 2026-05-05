@@ -336,7 +336,9 @@ router.put('/runs/:id/adjust', requirePermission('salary.adjust'), validate(adju
 
 // DELETE /api/salary/runs/:id/credit-note-deduction — remove a CN deduction
 // from this run and push it to the next month's payroll. Body: { referenceId }.
-router.delete('/runs/:id/credit-note-deduction', requirePermission('salary.manage_deductions'), validate(removeCreditNoteDeductionValidation), async (req, res) => {
+// Gated on the dedicated `salary.remove_credit_note` permission so finance
+// admins can grant it independently from the broader manage_deductions perm.
+router.delete('/runs/:id/credit-note-deduction', requirePermission('salary.remove_credit_note'), validate(removeCreditNoteDeductionValidation), async (req, res) => {
   const { referenceId } = req.body;
 
   const result = await salaryService.removeCreditNoteDeduction(
