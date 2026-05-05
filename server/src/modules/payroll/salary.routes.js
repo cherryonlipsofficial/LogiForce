@@ -286,11 +286,24 @@ router.put('/runs/:id/adjust', requirePermission('salary.adjust'), validate(adju
       referenceId: `carryover_${year}_${month}`,
       entryType: 'manual_debit',
     });
+
+    // Carryover is a tracking marker for next month — it should not move the
+    // running balance now. Mirror the previous entry's runningBalance so a
+    // later postLedgerEntries call doesn't read undefined and produce NaN.
+    const lastEntry = await DriverLedger.findOne({
+      driverId: run.driverId,
+      isDeleted: { $ne: true },
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+    const carriedRunningBalance = Number(lastEntry?.runningBalance) || 0;
+
     await DriverLedger.create({
       driverId: run.driverId,
       entryType: 'manual_debit',
       debit: carryoverAmount,
       credit: 0,
+      runningBalance: carriedRunningBalance,
       description: `Deduction carryover from ${year}-${String(month).padStart(2, '0')}`,
       referenceId: `carryover_${year}_${month}`,
       period: { year: nextYear, month: nextMonth },
