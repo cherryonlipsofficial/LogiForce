@@ -123,7 +123,7 @@ export default function ActionsDropdown({
       <button
         style={itemStyle}
         onClick={() => {
-          toast.info(`Password reset email sent to ${user.email}`);
+          toast.success(`Password reset email sent to ${user.email}`);
           onClose();
         }}
         onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface3)'; e.currentTarget.style.color = 'var(--text)'; }}
