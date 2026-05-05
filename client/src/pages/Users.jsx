@@ -471,13 +471,11 @@ export default function UsersPage() {
                                 Permissions
                               </Btn>
                             </PermissionGate>
-                            <div
-                              ref={actionsDropdownId === user._id ? actionsTriggerRef : null}
-                              style={{ position: 'relative' }}
-                            >
+                            <div style={{ position: 'relative' }}>
                               <Btn small variant="ghost"
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  actionsTriggerRef.current = e.currentTarget;
                                   setActionsDropdownId(
                                     actionsDropdownId === user._id ? null : user._id
                                   );
