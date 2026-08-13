@@ -62,9 +62,13 @@ const getConnectionForTenant = async (tenantConfig) => {
     connections.delete(dbName);
   }
 
+  // Atlas URIs (mongodb+srv://) always speak TLS. Plain mongodb:// URIs — e.g.
+  // the untls'd mongo:7 container in docker-compose — must not be forced into
+  // a TLS handshake or the connection fails outright.
+  const useTls = dbUri.startsWith('mongodb+srv://');
+
   const conn = await mongoose.createConnection(dbUri, {
-    tls: true,
-    tlsAllowInvalidCertificates: false,
+    ...(useTls ? { tls: true, tlsAllowInvalidCertificates: false } : {}),
     maxPoolSize: 5,          // low for free tier, increase later
     serverSelectionTimeoutMS: 5000,
   }).asPromise();
