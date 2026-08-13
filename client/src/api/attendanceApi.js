@@ -32,6 +32,9 @@ export const getBatchDisputes = (batchId) =>
 export const respondToDispute = (disputeId, message) =>
   axiosInstance.post(`/attendance/disputes/${disputeId}/respond`, { message }).then(r => r.data);
 
+export const getInvoicePreview = (batchId) =>
+  axiosInstance.get(`/attendance/batches/${batchId}/invoice-preview`).then(r => r.data);
+
 export const generateInvoice = (batchId) =>
   axiosInstance.post(`/attendance/batches/${batchId}/generate-invoice`).then(r => r.data);
 

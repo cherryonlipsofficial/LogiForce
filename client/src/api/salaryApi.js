@@ -3,6 +3,9 @@ import axiosInstance from './axiosInstance';
 export const getRuns = (params) =>
   axiosInstance.get('/salary/runs', { params }).then(r => r.data);
 
+export const exportRuns = (params) =>
+  axiosInstance.get('/salary/runs/export', { params, responseType: 'blob' }).then(r => r.data);
+
 export const runPayroll = (data) =>
   axiosInstance.post('/salary/run', data).then(r => r.data);
 
@@ -17,6 +20,9 @@ export const getPayslipPdf = (id) =>
 
 export const addDeduction = (runId, data) =>
   axiosInstance.post(`/salary/runs/${runId}/deduction`, data).then(r => r.data);
+
+export const removeCreditNoteDeduction = (runId, referenceId) =>
+  axiosInstance.delete(`/salary/runs/${runId}/credit-note-deduction`, { data: { referenceId } }).then(r => r.data);
 
 export const deleteRun = (id, data) =>
   axiosInstance.delete(`/salary/runs/${id}`, { data }).then(r => r.data);

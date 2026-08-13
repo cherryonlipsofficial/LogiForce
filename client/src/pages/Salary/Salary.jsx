@@ -13,7 +13,7 @@ import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
 import ProjectSelect from '../../components/ui/ProjectSelect';
 import { useNavigate } from 'react-router-dom';
-import { getRuns, runPayroll, getWpsFile, getPayslipPdf, getRun, addDeduction, deleteRun, markAsPaid, disputeRun, approveByOps, approveByCompliance, approveByAccounts, processRun, bulkApproveByOps, bulkApproveByCompliance, bulkApproveByAccounts, bulkProcess, bulkMarkAsPaid } from '../../api/salaryApi';
+import { getRuns, exportRuns, runPayroll, getWpsFile, getPayslipPdf, getRun, addDeduction, removeCreditNoteDeduction, deleteRun, markAsPaid, disputeRun, approveByOps, approveByCompliance, approveByAccounts, processRun, bulkApproveByOps, bulkApproveByCompliance, bulkApproveByAccounts, bulkProcess, bulkMarkAsPaid } from '../../api/salaryApi';
 import { formatDate } from '../../utils/formatters';
 import { useFormatters } from '../../hooks/useFormatters';
 import Pagination from '../../components/ui/Pagination';
@@ -186,6 +186,7 @@ const RunDetail = ({ run, onClose }) => {
   const [dedType, setDedType] = useState('telecom_sim');
   const [dedAmount, setDedAmount] = useState('');
   const [dedDesc, setDedDesc] = useState('');
+  const [removingCnRef, setRemovingCnRef] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showDisputeForm, setShowDisputeForm] = useState(false);
   const [disputeReason, setDisputeReason] = useState('');
@@ -224,6 +225,27 @@ const RunDetail = ({ run, onClose }) => {
       setDedDesc('');
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed to add deduction'),
+  });
+
+  const { mutate: removeCnDeduction, isPending: removingCnDeduction } = useMutation({
+    mutationFn: (referenceId) => removeCreditNoteDeduction(run._id, referenceId),
+    onSuccess: (res) => {
+      const data = res?.data || {};
+      if (data.movedToRunId) {
+        toast.success(`Credit note moved to ${data.movedToRunId}`);
+      } else if (data.pendingNext) {
+        toast.success('Credit note removed — will apply on next payroll run');
+      } else {
+        toast.success('Credit note deduction removed');
+      }
+      qc.invalidateQueries(['salary-runs']);
+      qc.invalidateQueries(['salary-run-detail', run._id]);
+      setRemovingCnRef(null);
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.message || 'Failed to remove credit note deduction');
+      setRemovingCnRef(null);
+    },
   });
 
   const { mutate: removeRun, isPending: deleting } = useMutation({
@@ -419,24 +441,102 @@ const RunDetail = ({ run, onClose }) => {
           <SectionHeader color="#f87171">Deductions</SectionHeader>
           {(detail.deductions && detail.deductions.length > 0) ? (
             <>
-              {detail.deductions.filter(d => d.amount > 0).map((ded) => (
-                <div key={ded.type || ded.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
-                  <div>
-                    <div style={{ color: 'var(--text)' }}>{ded.description || ded.type?.replace(/_/g, ' ')}</div>
-                    {ded.type === 'vehicle_rental' && run.vehiclePlate && (
-                      <div
-                        onClick={() => navigate(`/vehicles?plate=${encodeURIComponent(run.vehiclePlate)}`)}
-                        style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text3)', marginTop: 2, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}
-                      >
-                        {run.vehiclePlate} <span style={{ fontSize: 9 }}>&#8599;</span>
-                      </div>
-                    )}
+              {detail.deductions.filter(d => d.amount > 0).map((ded, dedIdx) => {
+                const cnEditable = ded.type === 'credit_note'
+                  && ded.referenceId
+                  && ['draft', 'ops_approved', 'compliance_approved'].includes(currentStatus)
+                  && hasPermission('salary.remove_credit_note');
+                const isConfirming = cnEditable && removingCnRef === ded.referenceId;
+                return (
+                  <div key={ded.referenceId || `${ded.type}-${dedIdx}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12, gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: 'var(--text)', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{ded.description || ded.type?.replace(/_/g, ' ')}</div>
+                      {ded.type === 'vehicle_rental' && run.vehiclePlate && (
+                        <div
+                          onClick={() => navigate(`/vehicles?plate=${encodeURIComponent(run.vehiclePlate)}`)}
+                          style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text3)', marginTop: 2, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                        >
+                          {run.vehiclePlate} <span style={{ fontSize: 9 }}>&#8599;</span>
+                        </div>
+                      )}
+                      {isConfirming && (
+                        <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>
+                          This credit note will be moved to the next month's payroll (or auto-applied when the next run is created).
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#f87171' }}>
+                        {formatCurrencyFull(ded.amount)}
+                      </span>
+                      {cnEditable && !isConfirming && (
+                        <button
+                          type="button"
+                          onClick={() => setRemovingCnRef(ded.referenceId)}
+                          title="Remove this credit note from the current payroll and defer to next month"
+                          aria-label="Remove credit note deduction"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--text3)',
+                            borderRadius: 4,
+                            width: 18,
+                            height: 18,
+                            padding: 0,
+                            fontSize: 14,
+                            lineHeight: 1,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = '#f87171'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text3)'; }}
+                        >
+                          &times;
+                        </button>
+                      )}
+                      {isConfirming && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => removeCnDeduction(ded.referenceId)}
+                            disabled={removingCnDeduction}
+                            style={{
+                              background: 'rgba(248,113,113,0.15)',
+                              border: '1px solid rgba(248,113,113,0.4)',
+                              color: '#f87171',
+                              borderRadius: 6,
+                              padding: '2px 8px',
+                              fontSize: 11,
+                              cursor: removingCnDeduction ? 'not-allowed' : 'pointer',
+                              fontWeight: 500,
+                            }}
+                          >
+                            {removingCnDeduction ? 'Removing...' : 'Confirm'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRemovingCnRef(null)}
+                            disabled={removingCnDeduction}
+                            style={{
+                              background: 'transparent',
+                              border: '1px solid var(--border2)',
+                              color: 'var(--text3)',
+                              borderRadius: 6,
+                              padding: '2px 8px',
+                              fontSize: 11,
+                              cursor: removingCnDeduction ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#f87171' }}>
-                    {formatCurrencyFull(ded.amount)}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
               <BreakdownRow label="Total Deductions" value={formatCurrencyFull(detail.totalDeductions)} bold color="#f87171" />
             </>
           ) : (
@@ -804,19 +904,51 @@ const Salary = () => {
   const [showRunModal, setShowRunModal] = useState(false);
   const [selectedRun, setSelectedRun] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [yearFilter, setYearFilter] = useState('all');
+  const [monthFilter, setMonthFilter] = useState('all');
+  const [projectFilter, setProjectFilter] = useState('all');
   const [driverSearch, setDriverSearch] = useState('');
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkRemarks, setBulkRemarks] = useState('');
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const { role, isAdmin } = useAuth();
   const qc = useQueryClient();
 
+  const filterParams = {
+    status: statusFilter !== 'all' ? statusFilter : undefined,
+    year: yearFilter !== 'all' ? yearFilter : undefined,
+    month: monthFilter !== 'all' ? monthFilter : undefined,
+    projectId: projectFilter !== 'all' ? projectFilter : undefined,
+  };
+
   const { data, isLoading } = useQuery({
-    queryKey: ['salary-runs', { status: statusFilter, page }],
-    queryFn: () => getRuns({ status: statusFilter !== 'all' ? statusFilter : undefined, page, limit: 20 }),
+    queryKey: ['salary-runs', { ...filterParams, page }],
+    queryFn: () => getRuns({ ...filterParams, page, limit: 20 }),
     retry: 1,
   });
+
+  const yearOptions = (() => {
+    const currentYear = new Date().getFullYear();
+    return [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
+  })();
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const blob = await exportRuns(filterParams);
+      const parts = ['salary-runs'];
+      if (yearFilter !== 'all') parts.push(yearFilter);
+      if (monthFilter !== 'all') parts.push(String(monthFilter).padStart(2, '0'));
+      downloadBlob(blob, `${parts.join('_')}.xlsx`);
+      toast.success('Salary runs exported');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to export salary runs');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const runs = data?.data || [];
   const pagination = data?.pagination;
@@ -848,6 +980,9 @@ const Salary = () => {
 
   // Clear selection when filters/page change
   const handleFilterChange = (val) => { setStatusFilter(val); setPage(1); setSelectedIds([]); };
+  const handleYearChange = (val) => { setYearFilter(val); setPage(1); setSelectedIds([]); };
+  const handleMonthChange = (val) => { setMonthFilter(val); setPage(1); setSelectedIds([]); };
+  const handleProjectChange = (val) => { setProjectFilter(val); setPage(1); setSelectedIds([]); };
   const handlePageChange = (p) => { setPage(p); setSelectedIds([]); };
 
   // Determine common bulk action (all selected must share the same status for a clean UX)
@@ -890,7 +1025,7 @@ const Salary = () => {
       </div>
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', flexWrap: 'wrap', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
           <input
             type="text"
             placeholder="Search by driver name..."
@@ -898,7 +1033,7 @@ const Salary = () => {
             onChange={(e) => { setDriverSearch(e.target.value); setPage(1); }}
             style={{ width: isMobile ? '100%' : 220, height: 34, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13 }}
           />
-          <select value={statusFilter} onChange={(e) => handleFilterChange(e.target.value)} style={{ width: isMobile ? '100%' : 180, height: 34 }}>
+          <select value={statusFilter} onChange={(e) => handleFilterChange(e.target.value)} style={{ width: isMobile ? '100%' : 160, height: 34 }}>
             <option value="all">All statuses</option>
             <option value="draft">Draft</option>
             <option value="ops_approved">Ops Approved</option>
@@ -908,7 +1043,25 @@ const Salary = () => {
             <option value="paid">Paid</option>
             <option value="disputed">Disputed</option>
           </select>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <select value={yearFilter} onChange={(e) => handleYearChange(e.target.value)} style={{ width: isMobile ? '100%' : 110, height: 34 }} title="Filter by year">
+            <option value="all">All years</option>
+            {yearOptions.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+          <select value={monthFilter} onChange={(e) => handleMonthChange(e.target.value)} style={{ width: isMobile ? '100%' : 120, height: 34 }} title="Filter by month">
+            <option value="all">All months</option>
+            {monthNames.map((m, i) => (
+              <option key={m} value={i + 1}>{m}</option>
+            ))}
+          </select>
+          <div style={{ width: isMobile ? '100%' : 200 }}>
+            <ProjectSelect value={projectFilter} onChange={handleProjectChange} showAll style={{ height: 34 }} />
+          </div>
+          <div style={{ marginLeft: isMobile ? 0 : 'auto', display: 'flex', gap: 8 }}>
+            <Btn small variant="ghost" onClick={handleExport} disabled={exporting || isLoading}>
+              {exporting ? 'Exporting...' : 'Export XLSX'}
+            </Btn>
             <PermissionGate permission="salary.run">
               <Btn small variant="primary" onClick={() => setShowRunModal(true)}>Run payroll</Btn>
             </PermissionGate>

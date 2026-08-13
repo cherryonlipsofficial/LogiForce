@@ -7,6 +7,10 @@ import { UserPrefsProvider } from './hooks/useUserPrefs.jsx';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import MainLayout from './components/layout/MainLayout';
 import Login from './pages/Login';
+import Register from './pages/Register';
+import VerifyOtp from './pages/VerifyOtp';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard/Dashboard';
 import ComplianceDashboard from './pages/Dashboard/ComplianceDashboard';
 import SalesDashboard from './pages/Dashboard/SalesDashboard';
@@ -73,6 +77,10 @@ const RouterContent = () => (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/verify-otp" element={<VerifyOtp />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<ProtectedPage><DashboardSwitch /></ProtectedPage>} />
         <Route path="/drivers" element={<ProtectedPage permission="drivers.view"><Drivers /></ProtectedPage>} />
@@ -119,7 +127,14 @@ const RouterContent = () => (
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
-    <Toaster position="top-right" />
+    <Toaster
+      position="top-right"
+      toastOptions={{
+        duration: 5000,
+        success: { duration: 5000 },
+        error: { duration: 6000 },
+      }}
+    />
   </>
 );
 

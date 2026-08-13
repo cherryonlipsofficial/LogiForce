@@ -20,3 +20,6 @@ export const addSupplierDeduction = (id, data) =>
 
 export const removeSupplierDeduction = (id, deductionId) =>
   axiosInstance.delete(`/driver-clearance/${id}/supplier/deduction/${deductionId}`).then(r => r.data);
+
+export const updateLastWorkingDate = (id, lastWorkingDate) =>
+  axiosInstance.put(`/driver-clearance/${id}/last-working-date`, { lastWorkingDate }).then(r => r.data);

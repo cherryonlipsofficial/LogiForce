@@ -96,6 +96,10 @@ const salaryRunSchema = new Schema(
         description: { type: String },
       },
     ],
+    // Credit note refs (cnId:lineId) that have been manually removed from this run
+    // so they're skipped on syncCreditNoteDeductions (ops approval) and pushed to
+    // the next month's payroll instead.
+    excludedCreditNoteRefs: [{ type: String }],
     status: {
       type: String,
       enum: ['draft', 'ops_approved', 'compliance_approved', 'accounts_approved', 'processed', 'paid', 'disputed'],

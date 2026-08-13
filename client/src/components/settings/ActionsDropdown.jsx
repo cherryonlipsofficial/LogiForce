@@ -1,6 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import PermissionGate from '../ui/PermissionGate';
+import { sendPasswordResetEmail } from '../../api/usersApi';
 
 const itemStyle = {
   padding: '9px 14px',
@@ -22,20 +24,57 @@ const dividerStyle = {
 };
 
 export default function ActionsDropdown({
-  user, onEdit, onPermissions, onDeactivate, onActivate, currentUserId, onClose,
+  user, onEdit, onPermissions, onDeactivate, onActivate, currentUserId, onClose, anchorRef,
 }) {
   const ref = useRef(null);
+  const [pos, setPos] = useState(null);
+  const [resetting, setResetting] = useState(false);
 
-  // Close on click outside
+  const handleResetPassword = async () => {
+    if (resetting) return;
+    setResetting(true);
+    const toastId = toast.loading(`Sending reset email to ${user.email}...`);
+    try {
+      const res = await sendPasswordResetEmail(user._id);
+      toast.success(res?.message || `Password reset email sent to ${user.email}`, { id: toastId });
+      onClose();
+    } catch (err) {
+      const msg = err?.response?.data?.message || err.message || 'Failed to send reset email';
+      toast.error(msg, { id: toastId });
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  // Compute fixed-position coordinates from the anchor (trigger button)
+  useLayoutEffect(() => {
+    const compute = () => {
+      const anchor = anchorRef?.current;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      const width = 180;
+      const left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8));
+      setPos({ top: rect.bottom + 4, left });
+    };
+    compute();
+    window.addEventListener('resize', compute);
+    window.addEventListener('scroll', compute, true);
+    return () => {
+      window.removeEventListener('resize', compute);
+      window.removeEventListener('scroll', compute, true);
+    };
+  }, [anchorRef]);
+
+  // Close on click outside (ignore clicks on the anchor — it owns toggle)
   useEffect(() => {
     const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) {
-        onClose();
-      }
+      if (ref.current && ref.current.contains(e.target)) return;
+      if (anchorRef?.current && anchorRef.current.contains(e.target)) return;
+      onClose();
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [onClose]);
+  }, [onClose, anchorRef]);
 
   const handleItem = (fn) => {
     fn();
@@ -46,19 +85,22 @@ export default function ActionsDropdown({
   const isPending = !user.isActive && !user.activatedAt;
   const isDeactivated = !user.isActive && !!user.activatedAt;
 
-  return (
+  if (!pos) return null;
+
+  return createPortal(
     <div
       ref={ref}
       style={{
-        position: 'absolute',
-        right: 0,
-        top: '100%',
+        position: 'fixed',
+        top: pos.top,
+        left: pos.left,
         width: 180,
         background: 'var(--surface2)',
         border: '1px solid var(--border2)',
         borderRadius: 10,
         overflow: 'hidden',
-        zIndex: 50,
+        zIndex: 1000,
+        boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
       }}
     >
       <PermissionGate permission="users.edit">
@@ -97,15 +139,13 @@ export default function ActionsDropdown({
       </PermissionGate>
 
       <button
-        style={itemStyle}
-        onClick={() => {
-          toast.info(`Password reset email sent to ${user.email}`);
-          onClose();
-        }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface3)'; e.currentTarget.style.color = 'var(--text)'; }}
+        style={{ ...itemStyle, opacity: resetting ? 0.6 : 1, cursor: resetting ? 'wait' : 'pointer' }}
+        disabled={resetting}
+        onClick={handleResetPassword}
+        onMouseEnter={e => { if (!resetting) { e.currentTarget.style.background = 'var(--surface3)'; e.currentTarget.style.color = 'var(--text)'; } }}
         onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text2)'; }}
       >
-        Reset password
+        {resetting ? 'Sending...' : 'Reset password'}
       </button>
 
       {!isSelf && (
@@ -145,6 +185,7 @@ export default function ActionsDropdown({
           </PermissionGate>
         </>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }

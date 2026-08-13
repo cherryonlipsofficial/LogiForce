@@ -735,8 +735,8 @@ router.post('/:id/activate', requirePermission('drivers.activate'), async (req, 
 // PUT /api/drivers/:id/status — manual status change (Operations / Admin)
 router.put('/:id/status', requirePermission('drivers.change_status'), validate(changeStatusValidation), async (req, res) => {
   try {
-    const { status, reason } = req.body;
-    const driver = await changeStatusManual(req, req.params.id, status, reason, req.user._id);
+    const { status, reason, lastWorkingDay } = req.body;
+    const driver = await changeStatusManual(req, req.params.id, status, reason, req.user._id, { lastWorkingDay });
     sendSuccess(res, driver, 'Status updated');
   } catch (err) {
     sendError(res, err.message, err.statusCode || 500);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -316,10 +316,9 @@ const CreditNoteDetail = ({ cnId, onClose }) => {
                     <tr key={line._id} style={{ borderBottom: '1px solid var(--border)' }}>
                       <td style={{ padding: '8px 8px' }}>
                         <div>{line.driverName}</div>
-                        {line.clientUserId && <div style={{ fontSize: 10, color: 'var(--text3)' }}>{line.clientUserId}</div>}
                       </td>
                       <td style={{ padding: '8px 8px', fontSize: 11 }}>{noteTypeLabels[line.noteType] || line.noteType || '—'}</td>
-                      <td style={{ padding: '8px 8px', fontFamily: 'var(--mono)', fontSize: 11 }}>{line.employeeCode || '—'}</td>
+                      <td style={{ padding: '8px 8px', fontFamily: 'var(--mono)', fontSize: 11 }}>{line.clientUserId || '—'}</td>
                       <td style={{ padding: '8px 8px' }}>{line.referenceNo || '—'}</td>
                       <td style={{ padding: '8px 8px', fontFamily: 'var(--mono)' }}>{formatCurrencyFull(line.amount)}</td>
                       <td style={{ padding: '8px 8px', fontFamily: 'var(--mono)' }}>{formatCurrencyFull(line.vatAmount)}</td>
@@ -502,6 +501,7 @@ const CreateCreditNoteModal = ({ onClose }) => {
   const [lineItems, setLineItems] = useState([{ driverId: '', driverSearch: '', noteType: 'traffic_fine', referenceNo: '', amount: '', vatRate: '0' }]);
   const [driverResults, setDriverResults] = useState({});
   const [searchingDriver, setSearchingDriver] = useState({});
+  const lastQueryRef = useRef({});
   const qc = useQueryClient();
 
   const addLine = () => setLineItems([...lineItems, { driverId: '', driverSearch: '', noteType: 'traffic_fine', referenceNo: '', amount: '', vatRate: '0' }]);
@@ -515,6 +515,7 @@ const CreateCreditNoteModal = ({ onClose }) => {
   };
 
   const searchDrivers = async (idx, query) => {
+    lastQueryRef.current[idx] = query;
     if (!query || query.length < 2) {
       setDriverResults((prev) => ({ ...prev, [idx]: [] }));
       return;
@@ -522,9 +523,11 @@ const CreateCreditNoteModal = ({ onClose }) => {
     setSearchingDriver((prev) => ({ ...prev, [idx]: true }));
     try {
       const res = await axiosInstance.get('/drivers', { params: { search: query, limit: 10, projectId: projectId || undefined } });
+      if (lastQueryRef.current[idx] !== query) return;
       const drivers = res.data?.data || [];
       setDriverResults((prev) => ({ ...prev, [idx]: drivers }));
     } catch {
+      if (lastQueryRef.current[idx] !== query) return;
       setDriverResults((prev) => ({ ...prev, [idx]: [] }));
     } finally {
       setSearchingDriver((prev) => ({ ...prev, [idx]: false }));
@@ -532,6 +535,7 @@ const CreateCreditNoteModal = ({ onClose }) => {
   };
 
   const selectDriver = (idx, driver) => {
+    lastQueryRef.current[idx] = null;
     updateLine(idx, 'driverId', driver._id);
     updateLine(idx, 'driverSearch', `${driver.fullName} (${driver.employeeCode || driver._id})`);
     setDriverResults((prev) => ({ ...prev, [idx]: [] }));
@@ -541,7 +545,7 @@ const CreateCreditNoteModal = ({ onClose }) => {
   const totalVat = lineItems.reduce((s, l) => {
     const amt = parseFloat(l.amount) || 0;
     const vr = parseFloat(l.vatRate) || 0;
-    return s + amt * vr;
+    return s + amt * (vr / 100);
   }, 0);
   const totalAmount = subtotal + totalVat;
 

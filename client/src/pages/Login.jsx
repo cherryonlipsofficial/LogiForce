@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -169,9 +169,17 @@ const Login = () => {
               )}
             </div>
             <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', fontSize: 12, color: 'var(--text3)', marginBottom: 6 }}>
-                Password
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label style={{ fontSize: 12, color: 'var(--text3)' }}>
+                  Password
+                </label>
+                <Link
+                  to="/forgot-password"
+                  style={{ fontSize: 11, color: 'var(--accent)', textDecoration: 'none' }}
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <input
                 type="password"
                 {...register('password', { required: 'Password is required' })}
@@ -205,6 +213,13 @@ const Login = () => {
             >
               {isSubmitting ? 'Signing in...' : 'Sign in'}
             </button>
+
+            <div style={{ marginTop: 18, textAlign: 'center', fontSize: 12, color: 'var(--text3)' }}>
+              Don't have an account?{' '}
+              <Link to="/register" style={{ color: 'var(--accent)', textDecoration: 'none' }}>
+                Create one
+              </Link>
+            </div>
           </form>
         )}
       </div>

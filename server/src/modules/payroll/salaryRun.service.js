@@ -259,6 +259,15 @@ async function storeDeductionCarryover(req, driverId, year, month, amount) {
     nextYear = year + 1;
   }
 
+  // Carryover is a tracking marker for the *next* month's deduction; it should
+  // not move the running balance in the current period. Mirror the previous
+  // entry's runningBalance so the ledger chain stays valid (otherwise a later
+  // postLedgerEntries call would read undefined and produce NaN).
+  const lastEntry = await DriverLedger.findOne({ driverId, isDeleted: { $ne: true } })
+    .sort({ createdAt: -1 })
+    .lean();
+  const carriedRunningBalance = Number(lastEntry?.runningBalance) || 0;
+
   // Upsert to avoid duplicate carryover entries for the same source period
   await DriverLedger.findOneAndUpdate(
     {
@@ -272,6 +281,7 @@ async function storeDeductionCarryover(req, driverId, year, month, amount) {
       $set: {
         debit: amount,
         credit: 0,
+        runningBalance: carriedRunningBalance,
         description: `Deduction carryover from ${year}-${String(month).padStart(2, '0')}`,
       },
       $setOnInsert: {

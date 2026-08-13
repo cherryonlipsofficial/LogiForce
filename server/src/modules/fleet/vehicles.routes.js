@@ -436,6 +436,7 @@ router.post('/assignments/:assignmentId/return', requirePermission('vehicles.ass
     }
 
     const assignment = await returnVehicle(
+      req,
       req.params.assignmentId,
       {
         returnCondition: returnCondition,
@@ -573,6 +574,7 @@ router.post('/:id/assign', requirePermission('vehicles.assign'), async (req, res
     }
 
     const assignment = await assignVehicle(
+      req,
       req.params.id,
       driverId,
       {
@@ -597,6 +599,7 @@ router.post('/:id/assign', requirePermission('vehicles.assign'), async (req, res
 router.get('/:id/assignment-history', requirePermission('vehicles.view'), async (req, res) => {
   try {
     const result = await getVehicleHistory(
+      req,
       req.params.id,
       parseInt(req.query.page) || 1,
       parseInt(req.query.limit) || 20

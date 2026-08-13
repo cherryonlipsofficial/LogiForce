@@ -6,7 +6,7 @@ const { getModel } = require('../../config/modelRegistry');
 const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseHelper');
 const { PAGINATION } = require('../../config/constants');
 const validate = require('../../middleware/validate');
-const { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation, manualDeductionValidation, approvalRemarksValidation, bulkApprovalValidation } = require('./salary.validators');
+const { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation, manualDeductionValidation, removeCreditNoteDeductionValidation, approvalRemarksValidation, bulkApprovalValidation } = require('./salary.validators');
 const auditLogger = require('../../utils/auditLogger');
 const { generatePayslipPDF } = require('../../utils/pdfGenerator');
 
@@ -41,12 +41,15 @@ const revertCreditNoteDeductions = async (salaryRun, CreditNote) => {
     );
   }
 
-  // Revert any credit notes that were marked as 'settled' back to their prior status
+  // Revert any credit notes that were marked as 'settled' back to their prior
+  // status. checkAndSettleCreditNote handles the salaryRunId-cleared case
+  // (line is no longer queued, so CN drops back to 'adjusted'); we only need
+  // the explicit 'sent' fallback here for CNs whose client-side adjustment
+  // doesn't exist (linkedInvoiceId unset), which checkAndSettle short-circuits.
   for (const cnId of affectedCreditNoteIds) {
     const cn = await CreditNote.findById(cnId);
     if (!cn || cn.status !== 'settled') continue;
 
-    // If client-side adjustment exists, revert to 'adjusted'; otherwise 'sent'
     cn.status = cn.linkedInvoiceId ? 'adjusted' : 'sent';
     await cn.save();
   }
@@ -78,6 +81,7 @@ router.post('/run', requirePermission('salary.run'), validate(runSalaryValidatio
   }
 
   const result = await salaryService.runPayroll(
+    req,
     clientId,
     projectId,
     parseInt(year),
@@ -100,6 +104,7 @@ router.get('/runs', requirePermission('salary.view'), async (req, res) => {
 
   const query = { isDeleted: { $ne: true } };
   if (req.query.clientId) query.clientId = req.query.clientId;
+  if (req.query.projectId) query.projectId = req.query.projectId;
   if (req.query.driverId) query.driverId = req.query.driverId;
   if (req.query.status) query.status = req.query.status;
   if (req.query.year) query['period.year'] = parseInt(req.query.year);
@@ -123,6 +128,95 @@ router.get('/runs', requirePermission('salary.view'), async (req, res) => {
   sendPaginated(res, runs, total, page, limit);
 });
 
+// GET /api/salary/runs/export — export filtered salary runs as XLSX
+router.get('/runs/export', requirePermission('salary.view'), async (req, res) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
+  const XLSX = require('xlsx');
+
+  const query = { isDeleted: { $ne: true } };
+  if (req.query.clientId) query.clientId = req.query.clientId;
+  if (req.query.projectId) query.projectId = req.query.projectId;
+  if (req.query.driverId) query.driverId = req.query.driverId;
+  if (req.query.status) query.status = req.query.status;
+  if (req.query.year) query['period.year'] = parseInt(req.query.year);
+  if (req.query.month) query['period.month'] = parseInt(req.query.month);
+
+  const runs = await SalaryRun.find(query)
+    .populate('driverId', 'fullName employeeCode bankName iban')
+    .populate('clientId', 'name')
+    .populate('projectId', 'name projectCode')
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const formatPeriod = (p) => p && p.year != null && p.month != null
+    ? `${monthNames[p.month - 1] || ''} ${p.year}`
+    : '';
+
+  const headers = [
+    'Run ID', 'Driver', 'Employee Code', 'Client', 'Project',
+    'Period', 'Working Days', 'Overtime Hours', 'Total Orders',
+    'Base Salary', 'Prorated Salary', 'Overtime Pay', 'Gross Salary',
+    'Total Deductions', 'Carryover', 'Net Salary',
+    'Bank Name', 'IBAN', 'Status', 'Created At', 'Paid At',
+  ];
+
+  const rows = runs.map((r) => [
+    r.runId || '',
+    r.driverId?.fullName || '',
+    r.driverId?.employeeCode || '',
+    r.clientId?.name || '',
+    r.projectId?.name || '',
+    formatPeriod(r.period),
+    r.workingDays ?? '',
+    r.overtimeHours ?? '',
+    r.totalOrders ?? '',
+    r.baseSalary ?? 0,
+    r.proratedSalary ?? 0,
+    r.overtimePay ?? 0,
+    r.grossSalary ?? 0,
+    r.totalDeductions ?? 0,
+    r.deductionCarryover ?? 0,
+    r.netSalary ?? 0,
+    r.driverId?.bankName || '',
+    r.driverId?.iban || '',
+    r.status || '',
+    r.createdAt ? new Date(r.createdAt).toISOString().slice(0, 10) : '',
+    r.paidAt ? new Date(r.paidAt).toISOString().slice(0, 10) : '',
+  ]);
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+
+  // Force IBAN/Employee Code columns to text so Excel doesn't auto-convert
+  const textCols = ['Employee Code', 'IBAN'];
+  const textIdx = textCols.map((h) => headers.indexOf(h)).filter((i) => i !== -1);
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (const colIdx of textIdx) {
+    for (let row = range.s.r + 1; row <= range.e.r; row++) {
+      const cellRef = XLSX.utils.encode_cell({ r: row, c: colIdx });
+      if (ws[cellRef]) {
+        ws[cellRef].t = 's';
+        ws[cellRef].z = '@';
+      }
+    }
+  }
+
+  ws['!cols'] = headers.map((h) => ({ wch: Math.max(12, Math.min(28, h.length + 4)) }));
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Salary Runs');
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+  const periodSuffix = req.query.year && req.query.month
+    ? `_${req.query.year}_${String(req.query.month).padStart(2, '0')}`
+    : (req.query.year ? `_${req.query.year}` : '');
+  const filename = `salary-runs${periodSuffix}.xlsx`;
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(buf);
+});
+
 // GET /api/salary/runs/:id — get single run with full breakdown
 router.get('/runs/:id', requirePermission('salary.view'), async (req, res) => {
   const SalaryRun = getModel(req, 'SalaryRun');
@@ -143,21 +237,21 @@ router.get('/runs/:id', requirePermission('salary.view'), async (req, res) => {
 
 // PUT /api/salary/runs/:id/approve/ops — Operations approval (draft → ops_approved)
 router.put('/runs/:id/approve/ops', requirePermission('salary.approve_ops'), validate(approvalRemarksValidation), async (req, res) => {
-  const run = await salaryService.approveByOps(req.params.id, req.user._id, req.body.remarks);
+  const run = await salaryService.approveByOps(req, req.params.id, req.user._id, req.body.remarks);
   await auditLogger.logChange('SalaryRun', req.params.id, 'status', 'draft', 'ops_approved', req.user._id, 'salary_ops_approval');
   sendSuccess(res, run, 'Salary run approved by Operations');
 });
 
 // PUT /api/salary/runs/:id/approve/compliance — Compliance approval (ops_approved → compliance_approved)
 router.put('/runs/:id/approve/compliance', requirePermission('salary.approve_compliance'), validate(approvalRemarksValidation), async (req, res) => {
-  const run = await salaryService.approveByCompliance(req.params.id, req.user._id, req.body.remarks);
+  const run = await salaryService.approveByCompliance(req, req.params.id, req.user._id, req.body.remarks);
   await auditLogger.logChange('SalaryRun', req.params.id, 'status', 'ops_approved', 'compliance_approved', req.user._id, 'salary_compliance_approval');
   sendSuccess(res, run, 'Salary run approved by Compliance');
 });
 
 // PUT /api/salary/runs/:id/approve/accounts — Junior Accounts approval (compliance_approved → accounts_approved)
 router.put('/runs/:id/approve/accounts', requirePermission('salary.approve_accounts'), validate(approvalRemarksValidation), async (req, res) => {
-  const run = await salaryService.approveByAccounts(req.params.id, req.user._id, req.body.remarks);
+  const run = await salaryService.approveByAccounts(req, req.params.id, req.user._id, req.body.remarks);
   await auditLogger.logChange('SalaryRun', req.params.id, 'status', 'compliance_approved', 'accounts_approved', req.user._id, 'salary_accounts_approval');
   sendSuccess(res, run, 'Salary run approved by Accounts');
 });
@@ -172,7 +266,7 @@ router.put('/runs/:id/process', requirePermission('salary.process'), async (req,
 // PUT /api/salary/bulk-approve/ops — Bulk operations approval
 router.put('/bulk-approve/ops', requirePermission('salary.approve_ops'), validate(bulkApprovalValidation), async (req, res) => {
   const { runIds, remarks } = req.body;
-  const results = await salaryService.bulkApproveByOps(runIds, req.user._id, remarks);
+  const results = await salaryService.bulkApproveByOps(req, runIds, req.user._id, remarks);
 
   for (const item of results.approved) {
     await auditLogger.logChange('SalaryRun', item._id, 'status', 'draft', 'ops_approved', req.user._id, 'salary_bulk_ops_approval');
@@ -185,7 +279,7 @@ router.put('/bulk-approve/ops', requirePermission('salary.approve_ops'), validat
 // PUT /api/salary/bulk-approve/compliance — Bulk compliance approval
 router.put('/bulk-approve/compliance', requirePermission('salary.approve_compliance'), validate(bulkApprovalValidation), async (req, res) => {
   const { runIds, remarks } = req.body;
-  const results = await salaryService.bulkApproveByCompliance(runIds, req.user._id, remarks);
+  const results = await salaryService.bulkApproveByCompliance(req, runIds, req.user._id, remarks);
 
   for (const item of results.approved) {
     await auditLogger.logChange('SalaryRun', item._id, 'status', 'ops_approved', 'compliance_approved', req.user._id, 'salary_bulk_compliance_approval');
@@ -198,7 +292,7 @@ router.put('/bulk-approve/compliance', requirePermission('salary.approve_complia
 // PUT /api/salary/bulk-approve/accounts — Bulk accounts approval
 router.put('/bulk-approve/accounts', requirePermission('salary.approve_accounts'), validate(bulkApprovalValidation), async (req, res) => {
   const { runIds, remarks } = req.body;
-  const results = await salaryService.bulkApproveByAccounts(runIds, req.user._id, remarks);
+  const results = await salaryService.bulkApproveByAccounts(req, runIds, req.user._id, remarks);
 
   for (const item of results.approved) {
     await auditLogger.logChange('SalaryRun', item._id, 'status', 'compliance_approved', 'accounts_approved', req.user._id, 'salary_bulk_accounts_approval');
@@ -211,7 +305,7 @@ router.put('/bulk-approve/accounts', requirePermission('salary.approve_accounts'
 // PUT /api/salary/bulk-process — Bulk process salary runs
 router.put('/bulk-process', requirePermission('salary.process'), validate(bulkApprovalValidation), async (req, res) => {
   const { runIds } = req.body;
-  const results = await salaryService.bulkProcess(runIds, req.user._id);
+  const results = await salaryService.bulkProcess(req, runIds, req.user._id);
 
   for (const item of results.processed) {
     await auditLogger.logChange('SalaryRun', item._id, 'status', 'accounts_approved', 'processed', req.user._id, 'salary_bulk_processing');
@@ -224,7 +318,7 @@ router.put('/bulk-process', requirePermission('salary.process'), validate(bulkAp
 // PUT /api/salary/bulk-pay — Bulk mark salary runs as paid
 router.put('/bulk-pay', requirePermission('salary.pay'), validate(bulkApprovalValidation), async (req, res) => {
   const { runIds } = req.body;
-  const results = await salaryService.bulkMarkAsPaid(runIds, req.user._id);
+  const results = await salaryService.bulkMarkAsPaid(req, runIds, req.user._id);
 
   for (const item of results.paid) {
     await auditLogger.logChange('SalaryRun', item._id, 'status', 'processed', 'paid', req.user._id, 'salary_bulk_payment');
@@ -285,11 +379,24 @@ router.put('/runs/:id/adjust', requirePermission('salary.adjust'), validate(adju
       referenceId: `carryover_${year}_${month}`,
       entryType: 'manual_debit',
     });
+
+    // Carryover is a tracking marker for next month — it should not move the
+    // running balance now. Mirror the previous entry's runningBalance so a
+    // later postLedgerEntries call doesn't read undefined and produce NaN.
+    const lastEntry = await DriverLedger.findOne({
+      driverId: run.driverId,
+      isDeleted: { $ne: true },
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+    const carriedRunningBalance = Number(lastEntry?.runningBalance) || 0;
+
     await DriverLedger.create({
       driverId: run.driverId,
       entryType: 'manual_debit',
       debit: carryoverAmount,
       credit: 0,
+      runningBalance: carriedRunningBalance,
       description: `Deduction carryover from ${year}-${String(month).padStart(2, '0')}`,
       referenceId: `carryover_${year}_${month}`,
       period: { year: nextYear, month: nextMonth },
@@ -320,11 +427,48 @@ router.put('/runs/:id/adjust', requirePermission('salary.adjust'), validate(adju
   sendSuccess(res, run, 'Salary run adjusted');
 });
 
+// DELETE /api/salary/runs/:id/credit-note-deduction — remove a CN deduction
+// from this run and push it to the next month's payroll. Body: { referenceId }.
+// Gated on the dedicated `salary.remove_credit_note` permission so finance
+// admins can grant it independently from the broader manage_deductions perm.
+router.delete('/runs/:id/credit-note-deduction', requirePermission('salary.remove_credit_note'), validate(removeCreditNoteDeductionValidation), async (req, res) => {
+  const { referenceId } = req.body;
+
+  const result = await salaryService.removeCreditNoteDeduction(
+    req,
+    req.params.id,
+    referenceId,
+    req.user._id
+  );
+
+  await auditLogger.logChange(
+    'SalaryRun',
+    req.params.id,
+    'credit_note_deduction_removed',
+    referenceId,
+    result.movedToRunId
+      ? `Moved to ${result.movedToRunId}`
+      : (result.pendingNext ? 'Pending next salary run' : 'Removed'),
+    req.user._id,
+    'credit_note_deduction_removal'
+  );
+
+  let message = 'Credit note deduction removed';
+  if (result.movedToRunId) {
+    message += ` and moved to ${result.movedToRunId}`;
+  } else if (result.pendingNext) {
+    message += ' — will be auto-applied in the next payroll run';
+  }
+
+  sendSuccess(res, result, message);
+});
+
 // POST /api/salary/runs/:id/deduction — manually add a typed deduction (role-gated)
 router.post('/runs/:id/deduction', requirePermission('salary.manage_deductions'), validate(manualDeductionValidation), async (req, res) => {
   const { type, amount, description } = req.body;
 
   const run = await salaryService.addManualDeduction(
+    req,
     req.params.id,
     { type, amount, description },
     req.user._id
@@ -487,6 +631,7 @@ router.get('/wps-file', requirePermission('salary.export_wps'), async (req, res)
   }
 
   const csvContent = await salaryService.generateWpsFile(
+    req,
     clientId || null,
     parseInt(year),
     parseInt(month)

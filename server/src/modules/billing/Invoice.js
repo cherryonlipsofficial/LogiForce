@@ -7,6 +7,14 @@ const invoiceSchema = new Schema(
       type: String,
       unique: true,
     },
+    // 'regular' = monthly attendance/services billing
+    // 'overtime' = standalone OT invoice (uses project.otRate × overtimeHours)
+    invoiceType: {
+      type: String,
+      enum: ['regular', 'overtime'],
+      default: 'regular',
+      index: true,
+    },
     projectId: {
       type: Schema.Types.ObjectId,
       ref: 'Project',
@@ -44,6 +52,10 @@ const invoiceSchema = new Schema(
         totalOrders: { type: Number }, // for per_order rateBasis
         dailyRate: { type: Number }, // computed from ratePerDriver based on rateBasis
         amount: { type: Number }, // dailyRate * workingDays (or rate * totalOrders for per_order)
+        // OT line items (only populated when invoiceType === 'overtime')
+        overtimeHours: { type: Number },
+        otRate: { type: Number },
+        otRateBasis: { type: String, enum: ['per_hour', 'per_day'] },
         vatRate: { type: Number, default: 0.05 },
         vatAmount: { type: Number },
         totalWithVat: { type: Number },
@@ -167,7 +179,9 @@ invoiceSchema.pre('save', function (next) {
   next();
 });
 
-// Auto-generate invoiceNo: INV-YYYY-MM-XXXXX
+// Auto-generate invoiceNo:
+//   regular  → INV-YYYY-MM-XXXXX
+//   overtime → INV-OT-YYYY-MM-XXXXX
 invoiceSchema.pre('save', async function (next) {
   if (this.invoiceNo) return next();
 
@@ -181,8 +195,11 @@ invoiceSchema.pre('save', async function (next) {
       })
     );
 
+  const isOT = this.invoiceType === 'overtime';
+  const counterId = isOT ? 'invoice_no_ot' : 'invoice_no';
+
   const counter = await Counter.findByIdAndUpdate(
-    'invoice_no',
+    counterId,
     { $inc: { seq: 1 } },
     { new: true, upsert: true }
   );
@@ -193,7 +210,8 @@ invoiceSchema.pre('save', async function (next) {
     '0'
   );
 
-  this.invoiceNo = `INV-${yyyy}-${mm}-${String(counter.seq).padStart(5, '0')}`;
+  const prefix = isOT ? 'INV-OT' : 'INV';
+  this.invoiceNo = `${prefix}-${yyyy}-${mm}-${String(counter.seq).padStart(5, '0')}`;
   next();
 });
 

@@ -10,6 +10,9 @@ const uploadAttendanceValidation = [
   body('month')
     .notEmpty().withMessage('Month is required')
     .isInt({ min: 1, max: 12 }).withMessage('Month must be between 1 and 12'),
+  body('batchType')
+    .optional()
+    .isIn(['regular', 'overtime']).withMessage('batchType must be either "regular" or "overtime"'),
 ];
 
 const overrideRecordValidation = [
@@ -23,6 +26,9 @@ const overrideRecordValidation = [
   body('overtimeHours')
     .optional()
     .isFloat({ min: 0, max: 500 }).withMessage('Overtime hours must be 0-500'),
+  body('totalOrders')
+    .optional()
+    .isInt({ min: 0 }).withMessage('Total orders must be a non-negative integer'),
 ];
 
 module.exports = { uploadAttendanceValidation, overrideRecordValidation };

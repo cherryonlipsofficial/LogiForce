@@ -54,4 +54,27 @@ function computeLineAmount(rate, rateBasis, workingDays, opts = {}) {
   return { dailyRate, amount };
 }
 
-module.exports = { computeLineAmount, daysInMonth };
+/**
+ * Compute OT line item amount based on the project's OT rate and basis.
+ *
+ * - per_hour: amount = otRate × overtimeHours
+ * - per_day:  amount = otRate × overtimeHours (overtimeHours is interpreted
+ *             as overtime days when the basis is per_day — operations
+ *             enters daily counts instead of hourly counts).
+ *
+ * @param {number} otRate         - the project's OT rate
+ * @param {string} otRateBasis    - 'per_hour' | 'per_day'
+ * @param {number} overtimeHours  - overtime quantity captured on attendance
+ * @returns {{ amount: number, units: number }}
+ */
+function computeOTLineAmount(otRate, otRateBasis, overtimeHours) {
+  const rate = Number(otRate) || 0;
+  const units = Number(overtimeHours) || 0;
+  if (rate <= 0 || units <= 0) {
+    return { amount: 0, units };
+  }
+  const amount = parseFloat((rate * units).toFixed(2));
+  return { amount, units };
+}
+
+module.exports = { computeLineAmount, computeOTLineAmount, daysInMonth };

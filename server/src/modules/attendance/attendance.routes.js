@@ -7,7 +7,7 @@ const {
   sendUploadNotification, approveAttendance, raiseDispute,
   respondToDispute,
 } = require('./attendanceApproval.service');
-const { generateInvoice } = require('../billing/invoiceGeneration.service');
+const { generateInvoice, previewInvoice } = require('../billing/invoiceGeneration.service');
 const { runSalaryForBatch, getSalaryRunsByBatch } = require('../payroll/salaryRun.service');
 const { getModel } = require('../../config/modelRegistry');
 const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseHelper');
@@ -31,6 +31,7 @@ router.get('/batches', requirePermission('attendance.view'), async (req, res) =>
   if (req.query.status) query.status = req.query.status;
   if (req.query.year) query['period.year'] = parseInt(req.query.year);
   if (req.query.month) query['period.month'] = parseInt(req.query.month);
+  if (req.query.batchType) query.batchType = req.query.batchType;
 
   const [batches, total] = await Promise.all([
     AttendanceBatch.find(query)
@@ -55,6 +56,7 @@ router.post('/upload', requirePermission('attendance.upload'), attendanceUpload.
   const AttendanceRecord = getModel(req, 'AttendanceRecord');
   const Project = getModel(req, 'Project');
   const { projectId, year, month, columnMapping } = req.body;
+  const batchType = req.body.batchType === 'overtime' ? 'overtime' : 'regular';
 
   // Look up project to derive clientId
   const project = await Project.findById(projectId).select('clientId').lean();
@@ -70,20 +72,23 @@ router.post('/upload', requirePermission('attendance.upload'), attendanceUpload.
 
   const period = { year: parseInt(year), month: parseInt(month) };
 
-  // Check for existing batch for same project + period (to allow revised uploads)
+  // Check for an existing batch of the same type for this project + period
+  // (regular and overtime batches are tracked independently).
   let version = 1;
   let previousBatchId = null;
   const existingBatch = await AttendanceBatch.findOne({
     projectId,
     'period.year': period.year,
     'period.month': period.month,
+    batchType,
   }).sort({ version: -1 });
 
   if (existingBatch) {
     if (!['disputed', 'rejected'].includes(existingBatch.status)) {
+      const typeLabel = batchType === 'overtime' ? 'overtime attendance' : 'attendance';
       return sendError(
         res,
-        'An attendance batch already exists for this project and period. Only disputed or rejected batches can be revised.',
+        `An ${typeLabel} batch already exists for this project and period. Only disputed or rejected batches can be revised.`,
         409
       );
     }
@@ -97,6 +102,7 @@ router.post('/upload', requirePermission('attendance.upload'), attendanceUpload.
 
   // Parse and validate file
   const { rows, stats } = await attendanceService.parseAttendanceFile(
+    req,
     req.file,
     mapping,
     clientId,
@@ -108,6 +114,7 @@ router.post('/upload', requirePermission('attendance.upload'), attendanceUpload.
     clientId,
     projectId,
     period,
+    batchType,
     version,
     previousBatchId,
     status: 'uploaded',
@@ -152,7 +159,7 @@ router.post('/upload', requirePermission('attendance.upload'), attendanceUpload.
   }
 
   // Send notifications to Sales and Ops for review
-  await sendUploadNotification(batch._id, req.user._id);
+  await sendUploadNotification(req, batch._id, req.user._id);
 
   sendSuccess(res, { batch, stats }, 'Attendance file uploaded and processed', 201);
 });
@@ -234,6 +241,7 @@ router.put('/records/:id/override', requirePermission('attendance.override'), va
 // POST /api/attendance/batches/:id/approve — Sales or Ops approves a batch
 router.post('/batches/:id/approve', requireAnyPermission(['attendance.approve_sales', 'attendance.approve_ops']), async (req, res) => {
   const result = await approveAttendance(
+    req,
     req.params.id,
     req.user._id,
     req.body.notes
@@ -265,6 +273,7 @@ router.post('/batches/:id/dispute', requirePermission('attendance.dispute'), asy
   }
 
   const result = await raiseDispute(
+    req,
     req.params.id,
     req.user._id,
     req.body
@@ -286,6 +295,7 @@ router.post('/disputes/:id/respond', requirePermission('attendance.respond_dispu
   }
 
   const result = await respondToDispute(
+    req,
     req.params.id,
     req.user._id,
     req.body.message
@@ -332,19 +342,33 @@ router.get('/batches/:id/disputes', requirePermission('attendance.view'), async 
   res.json({ success: true, data: disputes });
 });
 
+// GET /api/attendance/batches/:id/invoice-preview — dry-run invoice computation
+router.get('/batches/:id/invoice-preview', requirePermission('attendance.view'), async (req, res) => {
+  try {
+    const preview = await previewInvoice(req, req.params.id);
+    sendSuccess(res, preview);
+  } catch (err) {
+    sendError(res, err.message, err.statusCode || 500);
+  }
+});
+
 // POST /api/attendance/batches/:id/generate-invoice — generate invoice from approved batch
 router.post('/batches/:id/generate-invoice', requirePermission('invoices.generate'), async (req, res) => {
-  const result = await generateInvoice(req.params.id, req.user._id);
-  res.status(201).json({
-    success: true,
-    message: `Invoice ${result.invoice.invoiceNo} generated successfully`,
-    data: result,
-  });
+  try {
+    const result = await generateInvoice(req, req.params.id, req.user._id);
+    res.status(201).json({
+      success: true,
+      message: `Invoice ${result.invoice.invoiceNo} generated successfully`,
+      data: result,
+    });
+  } catch (err) {
+    sendError(res, err.message, err.statusCode || 500);
+  }
 });
 
 // POST /api/attendance/batches/:id/run-salary — generate salary runs from approved batch
 router.post('/batches/:id/run-salary', requirePermission('salary.run'), async (req, res) => {
-  const result = await runSalaryForBatch(req.params.id, req.user._id);
+  const result = await runSalaryForBatch(req, req.params.id, req.user._id);
   res.status(201).json({
     success: true,
     message: 'Salary runs processed.',
@@ -354,7 +378,7 @@ router.post('/batches/:id/run-salary', requirePermission('salary.run'), async (r
 
 // GET /api/attendance/batches/:id/salary-runs — list salary runs for a batch
 router.get('/batches/:id/salary-runs', requirePermission('salary.view'), async (req, res) => {
-  const runs = await getSalaryRunsByBatch(req.params.id);
+  const runs = await getSalaryRunsByBatch(req, req.params.id);
   res.json({ success: true, data: runs });
 });
 

@@ -138,6 +138,30 @@ const calculateDriverSalary = async (req, driverId, year, month, processedBy, { 
     await storeDeductionCarryover(req, driverId, year, month, deductionCarryover);
   }
 
+  // Mark each CN line that was pulled into this run with salaryRunId so the
+  // CN can settle as soon as the client side is adjusted, instead of staying
+  // at 'adjusted' until the run is processed days later.
+  const cnDeductions = (salaryRun.deductions || []).filter(
+    (d) => d.type === 'credit_note' && d.referenceId
+  );
+  if (cnDeductions.length > 0) {
+    const CreditNote = getModel(req, 'CreditNote');
+    const affectedCnIds = new Set();
+    for (const ded of cnDeductions) {
+      const [cnId, lineId] = ded.referenceId.split(':');
+      if (!cnId || !lineId) continue;
+      affectedCnIds.add(cnId);
+      await CreditNote.findOneAndUpdate(
+        { _id: cnId, 'lineItems._id': lineId },
+        { $set: { 'lineItems.$.salaryRunId': salaryRun._id } }
+      );
+    }
+    const { checkAndSettleCreditNote } = require('../billing/creditNote.service');
+    for (const cnId of affectedCnIds) {
+      await checkAndSettleCreditNote(req, cnId);
+    }
+  }
+
   return salaryRun;
 };
 
@@ -360,6 +384,30 @@ const calculateDeductions = async (req, driverId, year, month, grossSalary) => {
     isDeleted: { $ne: true },
   });
 
+  // Negative-net runs can't reach 'paid' but can reach 'processed', so any
+  // prior run for this driver that's been processed (or paid) has already
+  // committed those CN deductions — its carryover is what should flow into
+  // this run, not the same CN refs again. Collect those refs and skip them.
+  const SalaryRun = getModel(req, 'SalaryRun');
+  const otherRuns = await SalaryRun.find({
+    driverId,
+    status: { $in: ['processed', 'paid'] },
+    isDeleted: { $ne: true },
+    $or: [
+      { 'period.year': { $ne: year } },
+      { 'period.month': { $ne: month } },
+    ],
+  }).select('deductions');
+
+  const bookedCNRefs = new Set();
+  for (const r of otherRuns) {
+    for (const d of r.deductions || []) {
+      if (d.type === 'credit_note' && d.referenceId) {
+        bookedCNRefs.add(d.referenceId);
+      }
+    }
+  }
+
   for (const cn of unsettledCNLines) {
     for (const line of cn.lineItems) {
       if (
@@ -368,9 +416,12 @@ const calculateDeductions = async (req, driverId, year, month, grossSalary) => {
         !line.manuallyResolved &&
         !line.receivableCreated
       ) {
+        const refId = String(cn._id) + ':' + String(line._id);
+        if (bookedCNRefs.has(refId)) continue;
+
         deductions.push({
           type: 'credit_note',
-          referenceId: String(cn._id) + ':' + String(line._id),
+          referenceId: refId,
           amount: Math.round(line.totalWithVat * 100) / 100,
           description: `${cn.creditNoteNo} - ${(line.noteType || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}${line.referenceNo ? ' - ' + line.referenceNo : ''}`,
           status: 'applied',
@@ -427,6 +478,15 @@ const storeDeductionCarryover = async (req, driverId, year, month, amount) => {
     nextYear = year + 1;
   }
 
+  // Carryover is a tracking marker for the *next* month's deduction; it should
+  // not move the running balance in the current period. Mirror the previous
+  // entry's runningBalance so the ledger chain stays valid (otherwise a later
+  // postLedgerEntries call would read undefined and produce NaN).
+  const lastEntry = await DriverLedger.findOne({ driverId, isDeleted: { $ne: true } })
+    .sort({ createdAt: -1 })
+    .lean();
+  const carriedRunningBalance = Number(lastEntry?.runningBalance) || 0;
+
   // Upsert to avoid duplicate carryover entries for the same source period
   await DriverLedger.findOneAndUpdate(
     {
@@ -440,6 +500,7 @@ const storeDeductionCarryover = async (req, driverId, year, month, amount) => {
       $set: {
         debit: amount,
         credit: 0,
+        runningBalance: carriedRunningBalance,
         description: `Deduction carryover from ${year}-${String(month).padStart(2, '0')}`,
       },
       $setOnInsert: {
@@ -593,20 +654,23 @@ const postLedgerEntries = async (req, salaryRun, createdBy) => {
 
   const { driverId, period } = salaryRun;
 
-  // Get the last running balance for this driver
+  // Get the last running balance for this driver. Older ledger entries (e.g.
+  // carryover upserts) may have been written without a runningBalance field,
+  // so fall back to 0 if it's null/undefined to avoid NaN propagation.
   const lastEntry = await DriverLedger.findOne({ driverId, isDeleted: { $ne: true } })
     .sort({ createdAt: -1 })
     .limit(1);
-  let runningBalance = lastEntry ? lastEntry.runningBalance : 0;
+  let runningBalance = Number(lastEntry?.runningBalance) || 0;
 
   // 1. Post salary credit entry
-  runningBalance += salaryRun.netSalary;
+  const netSalary = Number(salaryRun.netSalary) || 0;
+  runningBalance += netSalary;
   await DriverLedger.create({
     driverId,
     salaryRunId: salaryRun._id,
     entryType: 'salary_credit',
     debit: 0,
-    credit: salaryRun.netSalary,
+    credit: netSalary,
     runningBalance,
     description: `Salary credit for ${period.year}-${String(period.month).padStart(2, '0')}`,
     referenceId: salaryRun.runId,
@@ -616,14 +680,15 @@ const postLedgerEntries = async (req, salaryRun, createdBy) => {
 
   // 2. Post deduction entries
   for (const deduction of salaryRun.deductions) {
-    if (deduction.amount <= 0) continue;
+    const amount = Number(deduction.amount) || 0;
+    if (amount <= 0) continue;
 
-    runningBalance -= deduction.amount;
+    runningBalance -= amount;
     await DriverLedger.create({
       driverId,
       salaryRunId: salaryRun._id,
       entryType: deduction.type === 'advance_recovery' ? 'advance_recovery' : 'deduction_debit',
-      debit: deduction.amount,
+      debit: amount,
       credit: 0,
       runningBalance,
       description: deduction.description,
@@ -701,10 +766,12 @@ const updateAdvanceRecoveries = async (req, salaryRun) => {
  */
 const syncCreditNoteDeductions = async (req, salaryRun) => {
   const CreditNote = getModel(req, 'CreditNote');
+  const SalaryRun = getModel(req, 'SalaryRun');
   const DriverLedger = getModel(req, 'DriverLedger');
 
   const driverId = salaryRun.driverId;
   let changed = false;
+  const affectedCnIds = new Set();
 
   const unsettledCNs = await CreditNote.find({
     'lineItems': {
@@ -718,6 +785,28 @@ const syncCreditNoteDeductions = async (req, salaryRun) => {
     status: { $in: ['sent', 'adjusted'] },
     isDeleted: { $ne: true },
   });
+
+  // Only treat CNs as "already booked" when the other run has reached the
+  // processed (or paid) state — that's the lifecycle stage where deductions
+  // are committed (and salaryDeducted gets flipped to true). Negative-net
+  // runs can still reach 'processed', so this covers them.
+  const otherRuns = await SalaryRun.find({
+    driverId,
+    _id: { $ne: salaryRun._id },
+    status: { $in: ['processed', 'paid'] },
+    isDeleted: { $ne: true },
+  }).select('deductions');
+
+  const bookedCNRefs = new Set();
+  for (const r of otherRuns) {
+    for (const d of r.deductions || []) {
+      if (d.type === 'credit_note' && d.referenceId) {
+        bookedCNRefs.add(d.referenceId);
+      }
+    }
+  }
+
+  const excludedRefs = new Set(salaryRun.excludedCreditNoteRefs || []);
 
   for (const cn of unsettledCNs) {
     for (const line of cn.lineItems) {
@@ -736,6 +825,12 @@ const syncCreditNoteDeductions = async (req, salaryRun) => {
       );
       if (alreadyAdded) continue;
 
+      // Skip if already booked on another in-progress salary run
+      if (bookedCNRefs.has(refId)) continue;
+
+      // Skip if this CN ref was manually excluded from this run
+      if (excludedRefs.has(refId)) continue;
+
       const deductionAmount = Math.round(line.totalWithVat * 100) / 100;
 
       salaryRun.deductions.push({
@@ -746,12 +841,16 @@ const syncCreditNoteDeductions = async (req, salaryRun) => {
         status: 'applied',
       });
 
-      // Clear pendingNextSalary flag
+      // Track that this CN line is now queued on this salary run so the CN
+      // can settle without waiting for the run to be processed. Also clears
+      // pendingNextSalary, which is mutually exclusive with being on a run.
+      line.salaryRunId = salaryRun._id;
       if (line.pendingNextSalary) {
         line.pendingNextSalary = false;
-        await cn.save();
       }
+      await cn.save();
 
+      affectedCnIds.add(String(cn._id));
       changed = true;
     }
   }
@@ -807,6 +906,14 @@ const syncCreditNoteDeductions = async (req, salaryRun) => {
     }
   }
 
+  // Re-evaluate settlement for every CN whose line was queued on this run.
+  if (affectedCnIds.size > 0) {
+    const { checkAndSettleCreditNote } = require('../billing/creditNote.service');
+    for (const cnId of affectedCnIds) {
+      await checkAndSettleCreditNote(req, cnId);
+    }
+  }
+
   return changed;
 };
 
@@ -838,7 +945,7 @@ const approveByOps = async (req, runId, userId, remarks) => {
 
   // Notify users with compliance approval permission
   const { notifyByPermission } = require('../shared/notification.service');
-  await notifyByPermission('salary.approve_compliance', {
+  await notifyByPermission(req, 'salary.approve_compliance', {
     type: 'salary_ops_approved',
     title: 'Salary run ready for compliance review',
     message: `Salary run ${salaryRun.runId} has been approved by Operations and is awaiting compliance review.`,
@@ -875,7 +982,7 @@ const approveByCompliance = async (req, runId, userId, remarks) => {
 
   // Notify users with accounts approval permission
   const { notifyByPermission } = require('../shared/notification.service');
-  await notifyByPermission('salary.approve_accounts', {
+  await notifyByPermission(req, 'salary.approve_accounts', {
     type: 'salary_compliance_approved',
     title: 'Salary run ready for accounts review',
     message: `Salary run ${salaryRun.runId} has been approved by Compliance and is awaiting accounts review.`,
@@ -912,7 +1019,7 @@ const approveByAccounts = async (req, runId, userId, remarks) => {
 
   // Notify users with salary.process permission
   const { notifyByPermission } = require('../shared/notification.service');
-  await notifyByPermission('salary.process', {
+  await notifyByPermission(req, 'salary.process', {
     type: 'salary_accounts_approved',
     title: 'Salary run ready for processing',
     message: `Salary run ${salaryRun.runId} has received all approvals and is ready to be processed.`,
@@ -1010,12 +1117,17 @@ const processSalaryRun = async (req, runId, userId) => {
     }
   }
 
-  salaryRun.status = 'processed';
-  salaryRun.processedBy = userId;
-  salaryRun.processedAt = new Date();
-  await salaryRun.save();
+  // If clearance deductions were synced into the run above, persist them
+  // before posting ledger entries so the on-disk run reflects the deductions
+  // we're about to credit/debit.
+  if (salaryRun.isModified()) {
+    await salaryRun.save();
+  }
 
-  // Post ledger entries on processing (moved from old approval step)
+  // Post ledger entries on processing (moved from old approval step).
+  // Run side-effects BEFORE flipping status to 'processed' so that a failure
+  // here leaves the run at 'accounts_approved' and the user can safely retry,
+  // rather than stranding it in 'processed' with no ledger entries.
   await postLedgerEntries(req, salaryRun, userId);
 
   // Update advance recoveries
@@ -1067,15 +1179,16 @@ const processSalaryRun = async (req, runId, userId) => {
     // Post debit entry to DriverLedger
     const lastEntry = await DriverLedger.findOne({ driverId: salaryRun.driverId, isDeleted: { $ne: true } })
       .sort({ createdAt: -1 });
-    const previousBalance = lastEntry?.runningBalance || 0;
+    const previousBalance = Number(lastEntry?.runningBalance) || 0;
+    const dedAmount = Number(ded.amount) || 0;
 
     await DriverLedger.create({
       driverId: salaryRun.driverId,
       salaryRunId: salaryRun._id,
       entryType: 'credit_note_debit',
-      debit: ded.amount,
+      debit: dedAmount,
       credit: 0,
-      runningBalance: previousBalance - ded.amount,
+      runningBalance: previousBalance - dedAmount,
       description: ded.description,
       referenceId: ded.referenceId,
       period: salaryRun.period,
@@ -1084,7 +1197,7 @@ const processSalaryRun = async (req, runId, userId) => {
 
     // Check if entire CN is now settled
     const { checkAndSettleCreditNote } = require('../billing/creditNote.service');
-    await checkAndSettleCreditNote(cnId);
+    await checkAndSettleCreditNote(req, cnId);
   }
 
   // Mark vehicle fines as deducted
@@ -1101,9 +1214,17 @@ const processSalaryRun = async (req, runId, userId) => {
     }
   }
 
+  // Flip status to 'processed' last, so that any failure in the side-effects
+  // above leaves the run at 'accounts_approved' for safe retry rather than
+  // stranding it in 'processed' with partial ledger/recovery state.
+  salaryRun.status = 'processed';
+  salaryRun.processedBy = userId;
+  salaryRun.processedAt = new Date();
+  await salaryRun.save();
+
   // Notify users with salary.pay permission
   const { notifyByPermission } = require('../shared/notification.service');
-  await notifyByPermission('salary.pay', {
+  await notifyByPermission(req, 'salary.pay', {
     type: 'salary_processed',
     title: 'Salary run processed',
     message: `Salary run ${salaryRun.runId} has been processed and is ready for payment.`,
@@ -1260,6 +1381,175 @@ const addManualDeduction = async (req, runId, { type, amount, description }, add
 };
 
 /**
+ * Recalculate totalDeductions / netSalary / deductionCarryover after the
+ * deductions array has been mutated. Handles the storeDeductionCarryover
+ * upsert / cleanup so that the next-month carryover ledger entry stays in sync.
+ */
+const recalculateRunTotals = async (req, run) => {
+  run.totalDeductions = Math.round(
+    run.deductions.filter((d) => d.amount > 0).reduce((sum, d) => sum + d.amount, 0) * 100
+  ) / 100;
+
+  const rawNet = Math.round((run.grossSalary - run.totalDeductions) * 100) / 100;
+  const { year, month } = run.period;
+
+  if (rawNet < 0) {
+    const carryoverAmount = Math.abs(rawNet);
+    run.netSalary = 0;
+    run.deductionCarryover = carryoverAmount;
+    run.notes = `Deduction carryover of ${carryoverAmount} AED to next month`;
+    await storeDeductionCarryover(req, run.driverId, year, month, carryoverAmount);
+  } else {
+    run.netSalary = rawNet;
+    run.deductionCarryover = 0;
+    await clearDeductionCarryover(req, run.driverId, year, month);
+    if (run.notes && run.notes.startsWith('Deduction carryover')) {
+      run.notes = undefined;
+    }
+  }
+};
+
+/**
+ * Remove a credit-note deduction from a salary run and push it to the next
+ * month's payroll. Used when finance wants to manually defer a specific CN
+ * from the current month.
+ *
+ * - The current run is recalculated and the CN ref is recorded in
+ *   `excludedCreditNoteRefs` so `syncCreditNoteDeductions` can't re-inject it
+ *   on the next approval step.
+ * - If a draft run already exists for this driver in a later period, the
+ *   deduction is injected there and totals are recalculated.
+ * - Otherwise the CN line item is flagged `pendingNextSalary` so the next
+ *   payroll run picks it up via `calculateDeductions`.
+ */
+const removeCreditNoteDeduction = async (req, runId, referenceId, removedBy) => {
+  const SalaryRun = getModel(req, 'SalaryRun');
+  const CreditNote = getModel(req, 'CreditNote');
+
+  const run = await SalaryRun.findById(runId);
+  if (!run) {
+    const err = new Error('Salary run not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const editableStatuses = ['draft', 'ops_approved', 'compliance_approved'];
+  if (!editableStatuses.includes(run.status)) {
+    const err = new Error(
+      `Cannot remove credit note deduction — salary run is '${run.status}'. Only draft / ops_approved / compliance_approved runs can be edited.`
+    );
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const idx = run.deductions.findIndex(
+    (d) => d.type === 'credit_note' && d.referenceId === referenceId
+  );
+  if (idx === -1) {
+    const err = new Error('Credit note deduction not found on this salary run');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const removed = run.deductions[idx];
+  run.deductions.splice(idx, 1);
+
+  if (!run.excludedCreditNoteRefs) run.excludedCreditNoteRefs = [];
+  if (!run.excludedCreditNoteRefs.includes(referenceId)) {
+    run.excludedCreditNoteRefs.push(referenceId);
+  }
+
+  await recalculateRunTotals(req, run);
+  await run.save();
+
+  // Find the next available draft for this driver in a later period and
+  // inject the CN deduction. We sort by period ASC and skip any run whose
+  // (year, month) is <= current run's period.
+  const laterDraft = await SalaryRun.findOne({
+    driverId: run.driverId,
+    _id: { $ne: run._id },
+    status: 'draft',
+    isDeleted: { $ne: true },
+    $or: [
+      { 'period.year': { $gt: run.period.year } },
+      { 'period.year': run.period.year, 'period.month': { $gt: run.period.month } },
+    ],
+  }).sort({ 'period.year': 1, 'period.month': 1 });
+
+  let movedToRunId = null;
+  let movedToPeriod = null;
+  let pendingNext = false;
+
+  // Re-point or clear the CN line's salaryRunId so the settlement check stays
+  // accurate. If we move it to a later draft, salaryRunId follows; otherwise
+  // (pending next salary) we clear it so the CN drops out of 'settled'.
+  const [cnId, lineId] = referenceId.split(':');
+
+  if (laterDraft) {
+    const alreadyAdded = laterDraft.deductions.some(
+      (d) => d.type === 'credit_note' && d.referenceId === referenceId
+    );
+    if (!alreadyAdded) {
+      laterDraft.deductions.push({
+        type: 'credit_note',
+        referenceId,
+        amount: removed.amount,
+        description: removed.description,
+        status: 'applied',
+      });
+      // Make sure a previous exclusion on the destination run doesn't keep it out.
+      laterDraft.excludedCreditNoteRefs = (laterDraft.excludedCreditNoteRefs || []).filter(
+        (r) => r !== referenceId
+      );
+      await recalculateRunTotals(req, laterDraft);
+      await laterDraft.save();
+    }
+    movedToRunId = laterDraft.runId;
+    movedToPeriod = laterDraft.period;
+
+    if (cnId && lineId) {
+      await CreditNote.findOneAndUpdate(
+        { _id: cnId, 'lineItems._id': lineId },
+        { $set: { 'lineItems.$.salaryRunId': laterDraft._id } }
+      );
+    }
+  } else {
+    // No later draft exists yet — flag the CN line so the next payroll run
+    // picks it up automatically via calculateDeductions.
+    if (cnId && lineId) {
+      const cn = await CreditNote.findById(cnId);
+      if (cn) {
+        const line = cn.lineItems.id(lineId);
+        if (line && !line.salaryDeducted && !line.manuallyResolved && !line.receivableCreated) {
+          line.pendingNextSalary = true;
+          line.pendingNextSalaryAt = new Date();
+          // Drop the salaryRunId since the line is no longer queued anywhere.
+          line.salaryRunId = null;
+          line.salaryDeductedAt = null;
+          await cn.save();
+          pendingNext = true;
+        }
+      }
+    }
+  }
+
+  // Recheck CN settlement — if the line is now unqueued, the CN should fall
+  // back to 'adjusted' from 'settled'.
+  if (cnId) {
+    const { checkAndSettleCreditNote } = require('../billing/creditNote.service');
+    await checkAndSettleCreditNote(req, cnId);
+  }
+
+  return {
+    run,
+    removedAmount: removed.amount,
+    movedToRunId,
+    movedToPeriod,
+    pendingNext,
+  };
+};
+
+/**
  * Bulk approve salary runs for a given stage.
  * Iterates through each ID, applies the stage-specific approval, and tracks successes/errors.
  */
@@ -1356,4 +1646,5 @@ module.exports = {
   bulkMarkAsPaid,
   generateWpsFile,
   addManualDeduction,
+  removeCreditNoteDeduction,
 };

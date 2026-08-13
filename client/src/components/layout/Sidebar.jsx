@@ -5,25 +5,48 @@ import { useUserPrefs } from '../../hooks/useUserPrefs.jsx';
 import { getPendingExtensions } from '../../api/guaranteeApi';
 import { getInactiveUsers } from '../../api/usersApi';
 
-const mainNavItems = [
+const topNavItems = [
   { path: '/dashboard', label: 'Dashboard', icon: '▦' },
-  { path: '/drivers', label: 'Drivers', icon: '◈', permission: 'drivers.view' },
-  { path: '/attendance', label: 'Attendance', icon: '◉', permission: 'attendance.view' },
-  { path: '/salary', label: 'Salary runs', icon: '◎', permission: 'salary.view' },
-  { path: '/driver-clearance', label: 'Driver clearance', icon: '◈', permission: 'clearance.view' },
-  { path: '/invoices', label: 'Invoices', icon: '◳', permission: 'invoices.view' },
-  { path: '/credit-notes', label: 'Credit notes', icon: '◳', permission: 'credit_notes.view' },
-  { path: '/advances', label: 'Advances', icon: '◎', permission: 'advances.view' },
-  { path: '/clients', label: 'Clients', icon: '◐', permission: 'clients.view' },
-  { path: '/projects', label: 'Projects', icon: '◪', permission: 'projects.view' },
-  { path: '/suppliers', label: 'Suppliers', icon: '◑', permission: 'suppliers.view' },
-  { path: '/vehicles', label: 'Vehicles', icon: '◫', permission: 'vehicles.view' },
-  { path: '/simcards', label: 'SIM cards', icon: '◎', permission: 'simcards.view' },
-  { path: '/driver-visas', label: 'Driver visas', icon: '◎', permission: 'driver_visas.view' },
   { path: '/reports', label: 'Reports', icon: '▨', permission: 'reports.view' },
-  { path: '/statement-of-accounts', label: 'Statement of accounts', icon: '▨', permission: 'reports.statement_of_accounts' },
-  { path: '/guarantee-passports', label: 'Guarantee passports', icon: '◎', permission: 'guarantee_passports.view' },
-  { path: '/expired-documents', label: 'Expired documents', icon: '⚠', permission: 'expired_documents.view' },
+];
+
+const navGroups = [
+  {
+    label: 'Workforce',
+    items: [
+      { path: '/drivers', label: 'Drivers', icon: '◈', permission: 'drivers.view' },
+      { path: '/attendance', label: 'Attendance', icon: '◉', permission: 'attendance.view' },
+      { path: '/salary', label: 'Salary runs', icon: '◎', permission: 'salary.view' },
+      { path: '/driver-clearance', label: 'Driver clearance', icon: '◈', permission: 'clearance.view' },
+      { path: '/advances', label: 'Advances', icon: '◎', permission: 'advances.view' },
+    ],
+  },
+  {
+    label: 'Commercial',
+    items: [
+      { path: '/clients', label: 'Clients', icon: '◐', permission: 'clients.view' },
+      { path: '/projects', label: 'Projects', icon: '◪', permission: 'projects.view' },
+      { path: '/suppliers', label: 'Suppliers', icon: '◑', permission: 'suppliers.view' },
+      { path: '/invoices', label: 'Invoices', icon: '◳', permission: 'invoices.view' },
+      { path: '/credit-notes', label: 'Credit notes', icon: '◳', permission: 'credit_notes.view' },
+      { path: '/statement-of-accounts', label: 'Statement of accounts', icon: '▨', permission: 'reports.statement_of_accounts' },
+    ],
+  },
+  {
+    label: 'Fleet & Telecom',
+    items: [
+      { path: '/vehicles', label: 'Vehicles', icon: '◫', permission: 'vehicles.view' },
+      { path: '/simcards', label: 'SIM cards', icon: '◎', permission: 'simcards.view' },
+    ],
+  },
+  {
+    label: 'Compliance',
+    items: [
+      { path: '/driver-visas', label: 'Driver visas', icon: '◎', permission: 'driver_visas.view' },
+      { path: '/guarantee-passports', label: 'Guarantee passports', icon: '◎', permission: 'guarantee_passports.view' },
+      { path: '/expired-documents', label: 'Expired documents', icon: '⚠', permission: 'expired_documents.view' },
+    ],
+  },
 ];
 
 const adminNavItems = [
@@ -51,6 +74,19 @@ const navLinkStyle = ({ isActive }) => ({
   border: isActive ? '1px solid rgba(79,142,247,0.2)' : '1px solid transparent',
   transition: 'all .15s',
 });
+
+const NavGroupHeader = ({ label }) => (
+  <div style={{ margin: '10px 10px 6px', display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+    <span style={{
+      fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase',
+      letterSpacing: '0.07em', whiteSpace: 'nowrap',
+    }}>
+      {label}
+    </span>
+    <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+  </div>
+);
 
 const NavItem = ({ item, badge, badgeColor, onClick }) => (
   <NavLink to={item.path} style={navLinkStyle} onClick={onClick}>
@@ -98,9 +134,16 @@ const Sidebar = ({ isOpen, onClose, overlay }) => {
   });
   const pendingActivationCount = inactiveUsersData?.count || 0;
 
-  const visibleMain = mainNavItems.filter(
+  const visibleTop = topNavItems.filter(
     (item) => !item.permission || hasPermission(item.permission)
   );
+
+  const visibleGroups = navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.permission || hasPermission(item.permission)),
+    }))
+    .filter((group) => group.items.length > 0);
 
   const visibleAdmin = adminNavItems.filter(
     (item) => !item.permission || hasPermission(item.permission)
@@ -211,7 +254,7 @@ const Sidebar = ({ isOpen, onClose, overlay }) => {
         </div>
 
         <nav style={{ flex: 1, overflowY: 'auto', padding: '8px 10px' }}>
-          {visibleMain.map((item) => (
+          {visibleTop.map((item) => (
             <NavItem
               key={item.path}
               item={item}
@@ -219,18 +262,22 @@ const Sidebar = ({ isOpen, onClose, overlay }) => {
             />
           ))}
 
+          {visibleGroups.map((group) => (
+            <div key={group.label}>
+              <NavGroupHeader label={group.label} />
+              {group.items.map((item) => (
+                <NavItem
+                  key={item.path}
+                  item={item}
+                  onClick={handleNavClick}
+                />
+              ))}
+            </div>
+          ))}
+
           {visibleAdmin.length > 0 && (
             <>
-              <div style={{ margin: '10px 10px 6px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-                <span style={{
-                  fontSize: 10, color: 'var(--text3)', textTransform: 'uppercase',
-                  letterSpacing: '0.07em', whiteSpace: 'nowrap',
-                }}>
-                  Administration
-                </span>
-                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-              </div>
+              <NavGroupHeader label="Administration" />
               {visibleAdmin.map((item) => {
                 const adminBadge =
                   item.path === '/users' ? pendingActivationCount :

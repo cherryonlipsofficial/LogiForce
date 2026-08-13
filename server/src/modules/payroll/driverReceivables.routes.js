@@ -17,7 +17,7 @@ router.use(protect);
 
 // GET /api/receivables/summary — dashboard KPIs
 router.get('/summary', requirePermission('receivables.view'), async (req, res) => {
-  const summary = await driverReceivableService.getSummary();
+  const summary = await driverReceivableService.getSummary(req);
   sendSuccess(res, summary);
 });
 
@@ -74,6 +74,7 @@ router.get('/:id', requirePermission('receivables.view'), async (req, res) => {
 router.put('/:id/recover', requirePermission('receivables.recover'), validate(recordRecoveryValidation), async (req, res) => {
   const { method, amount, reference, note } = req.body;
   const receivable = await driverReceivableService.recordRecovery(
+    req,
     req.params.id,
     { method, amount, reference, note },
     req.user._id
@@ -87,6 +88,7 @@ router.put('/:id/recover', requirePermission('receivables.recover'), validate(re
 router.put('/:id/write-off', requirePermission('receivables.write_off'), validate(writeOffValidation), async (req, res) => {
   const { reason } = req.body;
   const receivable = await driverReceivableService.writeOff(
+    req,
     req.params.id,
     { reason },
     req.user._id

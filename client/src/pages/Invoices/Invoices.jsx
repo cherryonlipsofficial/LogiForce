@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -12,7 +13,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import SidePanel from '../../components/ui/SidePanel';
 import ClientSelect from '../../components/ui/ClientSelect';
 import ProjectSelect from '../../components/ui/ProjectSelect';
-import { getInvoices, getInvoice, generateInvoice, updateStatus, downloadPdf, deleteInvoice, getApprovedBatches } from '../../api/invoicesApi';
+import { getInvoices, getInvoice, generateInvoice, generateOTInvoice, updateStatus, downloadPdf, deleteInvoice, getApprovedBatches } from '../../api/invoicesApi';
 import { recordInvoicePayment } from '../../api/creditNotesApi';
 import { formatDate } from '../../utils/formatters';
 import { useFormatters } from '../../hooks/useFormatters';
@@ -27,11 +28,13 @@ const normalizeInvoice = (inv) => {
   return {
     ...inv,
     invoiceNo: inv.invoiceNo || inv._id,
+    invoiceType: inv.invoiceType || 'regular',
     client: inv.clientId?.name || inv.client || 'Unknown',
     projectName: inv.projectId?.name || inv.projectName || null,
     period: inv.period?.year ? `${MONTHS[(inv.period.month || 1) - 1]} ${inv.period.year}` : inv.period,
     amount: inv.total ?? inv.amount,
     issueDate: inv.issuedDate || inv.issueDate,
+    driverCount: inv.driverCount ?? inv.lineItems?.length ?? 0,
   };
 };
 
@@ -47,15 +50,45 @@ const Invoices = () => {
   const { isMobile, isTablet } = useBreakpoint();
   const { formatCurrencyFull } = useFormatters();
   const [statusFilter, setStatusFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showGenerate, setShowGenerate] = useState(false);
   const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const deepLinkInvoiceId = searchParams.get('invoiceId');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['invoices', { status: statusFilter, page }],
-    queryFn: () => getInvoices({ status: statusFilter !== 'all' ? statusFilter : undefined, page, limit: 20 }),
+    queryKey: ['invoices', { status: statusFilter, type: typeFilter, page }],
+    queryFn: () => getInvoices({
+      status: statusFilter !== 'all' ? statusFilter : undefined,
+      invoiceType: typeFilter !== 'all' ? typeFilter : undefined,
+      page,
+      limit: 20,
+    }),
     retry: 1,
   });
+
+  const { data: deepLinkData } = useQuery({
+    queryKey: ['invoice-deeplink', deepLinkInvoiceId],
+    queryFn: () => getInvoice(deepLinkInvoiceId),
+    enabled: !!deepLinkInvoiceId && !selectedInvoice,
+    retry: 1,
+  });
+
+  useEffect(() => {
+    if (deepLinkData?.data && !selectedInvoice) {
+      setSelectedInvoice(normalizeInvoice(deepLinkData.data));
+    }
+  }, [deepLinkData, selectedInvoice]);
+
+  const closeInvoiceDetail = () => {
+    setSelectedInvoice(null);
+    if (deepLinkInvoiceId) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('invoiceId');
+      setSearchParams(next, { replace: true });
+    }
+  };
 
   const invoices = (data?.data || []).map(normalizeInvoice);
   const pagination = data?.pagination;
@@ -85,6 +118,11 @@ const Invoices = () => {
             <option value="paid">Paid</option>
             <option value="overdue">Overdue</option>
           </select>
+          <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }} style={{ width: 160, height: 34 }}>
+            <option value="all">All types</option>
+            <option value="regular">Regular</option>
+            <option value="overtime">Overtime</option>
+          </select>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
             <PermissionGate permission="invoices.generate">
               <Btn small variant="primary" onClick={() => setShowGenerate(true)}>Generate invoice</Btn>
@@ -101,7 +139,7 @@ const Invoices = () => {
             <table style={{ width: '100%' }}>
               <thead>
                 <tr>
-                  {['Invoice', 'Client', 'Project', 'Period', 'Amount', 'Status', 'Issue date', 'Due date', 'Credit notes'].map((h) => (
+                  {['Invoice', 'Type', 'Client', 'Project', 'Period', 'Amount', 'Status', 'Issue date', 'Due date', 'Credit notes'].map((h) => (
                     <th key={h} style={{ padding: '9px 14px', fontSize: 11, color: 'var(--text3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'left', background: 'var(--surface2)' }}>
                       {h}
                     </th>
@@ -121,6 +159,11 @@ const Invoices = () => {
                     >
                       <td style={{ padding: '11px 14px' }}>
                         <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>{inv.invoiceNo || inv._id}</span>
+                      </td>
+                      <td style={{ padding: '11px 14px' }}>
+                        <Badge variant={inv.invoiceType === 'overtime' ? 'warning' : 'default'}>
+                          {inv.invoiceType === 'overtime' ? 'OT' : 'Regular'}
+                        </Badge>
                       </td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{inv.client}</td>
                       <td style={{ padding: '11px 14px', fontSize: 12 }}>{inv.projectName || '—'}</td>
@@ -155,7 +198,7 @@ const Invoices = () => {
         />
       </div>
 
-      {selectedInvoice && <InvoiceDetail invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} />}
+      {selectedInvoice && <InvoiceDetail invoice={selectedInvoice} onClose={closeInvoiceDetail} />}
       {showGenerate && <GenerateInvoiceModal onClose={() => setShowGenerate(false)} />}
     </div>
   );
@@ -230,7 +273,12 @@ const InvoiceDetail = ({ invoice, onClose }) => {
     <SidePanel onClose={onClose}>
       <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 500 }}>{invoice.invoiceNo || invoice._id}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: 16, fontWeight: 500 }}>{invoice.invoiceNo || invoice._id}</div>
+            {invoice.invoiceType === 'overtime' && (
+              <Badge variant="warning">OT</Badge>
+            )}
+          </div>
           <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
             {invoice.client}{invoice.projectName ? ` · ${invoice.projectName}` : ''} &middot; {invoice.period}
           </div>
@@ -295,9 +343,12 @@ const InvoiceDetail = ({ invoice, onClose }) => {
         {detailLoading ? (
           <div style={{ textAlign: 'center', padding: '16px 0', fontSize: 12, color: 'var(--text3)' }}>Loading invoice details...</div>
         ) : fullInvoice?.lineItems?.length > 0 ? (() => {
-          const isPerOrder = fullInvoice.lineItems.some((item) => item.rateBasis === 'per_order');
-          const hasOrders = fullInvoice.lineItems.some((item) => (item.totalOrders || 0) > 0);
-          const qtyLabel = isPerOrder ? 'Total Orders' : 'Payable Days';
+          const isOT = (fullInvoice.invoiceType || invoice.invoiceType) === 'overtime';
+          const isPerOrder = !isOT && fullInvoice.lineItems.some((item) => item.rateBasis === 'per_order');
+          const hasOrders = !isOT && fullInvoice.lineItems.some((item) => (item.totalOrders || 0) > 0);
+          const qtyLabel = isOT
+            ? (fullInvoice.lineItems[0]?.otRateBasis === 'per_day' ? 'OT Days' : 'OT Hours')
+            : (isPerOrder ? 'Total Orders' : 'Payable Days');
           const thStyle = (align = 'right') => ({ padding: '7px 8px', fontSize: 10, color: 'var(--text3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: align, background: 'var(--surface2)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' });
           const tdMono = { padding: '6px 8px', fontSize: 11, textAlign: 'right', fontFamily: 'var(--mono)' };
           return (
@@ -311,7 +362,8 @@ const InvoiceDetail = ({ invoice, onClose }) => {
                       <th style={thStyle('center')}>#</th>
                       <th style={thStyle('left')}>Driver</th>
                       <th style={thStyle('right')}>{qtyLabel}</th>
-                      {!isPerOrder && hasOrders && <th style={thStyle('right')}>Orders</th>}
+                      {isOT && <th style={thStyle('right')}>OT Rate</th>}
+                      {!isOT && !isPerOrder && hasOrders && <th style={thStyle('right')}>Orders</th>}
                       <th style={thStyle('right')}>Amount</th>
                       <th style={thStyle('right')}>VAT Amount</th>
                       <th style={thStyle('right')}>Total Amount</th>
@@ -319,7 +371,9 @@ const InvoiceDetail = ({ invoice, onClose }) => {
                   </thead>
                   <tbody>
                     {fullInvoice.lineItems.map((item, idx) => {
-                      const qtyValue = item.rateBasis === 'per_order' ? (item.totalOrders || 0) : (item.workingDays || 0);
+                      const qtyValue = isOT
+                        ? (item.overtimeHours || 0)
+                        : (item.rateBasis === 'per_order' ? (item.totalOrders || 0) : (item.workingDays || 0));
                       return (
                       <tr key={item._id || idx} style={{ borderBottom: '1px solid var(--border)' }}>
                         <td style={{ padding: '6px 8px', fontSize: 11, color: 'var(--text3)', textAlign: 'center' }}>{idx + 1}</td>
@@ -331,7 +385,8 @@ const InvoiceDetail = ({ invoice, onClose }) => {
                           </div>
                         </td>
                         <td style={tdMono}>{qtyValue}</td>
-                        {!isPerOrder && hasOrders && <td style={tdMono}>{item.totalOrders || 0}</td>}
+                        {isOT && <td style={tdMono}>{formatCurrencyFull(item.otRate || 0)}</td>}
+                        {!isOT && !isPerOrder && hasOrders && <td style={tdMono}>{item.totalOrders || 0}</td>}
                         <td style={tdMono}>{formatCurrencyFull(item.amount)}</td>
                         <td style={tdMono}>{formatCurrencyFull(item.vatAmount || 0)}</td>
                         <td style={{ ...tdMono, fontWeight: 500 }}>{formatCurrencyFull(item.totalWithVat || (item.amount + (item.vatAmount || 0)))}</td>
@@ -499,6 +554,7 @@ const PaymentModal = ({ invoice, onClose }) => {
 
 const GenerateInvoiceModal = ({ onClose }) => {
   const { isMobile } = useBreakpoint();
+  const [invoiceType, setInvoiceType] = useState('regular');
   const [clientId, setClientId] = useState('');
   const [projectId, setProjectId] = useState('');
   const now = new Date();
@@ -510,12 +566,13 @@ const GenerateInvoiceModal = ({ onClose }) => {
   const canFetchBatches = !!(clientId && year && month);
 
   const { data: batchesData, isLoading: batchesLoading, isError: batchesError } = useQuery({
-    queryKey: ['approved-batches', clientId, projectId, year, month],
+    queryKey: ['approved-batches', clientId, projectId, year, month, invoiceType],
     queryFn: () => getApprovedBatches({
       clientId,
       ...(projectId && { projectId }),
       year: Number(year),
       month: Number(month),
+      invoiceType,
     }),
     enabled: canFetchBatches,
     staleTime: 30 * 1000,
@@ -555,9 +612,11 @@ const GenerateInvoiceModal = ({ onClose }) => {
   };
 
   const { mutate: generate, isPending: isLoading } = useMutation({
-    mutationFn: (data) => generateInvoice(data),
-    onSuccess: () => {
-      toast.success('Invoice generated');
+    mutationFn: (data) => (
+      data.invoiceType === 'overtime' ? generateOTInvoice(data) : generateInvoice(data)
+    ),
+    onSuccess: (_data, vars) => {
+      toast.success(vars?.invoiceType === 'overtime' ? 'OT invoice generated' : 'Invoice generated');
       qc.invalidateQueries(['invoices']);
       onClose();
     },
@@ -567,7 +626,7 @@ const GenerateInvoiceModal = ({ onClose }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!clientId) { toast.error('Please select a client'); return; }
-    const payload = { clientId, year: Number(year), month: Number(month) };
+    const payload = { clientId, year: Number(year), month: Number(month), invoiceType };
     if (projectId) payload.projectId = projectId;
     if (selectedBatchIds.length > 0) payload.attendanceBatchIds = selectedBatchIds;
     generate(payload);
@@ -578,6 +637,42 @@ const GenerateInvoiceModal = ({ onClose }) => {
   return (
     <Modal title="Generate invoice" onClose={onClose} width={520}>
       <form onSubmit={handleSubmit}>
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>Invoice type *</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[
+              { value: 'regular', label: 'Regular' },
+              { value: 'overtime', label: 'Overtime (OT)' },
+            ].map((opt) => (
+              <label
+                key={opt.value}
+                style={{
+                  flex: 1,
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '8px 12px', borderRadius: 8, cursor: 'pointer',
+                  border: '1px solid ' + (invoiceType === opt.value ? 'var(--primary, #6366f1)' : 'var(--border)'),
+                  background: invoiceType === opt.value ? 'rgba(99,102,241,0.08)' : 'transparent',
+                  fontSize: 12,
+                }}
+              >
+                <input
+                  type="radio"
+                  name="invoiceType"
+                  value={opt.value}
+                  checked={invoiceType === opt.value}
+                  onChange={() => setInvoiceType(opt.value)}
+                  style={{ margin: 0 }}
+                />
+                {opt.label}
+              </label>
+            ))}
+          </div>
+          {invoiceType === 'overtime' && (
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>
+              OT invoice uses the project&apos;s OT rate × overtime hours from approved attendance batches.
+            </div>
+          )}
+        </div>
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>Client *</label>
           <ClientSelect value={clientId} onChange={handleClientChange} />

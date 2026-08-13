@@ -63,6 +63,43 @@ const userSchema = new mongoose.Schema(
         default: 'blue',
       },
     },
+    passwordResetTokenHash: {
+      type: String,
+      select: false,
+      default: null,
+    },
+    passwordResetExpires: {
+      type: Date,
+      select: false,
+      default: null,
+    },
+    // Email OTP — used for self-service email verification, OTP-based password
+    // reset, and OTP-based login. Stored hashed so a DB read can't replay the code.
+    emailOtpHash: {
+      type: String,
+      select: false,
+      default: null,
+    },
+    emailOtpPurpose: {
+      type: String,
+      enum: ['verify_email', 'login', 'password_reset', null],
+      select: false,
+      default: null,
+    },
+    emailOtpExpires: {
+      type: Date,
+      select: false,
+      default: null,
+    },
+    emailOtpAttempts: {
+      type: Number,
+      select: false,
+      default: 0,
+    },
+    emailVerifiedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

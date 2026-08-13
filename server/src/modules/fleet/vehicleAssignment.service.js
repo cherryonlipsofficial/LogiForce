@@ -105,6 +105,7 @@ async function assignVehicle(req, vehicleId, driverId, data, userId) {
 
   // 11. Log to DriverHistory
   await logEvent(
+    req,
     driverId,
     'field_updated',
     {
@@ -184,6 +185,7 @@ async function returnVehicle(req, assignmentId, data, userId) {
   const damagePenaltyAmount = data.damagePenaltyAmount || 0;
   if (damagePenaltyAmount > 0) {
     await logEvent(
+      req,
       assignment.driverId,
       'field_updated',
       {
@@ -202,6 +204,7 @@ async function returnVehicle(req, assignmentId, data, userId) {
 
   // 7. Log vehicle return to DriverHistory
   await logEvent(
+    req,
     assignment.driverId,
     'field_updated',
     {

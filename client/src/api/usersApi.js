@@ -35,3 +35,6 @@ export const deactivateUser = (id) =>
 
 export const getInactiveUsers = () =>
   axiosInstance.get('/users/inactive');
+
+export const sendPasswordResetEmail = (id) =>
+  axiosInstance.post(`/users/${id}/reset-password`).then(r => r.data);

@@ -33,6 +33,14 @@ const attendanceBatchSchema = new Schema(
       year: { type: Number, required: true },
       month: { type: Number, required: true },
     },
+    // Distinguishes regular monthly attendance from a separate OT-only upload
+    // for the same project + period.
+    batchType: {
+      type: String,
+      enum: ['regular', 'overtime'],
+      default: 'regular',
+      index: true,
+    },
     status: {
       type: String,
       enum: [
@@ -147,10 +155,17 @@ const attendanceBatchSchema = new Schema(
   }
 );
 
-// Prevents duplicate batch for same project + period + version
-attendanceBatchSchema.index({ projectId: 1, 'period.year': 1, 'period.month': 1, version: 1 }, { unique: true });
+// Prevents duplicate batch for same project + period + version + batchType.
+// Including batchType lets a regular batch and an overtime batch coexist
+// for the same project and period.
+attendanceBatchSchema.index(
+  { projectId: 1, 'period.year': 1, 'period.month': 1, batchType: 1, version: 1 },
+  { unique: true }
+);
 
-// Auto-generate batchId: ATT-YYYY-MM-PROJECTCODE or ATT-YYYY-MM-PROJECTCODE-vN for revisions
+// Auto-generate batchId. Examples:
+//   regular  -> ATT-YYYY-MM-PROJECTCODE       (or -vN for revisions)
+//   overtime -> ATT-OT-YYYY-MM-PROJECTCODE    (or -vN for revisions)
 attendanceBatchSchema.pre('save', async function (next) {
   if (this.batchId) return next();
 
@@ -162,7 +177,8 @@ attendanceBatchSchema.pre('save', async function (next) {
   const yyyy = String(this.period.year);
   const mm = String(this.period.month).padStart(2, '0');
 
-  const base = `ATT-${yyyy}-${mm}-${projectTag}`;
+  const typeTag = this.batchType === 'overtime' ? 'OT-' : '';
+  const base = `ATT-${typeTag}${yyyy}-${mm}-${projectTag}`;
   this.batchId = this.version > 1 ? `${base}-v${this.version}` : base;
   next();
 });

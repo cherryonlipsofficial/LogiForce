@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { getUsers, updateUser, activateUser, deactivateUser, getInactiveUsers } from '../api/usersApi';
@@ -146,6 +146,7 @@ export default function UsersPage() {
   const [editUser, setEditUser]                   = useState(null);
   const [permissionsUser, setPermissionsUser]     = useState(null);
   const [actionsDropdownId, setActionsDropdownId] = useState(null);
+  const actionsTriggerRef                          = useRef(null);
 
   // Data fetching
   const { data: usersData, isLoading: usersLoading } =
@@ -176,14 +177,6 @@ export default function UsersPage() {
     else if (statusFilter === 'deactivated') matchStatus = !u.isActive && !!u.activatedAt;
     return matchSearch && matchRole && matchStatus;
   });
-
-  // Close actions dropdown on outside click
-  useEffect(() => {
-    if (!actionsDropdownId) return;
-    const handler = () => setActionsDropdownId(null);
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [actionsDropdownId]);
 
   // Deactivate mutation
   const deactivateMutation = useMutation({
@@ -482,6 +475,7 @@ export default function UsersPage() {
                               <Btn small variant="ghost"
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  actionsTriggerRef.current = e.currentTarget;
                                   setActionsDropdownId(
                                     actionsDropdownId === user._id ? null : user._id
                                   );
@@ -492,6 +486,7 @@ export default function UsersPage() {
                                   user={user}
                                   currentUserId={currentUser?._id}
                                   isOpen={true}
+                                  anchorRef={actionsTriggerRef}
                                   onClose={() => setActionsDropdownId(null)}
                                   onEdit={() => { setEditUser(user); setActionsDropdownId(null); }}
                                   onPermissions={() => { setPermissionsUser(user); setActionsDropdownId(null); }}

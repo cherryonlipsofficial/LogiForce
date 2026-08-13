@@ -208,6 +208,13 @@ const driverSchema = new mongoose.Schema(
     contractEndDate: {
       type: Date,
     },
+    // Actual last working day captured by Operations when driver resigns or
+    // is offboarded. Distinct from createdAt/updatedAt of the status change —
+    // this is the day the driver physically stopped working, which may be
+    // before the day the status is recorded in the system.
+    lastWorkingDay: {
+      type: Date,
+    },
     // ── Passport submission ──
     isPassportSubmitted: {
       type: Boolean,

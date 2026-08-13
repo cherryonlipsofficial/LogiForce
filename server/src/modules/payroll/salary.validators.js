@@ -49,6 +49,13 @@ const manualDeductionValidation = [
     .isLength({ max: 500 }).withMessage('Description must be under 500 characters'),
 ];
 
+const removeCreditNoteDeductionValidation = [
+  body('referenceId')
+    .trim()
+    .notEmpty().withMessage('referenceId is required')
+    .matches(/^[0-9a-fA-F]{24}:[0-9a-fA-F]{24}$/).withMessage('referenceId must be in cnId:lineId format'),
+];
+
 const approvalRemarksValidation = [
   body('remarks')
     .optional()
@@ -67,4 +74,4 @@ const bulkApprovalValidation = [
     .isLength({ max: 500 }).withMessage('Remarks must be under 500 characters'),
 ];
 
-module.exports = { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation, manualDeductionValidation, approvalRemarksValidation, bulkApprovalValidation };
+module.exports = { runSalaryValidation, adjustSalaryValidation, disputeSalaryValidation, manualDeductionValidation, removeCreditNoteDeductionValidation, approvalRemarksValidation, bulkApprovalValidation };
