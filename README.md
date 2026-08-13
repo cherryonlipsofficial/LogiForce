@@ -57,8 +57,10 @@ cd server && npm install && cd ..
 cd client && npm install && cd ..
 
 # Configure environment
-cp .env.example server/.env
+cp server/.env.example server/.env
 # Edit server/.env — set MONGODB_URI to your local MongoDB
+# Set EMAIL_DEV_LOG=true to log OTP/reset codes to the console instead of
+# sending real email (skips the RESEND_API_KEY / verified-domain requirement)
 
 # Seed test data
 cd server && npm run seed && cd ..
