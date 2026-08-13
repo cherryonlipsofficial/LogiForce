@@ -92,9 +92,13 @@ const ensureRolePermissions = async () => {
 
 const connectDB = async () => {
   try {
+    // Atlas URIs (mongodb+srv://) always speak TLS. Plain mongodb:// URIs —
+    // e.g. the untls'd mongo:7 container in docker-compose — must not be
+    // forced into a TLS handshake or the connection fails outright.
+    const useTls = (process.env.MONGODB_URI || '').startsWith('mongodb+srv://');
+
     const conn = await mongoose.connect(process.env.MONGODB_URI, {
-      tls: true,
-      tlsAllowInvalidCertificates: false,
+      ...(useTls ? { tls: true, tlsAllowInvalidCertificates: false } : {}),
     });
     logger.info(`MongoDB connected: ${conn.connection.host}`);
 
