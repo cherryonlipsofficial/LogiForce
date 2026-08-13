@@ -72,11 +72,16 @@ npm run dev
 
 ### Default Login Credentials
 
-| Role       | Email                     | Password    |
-|------------|---------------------------|-------------|
-| Admin      | admin@logiforce.com       | Admin@123   |
-| Accountant | accountant@logiforce.com  | Account@123 |
-| Ops        | ops@logiforce.com         | Ops@1234    |
+| Role       | Email                     | Password     |
+|------------|---------------------------|--------------|
+| Admin      | admin@logiforce.com       | Admin@123    |
+| Accountant | accountant@logiforce.com  | Account@123  |
+| Ops        | ops@logiforce.com         | Ops@123      |
+| Compliance | compliance@logiforce.com  | Compliance@123 |
+| Sales      | sales@logiforce.com       | Sales@123    |
+| Viewer     | viewer@logiforce.com      | Viewer@123   |
+
+The seeded accountant also carries a one-off `drivers.create` permission override on top of their role, useful for testing permission-override behavior.
 
 ## API Documentation
 
