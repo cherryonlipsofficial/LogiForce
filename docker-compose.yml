@@ -18,6 +18,9 @@ services:
       - .env
     environment:
       - MONGODB_URI=${MONGODB_URI:-mongodb://mongo:27017/logiforce}
+      - MONGODB_URI_CLIENTA=${MONGODB_URI_CLIENTA:-mongodb://mongo:27017/logiforce_clienta}
+      - MONGODB_URI_CLIENTB=${MONGODB_URI_CLIENTB:-mongodb://mongo:27017/logiforce_clientb}
+      - MONGODB_URI_CLIENTC=${MONGODB_URI_CLIENTC:-mongodb://mongo:27017/logiforce_clientc}
       - PORT=5000
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}

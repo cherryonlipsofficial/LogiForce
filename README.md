@@ -29,7 +29,7 @@ This is a multi-tenant app: every `/api` request is routed to one of several sep
     -H "x-tenant-id: logi-force" \
     -H "Authorization: Bearer <token>"
   ```
-- **Four tenants are registered**: `logi-force` (falls back to `MONGODB_URI` if `MONGODB_URI_MAIN` isn't set — this is the one local dev uses), plus `clienta`, `clientb`, `clientc`, each requiring its own `MONGODB_URI_CLIENTA` / `MONGODB_URI_CLIENTB` / `MONGODB_URI_CLIENTC` (or a shared `MONGODB_BASE_URI` the app derives per-tenant database names from). Locally, only `logi-force` is usable unless you configure the other three — that's sufficient to run and test the full app.
+- **Four tenants are registered**: `logi-force` (falls back to `MONGODB_URI` if `MONGODB_URI_MAIN` isn't set), plus `clienta`, `clientb`, `clientc`, each requiring its own `MONGODB_URI_CLIENTA` / `MONGODB_URI_CLIENTB` / `MONGODB_URI_CLIENTC` (or a shared `MONGODB_BASE_URI` the app derives per-tenant database names from). `docker-compose.yml` sets all four connection strings by default, each pointing at its own database on the same local `mongo` container, so all four tenants work out of the box with `docker-compose up` — useful for exercising tenant isolation (data created under one `x-tenant-id` never appears under another). Running the server without Docker (`npm run dev`)? Only `logi-force` is wired up unless you also set `MONGODB_URI_CLIENTA` / `_CLIENTB` / `_CLIENTC` (or `MONGODB_BASE_URI`) in `server/.env` — that's sufficient to run and test the full app.
 
 ## Prerequisites
 
