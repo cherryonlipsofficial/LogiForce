@@ -47,12 +47,28 @@ const migrateDriverUniqueIndexes = async (conn) => {
 
 const connections = new Map();
 
-const getConnectionForTenant = async (tenantConfig) => {
-  const { dbName, dbUri } = tenantConfig;
-
+const requireDbUri = ({ dbName, dbUri }) => {
   if (!dbUri) {
     throw new Error(`No valid MongoDB URI configured for tenant "${dbName}". Check MONGODB_BASE_URI or tenant-specific env vars.`);
   }
+  return dbUri;
+};
+
+const connectionOptions = (dbUri) => {
+  // Atlas URIs (mongodb+srv://) always speak TLS. Plain mongodb:// URIs — e.g.
+  // the untls'd mongo:7 container in docker-compose — must not be forced into
+  // a TLS handshake or the connection fails outright.
+  const useTls = dbUri.startsWith('mongodb+srv://');
+  return {
+    ...(useTls ? { tls: true, tlsAllowInvalidCertificates: false } : {}),
+    maxPoolSize: 5,          // low for free tier, increase later
+    serverSelectionTimeoutMS: 5000,
+  };
+};
+
+const getConnectionForTenant = async (tenantConfig) => {
+  const { dbName } = tenantConfig;
+  const dbUri = requireDbUri(tenantConfig);
 
   if (connections.has(dbName)) {
     const conn = connections.get(dbName);
@@ -62,16 +78,7 @@ const getConnectionForTenant = async (tenantConfig) => {
     connections.delete(dbName);
   }
 
-  // Atlas URIs (mongodb+srv://) always speak TLS. Plain mongodb:// URIs — e.g.
-  // the untls'd mongo:7 container in docker-compose — must not be forced into
-  // a TLS handshake or the connection fails outright.
-  const useTls = dbUri.startsWith('mongodb+srv://');
-
-  const conn = await mongoose.createConnection(dbUri, {
-    ...(useTls ? { tls: true, tlsAllowInvalidCertificates: false } : {}),
-    maxPoolSize: 5,          // low for free tier, increase later
-    serverSelectionTimeoutMS: 5000,
-  }).asPromise();
+  const conn = await mongoose.createConnection(dbUri, connectionOptions(dbUri)).asPromise();
 
   // Register all schemas upfront so populate() and ref lookups work
   for (const [modelName, schema] of Object.entries(schemas)) {
@@ -99,4 +106,19 @@ const closeAllConnections = async () => {
   connections.clear();
 };
 
-module.exports = { getConnectionForTenant, closeAllConnections };
+/**
+ * A separate, uncached connection to a tenant database that writes nothing by
+ * itself: no index builds, no collection creation, no driver index migration,
+ * no models registered. For dry runs (e.g. roleSync). Register models with
+ * getModelForConnection(); the caller must close it.
+ */
+const openUncachedConnection = async (tenantConfig) => {
+  const dbUri = requireDbUri(tenantConfig);
+  return mongoose.createConnection(dbUri, {
+    ...connectionOptions(dbUri),
+    autoIndex: false,
+    autoCreate: false,
+  }).asPromise();
+};
+
+module.exports = { getConnectionForTenant, closeAllConnections, openUncachedConnection };

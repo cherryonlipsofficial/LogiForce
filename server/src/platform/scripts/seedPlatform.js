@@ -3,7 +3,11 @@
  *
  * Safe to run any number of times. Each run:
  *   1. connects and syncs indexes for every platform model;
- *   2. creates/updates one RoleTemplate per default role (config/defaultRoles.js);
+ *   2. creates/updates one RoleTemplate per entry in ROLE_TEMPLATES
+ *      (config/defaultRoles.js: the default roles without platform-scope
+ *      permissions, plus tenant_admin), through doc.save() so a permissions
+ *      change bumps `version`. It never syncs the templates into companies:
+ *      run `npm run platform:sync-roles` for that;
  *   3. creates the first owner account from PLATFORM_OWNER_* through
  *      services/platformUser.service.js (never touches an existing account or
  *      its password);
@@ -20,7 +24,7 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.e
 const { connectPlatformDb, closePlatformDb, getPlatformDbName } = require('../db');
 const { getPlatformModels, PLATFORM_MODELS } = require('../models');
 const { MODULES } = require('../../config/permissions');
-const { defaultRoles } = require('../../config/defaultRoles');
+const { ROLE_TEMPLATES } = require('../../config/defaultRoles');
 const { createPlatformUser, SYSTEM_ACTOR } = require('../services/platformUser.service');
 
 // Env vars that can supply each legacy tenant's URI (see legacyTenants.js).
@@ -64,15 +68,6 @@ const resolveLegacyTenant = (key, tenantConfig) => {
   };
 };
 
-const templateFromRole = (role) => ({
-  key: role.name,
-  displayName: role.displayName,
-  description: role.description,
-  permissions: [...new Set(role.permissions)],
-  // The company admin role (the system role) is not handed out by tenants.
-  assignableByTenant: role.isSystemRole !== true,
-});
-
 const templateSnapshot = (doc) => ({
   key: doc.key,
   displayName: doc.displayName,
@@ -94,10 +89,10 @@ const syncAllIndexes = async (models, log) => {
 
 // ── Step 2 ──
 const seedRoleTemplates = async ({ RoleTemplate, PlatformAuditLog }, counts, log) => {
-  for (const role of defaultRoles) {
+  for (const template of ROLE_TEMPLATES) {
     // Run the wanted values through the schema's setters (trim, lowercase, ...)
     // so comparisons below are like for like.
-    const wanted = new RoleTemplate(templateFromRole(role));
+    const wanted = new RoleTemplate({ ...template, permissions: [...template.permissions] });
     const existing = await RoleTemplate.findOne({ key: wanted.key });
 
     if (!existing) {

@@ -1,11 +1,16 @@
 /**
- * Default role definitions.
+ * Role definitions.
  *
- * Shared by the tenant role seed (src/scripts/seedRoles.js) and the platform
- * seed (src/platform/scripts/seedPlatform.js), which turns each one into a
- * RoleTemplate. Pure data: requiring this file must never load a Mongoose model.
+ *   defaultRoles   — the roles the tenant role seed (src/scripts/seedRoles.js)
+ *                    writes into a company database. Unchanged by Phase 2.
+ *   ROLE_TEMPLATES — what the platform seed (src/platform/scripts/seedPlatform.js)
+ *                    stores as RoleTemplates and roleSync copies into each
+ *                    company: every default role without platform-scope
+ *                    permissions, plus tenant_admin.
+ *
+ * Pure data: requiring this file must never load a Mongoose model.
  */
-const { PERMISSIONS } = require('./permissions');
+const { PERMISSIONS, CORE_MODULES, isPlatformPermission } = require('./permissions');
 
 const allKeys = Object.keys(PERMISSIONS);
 
@@ -196,4 +201,56 @@ const defaultRoles = [
   },
 ];
 
-module.exports = { defaultRoles };
+// ── Platform role templates ──
+
+// Company Admin, part 1: company administration in the core modules.
+const TENANT_ADMIN_CORE_PERMISSIONS = Object.freeze([
+  'users.view', 'users.create', 'users.edit', 'users.delete', 'users.manage_access',
+  'roles.view',
+  'settings.view', 'settings.manage',
+  'activity_log.view',
+  'notifications.view',
+  'dashboard.default',
+]);
+
+// Company Admin, part 2: every company (tenant-scope) permission outside the core
+// modules, read from PERMISSIONS so new permissions are picked up automatically.
+// To take something away from Company Admin, filter it out here. Each company's
+// ceiling (tenantCeiling) then keeps only the modules that company has.
+const TENANT_ADMIN_BUSINESS_PERMISSIONS = Object.freeze(
+  Object.entries(PERMISSIONS)
+    .filter(([key, p]) => !isPlatformPermission(key) && !CORE_MODULES.includes(p.module))
+    .map(([key]) => key)
+);
+
+const TENANT_ADMIN_TEMPLATE = Object.freeze({
+  key: 'tenant_admin',
+  displayName: 'Company Admin',
+  description: "Manages the company's users and settings, with full access to the company's modules",
+  assignableByTenant: false,
+  permissions: Object.freeze([...TENANT_ADMIN_CORE_PERMISSIONS, ...TENANT_ADMIN_BUSINESS_PERMISSIONS]),
+});
+
+// A default role as a RoleTemplate. Platform-scope permissions (roles.manage) are
+// dropped: a template is copied into companies, and companies never hold them.
+const templateFromRole = (role) => ({
+  key: role.name,
+  displayName: role.displayName,
+  description: role.description,
+  permissions: [...new Set(role.permissions)].filter((key) => !isPlatformPermission(key)),
+  // The company admin role (the system role) is not handed out by tenants.
+  assignableByTenant: role.isSystemRole !== true,
+});
+
+const ROLE_TEMPLATES = Object.freeze([
+  ...defaultRoles.map(templateFromRole),
+  TENANT_ADMIN_TEMPLATE,
+].map((t) => Object.freeze({ ...t, permissions: Object.freeze([...t.permissions]) })));
+
+module.exports = {
+  defaultRoles,
+  ROLE_TEMPLATES,
+  TENANT_ADMIN_TEMPLATE,
+  TENANT_ADMIN_CORE_PERMISSIONS,
+  TENANT_ADMIN_BUSINESS_PERMISSIONS,
+};
