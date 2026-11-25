@@ -66,7 +66,8 @@ const EyeIcon = () => (
 const DriverDetail = ({ driver, onClose }) => {
   const { isMobile, isTablet } = useBreakpoint();
   const { n } = useFormatters();
-  const { isAdmin } = useAuth();
+  const { hasPermission } = useAuth();
+  const canForceStatus = hasPermission('drivers.force_status');
   const canEditActive = usePermission('drivers.edit_active');
   const [tab, setTab] = useState('profile');
   const [showEdit, setShowEdit] = useState(false);
@@ -261,10 +262,10 @@ const grossSalary = financialSummary?.grossSalary || d.baseSalary || 0;
             </div>
           </div>
           <StatusBadge status={d.status || 'active'} />
-          <PermissionGate permission="drivers.change_status">
+          <PermissionGate anyOf={['drivers.change_status', 'drivers.force_status']}>
             {(() => {
               const earlyStage = ['draft', 'pending_kyc', 'pending_verification'].includes(d.status);
-              const disabled = earlyStage && !isAdmin;
+              const disabled = earlyStage && !canForceStatus;
               return (
                 <button
                   onClick={() => !disabled && setChangeStatusOpen(true)}
@@ -753,10 +754,10 @@ const grossSalary = financialSummary?.grossSalary || d.baseSalary || 0;
             </Btn>
           </PermissionGate>
         )}
-        <PermissionGate permission="drivers.change_status">
+        <PermissionGate anyOf={['drivers.change_status', 'drivers.force_status']}>
           {(() => {
             const earlyStage = ['draft', 'pending_kyc', 'pending_verification'].includes(d.status);
-            const disabled = earlyStage && !isAdmin;
+            const disabled = earlyStage && !canForceStatus;
             return (
               <Btn
                 variant="ghost"

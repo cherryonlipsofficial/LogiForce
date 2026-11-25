@@ -117,8 +117,8 @@ const RouterContent = () => (
         <Route path="/statement-of-accounts" element={<ProtectedPage permission="reports.statement_of_accounts"><StatementOfAccounts /></ProtectedPage>} />
         <Route path="/settings" element={<ProtectedPage permission="settings.view"><Settings /></ProtectedPage>} />
         <Route path="/users" element={<ProtectedPage permission="users.view"><UsersPage /></ProtectedPage>} />
-        <Route path="/roles" element={<ProtectedPage permission="roles.manage"><RolesPage /></ProtectedPage>} />
-        <Route path="/guarantee-extensions" element={<ProtectedPage permission="roles.manage"><GuaranteeExtensions /></ProtectedPage>} />
+        <Route path="/roles" element={<ProtectedPage permission="roles.view"><RolesPage /></ProtectedPage>} />
+        <Route path="/guarantee-extensions" element={<ProtectedPage permission="guarantee_passports.approve_extension"><GuaranteeExtensions /></ProtectedPage>} />
         <Route path="/guarantee-passports" element={<ProtectedPage permission="guarantee_passports.view"><GuaranteePassports /></ProtectedPage>} />
         <Route path="/expired-documents" element={<ProtectedPage permission="expired_documents.view"><ExpiredDocuments /></ProtectedPage>} />
         <Route path="/activity-log" element={<ProtectedPage permission="activity_log.view"><ActivityLog /></ProtectedPage>} />

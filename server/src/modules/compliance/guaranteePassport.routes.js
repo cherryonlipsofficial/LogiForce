@@ -108,10 +108,10 @@ router.get(
   }
 );
 
-// Get all pending extension requests (admin only)
+// Get all pending extension requests
 router.get(
   '/guarantee-passports/pending-extensions',
-  requirePermission('roles.manage'),
+  requirePermission('guarantee_passports.approve_extension'),
   async (req, res) => {
     const GuaranteePassport = getModel(req, 'GuaranteePassport');
     const pending = await GuaranteePassport.find({ 'extensionRequest.status': 'pending' })
@@ -156,10 +156,10 @@ router.get(
   }
 );
 
-// Run expiry check (admin only) — must be before :id routes
+// Run expiry check — must be before :id routes
 router.post(
   '/guarantee-passports/run-expiry-check',
-  requirePermission('roles.manage'),
+  requirePermission('guarantee_passports.approve_extension'),
   async (req, res) => {
     const result = await guaranteePassportService.runExpiryCheck(req);
     sendSuccess(res, result, 'Expiry check completed');
@@ -190,10 +190,10 @@ router.post(
   }
 );
 
-// Review extension (admin only)
+// Review extension
 router.put(
   '/guarantee-passports/:id/review-extension',
-  requirePermission('roles.manage'),
+  requirePermission('guarantee_passports.approve_extension'),
   async (req, res) => {
     const { decision, reviewNotes } = req.body;
 

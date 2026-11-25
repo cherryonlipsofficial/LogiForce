@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const rateLimit = require('express-rate-limit');
-const { protect } = require('../../middleware/auth');
+const { protect, requirePermission } = require('../../middleware/auth');
+const { assertCanAssignRole, assertSeatAvailable } = require('../../utils/accessGuards');
 const authService = require('./auth.service');
 const { getModel } = require('../../config/modelRegistry');
 const bcrypt = require('bcryptjs');
@@ -30,23 +31,23 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// POST /api/auth/register — admin only in production
-router.post('/register', validate(registerValidation), async (req, res) => {
-  if (process.env.NODE_ENV === 'production') {
-    // In production, only admins can register new users
-    try {
-      await new Promise((resolve, reject) => {
-        protect(req, res, (err) => (err ? reject(err) : resolve()));
-      });
-      if (!req.user.roleId?.isSystemRole) {
-        return sendError(res, 'Only admins can register users', 403);
-      }
-    } catch {
-      return sendError(res, 'Authentication required', 401);
-    }
-  }
+// POST /api/auth/register — a signed-in user with users.create adds a user to
+// their own company. The requested role goes through the same check as
+// POST /api/users (assertCanAssignRole).
+router.post('/register', protect, requirePermission('users.create'), validate(registerValidation), async (req, res) => {
+  const Role = getModel(req, 'Role');
+  const User = getModel(req, 'User');
+  const { name, email, password, roleId, isActive } = req.body;
+  const role = roleId ? await Role.findById(roleId).lean() : null;
+  assertCanAssignRole(req, role);
+  // Users start inactive (schema default) unless the body says otherwise; an
+  // active user takes a seat.
+  if (isActive === true) await assertSeatAvailable(req, User);
 
-  const { token, user } = await authService.register(req, req.body);
+  // Only these fields: permissionOverrides and the like never come from the body.
+  const userData = { name, email, password, roleId };
+  if (typeof isActive === 'boolean') userData.isActive = isActive;
+  const { token, user } = await authService.register(req, userData);
   sendSuccess(res, { token, user }, 201);
 });
 
@@ -135,7 +136,7 @@ router.post('/logout', protect, async (req, res) => {
 // GET /api/auth/me
 router.get('/me', protect, async (req, res) => {
   const User = getModel(req, 'User');
-  const user = await User.findById(req.user.id).populate('roleId');
+  const user = await User.findById(req.user.id).populate('roleId', User.ROLE_ACCESS_FIELDS);
   if (!user) return sendError(res, 'User not found', 404);
   const authData = await authService.buildAuthResponse(req, user);
   sendSuccess(res, authData);
@@ -172,17 +173,16 @@ router.put('/change-password', protect, validate(changePasswordValidation), asyn
 router.get('/permissions', protect, async (req, res) => {
   const User = getModel(req, 'User');
   const user = await User.findById(req.user.id)
-    .populate('roleId', 'name displayName permissions isSystemRole');
+    .populate('roleId', User.ROLE_ACCESS_FIELDS);
   if (!user) return sendError(res, 'User not found', 404);
 
-  const effectivePermissions = await user.getPermissions();
+  const effectivePermissions = await user.getPermissions(req.tenant);
 
   sendSuccess(res, {
     role: {
       _id: user.roleId?._id,
       name: user.roleId?.name,
       displayName: user.roleId?.displayName,
-      isSystemRole: user.roleId?.isSystemRole,
     },
     permissions: effectivePermissions,
   });
@@ -192,12 +192,12 @@ router.get('/permissions', protect, async (req, res) => {
 router.get('/profile', protect, async (req, res) => {
   const User = getModel(req, 'User');
   const user = await User.findById(req.user._id)
-    .populate('roleId', 'name displayName description permissions')
+    .populate('roleId', User.ROLE_ACCESS_FIELDS)
     .populate('activatedBy', 'name')
     .select('-password');
   if (!user) return sendError(res, 'User not found', 404);
 
-  const effectivePermissions = await user.getPermissions();
+  const effectivePermissions = await user.getPermissions(req.tenant);
 
   sendSuccess(res, {
     user: {
@@ -458,6 +458,12 @@ const issueAndSendOtp = async ({ user, purpose, tenantName }) => {
 // stays inactive until an admin activates them — verifying the email only
 // confirms ownership of the address; it does not grant access.
 router.post('/register-with-otp', otpLimiter, async (req, res) => {
+  // Self-signup is off unless the platform switched it on for this company.
+  // Checked first, so no account is created and no OTP is sent otherwise.
+  if (req.tenant?.allowSelfSignup !== true) {
+    return sendError(res, 'Self sign-up is not enabled for this company', 403);
+  }
+
   const { name, email, password } = req.body || {};
 
   if (!name || typeof name !== 'string' || name.trim().length < 2) {
@@ -603,7 +609,7 @@ router.post('/verify-otp', otpLimiter, async (req, res) => {
   const User = getModel(req, 'User');
   const user = await User.findOne({ email: emailNorm })
     .select('+password +emailOtpHash +emailOtpPurpose +emailOtpExpires +emailOtpAttempts')
-    .populate('roleId');
+    .populate('roleId', User.ROLE_ACCESS_FIELDS);
   if (!user) return sendError(res, 'Invalid or expired code', 400);
 
   if (!user.emailOtpHash || !user.emailOtpExpires || user.emailOtpExpires < new Date()) {

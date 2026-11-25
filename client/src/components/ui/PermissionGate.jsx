@@ -10,10 +10,7 @@ import { useAuth } from '../../context/AuthContext';
  *   fallback    — rendered when permission check fails (default: null)
  */
 const PermissionGate = ({ permission, permissions, anyOf, fallback = null, children }) => {
-  const { hasPermission, isAdmin } = useAuth();
-
-  // Admin always sees everything
-  if (isAdmin) return children;
+  const { hasPermission } = useAuth();
 
   let allowed = true;
 

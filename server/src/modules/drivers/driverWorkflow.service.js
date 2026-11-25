@@ -185,10 +185,11 @@ async function changeStatusManual(req, driverId, newStatus, reason, userId, opts
   }
 
   const currentStatus = driver.status;
-  const isAdmin = user.roleId?.isSystemRole === true;
+  const permissions = await user.getPermissions(req.tenant);
+  const canForceStatus = permissions.includes('drivers.force_status');
   let description;
 
-  if (isAdmin) {
+  if (canForceStatus) {
     description = `Status force-changed by ${user.email || 'admin'}`;
   } else {
     const allowed = OPERATIONS_ALLOWED[currentStatus];
@@ -200,12 +201,12 @@ async function changeStatusManual(req, driverId, newStatus, reason, userId, opts
     description = `Status changed by ${user.email || 'user'}`;
   }
 
-  // Detect force activation: admin moves a driver to `active` while bypassing
+  // Detect force activation: a user with drivers.force_status moves a driver to `active` while bypassing
   // the normal KYC / pending_verification flow. Flag the driver so their
   // outstanding mandatory documents are tracked on the Expired Documents
   // screen until KYC is completed.
   const isForceActivation =
-    isAdmin &&
+    canForceStatus &&
     newStatus === 'active' &&
     ['draft', 'pending_kyc', 'pending_verification'].includes(currentStatus);
 

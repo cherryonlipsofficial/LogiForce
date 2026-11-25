@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const router = express.Router();
-const { protect, requirePermission } = require('../../middleware/auth');
+const { protect, requirePermission, requireAnyPermission } = require('../../middleware/auth');
 const upload = require('../../middleware/upload');
 const driverService = require('./driver.service');
 const { verifyContacts, setClientUserId, activateDriver, changeStatusManual, getDriverStatusSummary } = require('./driverWorkflow.service');
@@ -493,10 +493,10 @@ router.get('/:id', async (req, res) => {
 
 // PUT /api/drivers/:id — update driver details
 router.put('/:id', requirePermission('drivers.edit'), validate(updateDriverValidation), async (req, res) => {
-  const isAdmin = req.userPermissions?.includes('*') ||
-    (req.user.roleId?.isSystemRole === true);
-  const canEditActive = req.userPermissions?.includes('drivers.edit_active');
-  const driver = await driverService.update(req, req.params.id, req.body, req.user._id, { isAdmin, canEditActive });
+  // drivers.force_status lets a user edit a driver whatever their status.
+  const canForceStatus = req.userPermissions.includes('drivers.force_status');
+  const canEditActive = req.userPermissions.includes('drivers.edit_active');
+  const driver = await driverService.update(req, req.params.id, req.body, req.user._id, { canForceStatus, canEditActive });
   sendSuccess(res, driver, 'Driver updated');
 });
 
@@ -707,7 +707,7 @@ router.post('/:id/verify-contacts', requirePermission('drivers.change_status'), 
 });
 
 // PUT /api/drivers/:id/client-user-id — Operations sets client user ID (only when Active)
-// Requires drivers.update_client_id permission (admin has all permissions via '*')
+// Requires drivers.update_client_id permission
 router.put('/:id/client-user-id', requirePermission('drivers.update_client_id'), async (req, res) => {
   try {
     const { clientUserId } = req.body;
@@ -732,8 +732,8 @@ router.post('/:id/activate', requirePermission('drivers.activate'), async (req, 
   }
 });
 
-// PUT /api/drivers/:id/status — manual status change (Operations / Admin)
-router.put('/:id/status', requirePermission('drivers.change_status'), validate(changeStatusValidation), async (req, res) => {
+// PUT /api/drivers/:id/status — manual status change (drivers.change_status, or drivers.force_status for any transition)
+router.put('/:id/status', requireAnyPermission(['drivers.change_status', 'drivers.force_status']), validate(changeStatusValidation), async (req, res) => {
   try {
     const { status, reason, lastWorkingDay } = req.body;
     const driver = await changeStatusManual(req, req.params.id, status, reason, req.user._id, { lastWorkingDay });

@@ -8,7 +8,6 @@ export const AuthProvider = ({ children }) => {
     user: null,
     token: localStorage.getItem('token') || null,
     permissions: [],
-    isAdmin: false,
     isAuthenticated: false,
     isLoading: true,
   });
@@ -21,12 +20,11 @@ export const AuthProvider = ({ children }) => {
     }
     axiosInstance.get('/auth/me')
       .then(res => {
-        const { user, permissions, isAdmin } = res.data.data;
+        const { user, permissions } = res.data.data;
         setState({
           user,
           token,
           permissions: permissions || [],
-          isAdmin: !!isAdmin,
           isAuthenticated: true,
           isLoading: false,
         });
@@ -34,17 +32,17 @@ export const AuthProvider = ({ children }) => {
       .catch(() => {
         localStorage.removeItem('token');
         setState({ user: null, token: null, permissions: [],
-                   isAdmin: false, isAuthenticated: false, isLoading: false });
+                   isAuthenticated: false, isLoading: false });
       });
   }, []);
 
   const login = async (credentials) => {
     try {
       const res = await axiosInstance.post('/auth/login', credentials);
-      const { token, user, permissions, isAdmin } = res.data.data;
+      const { token, user, permissions } = res.data.data;
       localStorage.setItem('token', token);
       setState({ user, token, permissions: permissions || [],
-                 isAdmin: !!isAdmin, isAuthenticated: true, isLoading: false });
+                 isAuthenticated: true, isLoading: false });
       return res.data;
     } catch (err) {
       const code = err.response?.data?.code;
@@ -60,7 +58,7 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('token');
     setState({ user: null, token: null, permissions: [],
-               isAdmin: false, isAuthenticated: false, isLoading: false });
+               isAuthenticated: false, isLoading: false });
   };
 
   const updateUser = useCallback((updates) => {
@@ -70,12 +68,10 @@ export const AuthProvider = ({ children }) => {
     }));
   }, []);
 
+  // The server sends the effective permissions; there is no admin bypass.
   const hasPermission = useCallback(
-    (key) => {
-      if (state.isAdmin) return true;
-      return state.permissions.includes(key);
-    },
-    [state.permissions, state.isAdmin]
+    (key) => state.permissions.includes(key),
+    [state.permissions]
   );
 
   const value = useMemo(
@@ -84,7 +80,6 @@ export const AuthProvider = ({ children }) => {
       token: state.token,
       loading: state.isLoading,
       isLoading: state.isLoading,
-      isAdmin: state.isAdmin,
       login,
       logout,
       updateUser,

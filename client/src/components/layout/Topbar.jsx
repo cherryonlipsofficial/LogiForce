@@ -254,12 +254,12 @@ const Topbar = ({ page, onMenuToggle, showMenuButton }) => {
     { label: 'Driver visas', path: '/driver-visas', permission: 'driver_visas.view', keywords: 'driver visas immigration' },
     { label: 'Reports', path: '/reports', permission: 'reports.view', keywords: 'reports analytics' },
     { label: 'Statement of accounts', path: '/statement-of-accounts', permission: 'reports.statement_of_accounts', keywords: 'statement accounts soa' },
-    { label: 'Guarantee extensions', path: '/guarantee-extensions', permission: 'roles.manage', keywords: 'guarantee extensions' },
+    { label: 'Guarantee extensions', path: '/guarantee-extensions', permission: 'guarantee_passports.approve_extension', keywords: 'guarantee extensions' },
     { label: 'Guarantee passports', path: '/guarantee-passports', permission: 'guarantee_passports.view', keywords: 'guarantee passports' },
     { label: 'Expired documents', path: '/expired-documents', permission: 'expired_documents.view', keywords: 'expired documents compliance' },
     { label: 'Settings', path: '/settings', permission: 'settings.view', keywords: 'settings configuration' },
     { label: 'Users', path: '/users', permission: 'users.view', keywords: 'users accounts manage' },
-    { label: 'Roles', path: '/roles', permission: 'roles.manage', keywords: 'roles permissions' },
+    { label: 'Roles', path: '/roles', permission: 'roles.view', keywords: 'roles permissions' },
     { label: 'Your profile', path: '/profile', keywords: 'profile account me' },
     { label: 'Notifications', path: '/notifications', keywords: 'notifications alerts' },
   ];
@@ -778,7 +778,7 @@ const Topbar = ({ page, onMenuToggle, showMenuButton }) => {
                       onClick={() => { setMenuOpen(false); navigate('/users'); }}
                     />
                   )}
-                  {hasPermission('roles.manage') && (
+                  {hasPermission('roles.view') && (
                     <MenuButton
                       label="Manage roles"
                       onClick={() => { setMenuOpen(false); navigate('/roles'); }}

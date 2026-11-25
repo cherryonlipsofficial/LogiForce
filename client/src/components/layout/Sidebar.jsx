@@ -51,9 +51,9 @@ const navGroups = [
 
 const adminNavItems = [
   { path: '/users', label: 'Users', icon: '◎', permission: 'users.view' },
-  { path: '/roles', label: 'Roles & access', icon: '◈', permission: 'roles.manage' },
+  { path: '/roles', label: 'Roles & access', icon: '◈', permission: 'roles.view' },
   { path: '/activity-log', label: 'Activity log', icon: '◉', permission: 'activity_log.view' },
-  { path: '/guarantee-extensions', label: 'Guarantee approvals', icon: '◎', permission: 'roles.manage', hasBadge: true },
+  { path: '/guarantee-extensions', label: 'Guarantee approvals', icon: '◎', permission: 'guarantee_passports.approve_extension', hasBadge: true },
   { path: '/settings', label: 'Settings', icon: '⚙', permission: 'settings.view' },
 ];
 
@@ -112,7 +112,7 @@ const NavItem = ({ item, badge, badgeColor, onClick }) => (
 const Sidebar = ({ isOpen, onClose, overlay }) => {
   const { user, role, logout, hasPermission } = useAuth();
   const { arabicNumerals, toggleArabicNumerals } = useUserPrefs();
-  const isAdmin = hasPermission('roles.manage');
+  const canApproveExtensions = hasPermission('guarantee_passports.approve_extension');
 
   const { data: pendingExtData } = useQuery({
     queryKey: ['pending-extensions'],
@@ -120,7 +120,7 @@ const Sidebar = ({ isOpen, onClose, overlay }) => {
       const d = r.data?.data || r.data || [];
       return Array.isArray(d) ? d : [];
     }),
-    enabled: isAdmin,
+    enabled: canApproveExtensions,
     refetchInterval: 5 * 60 * 1000,
   });
   const pendingCount = pendingExtData?.length || 0;

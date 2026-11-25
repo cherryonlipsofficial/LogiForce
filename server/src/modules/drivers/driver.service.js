@@ -174,7 +174,7 @@ const formatFieldValue = (value) => {
   return String(value);
 };
 
-const update = async (req, id, data, userId, { isAdmin = false, canEditActive = false } = {}) => {
+const update = async (req, id, data, userId, { canForceStatus = false, canEditActive = false } = {}) => {
   const Driver = getModel(req, 'Driver');
   const Client = getModel(req, 'Client');
   const Supplier = getModel(req, 'Supplier');
@@ -190,7 +190,7 @@ const update = async (req, id, data, userId, { isAdmin = false, canEditActive = 
     err.statusCode = 404;
     throw err;
   }
-  if (existing.status === 'active' && !isAdmin && !canEditActive) {
+  if (existing.status === 'active' && !canForceStatus && !canEditActive) {
     const err = new Error('You do not have permission to edit an active driver');
     err.statusCode = 403;
     throw err;

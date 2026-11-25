@@ -178,7 +178,7 @@ const RunDetail = ({ run, onClose }) => {
   const { formatCurrencyFull } = useFormatters();
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { role, isAdmin, hasPermission } = useAuth();
+  const { role, hasPermission } = useAuth();
   const [viewingPdf, setViewingPdf] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingWps, setDownloadingWps] = useState(false);
@@ -209,9 +209,7 @@ const RunDetail = ({ run, onClose }) => {
   // Determine which stages this user's role can act on
   // If the role is explicitly mapped, restrict to those stages; otherwise fall back to all stages
   // so that custom roles with salary approval permissions can still act
-  const allowedStages = isAdmin
-    ? ROLE_STAGE_MAP.admin
-    : (ROLE_STAGE_MAP[role] || ROLE_STAGE_MAP.admin);
+  const allowedStages = ROLE_STAGE_MAP[role] || ROLE_STAGE_MAP.admin;
   const canActOnCurrentStage = allowedStages.includes(currentStatus);
 
   const { mutate: submitDeduction, isPending: submittingDed } = useMutation({
@@ -913,7 +911,7 @@ const Salary = () => {
   const [bulkRemarks, setBulkRemarks] = useState('');
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const { role, isAdmin } = useAuth();
+  const { role } = useAuth();
   const qc = useQueryClient();
 
   const filterParams = {
@@ -961,7 +959,7 @@ const Salary = () => {
   const draftCount = runs.filter((r) => !['processed', 'paid'].includes(r.status)).length;
 
   // Determine which statuses this user's role can act on
-  const allowedStages = isAdmin ? ROLE_STAGE_MAP.admin : (ROLE_STAGE_MAP[role] || ROLE_STAGE_MAP.admin);
+  const allowedStages = ROLE_STAGE_MAP[role] || ROLE_STAGE_MAP.admin;
 
   // Filter selectable runs: only those the user can act on at their current status
   const selectableRuns = filtered.filter((r) => allowedStages.includes(r.status) && getBulkActionForStatus(r.status));

@@ -1,5 +1,8 @@
 import axiosInstance from './axiosInstance';
 
+// Roles are read-only for companies: they are defined on the platform and
+// copied in. There is no create, update, delete or duplicate.
+
 export const getPermissionsList = () =>
   axiosInstance.get('/roles/permissions').then(r => r.data);
 
@@ -9,14 +12,6 @@ export const getRoles = () =>
 export const getRole = (id) =>
   axiosInstance.get(`/roles/${id}`).then(r => r.data);
 
-export const createRole = (data) =>
-  axiosInstance.post('/roles', data).then(r => r.data);
-
-export const updateRole = (id, data) =>
-  axiosInstance.put(`/roles/${id}`, data).then(r => r.data);
-
-export const deleteRole = (id) =>
-  axiosInstance.delete(`/roles/${id}`).then(r => r.data);
-
-export const duplicateRole = (id, data) =>
-  axiosInstance.post(`/roles/${id}/duplicate`, data).then(r => r.data);
+// Roles the signed-in user may give someone (for user create/edit dropdowns).
+export const getAssignableRoles = () =>
+  axiosInstance.get('/roles/assignable').then(r => r.data);

@@ -26,7 +26,7 @@ const login = async (req, email, password) => {
   const User = getModel(req, 'User');
   const user = await User.findOne({ email })
     .select('+password')
-    .populate('roleId');
+    .populate('roleId', User.ROLE_ACCESS_FIELDS);
   if (!user || !(await user.comparePassword(password))) {
     const err = new Error('Invalid email or password');
     err.statusCode = 401;
@@ -51,40 +51,18 @@ const login = async (req, email, password) => {
 const register = async (req, userData) => {
   const User = getModel(req, 'User');
   const user = await User.create(userData);
-  await user.populate('roleId');
+  await user.populate('roleId', User.ROLE_ACCESS_FIELDS);
   const token = generateToken(user._id, req.tenantKey);
   return { token, user };
 };
 
 /**
- * Build a unified auth response containing user, permissions, and isAdmin flag.
- * Used by both login and /me endpoints to avoid a second round-trip.
+ * Build a unified auth response containing the user and their effective
+ * permissions (config/permissions.js getEffectivePermissions). Used by both
+ * login and /me endpoints to avoid a second round-trip.
  */
 const buildAuthResponse = async (req, user) => {
-  if (!user.roleId || typeof user.roleId === 'string') {
-    await user.populate('roleId');
-  }
-
-  const isAdmin = user.roleId?.isSystemRole === true;
-
-  if (isAdmin) {
-    const { getAllKeys } = require('../../config/permissions');
-    return {
-      user: {
-        _id: user._id, name: user.name, email: user.email,
-        isActive: user.isActive, lastLogin: user.lastLogin,
-        activatedBy: user.activatedBy, activatedAt: user.activatedAt,
-        roleId: user.roleId,
-      },
-      permissions: getAllKeys(),
-      isAdmin: true,
-    };
-  }
-
-  const rolePerms = new Set(user.roleId?.permissions || []);
-  for (const ov of user.permissionOverrides || []) {
-    ov.granted ? rolePerms.add(ov.key) : rolePerms.delete(ov.key);
-  }
+  const permissions = await user.getPermissions(req.tenant);
 
   return {
     user: {
@@ -93,8 +71,7 @@ const buildAuthResponse = async (req, user) => {
       activatedBy: user.activatedBy, activatedAt: user.activatedAt,
       roleId: user.roleId,
     },
-    permissions: [...rolePerms],
-    isAdmin: false,
+    permissions,
   };
 };
 

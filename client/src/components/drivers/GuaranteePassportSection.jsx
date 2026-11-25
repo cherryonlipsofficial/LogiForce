@@ -40,7 +40,8 @@ const fieldStyle = { marginBottom: 14 };
 const errorStyle = { color: '#f87171', fontSize: 11, marginTop: 2, display: 'block' };
 
 const GuaranteePassportSection = ({ driver }) => {
-  const { isAdmin } = useAuth();
+  const { hasPermission } = useAuth();
+  const canApproveExtension = hasPermission('guarantee_passports.approve_extension');
   const queryClient = useQueryClient();
   const driverId = driver._id || driver.id;
   const [showGuaranteeForm, setShowGuaranteeForm] = useState(false);
@@ -172,7 +173,7 @@ const GuaranteePassportSection = ({ driver }) => {
             }}>
               <strong>Extension pending</strong> — {activeGuarantee.extensionRequest.requestedDays} days requested.
               {activeGuarantee.extensionRequest.reason && <div style={{ color: 'var(--text3)', marginTop: 4 }}>Reason: {activeGuarantee.extensionRequest.reason}</div>}
-              {isAdmin && (
+              {canApproveExtension && (
                 <div style={{ marginTop: 8 }}>
                   <Btn variant="primary" small onClick={() => setShowReviewForm(true)}>Review extension</Btn>
                 </div>

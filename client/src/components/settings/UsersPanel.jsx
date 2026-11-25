@@ -606,7 +606,7 @@ const UsersPanel = () => {
                         <PermissionGate permission="users.edit">
                           <Btn small onClick={() => setEditUser(u)}>Edit</Btn>
                         </PermissionGate>
-                        <PermissionGate permission="roles.manage">
+                        <PermissionGate permission="users.manage_access">
                           <Btn small onClick={() => setPermsUser(u)}>Permissions</Btn>
                         </PermissionGate>
                         <PermissionGate permission="users.delete">

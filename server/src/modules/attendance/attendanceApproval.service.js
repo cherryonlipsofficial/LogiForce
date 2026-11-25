@@ -65,13 +65,13 @@ async function approveAttendance(req, batchId, userId, notes) {
     );
   }
 
-  const userPerms = await user.getPermissions();
+  const userPerms = await user.getPermissions(req.tenant);
   const permSet = new Set(userPerms);
   const canApproveSales = permSet.has('attendance.approve_sales');
   const canApproveOps = permSet.has('attendance.approve_ops');
-  const isSystemAdmin = user.roleId?.isSystemRole === true;
+  const canApproveAny = permSet.has('attendance.approve_any');
 
-  if (!canApproveSales && !canApproveOps && !isSystemAdmin) {
+  if (!canApproveSales && !canApproveOps && !canApproveAny) {
     throw Object.assign(
       new Error('You do not have attendance approval permission'),
       { statusCode: 403 }
@@ -81,12 +81,12 @@ async function approveAttendance(req, batchId, userId, notes) {
   // Determine the approval side:
   // - If user has sales permission (and sales not yet approved), do sales
   // - If user has ops permission (and ops not yet approved), do ops
-  // - Admin: approve whichever side still needs it (sales first)
+  // - attendance.approve_any: approve whichever side still needs it (sales first)
   const salesNeeded = batch.salesApproval?.status !== 'approved';
   const opsNeeded = batch.opsApproval?.status !== 'approved';
 
   let doSalesApproval;
-  if (isSystemAdmin) {
+  if (canApproveAny) {
     doSalesApproval = salesNeeded;
   } else if (canApproveSales && salesNeeded) {
     doSalesApproval = true;
@@ -184,7 +184,7 @@ async function raiseDispute(req, batchId, userId, data) {
     );
   }
 
-  const userPerms = await user.getPermissions();
+  const userPerms = await user.getPermissions(req.tenant);
   const isSalesApprover = userPerms.includes('attendance.approve_sales');
 
   const dispute = await AttendanceDispute.create({
