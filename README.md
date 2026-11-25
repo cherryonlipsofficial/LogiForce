@@ -67,6 +67,9 @@ cd server && npm run seed && cd ..
 
 # Start dev servers (concurrent)
 npm run dev
+
+# Server tests (no database needed)
+cd server && npm test && cd ..
 ```
 
 - Server runs on `http://localhost:5000`
@@ -87,7 +90,7 @@ The seeded accountant also carries a one-off `drivers.create` permission overrid
 
 ## API Documentation
 
-All endpoints are prefixed with `/api` and require an `x-tenant-id` header (see [Multi-tenancy](#multi-tenancy)) — omitting it returns `400` before any auth or route logic runs. Protected routes additionally require `Authorization: Bearer <token>`.
+All endpoints are prefixed with `/api` and require an `x-tenant-id` header (see [Multi-tenancy](#multi-tenancy)) — omitting it returns `400` before any auth or route logic runs. Protected routes additionally require `Authorization: Bearer <token>`. A token only works for the company it was issued for: one obtained with `x-tenant-id: clienta` gets `401 Token is not valid for this company` on every other company.
 
 ### Auth
 

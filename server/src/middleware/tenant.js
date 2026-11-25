@@ -17,6 +17,9 @@ const connectionManager = require('../config/connectionManager');
  *
  * Sets:
  *   req.tenant     — tenant config object
+ *   req.tenantKey  — the company's canonical key (tenant.key from the platform
+ *                    record, lower-case), not the raw header. Tenant JWTs are
+ *                    bound to it (`tid`).
  *   req.dbConnection — Mongoose connection to tenant's database
  *
  * Every path ends in a response or next(); no rejection escapes.
@@ -76,7 +79,7 @@ const resolveTenant = async (req, res, next) => {
     const dbConnection = await connectionManager.getConnectionForTenant(tenant);
 
     req.tenant = tenant;
-    req.tenantKey = tenantKey;
+    req.tenantKey = tenant.key;
     req.dbConnection = dbConnection;
   } catch (error) {
     console.error('[Tenant] Resolution failed:', redactUris(error.message));
