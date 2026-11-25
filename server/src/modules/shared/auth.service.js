@@ -1,12 +1,27 @@
 const jwt = require('jsonwebtoken');
 const { getModel } = require('../../config/modelRegistry');
 
-const generateToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-  });
+// `aud` of every company-user token. protect() (middleware/auth.js) rejects any
+// token without it, which also rejects tokens issued before tokens carried `tid`.
+const TENANT_TOKEN_AUDIENCE = 'tenant';
+
+/**
+ * Sign a company-user token bound to the company it was issued for.
+ * `tenantKey` must be req.tenantKey (the canonical key resolveTenant takes from
+ * the platform record), never a value from the request body.
+ */
+const generateToken = (userId, tenantKey) => {
+  if (!tenantKey) throw new Error('generateToken: tenantKey is required');
+  return jwt.sign(
+    { id: userId, tid: String(tenantKey), aud: TENANT_TOKEN_AUDIENCE },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' },
+  );
 };
 
+// The User model is bound to req.dbConnection, the database of the company in
+// req.tenantKey (one database per company), so a user found here belongs to
+// that company.
 const login = async (req, email, password) => {
   const User = getModel(req, 'User');
   const user = await User.findOne({ email })
@@ -29,7 +44,7 @@ const login = async (req, email, password) => {
   user.loginCount = (user.loginCount || 0) + 1;
   await user.save({ validateBeforeSave: false });
 
-  const token = generateToken(user._id);
+  const token = generateToken(user._id, req.tenantKey);
   return { token, user };
 };
 
@@ -37,7 +52,7 @@ const register = async (req, userData) => {
   const User = getModel(req, 'User');
   const user = await User.create(userData);
   await user.populate('roleId');
-  const token = generateToken(user._id);
+  const token = generateToken(user._id, req.tenantKey);
   return { token, user };
 };
 
@@ -83,4 +98,4 @@ const buildAuthResponse = async (req, user) => {
   };
 };
 
-module.exports = { generateToken, login, register, buildAuthResponse };
+module.exports = { TENANT_TOKEN_AUDIENCE, generateToken, login, register, buildAuthResponse };

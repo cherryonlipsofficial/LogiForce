@@ -667,7 +667,7 @@ router.post('/verify-otp', otpLimiter, async (req, res) => {
   user.loginCount = (user.loginCount || 0) + 1;
   await user.save({ validateBeforeSave: false });
 
-  const token = authService.generateToken(user._id);
+  const token = authService.generateToken(user._id, req.tenantKey);
   const authData = await authService.buildAuthResponse(req, user);
   return sendSuccess(res, { token, ...authData });
 });

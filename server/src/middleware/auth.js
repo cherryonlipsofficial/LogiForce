@@ -1,6 +1,15 @@
 const jwt = require('jsonwebtoken');
 const { getModel } = require('../config/modelRegistry');
+const { TENANT_TOKEN_AUDIENCE } = require('../modules/shared/auth.service');
+const logger = require('../utils/logger');
 
+const WRONG_COMPANY = { success: false, message: 'Token is not valid for this company' };
+
+/**
+ * Company-user auth. Accepts only tokens with aud 'tenant' whose `tid` is the
+ * company this request was resolved to (req.tenantKey, set by resolveTenant).
+ * Fails closed: without req.tenantKey every token is rejected.
+ */
 const protect = async (req, res, next) => {
   const token = req.header('Authorization')?.replace('Bearer ', '');
 
@@ -9,7 +18,19 @@ const protect = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { audience: TENANT_TOKEN_AUDIENCE });
+
+    if (!req.tenantKey) {
+      logger.error('protect ran without req.tenantKey; is resolveTenant mounted before this route?', {
+        method: req.method,
+        path: req.originalUrl,
+      });
+      return res.status(401).json(WRONG_COMPANY);
+    }
+    if (decoded.tid == null || String(decoded.tid) !== String(req.tenantKey)) {
+      return res.status(401).json(WRONG_COMPANY);
+    }
+
     const User = getModel(req, 'User');
     const user = await User.findById(decoded.id).populate('roleId', 'permissions name isSystemRole displayName');
     if (!user || !user.isActive) {

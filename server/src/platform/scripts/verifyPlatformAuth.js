@@ -447,6 +447,9 @@ const main = async () => {
       assert(limit.status === 429 && limit.body?.code === 'OTP_RESEND_LIMIT', `4th resend: ${show(limit)}`);
     });
 
+    // The company used by checks 7, 8 and 12.
+    const tenant = process.env.VERIFY_TENANT || configuredTenants()[0]?.key;
+
     await check('7. GET /api/platform/auth/me: 200 with a platform token; 401 with a tenant token or none', async () => {
       assert(tokenA, 'no platform token (check 6 failed)');
       const me = await api(server, 'GET', '/api/platform/auth/me', { token: tokenA });
@@ -460,9 +463,11 @@ const main = async () => {
       const now = Math.floor(Date.now() / 1000);
       const claims = { sub: String(userA.id), role: 'owner', tv: 0 };
       const opts = { algorithm: 'HS256', audience: 'platform', issuer: 'logiforce-platform', expiresIn: '1h' };
+      // Fully valid tenant tokens; which company they are bound to doesn't matter here.
+      const tokenTenant = tenant || 'verify-auth';
       const bad = {
-        'tenant token': generateToken(new mongoose.Types.ObjectId()),
-        'tenant token for the same id': generateToken(userA.id),
+        'tenant token': generateToken(new mongoose.Types.ObjectId(), tokenTenant),
+        'tenant token for the same id': generateToken(userA.id, tokenTenant),
         'platform claims signed with JWT_SECRET': jwt.sign(claims, process.env.JWT_SECRET, opts),
         'wrong audience': jwt.sign(claims, secret, { ...opts, audience: 'tenant' }),
         'wrong issuer': jwt.sign(claims, secret, { ...opts, issuer: 'someone-else' }),
@@ -482,7 +487,6 @@ const main = async () => {
       assert(none.status === 401 && none.text === expected, `no token: ${show(none)}`);
     });
 
-    const tenant = process.env.VERIFY_TENANT || configuredTenants()[0]?.key;
     await check(`8. a platform token on a tenant route (GET /api/users, x-tenant-id: ${tenant}) gets 401`, async () => {
       assert(tokenA, 'no platform token (check 6 failed)');
       assert(tenant, 'no tenant with a configured database URI');
