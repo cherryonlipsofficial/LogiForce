@@ -10,7 +10,7 @@
  * platform/models/index.js; never with mongoose.model().
  */
 const { Schema } = require('mongoose');
-const { PERMISSIONS } = require('../../config/permissions');
+const { PERMISSIONS, isPlatformPermission } = require('../../config/permissions');
 
 const isPermissionKey = (key) => Object.prototype.hasOwnProperty.call(PERMISSIONS, key);
 
@@ -35,13 +35,24 @@ const roleTemplateSchema = new Schema(
     description: String,
     permissions: {
       type: [String],
-      validate: {
-        validator: (values) => values.every(isPermissionKey),
-        message: (props) => {
-          const bad = (props.value || []).filter((p) => !isPermissionKey(p));
-          return `Unknown permission(s): ${bad.join(', ')}`;
+      validate: [
+        {
+          validator: (values) => values.every(isPermissionKey),
+          message: (props) => {
+            const bad = (props.value || []).filter((p) => !isPermissionKey(p));
+            return `Unknown permission(s): ${bad.join(', ')}`;
+          },
         },
-      },
+        {
+          // Templates are copied into companies; platform-scope permissions
+          // (e.g. roles.manage) are never given to a company role.
+          validator: (values) => !values.some(isPlatformPermission),
+          message: (props) => {
+            const bad = (props.value || []).filter(isPlatformPermission);
+            return `Platform permission(s) cannot be in a role template: ${bad.join(', ')}`;
+          },
+        },
+      ],
     },
     assignableByTenant: {
       type: Boolean,

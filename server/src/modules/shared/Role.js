@@ -37,6 +37,18 @@ const roleSchema = new Schema({
   },
 
   isActive: { type: Boolean, default: true },
+
+  // ── Platform role templates (platform/services/roleSync.service.js) ──
+  // A role copied from a platform RoleTemplate has managedBy 'platform' and
+  // templateKey = the template's key (= this role's name). The sync keeps it in
+  // step with the template and switches it off (isActive false, never deleted)
+  // when the company loses the template. Roles a company made itself are
+  // 'tenant' and the sync never touches them.
+  templateKey:        { type: String, default: null, index: true },
+  managedBy:          { type: String, enum: ['platform', 'tenant'], default: 'tenant' },
+  assignableByTenant: { type: Boolean, default: true },
+  templateVersion:    { type: Number, default: null },
+
   createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
   updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
 

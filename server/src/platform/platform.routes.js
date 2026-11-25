@@ -51,6 +51,9 @@ router.get('/auth/me', (req, res) => res.json({ success: true, user: req.platfor
 // Coming in later steps (import requirePlatformRole from ./middleware/protectPlatform):
 // router.use('/tenants', requirePlatformRole('owner'), require('./routes/tenants.routes'));
 // router.use('/role-templates', requirePlatformRole('owner'), require('./routes/roleTemplates.routes'));
+// Both must call services/roleSync.service.js: syncTenantRoles after a company is
+// created (before it may become 'active') or its enabledModules/roleTemplateKeys
+// change, and syncTenantsUsingTemplate after a template is edited. See that file.
 
 // ── Unknown paths and errors stay inside the platform router ──
 
