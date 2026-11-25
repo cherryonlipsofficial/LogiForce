@@ -205,6 +205,9 @@ Creates 3 users, 3 clients, 3 suppliers, 20 drivers, and 3 months of attendance 
 | MONGODB_URI_CLIENTB | Connection string for the `clientb` tenant | (required to use that tenant, unless `MONGODB_BASE_URI` is set) |
 | MONGODB_URI_CLIENTC | Connection string for the `clientc` tenant | (required to use that tenant, unless `MONGODB_BASE_URI` is set) |
 | MONGODB_BASE_URI    | Shared Atlas base URI — per-tenant database name is appended automatically for any tenant without its own explicit URI above | (optional) |
+| PLATFORM_MONGODB_URI | Connection string for the platform (product-owner) database: tenant registry, role templates, platform users, platform audit log. May be the same cluster as the tenants | (required — server exits on startup without it) |
+| PLATFORM_DB_NAME    | Platform database name (always passed explicitly, never taken from the URI path) | logiforce_platform |
+| PLATFORM_OWNER_EMAIL / PLATFORM_OWNER_NAME / PLATFORM_OWNER_PASSWORD | First platform owner, created by `npm run platform:seed` if the email doesn't exist yet. Password ≥ 12 chars; an existing account is never changed | (optional — read only by the seed) |
 | PORT                | Server port                    | 5000                             |
 | JWT_SECRET          | JWT signing secret             | (required)                       |
 | JWT_EXPIRES_IN      | JWT token expiry               | 7d                               |

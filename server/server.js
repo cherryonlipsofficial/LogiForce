@@ -14,6 +14,7 @@ const { resolveTenant } = require('./src/middleware/tenant');
 const { tenants } = require('./src/config/tenants');
 const { getConnectionForTenant, closeAllConnections } = require('./src/config/connectionManager');
 const { getModelForConnection } = require('./src/config/modelRegistry');
+const { connectPlatformDb, closePlatformDb } = require('./src/platform/db');
 
 const app = express();
 
@@ -128,7 +129,21 @@ app.use('/api/activity-log', require('./src/modules/shared/activityLog.routes'))
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
-const server = app.listen(PORT, '0.0.0.0', () => {
+let server;
+
+const start = async () => {
+  // Platform (product-owner) DB must be reachable before we accept traffic.
+  try {
+    await connectPlatformDb();
+  } catch (err) {
+    logger.error(`Platform DB connection failed: ${err.message}`);
+    process.exit(1);
+  }
+
+  server = app.listen(PORT, '0.0.0.0', onListening);
+};
+
+function onListening() {
   logger.info(`Server running on port ${PORT}`);
 
   // Clean up orphaned ledger entries on startup (all tenants)
@@ -191,16 +206,20 @@ const server = app.listen(PORT, '0.0.0.0', () => {
       }
     }
   });
-});
+}
+
+start();
 
 // Graceful shutdown
 const gracefulShutdown = async (signal) => {
   logger.info(`${signal} received. Shutting down gracefully...`);
 
-  // Stop accepting new connections
-  server.close(() => {
-    logger.info('HTTP server closed');
-  });
+  // Stop accepting new connections (server is unset if we're still starting up)
+  if (server) {
+    server.close(() => {
+      logger.info('HTTP server closed');
+    });
+  }
 
   // Close all tenant connections
   try {
@@ -208,6 +227,14 @@ const gracefulShutdown = async (signal) => {
     logger.info('All tenant connections closed');
   } catch (err) {
     logger.error('Error closing tenant connections', { error: err.message });
+  }
+
+  // Close the platform DB connection
+  try {
+    await closePlatformDb();
+    logger.info('Platform DB connection closed');
+  } catch (err) {
+    logger.error('Error closing platform DB', { error: err.message });
   }
 
   // Close default MongoDB connection
