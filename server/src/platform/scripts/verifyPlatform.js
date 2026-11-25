@@ -44,6 +44,11 @@ const EXPECTED_INDEXES = {
     { key: { targetType: 1, targetId: 1, createdAt: -1 } },
     { key: { 'actor.userId': 1, createdAt: -1 } },
   ],
+  platform_login_challenges: [
+    { key: { userId: 1 } },
+    { key: { tokenHash: 1 }, unique: true },
+    { key: { expiresAt: 1 } }, // TTL; expireAfterSeconds is checked by platform:verify-auth
+  ],
 };
 
 let failures = 0;
@@ -111,7 +116,7 @@ const run = async () => {
   });
 
   // ── 2. Collections and indexes ──
-  await check('2. platform DB has the 4 collections with the expected indexes', async () => {
+  await check(`2. platform DB has the ${PLATFORM_MODELS.length} collections with the expected indexes`, async () => {
     const existing = new Set((await conn.db.listCollections().toArray()).map((c) => c.name));
     for (const { collection } of PLATFORM_MODELS) {
       assert(existing.has(collection), `collection ${collection} is missing`);

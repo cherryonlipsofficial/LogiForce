@@ -223,4 +223,8 @@ module.exports = {
   sendPasswordResetEmail,
   sendOtpEmail,
   isEmailConfigured,
+  isDevLogMode,
+  // Shared with the platform sign-in email (platform/services/platformMailer.js)
+  renderShell,
+  escapeHtml,
 };

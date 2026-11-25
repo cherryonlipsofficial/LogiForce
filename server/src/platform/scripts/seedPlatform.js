@@ -2,10 +2,11 @@
  * Seed the platform database.  npm run platform:seed
  *
  * Safe to run any number of times. Each run:
- *   1. connects and syncs indexes for the four platform models;
+ *   1. connects and syncs indexes for every platform model;
  *   2. creates/updates one RoleTemplate per default role (config/defaultRoles.js);
- *   3. creates the first owner account from PLATFORM_OWNER_* (never touches an
- *      existing account or its password);
+ *   3. creates the first owner account from PLATFORM_OWNER_* through
+ *      services/platformUser.service.js (never touches an existing account or
+ *      its password);
  *   4. registers the tenants that were hardcoded in config/tenants.js (now
  *      scripts/legacyTenants.js), recording the
  *      database each one actually uses today;
@@ -20,8 +21,7 @@ const { connectPlatformDb, closePlatformDb, getPlatformDbName } = require('../db
 const { getPlatformModels, PLATFORM_MODELS } = require('../models');
 const { MODULES } = require('../../config/permissions');
 const { defaultRoles } = require('../../config/defaultRoles');
-
-const SYSTEM_ACTOR = Object.freeze({ userId: null, email: 'system' });
+const { createPlatformUser, SYSTEM_ACTOR } = require('../services/platformUser.service');
 
 // Env vars that can supply each legacy tenant's URI (see legacyTenants.js).
 // Used to record which one is actually in use (Tenant.dbUriEnv). null means the
@@ -150,7 +150,7 @@ const seedRoleTemplates = async ({ RoleTemplate, PlatformAuditLog }, counts, log
 };
 
 // ── Step 3 ──
-const seedOwner = async ({ PlatformUser, PlatformAuditLog }, counts, log) => {
+const seedOwner = async ({ PlatformUser }, counts, log) => {
   const email = (process.env.PLATFORM_OWNER_EMAIL || '').trim();
   const password = process.env.PLATFORM_OWNER_PASSWORD || '';
   const name = (process.env.PLATFORM_OWNER_NAME || '').trim() || 'Platform Owner';
@@ -163,18 +163,8 @@ const seedOwner = async ({ PlatformUser, PlatformAuditLog }, counts, log) => {
       return;
     }
 
-    const user = new PlatformUser({ email, name, role: 'owner', status: 'active' });
-    await user.setPassword(password);
-    await user.save();
-
-    await PlatformAuditLog.record({
-      actor: SYSTEM_ACTOR,
-      action: 'platformUser.create',
-      targetType: 'PlatformUser',
-      targetId: user._id,
-      targetKey: user.email,
-      before: null,
-      after: user.toJSON(),
+    const user = await createPlatformUser({
+      email, name, password, role: 'owner', status: 'active', actor: SYSTEM_ACTOR,
     });
     counts.PlatformUser.created += 1;
     counts.PlatformAuditLog.created += 1;
@@ -293,6 +283,7 @@ const printSummary = (counts, log = console.log) => {
   log(`\nPlatform seed summary (database: ${getPlatformDbName()})`);
   for (const { name, collection } of PLATFORM_MODELS) {
     const c = counts[name];
+    if (!c) continue; // not seeded (e.g. platform_login_challenges)
     const line = name === 'PlatformAuditLog'
       ? `created ${c.created}`
       : `created ${c.created}  updated ${c.updated}  skipped ${c.skipped}`;

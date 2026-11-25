@@ -44,6 +44,10 @@ const platformUserSchema = new Schema(
       default: 'active',
     },
     lastLoginAt: Date,
+    // Copied into every platform JWT as `tv`. protectPlatform rejects a token
+    // whose tv differs, so incrementing this (password reset) signs out every
+    // existing session.
+    tokenVersion: { type: Number, default: 0 },
   },
   {
     timestamps: true,

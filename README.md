@@ -98,6 +98,25 @@ All endpoints are prefixed with `/api` and require an `x-tenant-id` header (see 
 | GET    | /api/auth/me            | Current user profile     | Required |
 | PUT    | /api/auth/change-password | Change password        | Required |
 
+### Platform (product owner)
+
+Routes for LogiForce staff, not company users. They live under `/api/platform`, need **no** `x-tenant-id`, and use their own token (signed with `PLATFORM_JWT_SECRET`), which tenant routes reject — and tenant tokens are rejected here.
+
+| Method | Endpoint                         | Description                                              | Auth           |
+|--------|----------------------------------|----------------------------------------------------------|----------------|
+| POST   | /api/platform/auth/login         | Email + password → `challengeToken`; emails a 6-digit code | Public (rate limited) |
+| POST   | /api/platform/auth/verify-otp    | `challengeToken` + `code` → platform token               | Public (rate limited) |
+| POST   | /api/platform/auth/resend-otp    | New code for an open challenge (60 s apart, max 3)       | Public (rate limited) |
+| GET    | /api/platform/auth/me            | Current platform user                                    | Platform token |
+
+Create the first platform owner, or reset a platform user's password (the password is asked for without echo; when stdin isn't a terminal it is read from `PLATFORM_OWNER_PASSWORD`). A reset signs out every existing session of that user.
+
+```bash
+cd server
+npm run platform:create-owner -- --email you@example.com --name "Your Name"
+npm run platform:create-owner -- --email you@example.com --reset-password
+```
+
 ### Drivers
 
 | Method | Endpoint                          | Description                  | Roles      |
@@ -214,7 +233,9 @@ Seeds the database at `MONGODB_URI` (the `logi-force` tenant's database unless `
 | TENANT_CACHE_TTL_MS | How long (ms) a server caches each company's platform record; a change such as a suspension reaches a running server within this time | 60000 |
 | PLATFORM_MONGODB_URI | Connection string for the platform (product-owner) database: tenant registry, role templates, platform users, platform audit log. May be the same cluster as the tenants | (required — server exits on startup without it) |
 | PLATFORM_DB_NAME    | Platform database name (always passed explicitly, never taken from the URI path) | logiforce_platform |
-| PLATFORM_OWNER_EMAIL / PLATFORM_OWNER_NAME / PLATFORM_OWNER_PASSWORD | First platform owner, created by `npm run platform:seed` if the email doesn't exist yet. Password ≥ 12 chars; an existing account is never changed | (optional — read only by the seed) |
+| PLATFORM_OWNER_EMAIL / PLATFORM_OWNER_NAME / PLATFORM_OWNER_PASSWORD | First platform owner, created by `npm run platform:seed` if the email doesn't exist yet. Password ≥ 12 chars; an existing account is never changed. `npm run platform:create-owner` also reads `PLATFORM_OWNER_PASSWORD` when stdin isn't a terminal | (optional — read only by those scripts) |
+| PLATFORM_JWT_SECRET | Signs platform (product-owner) login tokens. At least 32 characters and different from `JWT_SECRET` (`openssl rand -hex 32`); changing it signs out every platform session | (required — server exits on startup without it) |
+| PLATFORM_JWT_EXPIRES_IN | Platform token lifetime | 8h |
 | PORT                | Server port                    | 5000                             |
 | JWT_SECRET          | JWT signing secret             | (required)                       |
 | JWT_EXPIRES_IN      | JWT token expiry               | 7d                               |
