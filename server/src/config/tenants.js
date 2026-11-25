@@ -1,57 +1,225 @@
 /**
- * Tenant registry.
- * Each tenant maps to its own MongoDB database.
- * All databases live on the same Atlas cluster (for now).
+ * Tenant (company) lookup.
  *
- * MIGRATION LATER: To move a tenant to its own cluster,
- * just change its `dbUri` to a different connection string.
+ * Companies live in the platform database, collection 'tenants'
+ * (platform/models/Tenant.js). This module reads them, turns each record into
+ * the tenantConfig shape the rest of the app uses, and caches the result in
+ * memory. It never writes to the platform database.
+ *
+ * tenantConfig:
+ *   { key, name, dbName, dbUri, status, enabledModules, roleTemplateKeys,
+ *     limits, allowSelfSignup, tenantId }
+ * `dbUri` is a non-enumerable property, so logging or JSON-serialising a
+ * tenantConfig (e.g. req.tenant) never prints a connection string.
+ *
+ * Never log a URI: it carries credentials.
  */
+const logger = require('../utils/logger');
+const { getPlatformModels } = require('../platform/models');
+const { TENANT_KEY_PATTERN } = require('../platform/models/Tenant');
 
 const ATLAS_BASE_URI = process.env.MONGODB_BASE_URI;
 // e.g. "mongodb+srv://user:pass@cluster0.xxxxx.mongodb.net"
 
-if (!ATLAS_BASE_URI && !(process.env.MONGODB_URI_CLIENTA && process.env.MONGODB_URI_CLIENTB && process.env.MONGODB_URI_CLIENTC)) {
-  console.error('[FATAL] MONGODB_BASE_URI is not set and not all tenant-specific MONGODB_URI_* env vars are provided. '
-    + 'Set MONGODB_BASE_URI or provide MONGODB_URI_CLIENTA, MONGODB_URI_CLIENTB, and MONGODB_URI_CLIENTC.');
-}
+const DEFAULT_CACHE_TTL_MS = 60000; // found records; override with TENANT_CACHE_TTL_MS
+const NOT_FOUND_TTL_MS = 10000;     // unknown keys, so a new company shows up quickly
+const STALE_RETRY_MS = 10000;       // after serving a stale record, wait this long before querying again
+const STALE_WARN_INTERVAL_MS = 60000;
+const MAX_NOT_FOUND_ENTRIES = 1000; // past this, expired "not found" entries are swept
 
+const isMongoUri = (uri) => uri.startsWith('mongodb://') || uri.startsWith('mongodb+srv://');
+
+/**
+ * URI for a database on the shared cluster. If `tenantEnvVar` is given and that
+ * env var is set, its value wins (legacy behaviour, used by
+ * platform/scripts/legacyTenants.js). Returns null when no valid URI can be built.
+ */
 const buildDbUri = (tenantEnvVar, dbName) => {
-  const uri = process.env[tenantEnvVar] || (ATLAS_BASE_URI ? `${ATLAS_BASE_URI}/${dbName}` : null);
-  if (uri && !uri.startsWith('mongodb://') && !uri.startsWith('mongodb+srv://')) {
+  const uri = (tenantEnvVar && process.env[tenantEnvVar]) || (ATLAS_BASE_URI ? `${ATLAS_BASE_URI}/${dbName}` : null);
+  if (uri && !isMongoUri(uri)) {
     console.error(`[CONFIG] Invalid MongoDB URI for ${dbName}: URI must start with "mongodb://" or "mongodb+srv://"`);
     return null;
   }
   return uri;
 };
 
-const tenants = {
-  'logi-force': {
-    name: 'LogiForce',
-    dbName: 'logiforce_main',
-    dbUri: buildDbUri('MONGODB_URI_MAIN', 'logiforce_main') || process.env.MONGODB_URI,
-  },
-  clienta: {
-    name: 'Client A Transport LLC',
-    dbName: 'logiforce_clienta',
-    dbUri: buildDbUri('MONGODB_URI_CLIENTA', 'logiforce_clienta'),
-  },
-  clientb: {
-    name: 'Client B Logistics',
-    dbName: 'logiforce_clientb',
-    dbUri: buildDbUri('MONGODB_URI_CLIENTB', 'logiforce_clientb'),
-  },
-  clientc: {
-    name: 'Client C Freight Co',
-    dbName: 'logiforce_clientc',
-    dbUri: buildDbUri('MONGODB_URI_CLIENTC', 'logiforce_clientc'),
-  },
+/** Replace anything that looks like a MongoDB connection string. For log lines. */
+const redactUris = (text) => String(text ?? '').replace(/mongodb(?:\+srv)?:\/\/\S+/gi, 'mongodb://<redacted>');
+
+const cacheTtlMs = () => {
+  const raw = process.env.TENANT_CACHE_TTL_MS;
+  if (raw === undefined || raw === '') return DEFAULT_CACHE_TTL_MS;
+  const ms = Number(raw);
+  return Number.isFinite(ms) && ms >= 0 ? ms : DEFAULT_CACHE_TTL_MS;
 };
 
-const getTenantBySubdomain = (subdomain) => {
-  const key = subdomain?.toLowerCase();
-  return tenants[key] || null;
+/** Lower-cased, trimmed key, or null if it can't be a tenant key. */
+const normaliseTenantKey = (subdomain) => {
+  const key = String(subdomain || '').trim().toLowerCase();
+  return TENANT_KEY_PATTERN.test(key) ? key : null;
 };
 
-const getAllTenantKeys = () => Object.keys(tenants);
+const resolveDbUri = (record) => {
+  if (record.dbUriEnv) {
+    const uri = (process.env[record.dbUriEnv] || '').trim();
+    // Never fall back to the shared cluster here: the company would see an empty database.
+    if (!uri) throw new Error(`Tenant ${record.key}: env ${record.dbUriEnv} is not set`);
+    if (!isMongoUri(uri)) {
+      throw new Error(`Tenant ${record.key}: env ${record.dbUriEnv} must start with "mongodb://" or "mongodb+srv://"`);
+    }
+    return uri;
+  }
+  const uri = buildDbUri(null, record.dbName);
+  if (!uri) throw new Error(`Tenant ${record.key}: no MongoDB URI (MONGODB_BASE_URI is not set or not valid)`);
+  return uri;
+};
 
-module.exports = { tenants, getTenantBySubdomain, getAllTenantKeys };
+/**
+ * Platform Tenant record (lean) → tenantConfig. Throws if the URI can't be built.
+ * The result is frozen: it is shared by every request that hits the cache.
+ */
+const mapTenantRecord = (record) => {
+  const config = {
+    key: record.key,
+    name: record.name,
+    dbName: record.dbName,
+    status: record.status,
+    enabledModules: Object.freeze([...(record.enabledModules || [])]),
+    roleTemplateKeys: Object.freeze([...(record.roleTemplateKeys || [])]),
+    limits: Object.freeze({ maxUsers: null, ...(record.limits || {}) }),
+    allowSelfSignup: record.allowSelfSignup === true,
+    tenantId: String(record._id),
+  };
+  Object.defineProperty(config, 'dbUri', { value: resolveDbUri(record), enumerable: false });
+  return Object.freeze(config);
+};
+
+// ── Cache ──
+// key → { loaded, value (tenantConfig | null), expiresAt, pending (Promise | null) }
+const cache = new Map();
+const lastStaleWarnAt = new Map();
+
+const sweepNotFoundEntries = () => {
+  const now = Date.now();
+  for (const [key, entry] of cache) {
+    if (entry.loaded && entry.value === null && !entry.pending && entry.expiresAt <= now) cache.delete(key);
+  }
+};
+
+const warnStale = (key, err) => {
+  const now = Date.now();
+  if (now - (lastStaleWarnAt.get(key) || 0) < STALE_WARN_INTERVAL_MS) return;
+  lastStaleWarnAt.set(key, now);
+  logger.warn(`[Tenants] Platform DB lookup for ${key} failed, serving the cached record: ${redactUris(err?.message)}`);
+};
+
+const findTenantRecord = async (key) => {
+  const { Tenant } = getPlatformModels(); // throws if the platform DB was never connected
+  // Fail fast while disconnected instead of waiting for Mongoose's command buffer to time out.
+  if (Tenant.db.readyState !== 1) throw new Error('Platform DB is not connected');
+  return Tenant.findOne({ key }).lean();
+};
+
+const dropEntry = (key, entry) => {
+  if (cache.get(key) === entry) cache.delete(key);
+};
+
+const loadTenant = async (key, entry) => {
+  let record;
+  try {
+    record = await findTenantRecord(key);
+  } catch (err) {
+    if (entry.loaded && entry.value) {
+      warnStale(key, err);
+      entry.expiresAt = Date.now() + STALE_RETRY_MS;
+      return entry.value;
+    }
+    dropEntry(key, entry);
+    throw err;
+  }
+
+  let value;
+  try {
+    value = record ? mapTenantRecord(record) : null;
+  } catch (err) {
+    dropEntry(key, entry);
+    throw err;
+  }
+
+  // Skip the write if invalidateTenantCache() ran while this query was in flight.
+  if (cache.get(key) === entry) {
+    entry.loaded = true;
+    entry.value = value;
+    entry.expiresAt = Date.now() + (value ? cacheTtlMs() : NOT_FOUND_TTL_MS);
+    if (!value && cache.size > MAX_NOT_FOUND_ENTRIES) sweepNotFoundEntries();
+  }
+  return value;
+};
+
+/**
+ * @param {string} subdomain  tenant key, e.g. from the x-tenant-id header
+ * @returns {Promise<object|null>} tenantConfig, or null if there is no such company.
+ *   Rejects if the platform DB can't be queried and nothing is cached for the key,
+ *   or if the company's database URI can't be built.
+ */
+const getTenantBySubdomain = async (subdomain) => {
+  const key = normaliseTenantKey(subdomain);
+  if (!key) return null;
+
+  let entry = cache.get(key);
+  if (entry && entry.loaded && entry.expiresAt > Date.now()) return entry.value;
+  if (entry && entry.pending) return entry.pending; // share the in-flight query
+
+  if (!entry) {
+    entry = { loaded: false, value: null, expiresAt: 0, pending: null };
+    cache.set(key, entry);
+  }
+  const current = entry;
+  current.pending = loadTenant(key, current).finally(() => {
+    current.pending = null;
+  });
+  return current.pending;
+};
+
+/**
+ * Forget one cached company (by key), or every company when no key is given.
+ * The next lookup queries the platform DB again.
+ */
+const invalidateTenantCache = (key) => {
+  if (key === undefined || key === null) {
+    cache.clear();
+    lastStaleWarnAt.clear();
+    return;
+  }
+  const normalised = String(key).trim().toLowerCase();
+  cache.delete(normalised);
+  lastStaleWarnAt.delete(normalised);
+};
+
+/**
+ * Every company with status 'active', mapped to tenantConfig. Not cached.
+ * A record whose URI can't be built is logged and left out.
+ */
+const listActiveTenants = async () => {
+  const { Tenant } = getPlatformModels();
+  const records = await Tenant.find({ status: 'active' }).sort({ key: 1 }).lean();
+  const tenants = [];
+  for (const record of records) {
+    try {
+      tenants.push(mapTenantRecord(record));
+    } catch (err) {
+      logger.error(`[Tenants] Skipping tenant ${record.key}: ${redactUris(err.message)}`);
+    }
+  }
+  return tenants;
+};
+
+module.exports = {
+  getTenantBySubdomain,
+  invalidateTenantCache,
+  listActiveTenants,
+  buildDbUri,
+  mapTenantRecord,
+  normaliseTenantKey,
+  redactUris,
+};

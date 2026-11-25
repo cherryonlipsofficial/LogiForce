@@ -215,9 +215,11 @@ const signIn = async (server, who, ip) => {
 
 // ── Tenant databases ──
 
+// The companies that used to be hardcoded (config/tenants.js now reads them
+// from the platform DB); only used here to find their databases.
 const configuredTenants = () => {
-  const { tenants } = require('../../config/tenants');
-  return Object.entries(tenants)
+  const { tenants: legacyTenants } = require('./legacyTenants');
+  return Object.entries(legacyTenants)
     .map(([key, cfg]) => ({ key, cfg, live: resolveLegacyTenant(key, cfg) }))
     .filter((t) => t.live.dbName);
 };

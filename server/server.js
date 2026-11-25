@@ -11,10 +11,14 @@ const connectDB = require('./src/config/db');
 const errorHandler = require('./src/middleware/errorHandler');
 const logger = require('./src/utils/logger');
 const { resolveTenant } = require('./src/middleware/tenant');
-const { tenants } = require('./src/config/tenants');
-const { getConnectionForTenant, closeAllConnections } = require('./src/config/connectionManager');
-const { getModelForConnection } = require('./src/config/modelRegistry');
+const { closeAllConnections } = require('./src/config/connectionManager');
 const { connectPlatformDb, closePlatformDb } = require('./src/platform/db');
+const {
+  runStartupLedgerCleanup,
+  runExpiryCheck,
+  runLedgerCleanup,
+  runSalaryReminder,
+} = require('./src/platform/tenantJobs');
 const { platformAuthEnvProblem } = require('./src/platform/config');
 
 // Platform (product-owner) login signs its tokens with PLATFORM_JWT_SECRET.
@@ -164,66 +168,22 @@ const start = async () => {
 function onListening() {
   logger.info(`Server running on port ${PORT}`);
 
-  // Clean up orphaned ledger entries on startup (all tenants)
-  const { cleanupOrphanedLedgerEntries } = require('./src/utils/ledgerCleanup');
+  // Per-company jobs (src/platform/tenantJobs.js). They run for active
+  // companies only, read from the platform DB, which is connected by now.
 
-  (async () => {
-    for (const [key, tenantConfig] of Object.entries(tenants)) {
-      try {
-        const conn = await getConnectionForTenant(tenantConfig);
-        await cleanupOrphanedLedgerEntries(conn);
-        logger.info(`[Startup] Ledger cleanup done for ${key}`);
-      } catch (err) {
-        logger.error(`[Startup] Ledger cleanup failed for ${key}:`, { error: err.message, stack: err.stack });
-      }
-    }
-  })();
+  // Clean up orphaned ledger entries on startup
+  runStartupLedgerCleanup();
 
-  // Nightly guarantee passport expiry check at 01:00 AM
   const cron = require('node-cron');
 
-  cron.schedule('0 1 * * *', async () => {
-    logger.info('Running guarantee passport expiry check...');
-    for (const [key, tenantConfig] of Object.entries(tenants)) {
-      try {
-        const conn = await getConnectionForTenant(tenantConfig);
-        // TODO: refactor runExpiryCheck to accept connection
-        logger.info(`[Cron] Expiry check done for ${key}`);
-      } catch (err) {
-        logger.error(`[Cron] Expiry check failed for ${key}:`, { error: err.message });
-      }
-    }
-  });
+  // Nightly guarantee passport expiry check at 01:00 AM
+  cron.schedule('0 1 * * *', runExpiryCheck);
 
   // Daily ledger cleanup at 02:00 AM — remove orphaned entries from manual DB deletions
-  cron.schedule('0 2 * * *', async () => {
-    logger.info('Running daily ledger cleanup...');
-    for (const [key, tenantConfig] of Object.entries(tenants)) {
-      try {
-        const conn = await getConnectionForTenant(tenantConfig);
-        const result = await cleanupOrphanedLedgerEntries(conn);
-        logger.info(`[Cron] Ledger cleanup for ${key}: ${result.hardDeleted} removed, ${result.softDeleted} soft-deleted`);
-      } catch (err) {
-        logger.error(`[Cron] Ledger cleanup failed for ${key}:`, { error: err.message, stack: err.stack });
-      }
-    }
-  });
+  cron.schedule('0 2 * * *', runLedgerCleanup);
 
   // Daily salary approval reminder at 9:00 AM
-  const { notifyAccountsBeforeSalaryDate } = require('./src/modules/payroll/salaryReminder.service');
-  cron.schedule('0 9 * * *', async () => {
-    logger.info('Running salary approval reminder check...');
-    for (const [key, tenantConfig] of Object.entries(tenants)) {
-      try {
-        const conn = await getConnectionForTenant(tenantConfig);
-        // Notify Accounts users 3 days before each project's salary release date
-        const result = await notifyAccountsBeforeSalaryDate({ dbConnection: conn }, { daysBefore: 3 });
-        logger.info(`[Cron] Salary reminder check done for ${key}: ${result.notificationsSent} notification(s) sent`);
-      } catch (err) {
-        logger.error(`[Cron] Salary reminder check failed for ${key}:`, { error: err.message, stack: err.stack });
-      }
-    }
-  });
+  cron.schedule('0 9 * * *', runSalaryReminder);
 }
 
 start();

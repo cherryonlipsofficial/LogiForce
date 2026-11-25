@@ -9,6 +9,7 @@
     "seed": "node src/scripts/seed.js",
     "platform:seed": "node src/platform/scripts/seedPlatform.js",
     "platform:verify": "node src/platform/scripts/verifyPlatform.js",
+    "platform:check-tenants": "node src/platform/scripts/checkTenants.js",
     "migrate:projects": "node src/scripts/migrateToProjects.js",
     "migrate:roles": "node src/scripts/migrateRoleNames.js",
     "migrate:permissions": "node src/scripts/migratePermissions.js",

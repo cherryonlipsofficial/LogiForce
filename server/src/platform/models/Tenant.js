@@ -19,6 +19,10 @@ const RESERVED_DB_NAMES = Object.freeze(['admin', 'local', 'config']);
 
 const TENANT_STATUSES = Object.freeze(['provisioning', 'active', 'suspended']);
 
+// A tenant key (the subdomain). Also used by config/tenants.js to reject
+// impossible keys before querying.
+const TENANT_KEY_PATTERN = /^[a-z][a-z0-9-]{2,30}$/;
+
 const dedupe = (values) => [...new Set(values)];
 
 const isReservedDbName = (name) =>
@@ -36,7 +40,7 @@ const tenantSchema = new Schema(
       lowercase: true,
       trim: true,
       match: [
-        /^[a-z][a-z0-9-]{2,30}$/,
+        TENANT_KEY_PATTERN,
         'Tenant key must be 3–31 characters: a lowercase letter, then lowercase letters, digits or hyphens',
       ],
       validate: {
@@ -124,4 +128,5 @@ module.exports = {
   RESERVED_TENANT_KEYS,
   RESERVED_DB_NAMES,
   TENANT_STATUSES,
+  TENANT_KEY_PATTERN,
 };
