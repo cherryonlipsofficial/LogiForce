@@ -24,7 +24,7 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.e
 const { connectPlatformDb, closePlatformDb, getPlatformDbName } = require('../db');
 const { getPlatformModels, PLATFORM_MODELS } = require('../models');
 const { MODULES } = require('../../config/permissions');
-const { ROLE_TEMPLATES } = require('../../config/defaultRoles');
+const { ROLE_TEMPLATES, RETIRED_TEMPLATE_KEYS } = require('../../config/defaultRoles');
 const { createPlatformUser, SYSTEM_ACTOR } = require('../services/platformUser.service');
 
 // Env vars that can supply each legacy tenant's URI (see legacyTenants.js).
@@ -186,7 +186,9 @@ const seedLegacyTenants = async ({ Tenant, RoleTemplate, PlatformAuditLog }, cou
     return;
   }
 
-  const roleTemplateKeys = (await RoleTemplate.distinct('key')).sort();
+  const roleTemplateKeys = (await RoleTemplate.distinct('key'))
+    .filter((key) => !RETIRED_TEMPLATE_KEYS.includes(key))
+    .sort();
 
   for (const [rawKey, tenantConfig] of entries) {
     const key = rawKey.toLowerCase();

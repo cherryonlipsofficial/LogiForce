@@ -15,6 +15,7 @@
     "migrate:projects": "node src/scripts/migrateToProjects.js",
     "migrate:roles": "node src/scripts/migrateRoleNames.js",
     "migrate:permissions": "node src/scripts/migratePermissions.js",
+    "migrate:platform": "node src/scripts/migrateToPlatform.js",
     "platform:create-owner": "node src/platform/scripts/createPlatformOwner.js",
     "platform:verify-auth": "node src/platform/scripts/verifyPlatformAuth.js"
   },

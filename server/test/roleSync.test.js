@@ -16,7 +16,7 @@ const mongoose = require('mongoose');
 
 const { PERMISSIONS, CORE_MODULES, isPlatformPermission, tenantCeiling } = require('../src/config/permissions');
 const {
-  defaultRoles, ROLE_TEMPLATES, TENANT_ADMIN_CORE_PERMISSIONS, TENANT_ADMIN_BUSINESS_PERMISSIONS,
+  defaultRoles, ROLE_TEMPLATES, RETIRED_TEMPLATE_KEYS, TENANT_ADMIN_CORE_PERMISSIONS, TENANT_ADMIN_BUSINESS_PERMISSIONS,
 } = require('../src/config/defaultRoles');
 const roleTemplateSchema = require('../src/platform/models/RoleTemplate').schema;
 const tenantRoleSchema = require('../src/modules/shared/Role').schema;
@@ -64,22 +64,22 @@ describe('role templates (config/defaultRoles.js)', () => {
     }
   });
 
-  test('no template holds a platform permission; only admin had roles.manage', () => {
+  test('no template and no default role holds a platform permission', () => {
     for (const t of ROLE_TEMPLATES) {
       assert.deepEqual(t.permissions.filter(isPlatformPermission), [], `${t.key} holds a platform permission`);
     }
-    assert.deepEqual(defaultRoles.filter((r) => r.permissions.includes('roles.manage')).map((r) => r.name), ['admin']);
-    assert.deepEqual(
-      templateByKey('admin').permissions,
-      ALL_KEYS.filter((k) => !isPlatformPermission(k)),
-    );
+    for (const r of defaultRoles) {
+      assert.deepEqual(r.permissions.filter(isPlatformPermission), [], `${r.name} holds a platform permission`);
+    }
   });
 
-  test('defaultRoles (tenant seed input) is unchanged: same roles, admin still gets every key', () => {
-    assert.deepEqual(defaultRoles.map((r) => r.name),
-      ['admin', 'accountant', 'ops', 'compliance', 'accounts', 'sales', 'viewer']);
-    assert.deepEqual(defaultRoles[0].permissions, ALL_KEYS);
+  test('no all-permissions admin: not in defaultRoles, not a template, retired', () => {
+    assert.deepEqual(defaultRoles.map((r) => r.name), ['accountant', 'ops', 'compliance', 'accounts', 'sales', 'viewer']);
+    assert.ok(defaultRoles.every((r) => r.isSystemRole === false));
+    assert.equal(templateByKey('admin'), undefined);
+    assert.deepEqual([...RETIRED_TEMPLATE_KEYS], ['admin']);
     assert.deepEqual(ROLE_TEMPLATES.map((t) => t.key), [...defaultRoles.map((r) => r.name), 'tenant_admin']);
+    assert.ok(ROLE_TEMPLATES.every((t) => t.key === 'tenant_admin' ? t.assignableByTenant === false : t.assignableByTenant));
   });
 });
 
@@ -150,7 +150,8 @@ const makeCompanyDb = (roles = [], users = []) => {
     init: async () => {},
     find: (filter = {}) => leanQuery(() => db.roles.filter((r) => matches(r, filter))),
     updateOne: async (filter, update, { upsert } = {}) => {
-      if (db.failOnUpdateOf && filter.name === db.failOnUpdateOf) throw new Error('simulated write failure');
+      const targetName = filter.name ?? db.roles.find((r) => filter._id && idEq(r._id, filter._id))?.name;
+      if (db.failOnUpdateOf && targetName === db.failOnUpdateOf) throw new Error('simulated write failure');
       db.writes += 1;
       const doc = db.roles.find((r) => matches(r, filter));
       if (doc) {
@@ -214,9 +215,14 @@ const makeTenant = (fields) => ({
   dbName: `logiforce_${fields.key.replace(/-/g, '_')}`,
 });
 
+// The all-permissions admin the old seed and ensureAdminRole wrote.
+const OLD_ADMIN = {
+  name: 'admin', displayName: 'Administrator', description: 'Full access to all modules', isSystemRole: true, permissions: ALL_KEYS,
+};
+
 // Roles as the old tenant seed left them: no managedBy / templateKey / ... stored.
 const legacyRole = (name, extra = {}) => {
-  const def = defaultRoles.find((r) => r.name === name);
+  const def = name === 'admin' ? OLD_ADMIN : defaultRoles.find((r) => r.name === name);
   return {
     _id: new mongoose.Types.ObjectId(), name, displayName: def.displayName, description: def.description,
     permissions: [...def.permissions], isSystemRole: def.isSystemRole, isActive: true, ...extra,
@@ -269,9 +275,8 @@ describe('syncTenantRoles', () => {
     const summary = await syncTenantRoles(tenant, { dryRun: true, actor: ACTOR });
     assert.equal(summary.dryRun, true);
     assert.deepEqual([...summary.created].sort(), ['accountant', 'accounts', 'compliance', 'tenant_admin', 'viewer']);
-    assert.deepEqual([...summary.updated].sort(), ['admin', 'ops', 'sales']);
-    assert.equal(summary.changes.admin.adopted, true);
-    assert.ok(summary.changes.admin.permissionsRemoved.includes('roles.manage'));
+    assert.deepEqual([...summary.updated].sort(), ['ops', 'sales']);
+    assert.equal(summary.changes.ops.adopted, true);
     assert.deepEqual(db.roles, before);
     assert.equal(db.writes, 0);
     assert.equal(platform.audit.length, 0);
@@ -312,13 +317,48 @@ describe('syncTenantRoles', () => {
     assert.deepEqual(audit.after, clone(summary));
   });
 
-  test('existing admin role is taken over but keeps isSystemRole true (admins keep the bypass)', async () => {
+  test('an old admin role nobody linked is left alone (no admin template any more)', async () => {
+    const before = clone(roleNamed(db, 'admin'));
     await syncTenantRoles(tenant, { actor: ACTOR });
-    const admin = roleNamed(db, 'admin');
-    assert.equal(admin.isSystemRole, true);
-    assert.equal(admin.managedBy, 'platform');
-    assert.equal(admin.isActive, true);
+    assert.deepEqual(roleNamed(db, 'admin'), before);
     for (const name of ['ops', 'sales']) assert.equal(roleNamed(db, name).isSystemRole, false);
+  });
+
+  test('the admin role the migration linked to tenant_admin is updated in place: same _id and name, no second role', async () => {
+    const admin = roleNamed(db, 'admin');
+    Object.assign(admin, { templateKey: 'tenant_admin', managedBy: 'platform', isSystemRole: false });
+    const summary = await syncTenantRoles(tenant, { actor: ACTOR });
+    assert.ok(summary.updated.includes('admin'));
+    assert.ok(!summary.created.includes('tenant_admin'));
+    assert.equal(db.roles.filter((r) => r.templateKey === 'tenant_admin').length, 1);
+    assert.equal(roleNamed(db, 'tenant_admin'), undefined);
+    const after = roleNamed(db, 'admin');
+    assert.ok(idEq(after._id, admin._id));
+    assert.equal(after.displayName, 'Company Admin');
+    assert.deepEqual(new Set(after.permissions), new Set([...TENANT_ADMIN_CORE_PERMISSIONS, ...keysIn('Drivers')]));
+    assert.ok(!after.permissions.includes('roles.manage'));
+    assert.equal(after.isSystemRole, false);
+    assert.ok(db.users.some((u) => idEq(u.roleId, admin._id)), 'admin user lost its role');
+    const again = await syncTenantRoles(tenant, { actor: ACTOR });
+    assert.ok(again.unchanged.includes('admin'));
+  });
+
+  test('a role linked by templateKey wins over a role with the template\'s name', async () => {
+    db.roles.push({ _id: new mongoose.Types.ObjectId(), name: 'Field Ops', displayName: 'Field Ops', permissions: [], isSystemRole: false, isActive: true, templateKey: 'ops', managedBy: 'platform' });
+    const opsBefore = clone(roleNamed(db, 'ops'));
+    const summary = await syncTenantRoles(tenant, { actor: ACTOR });
+    assert.ok(summary.updated.includes('Field Ops'));
+    assert.deepEqual(roleNamed(db, 'ops'), opsBefore, 'the unlinked role named ops was changed');
+  });
+
+  test('two roles linked to one template, or a same-name role linked elsewhere, are conflicts', async () => {
+    db.roles.push({ _id: new mongoose.Types.ObjectId(), name: 'viewer_a', displayName: 'A', permissions: [], isSystemRole: false, isActive: true, templateKey: 'viewer' });
+    db.roles.push({ _id: new mongoose.Types.ObjectId(), name: 'viewer_b', displayName: 'B', permissions: [], isSystemRole: false, isActive: true, templateKey: 'viewer' });
+    roleNamed(db, 'sales').templateKey = 'something_else';
+    const summary = await syncTenantRoles(tenant, { dryRun: true });
+    assert.deepEqual(summary.conflicts.filter((c) => c.templateKey === 'viewer').map((c) => c.roleName).sort(), ['viewer_a', 'viewer_b']);
+    assert.match(summary.conflicts.find((c) => c.templateKey === 'sales').reason, /linked to template "something_else"/);
+    assert.ok(!summary.created.includes('viewer') && !summary.updated.includes('sales'));
   });
 
   test('second apply: everything unchanged, nothing written', async () => {

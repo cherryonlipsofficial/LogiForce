@@ -29,8 +29,14 @@ const hashEmailOtp = (code) =>
  * Build a tenant-aware reset URL. Prefers the request Origin/Referer so the
  * link sends the user back to the same subdomain they were on. Falls back to
  * CLIENT_URL env var, then to a sensible default.
+ *
+ * `baseUrl` (optional) replaces all of that, e.g. 'https://acme.logiforce.app'
+ * when the platform console sends the link: its request comes from the console,
+ * not from the company's subdomain. Without it the behaviour is unchanged.
  */
-const buildResetPasswordUrl = (req, token) => {
+const buildResetPasswordUrl = (req, token, baseUrl) => {
+  if (baseUrl) return `${String(baseUrl).replace(/\/$/, '')}/reset-password/${token}`;
+
   const fromHeader = req.headers.origin || (() => {
     const ref = req.headers.referer;
     if (!ref) return null;

@@ -1,27 +1,23 @@
 /**
  * Role definitions.
  *
- *   defaultRoles   — the roles the tenant role seed (src/scripts/seedRoles.js)
- *                    writes into a company database. Unchanged by Phase 2.
+ *   defaultRoles   — the business roles the tenant role seed
+ *                    (src/scripts/seedRoles.js) writes into a company database.
+ *                    There is no all-permissions admin any more: a company's
+ *                    admin is the tenant_admin role (TENANT_ADMIN_TEMPLATE).
  *   ROLE_TEMPLATES — what the platform seed (src/platform/scripts/seedPlatform.js)
  *                    stores as RoleTemplates and roleSync copies into each
  *                    company: every default role without platform-scope
  *                    permissions, plus tenant_admin.
+ *   RETIRED_TEMPLATE_KEYS — templates that used to exist and must not come back
+ *                    ('admin': the old all-permissions role, replaced by
+ *                    tenant_admin). scripts/migrateToPlatform.js removes them.
  *
  * Pure data: requiring this file must never load a Mongoose model.
  */
 const { PERMISSIONS, CORE_MODULES, isPlatformPermission } = require('./permissions');
 
-const allKeys = Object.keys(PERMISSIONS);
-
 const defaultRoles = [
-  {
-    name: 'admin',
-    displayName: 'Administrator',
-    description: 'Full access to all modules',
-    isSystemRole: true,
-    permissions: allKeys, // admin gets everything
-  },
   {
     name: 'accountant',
     displayName: 'Accountant',
@@ -238,9 +234,10 @@ const templateFromRole = (role) => ({
   displayName: role.displayName,
   description: role.description,
   permissions: [...new Set(role.permissions)].filter((key) => !isPlatformPermission(key)),
-  // The company admin role (the system role) is not handed out by tenants.
-  assignableByTenant: role.isSystemRole !== true,
+  assignableByTenant: true,
 });
+
+const RETIRED_TEMPLATE_KEYS = Object.freeze(['admin']);
 
 const ROLE_TEMPLATES = Object.freeze([
   ...defaultRoles.map(templateFromRole),
@@ -250,6 +247,7 @@ const ROLE_TEMPLATES = Object.freeze([
 module.exports = {
   defaultRoles,
   ROLE_TEMPLATES,
+  RETIRED_TEMPLATE_KEYS,
   TENANT_ADMIN_TEMPLATE,
   TENANT_ADMIN_CORE_PERMISSIONS,
   TENANT_ADMIN_BUSINESS_PERMISSIONS,

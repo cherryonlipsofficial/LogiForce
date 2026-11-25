@@ -17,11 +17,31 @@ const RESERVED_TENANT_KEYS = Object.freeze([
 // MongoDB's own system databases.
 const RESERVED_DB_NAMES = Object.freeze(['admin', 'local', 'config']);
 
-const TENANT_STATUSES = Object.freeze(['provisioning', 'active', 'suspended']);
+// 'failed': provisioning stopped part-way (see provisioningError). The same
+// POST /api/platform/tenants call resumes it.
+const TENANT_STATUSES = Object.freeze(['provisioning', 'active', 'suspended', 'failed']);
 
-// A tenant key (the subdomain). Also used by config/tenants.js to reject
-// impossible keys before querying.
-const TENANT_KEY_PATTERN = /^[a-z][a-z0-9-]{2,30}$/;
+// A tenant key (the subdomain): 3–31 lowercase letters, digits or hyphens, not
+// starting or ending with a hyphen. One pattern for everything: the schema, the
+// provisioning endpoint and the per-request lookup in config/tenants.js. 31 is
+// the most that keeps the derived database name ('logiforce_' + key) within
+// MongoDB's limit.
+const TENANT_KEY_MIN_LENGTH = 3;
+const TENANT_KEY_MAX_LENGTH = 31;
+const TENANT_KEY_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,29})[a-z0-9]$/;
+const TENANT_KEY_RULE = `${TENANT_KEY_MIN_LENGTH}–${TENANT_KEY_MAX_LENGTH} characters: lowercase letters, digits `
+  + 'or hyphens, not starting or ending with a hyphen';
+
+/**
+ * Why `key` can't be a tenant key, or null if it can. Doesn't check whether it
+ * is already taken. Expects the key already trimmed and lower-cased.
+ */
+const tenantKeyProblem = (key) => {
+  if (typeof key !== 'string' || key.length === 0) return 'Tenant key is required';
+  if (!TENANT_KEY_PATTERN.test(key)) return `Tenant key must be ${TENANT_KEY_RULE}`;
+  if (RESERVED_TENANT_KEYS.includes(key)) return `"${key}" is a reserved tenant key`;
+  return null;
+};
 
 const dedupe = (values) => [...new Set(values)];
 
@@ -39,10 +59,7 @@ const tenantSchema = new Schema(
       unique: true,
       lowercase: true,
       trim: true,
-      match: [
-        TENANT_KEY_PATTERN,
-        'Tenant key must be 3–31 characters: a lowercase letter, then lowercase letters, digits or hyphens',
-      ],
+      match: [TENANT_KEY_PATTERN, `Tenant key must be ${TENANT_KEY_RULE}`],
       validate: {
         validator: (v) => !RESERVED_TENANT_KEYS.includes(v),
         message: (props) => `"${props.value}" is a reserved tenant key`,
@@ -107,6 +124,25 @@ const tenantSchema = new Schema(
       ref: 'PlatformUser',
       default: null,
     },
+    // The company admin invited at provisioning; POST /tenants/:key/resend-invite
+    // emails this address by default. null for companies that predate provisioning.
+    adminEmail: {
+      type: String,
+      lowercase: true,
+      trim: true,
+      default: null,
+    },
+    // Progress of POST /api/platform/tenants (services/tenantProvisioning.service.js).
+    provisioning: {
+      startedAt: { type: Date, default: null },   // last attempt; also a lock against parallel retries
+      dbCheckedAt: { type: Date, default: null }, // the company database was found empty
+      completedAt: { type: Date, default: null },
+    },
+    // Set when status is 'failed'; cleared when a retry starts. Never holds a URI.
+    provisioningError: {
+      type: new Schema({ step: String, message: String, at: Date }, { _id: false }),
+      default: null,
+    },
   },
   { timestamps: true }
 );
@@ -129,4 +165,7 @@ module.exports = {
   RESERVED_DB_NAMES,
   TENANT_STATUSES,
   TENANT_KEY_PATTERN,
+  TENANT_KEY_MAX_LENGTH,
+  TENANT_KEY_RULE,
+  tenantKeyProblem,
 };

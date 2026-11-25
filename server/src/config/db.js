@@ -1,28 +1,6 @@
 const mongoose = require('mongoose');
 const logger = require('../utils/logger');
 
-const ensureAdminRole = async () => {
-  const Role = require('../modules/shared/Role');
-  const { PERMISSIONS } = require('./permissions');
-  const allKeys = Object.keys(PERMISSIONS);
-
-  await Role.findOneAndUpdate(
-    { isSystemRole: true },
-    {
-      $set: {
-        displayName: 'Administrator',
-        permissions: allKeys,
-      },
-      $setOnInsert: {
-        name: 'admin',
-        isSystemRole: true,
-        description: 'Full access to all modules',
-      },
-    },
-    { upsert: true, new: true }
-  );
-};
-
 const migrateAttendanceBatchIndexes = async () => {
   const db = mongoose.connection.db;
   const collection = db.collection('attendancebatches');
@@ -63,33 +41,6 @@ const migrateAttendanceBatchIndexes = async () => {
   await AttendanceBatch.syncIndexes();
 };
 
-const ensureRolePermissions = async () => {
-  const Role = require('../modules/shared/Role');
-
-  // Map of role names to permissions they must have for salary approval flow
-  const REQUIRED_PERMS = {
-    ops:              ['salary.approve_ops'],
-    operations:       ['salary.approve_ops'],
-    compliance:       ['salary.approve_compliance'],
-    accounts:         ['salary.approve_accounts'],
-    junior_accountant:['salary.approve_accounts'],
-    accountant:       ['salary.approve_ops', 'salary.approve_compliance', 'salary.approve_accounts'],
-  };
-
-  for (const [roleName, expectedPerms] of Object.entries(REQUIRED_PERMS)) {
-    const role = await Role.findOne({ name: roleName, isSystemRole: { $ne: true } });
-    if (!role) continue;
-
-    const current = new Set(role.permissions);
-    const missing = expectedPerms.filter(p => !current.has(p));
-    if (missing.length > 0) {
-      role.permissions = [...new Set([...role.permissions, ...missing])];
-      await role.save();
-      logger.info(`Role '${role.name}': added missing permissions ${missing.join(', ')}`);
-    }
-  }
-};
-
 const connectDB = async () => {
   try {
     // Atlas URIs (mongodb+srv://) always speak TLS. Plain mongodb:// URIs —
@@ -115,8 +66,6 @@ const connectDB = async () => {
       logger.info('MongoDB reconnected');
     });
 
-    await ensureAdminRole();
-    await ensureRolePermissions();
     await migrateAttendanceBatchIndexes();
   } catch (error) {
     logger.error(`MongoDB connection error: ${error.message}`);

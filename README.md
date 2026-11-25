@@ -111,6 +111,12 @@ Routes for LogiForce staff, not company users. They live under `/api/platform`, 
 | POST   | /api/platform/auth/verify-otp    | `challengeToken` + `code` → platform token               | Public (rate limited) |
 | POST   | /api/platform/auth/resend-otp    | New code for an open challenge (60 s apart, max 3)       | Public (rate limited) |
 | GET    | /api/platform/auth/me            | Current platform user                                    | Platform token |
+| GET    | /api/platform/auth/set-password/:token | Check a set-password link (invited platform user)  | Public (rate limited) |
+| POST   | /api/platform/auth/set-password  | `token` + `password` (12+ chars) → password set; the link works once | Public (rate limited) |
+| POST   | /api/platform/tenants            | Provision a company: `{ key, name, adminName, adminEmail, enabledModules, roleTemplateKeys }`. Creates the record, its database indexes, roles (always `tenant_admin`), blank company settings and the admin user, and emails the admin a set-password link to `https://<key>.logiforce.app`. On failure the company is `failed` with `provisioningError`; send the same request again to resume | Platform owner |
+| POST   | /api/platform/tenants/:key/resend-invite | New set-password link for the company admin (`{ email }` optional; defaults to the admin from provisioning) | Platform owner |
+
+Tenant keys are the subdomain: 3–31 lowercase letters, digits or hyphens, not starting or ending with a hyphen, and not one of `RESERVED_TENANT_KEYS` (`server/src/platform/models/Tenant.js`). Each new company needs a DNS record for `<key>.logiforce.app` (a wildcard `*.logiforce.app` covers them all).
 
 Create the first platform owner, or reset a platform user's password (the password is asked for without echo; when stdin isn't a terminal it is read from `PLATFORM_OWNER_PASSWORD`). A reset signs out every existing session of that user.
 
@@ -118,6 +124,15 @@ Create the first platform owner, or reset a platform user's password (the passwo
 cd server
 npm run platform:create-owner -- --email you@example.com --name "Your Name"
 npm run platform:create-owner -- --email you@example.com --reset-password
+```
+
+Move the existing companies onto the platform (dry run by default; prints every change and an unmatched-roles report, writes nothing). See the header of `server/src/scripts/migrateToPlatform.js` for exactly what it does:
+
+```bash
+cd server
+npm run migrate:platform                                  # dry run
+npm run migrate:platform -- --csv unmatched-roles.csv     # dry run + report as CSV
+npm run migrate:platform -- --apply                       # make the changes
 ```
 
 ### Drivers
@@ -237,6 +252,8 @@ Seeds the database at `MONGODB_URI` (the `logi-force` tenant's database unless `
 | PLATFORM_MONGODB_URI | Connection string for the platform (product-owner) database: tenant registry, role templates, platform users, platform audit log. May be the same cluster as the tenants | (required — server exits on startup without it) |
 | PLATFORM_DB_NAME    | Platform database name (always passed explicitly, never taken from the URI path) | logiforce_platform |
 | PLATFORM_OWNER_EMAIL / PLATFORM_OWNER_NAME / PLATFORM_OWNER_PASSWORD | First platform owner, created by `npm run platform:seed` if the email doesn't exist yet. Password ≥ 12 chars; an existing account is never changed. `npm run platform:create-owner` also reads `PLATFORM_OWNER_PASSWORD` when stdin isn't a terminal | (optional — read only by those scripts) |
+| PLATFORM_ADMIN_EMAIL / PLATFORM_ADMIN_NAME | Your platform account, created by `npm run migrate:platform` without a password; you get an emailed set-password link | (optional — read only by that script) |
+| PLATFORM_CONSOLE_URL | Base URL of the platform console; set-password links go to `<PLATFORM_CONSOLE_URL>/set-password/<token>` | (required when a platform set-password link is sent) |
 | PLATFORM_JWT_SECRET | Signs platform (product-owner) login tokens. At least 32 characters and different from `JWT_SECRET` (`openssl rand -hex 32`); changing it signs out every platform session | (required — server exits on startup without it) |
 | PLATFORM_JWT_EXPIRES_IN | Platform token lifetime | 8h |
 | PORT                | Server port                    | 5000                             |

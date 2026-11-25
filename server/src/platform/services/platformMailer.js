@@ -71,8 +71,63 @@ const sendPlatformLoginCode = async ({ to, name, code, expiresAt, expiresMinutes
   return sendMail({ to, ...message });
 };
 
+const PLATFORM_SET_PASSWORD_SUBJECT = 'Set your LogiForce platform password';
+
+const buildPlatformSetPasswordEmail = ({ name, url, expiresAt }) => {
+  const expiresText = expiresAt.toUTCString();
+  const text = [
+    `Hi ${name || 'there'},`,
+    '',
+    'A LogiForce platform console account was created for you. Open the link below to choose your password.',
+    '',
+    url,
+    '',
+    `The link works once and expires at ${expiresText}.`,
+    '',
+    'If you were not expecting this, ignore this email and tell the other platform owners.',
+  ].join('\n');
+
+  const safeUrl = escapeHtml(url);
+  const bodyHtml = `
+    <p style="font-size:14px;line-height:1.6;color:#c8c8cc;margin:0 0 16px;">Hi ${escapeHtml(name || 'there')},</p>
+    <p style="font-size:14px;line-height:1.6;color:#c8c8cc;margin:0 0 24px;">A LogiForce platform console account was created for you. Click the button below to choose your password.</p>
+    <p style="margin:0 0 24px;">
+      <a href="${safeUrl}" style="display:inline-block;padding:11px 20px;background:linear-gradient(135deg,#4f8ef7,#7c5ff0);color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;">
+        Set password
+      </a>
+    </p>
+    <p style="font-size:12px;line-height:1.6;color:#888;margin:0 0 8px;">Or paste this URL into your browser:</p>
+    <p style="font-size:12px;line-height:1.6;color:#888;word-break:break-all;margin:0 0 24px;">${safeUrl}</p>
+    <p style="font-size:12px;line-height:1.6;color:#888;margin:0 0 8px;">The link works once and expires at ${escapeHtml(expiresText)}.</p>
+    <hr style="border:none;border-top:1px solid #2a2d36;margin:24px 0;" />
+    <p style="font-size:12px;line-height:1.6;color:#888;margin:0;">
+      If you were not expecting this, ignore this email and tell the other platform owners.
+    </p>`;
+
+  return {
+    subject: PLATFORM_SET_PASSWORD_SUBJECT,
+    text,
+    html: renderShell({ tenant: 'LogiForce Platform', heading: 'Set your password', bodyHtml }),
+  };
+};
+
+/**
+ * Email a platform set-password link. Throws if it can't be sent. Like the
+ * sign-in code, the link is a secret: refused in production with EMAIL_DEV_LOG.
+ */
+const sendPlatformSetPasswordEmail = async ({ to, name, url, expiresAt }) => {
+  if (isDevLogMode() && process.env.NODE_ENV === 'production') {
+    throw new Error('EMAIL_DEV_LOG=true would print the platform set-password link to the production logs. '
+      + 'Turn EMAIL_DEV_LOG off and configure RESEND_API_KEY.');
+  }
+  return sendMail({ to, ...buildPlatformSetPasswordEmail({ name, url, expiresAt }) });
+};
+
 module.exports = {
   PLATFORM_LOGIN_SUBJECT,
+  PLATFORM_SET_PASSWORD_SUBJECT,
   buildPlatformLoginEmail,
+  buildPlatformSetPasswordEmail,
   sendPlatformLoginCode,
+  sendPlatformSetPasswordEmail,
 };
