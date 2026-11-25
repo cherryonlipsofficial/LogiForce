@@ -489,6 +489,11 @@ router.post('/register-with-otp', otpLimiter, async (req, res) => {
         await issueAndSendOtp({ user: existing, purpose: 'verify_email', tenantName: req.tenant?.name });
       } catch (err) {
         logger.error('Failed to re-issue verification OTP', { email: emailNorm, error: err.message });
+        // Surface the failure exactly like the new-account path does. Reporting
+        // success here sends the user to the OTP screen for a code that was
+        // never delivered, and a delivery failure is a server-side condition
+        // that says nothing about whether the email is registered.
+        return sendError(res, `Could not send verification email: ${err.message}`, 502);
       }
       return sendSuccess(res, {
         email: emailNorm,
