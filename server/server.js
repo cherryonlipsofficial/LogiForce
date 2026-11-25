@@ -15,8 +15,22 @@ const { tenants } = require('./src/config/tenants');
 const { getConnectionForTenant, closeAllConnections } = require('./src/config/connectionManager');
 const { getModelForConnection } = require('./src/config/modelRegistry');
 const { connectPlatformDb, closePlatformDb } = require('./src/platform/db');
+const { platformAuthEnvProblem } = require('./src/platform/config');
+
+// Platform (product-owner) login signs its tokens with PLATFORM_JWT_SECRET.
+// Refuse to start without a usable one. The message never contains a secret.
+const platformAuthProblem = platformAuthEnvProblem();
+if (platformAuthProblem) {
+  console.error(`[FATAL] ${platformAuthProblem}`);
+  process.exit(1);
+}
 
 const app = express();
+
+// Render (and the nginx in docker-compose) put exactly one proxy in front of
+// the API. Trust that one hop so req.ip is the real client IP, which the rate
+// limiters and audit logs rely on.
+app.set('trust proxy', 1);
 
 // Connect to MongoDB
 connectDB();
@@ -91,6 +105,10 @@ app.get('/api/health', async (req, res) => {
 
   res.status(isHealthy ? 200 : 503).json(health);
 });
+
+// Platform (product-owner) API — ABOVE tenant middleware. Its router ends with
+// its own 404, so /api/platform/* never falls through to resolveTenant.
+app.use('/api/platform', require('./src/platform/platform.routes')); // no tenant needed
 
 // Tenant middleware: ALL /api routes below require a tenant
 app.use('/api', resolveTenant);
