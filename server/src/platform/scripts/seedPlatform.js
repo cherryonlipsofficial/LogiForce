@@ -6,7 +6,8 @@
  *   2. creates/updates one RoleTemplate per default role (config/defaultRoles.js);
  *   3. creates the first owner account from PLATFORM_OWNER_* (never touches an
  *      existing account or its password);
- *   4. registers the tenants hardcoded in config/tenants.js, recording the
+ *   4. registers the tenants that were hardcoded in config/tenants.js (now
+ *      scripts/legacyTenants.js), recording the
  *      database each one actually uses today;
  *   5. prints created / updated / skipped per collection.
  * Every create/update is written to platform_audit_logs as actor 'system'.
@@ -22,7 +23,7 @@ const { defaultRoles } = require('../../config/defaultRoles');
 
 const SYSTEM_ACTOR = Object.freeze({ userId: null, email: 'system' });
 
-// Env vars that can supply each hardcoded tenant's URI in config/tenants.js.
+// Env vars that can supply each legacy tenant's URI (see legacyTenants.js).
 // Used to record which one is actually in use (Tenant.dbUriEnv). null means the
 // URI is derived from MONGODB_BASE_URI + database name.
 const LEGACY_URI_ENV_CANDIDATES = Object.freeze({
@@ -51,7 +52,7 @@ const dbNameFromUri = (uri) => {
 
 /**
  * What a hardcoded tenant really uses today, worked out from the URI that
- * config/tenants.js resolved in this environment.
+ * legacyTenants.js resolves in this environment.
  */
 const resolveLegacyTenant = (key, tenantConfig) => {
   const uri = tenantConfig.dbUri;
@@ -193,7 +194,7 @@ const seedOwner = async ({ PlatformUser, PlatformAuditLog }, counts, log) => {
 
 // ── Step 4 ──
 const seedLegacyTenants = async ({ Tenant, RoleTemplate, PlatformAuditLog }, counts, log) => {
-  const { tenants } = require('../../config/tenants');
+  const { tenants } = require('./legacyTenants');
   const entries = Object.entries(tenants || {});
   if (entries.length === 0) {
     log('  no hardcoded tenant list found, skipped');
@@ -219,7 +220,7 @@ const seedLegacyTenants = async ({ Tenant, RoleTemplate, PlatformAuditLog }, cou
     }
 
     if (live.dbName !== tenantConfig.dbName) {
-      log(`  NOTE: tenant ${key} is labelled "${tenantConfig.dbName}" in config/tenants.js, but its URI points at `
+      log(`  NOTE: tenant ${key} is labelled "${tenantConfig.dbName}" in legacyTenants.js, but its URI points at `
         + `database "${live.dbName}". Recording "${live.dbName}" (the database it uses today).`);
     }
 
@@ -282,7 +283,7 @@ const seedPlatform = async ({ log = console.log } = {}) => {
   await seedRoleTemplates(models, counts, log);
   log('Owner account...');
   await seedOwner(models, counts, log);
-  log('Existing tenants (config/tenants.js)...');
+  log('Existing tenants (legacyTenants.js)...');
   await seedLegacyTenants(models, counts, log);
 
   return counts;
