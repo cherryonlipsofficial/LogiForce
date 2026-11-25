@@ -52,6 +52,14 @@ const isResendTestingModeError = (msg = '') =>
   /only send testing emails to your own email address/i.test(msg) ||
   /verify a domain at resend\.com\/domains/i.test(msg);
 
+// Resend rejects sends whose From address is on a domain that this API key's
+// account has not verified, e.g. "The example.com domain is not verified.
+// Please, add and verify your domain on https://resend.com/domains".
+const unverifiedSenderDomain = (msg = '') => {
+  const m = /the (\S+) domain is not verified/i.exec(msg);
+  return m ? m[1] : null;
+};
+
 /**
  * Send an email. Throws on failure so callers can roll back any state they
  * persisted in anticipation of the email going out (reset tokens, OTPs).
@@ -78,6 +86,13 @@ const sendMail = async ({ to, subject, html, text }) => {
     if (isResendTestingModeError(raw)) {
       throw new Error(
         'Resend is in testing mode for this API key, so it can only send to the account owner. Verify a domain at resend.com/domains and set EMAIL_FROM to an address on that domain, or set EMAIL_DEV_LOG=true on the server to log emails to the console for local development.',
+      );
+    }
+    const badDomain = unverifiedSenderDomain(raw);
+    if (badDomain) {
+      logger.error('Resend rejected the sender domain', { from, domain: badDomain });
+      throw new Error(
+        `the sender domain "${badDomain}" (from EMAIL_FROM) is not verified in the Resend account that owns RESEND_API_KEY. Verify it at resend.com/domains, or change EMAIL_FROM to an address on a domain that is already verified there.`,
       );
     }
     throw new Error(raw);
