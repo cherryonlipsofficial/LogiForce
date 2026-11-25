@@ -5,19 +5,29 @@
  * named in tenant.roleTemplateKeys, each limited to the company's ceiling
  * (tenantCeiling: core modules + enabledModules, never platform permissions):
  *
- *   - a template with no role of that name yet  → role created (managedBy 'platform')
- *   - a role of that name that is platform-managed, or that predates Phase 2
+ * A template's role is found by templateKey first, then by name:
+ *   - one role whose templateKey is the template's key
+ *                                                → that role, whatever its name
+ *                                                  (e.g. the old 'admin' role the
+ *                                                  migration linked to tenant_admin)
+ *   - several roles with that templateKey        → skipped, reported as a conflict
+ *   - none: a role named exactly like the key    → that role, unless it is linked
+ *                                                  to another template (conflict)
+ *
+ *   - no role found                              → role created (managedBy 'platform'),
+ *                                                  named after the key
+ *   - a role found that is platform-managed, or that predates Phase 2
  *     (no managedBy stored)                     → updated to match the template
- *   - a role of that name with managedBy 'tenant',
+ *                                                  (its name is never changed)
+ *   - a role found with managedBy 'tenant',
  *     or one that matches only ignoring case     → skipped, reported as a conflict
  *   - a platform-managed role whose template the company no longer has
  *                                                → isActive false (never deleted:
  *                                                  users still point at it)
  *
  * It never deletes a role, never touches a role with managedBy 'tenant', and
- * never sets isSystemRole on an existing role: middleware/auth.js still gives
- * isSystemRole roles every permission until Step 7, so existing admins keep
- * their access. New roles get isSystemRole false.
+ * never sets isSystemRole on an existing role (scripts/migrateToPlatform.js
+ * turns it off on the old admin role). New roles get isSystemRole false.
  *
  * Call it at three moments (the platform routes for these don't exist yet):
  *   1. A company is created: after the Tenant is saved and its database can be
@@ -95,7 +105,7 @@ const diffRole = (existing, desired) => {
  * @param {object[]}    args.templates         RoleTemplate records (lean) for those keys
  * @param {object[]}    args.roles             every Role in the company database (lean:
  *                                             stored fields only, no schema defaults)
- * @returns {{ upserts: {name: string, set: object}[], deactivateIds: *[],
+ * @returns {{ upserts: {name: string, id?: *, set: object}[], deactivateIds: *[],
  *             inactiveRoleIds: *[], summary: object }}
  */
 const planRoleSync = ({ roleTemplateKeys, ceiling, templates, roles }) => {
@@ -121,19 +131,45 @@ const planRoleSync = ({ roleTemplateKeys, ceiling, templates, roles }) => {
       continue;
     }
 
-    const nearDuplicates = roles.filter((r) => r.name !== key && String(r.name).toLowerCase() === key.toLowerCase());
-    if (nearDuplicates.length > 0) {
-      for (const r of nearDuplicates) {
+    let existing;
+    const linked = roles.filter((r) => r.templateKey === key);
+    if (linked.length > 1) {
+      for (const r of linked) {
         summary.conflicts.push({
           templateKey: key,
           roleName: r.name,
-          reason: `the company has a role "${r.name}" that differs from "${key}" only in letter case`,
+          reason: `${linked.length} roles (${linked.map((x) => `"${x.name}"`).join(', ')}) are linked to "${key}"`,
         });
       }
       continue;
     }
 
-    const existing = roles.find((r) => r.name === key);
+    if (linked.length === 1) {
+      [existing] = linked;
+    } else {
+      const nearDuplicates = roles.filter((r) => r.name !== key && String(r.name).toLowerCase() === key.toLowerCase());
+      if (nearDuplicates.length > 0) {
+        for (const r of nearDuplicates) {
+          summary.conflicts.push({
+            templateKey: key,
+            roleName: r.name,
+            reason: `the company has a role "${r.name}" that differs from "${key}" only in letter case`,
+          });
+        }
+        continue;
+      }
+
+      existing = roles.find((r) => r.name === key);
+      if (existing && existing.templateKey && existing.templateKey !== key) {
+        summary.conflicts.push({
+          templateKey: key,
+          roleName: existing.name,
+          reason: `the company's role "${existing.name}" is linked to template "${existing.templateKey}"`,
+        });
+        continue;
+      }
+    }
+
     if (existing && existing.managedBy === 'tenant') {
       summary.conflicts.push({
         templateKey: key,
@@ -144,9 +180,9 @@ const planRoleSync = ({ roleTemplateKeys, ceiling, templates, roles }) => {
     }
 
     const desired = desiredRole(template, ceiling);
-    switchedOn.add(key);
 
     if (!existing) {
+      switchedOn.add(key);
       upserts.push({ name: key, set: desired });
       summary.created.push(key);
       summary.changes[key] = {
@@ -157,14 +193,15 @@ const planRoleSync = ({ roleTemplateKeys, ceiling, templates, roles }) => {
       continue;
     }
 
+    switchedOn.add(existing.name);
     const diff = diffRole(existing, desired);
     if (!diff) {
-      summary.unchanged.push(key);
+      summary.unchanged.push(existing.name);
       continue;
     }
-    upserts.push({ name: key, set: desired });
-    summary.updated.push(key);
-    summary.changes[key] = diff;
+    upserts.push({ name: existing.name, id: existing._id, set: desired });
+    summary.updated.push(existing.name);
+    summary.changes[existing.name] = diff;
   }
 
   // Platform roles whose template the company no longer has: switch off.
@@ -232,14 +269,19 @@ const syncTenantRoles = async (tenant, { dryRun = false, actor = SYSTEM_ACTOR } 
       const written = [];
       let failure = null;
       try {
-        for (const { name, set } of plan.upserts) {
-          // `managedBy $ne 'tenant'` keeps a company role created since the read
-          // above out of reach: the upsert then fails on the unique name instead.
-          await Role.updateOne(
-            { name, managedBy: { $ne: 'tenant' } },
-            { $set: set, $setOnInsert: { isSystemRole: false } },
-            { upsert: true }
-          );
+        for (const { name, id, set } of plan.upserts) {
+          if (id) {
+            // An existing role (found by templateKey or name): update it by _id.
+            await Role.updateOne({ _id: id, managedBy: { $ne: 'tenant' } }, { $set: set });
+          } else {
+            // `managedBy $ne 'tenant'` keeps a company role created since the read
+            // above out of reach: the upsert then fails on the unique name instead.
+            await Role.updateOne(
+              { name, managedBy: { $ne: 'tenant' } },
+              { $set: set, $setOnInsert: { isSystemRole: false } },
+              { upsert: true }
+            );
+          }
           written.push(name);
         }
         if (plan.deactivateIds.length > 0) {

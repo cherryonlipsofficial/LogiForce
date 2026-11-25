@@ -94,17 +94,9 @@ async function migrate() {
     }
   }
 
-  // Admin gets ALL permissions — update via getAllKeys
-  const { PERMISSIONS } = require('../config/permissions');
-  const allKeys = Object.keys(PERMISSIONS);
-  const adminResult = await db.collection('roles').findOneAndUpdate(
-    { name: 'admin', isSystemRole: true },
-    { $set: { permissions: allKeys } },
-    { returnDocument: 'after' }
-  );
-  if (adminResult) {
-    console.log(`admin: all ${allKeys.length} permissions set`);
-  }
+  // There is no all-permissions admin role any more. A company's admin is the
+  // tenant_admin role, whose permissions come from its platform RoleTemplate
+  // (npm run platform:sync-roles), so this script leaves it alone.
 
   console.log('\nMigration complete.');
   await mongoose.disconnect();

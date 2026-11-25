@@ -3,6 +3,8 @@
  * Collection: 'platform_users' (platform DB only).
  *
  * Password hashing matches the tenant User model: bcryptjs, 12 salt rounds.
+ * A user can be created without a password and invited by email
+ * (createInvitedPlatformUser + sendPlatformSetPasswordLink).
  *
  * Exports the schema only. Register it on the platform connection through
  * platform/models/index.js; never with mongoose.model().
@@ -28,11 +30,17 @@ const platformUserSchema = new Schema(
       required: [true, 'Name is required'],
       trim: true,
     },
+    // null for an invited user who hasn't used their set-password link yet:
+    // such a user can't sign in (platformAuth compares against a dummy hash).
     passwordHash: {
       type: String,
-      required: [true, 'Password is required'],
+      default: null,
       select: false,
     },
+    // Set-password link (services/platformUser.service.js). Only the sha256 of
+    // the emailed token is stored.
+    passwordSetTokenHash: { type: String, default: null, select: false },
+    passwordSetExpires: { type: Date, default: null, select: false },
     role: {
       type: String,
       enum: ['owner', 'support'],
@@ -54,6 +62,8 @@ const platformUserSchema = new Schema(
     toJSON: {
       transform: (doc, ret) => {
         delete ret.passwordHash;
+        delete ret.passwordSetTokenHash;
+        delete ret.passwordSetExpires;
         delete ret.__v;
         return ret;
       },
@@ -61,20 +71,26 @@ const platformUserSchema = new Schema(
   }
 );
 
-platformUserSchema.methods.setPassword = async function (plain) {
+/** bcrypt hash of a platform password; throws if it is too short. */
+const hashPlatformPassword = async (plain) => {
   if (typeof plain !== 'string' || plain.length < MIN_PASSWORD_LENGTH) {
     throw new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
   }
-  this.passwordHash = await bcrypt.hash(plain, SALT_ROUNDS);
+  return bcrypt.hash(plain, SALT_ROUNDS);
+};
+
+platformUserSchema.methods.setPassword = async function (plain) {
+  this.passwordHash = await hashPlatformPassword(plain);
 };
 
 /**
  * Requires the document to be loaded with .select('+passwordHash').
  */
 platformUserSchema.methods.comparePassword = async function (plain) {
-  if (!this.passwordHash) {
+  if (this.passwordHash === undefined) {
     throw new Error("passwordHash is not loaded; query with .select('+passwordHash')");
   }
+  if (!this.passwordHash) return false; // invited, no password set yet
   if (typeof plain !== 'string') return false;
   return bcrypt.compare(plain, this.passwordHash);
 };
@@ -82,4 +98,5 @@ platformUserSchema.methods.comparePassword = async function (plain) {
 module.exports = {
   schema: platformUserSchema,
   MIN_PASSWORD_LENGTH,
+  hashPlatformPassword,
 };

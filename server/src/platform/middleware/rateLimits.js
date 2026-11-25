@@ -1,5 +1,5 @@
 /**
- * Rate limits for the public platform auth routes.
+ * Rate limits for the public platform auth routes (sign-in and set-password).
  *
  * They key on req.ip, which is the real client IP only because server.js sets
  * app.set('trust proxy', 1) (one proxy in front: Render, or nginx in
@@ -39,4 +39,7 @@ const loginIpEmailLimiter = rateLimit({
 // POST /auth/verify-otp and /auth/resend-otp share one budget: 10 per 15 min per IP.
 const otpLimiter = rateLimit({ ...base, limit: 10 });
 
-module.exports = { loginIpLimiter, loginIpEmailLimiter, otpLimiter };
+// GET/POST /auth/set-password share one budget: 10 per 15 min per IP.
+const setPasswordLimiter = rateLimit({ ...base, limit: 10 });
+
+module.exports = { loginIpLimiter, loginIpEmailLimiter, otpLimiter, setPasswordLimiter };

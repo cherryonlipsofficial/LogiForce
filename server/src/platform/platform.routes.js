@@ -9,24 +9,35 @@
 const express = require('express');
 const logger = require('../utils/logger');
 const platformAuth = require('./services/platformAuth.service');
-const { protectPlatform } = require('./middleware/protectPlatform');
-const { loginIpLimiter, loginIpEmailLimiter, otpLimiter } = require('./middleware/rateLimits');
+const platformUsers = require('./services/platformUser.service');
+const { TenantProvisioningError } = require('./services/tenantProvisioning.service');
+const { protectPlatform, requirePlatformRole } = require('./middleware/protectPlatform');
+const {
+  loginIpLimiter, loginIpEmailLimiter, otpLimiter, setPasswordLimiter,
+} = require('./middleware/rateLimits');
 
 const router = express.Router();
 
+// Errors whose status, code and message are meant for the client.
+const isClientError = (err) => err instanceof platformAuth.PlatformAuthError
+  || err instanceof platformUsers.PasswordSetError
+  || err instanceof TenantProvisioningError;
+
+const sendClientError = (res, err) => res.status(err.status).json({
+  success: false, message: err.message, code: err.code, ...err.extra,
+});
+
 /**
- * Run a service call and send { success: true, ...result }. A PlatformAuthError
- * becomes { success: false, message, code } with its status; anything else goes
- * to the platform error handler below.
+ * Run a service call and send { success: true, ...result }. A client error
+ * (see isClientError) becomes { success: false, message, code } with its
+ * status; anything else goes to the platform error handler below.
  */
 const handle = (fn) => async (req, res, next) => {
   try {
     const result = await fn(req, res);
     return res.json({ success: true, ...result });
   } catch (err) {
-    if (err instanceof platformAuth.PlatformAuthError) {
-      return res.status(err.status).json({ success: false, message: err.message, code: err.code, ...err.extra });
-    }
+    if (isClientError(err)) return sendClientError(res, err);
     return next(err);
   }
 };
@@ -42,18 +53,26 @@ router.post('/auth/verify-otp', otpLimiter, handle((req) =>
 router.post('/auth/resend-otp', otpLimiter, handle((req) =>
   platformAuth.resendOtp({ challengeToken: req.body?.challengeToken, req })));
 
+// Set-password link (invited platform users): check it, then use it.
+router.get('/auth/set-password/:token', setPasswordLimiter, handle((req) =>
+  platformUsers.checkPlatformSetPasswordToken(req.params.token)));
+
+router.post('/auth/set-password', setPasswordLimiter, handle((req) =>
+  platformUsers.setPlatformPasswordWithToken({ token: req.body?.token, password: req.body?.password, req })));
+
 // ── Protected: everything below needs a platform token ──
 
 router.use(protectPlatform);
 
 router.get('/auth/me', (req, res) => res.json({ success: true, user: req.platformUser }));
 
-// Coming in later steps (import requirePlatformRole from ./middleware/protectPlatform):
-// router.use('/tenants', requirePlatformRole('owner'), require('./routes/tenants.routes'));
+router.use('/tenants', requirePlatformRole('owner'), require('./routes/tenants.routes'));
+
+// Coming in later steps:
 // router.use('/role-templates', requirePlatformRole('owner'), require('./routes/roleTemplates.routes'));
-// Both must call services/roleSync.service.js: syncTenantRoles after a company is
-// created (before it may become 'active') or its enabledModules/roleTemplateKeys
-// change, and syncTenantsUsingTemplate after a template is edited. See that file.
+// It must call syncTenantsUsingTemplate (services/roleSync.service.js) after a
+// template is edited; a change to a company's enabledModules/roleTemplateKeys
+// must call syncTenantRoles.
 
 // ── Unknown paths and errors stay inside the platform router ──
 
@@ -65,6 +84,7 @@ router.use((req, res) => res.status(404).json({
 
 // eslint-disable-next-line no-unused-vars
 router.use((err, req, res, next) => {
+  if (isClientError(err)) return sendClientError(res, err);
   logger.error('Platform request failed', {
     error: err.message,
     method: req.method,
@@ -73,7 +93,7 @@ router.use((err, req, res, next) => {
     platformUserId: req.platformUser?._id,
     stack: err.stack,
   });
-  res.status(500).json({ success: false, message: 'Internal server error', code: 'PLATFORM_ERROR' });
+  return res.status(500).json({ success: false, message: 'Internal server error', code: 'PLATFORM_ERROR' });
 });
 
 module.exports = router;

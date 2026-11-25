@@ -48,7 +48,7 @@ const seed = async () => {
   // --- Users ---
   console.log('Creating users...');
   const [admin, accountant, ops, compliance, sales, viewer] = await User.create([
-    { name: 'System Admin', email: 'admin@logiforce.com', password: 'Admin@123', roleId: roles.admin._id, isActive: true, activatedAt: new Date() },
+    { name: 'System Admin', email: 'admin@logiforce.com', password: 'Admin@123', roleId: roles.tenant_admin._id, isActive: true, activatedAt: new Date() },
     { name: 'Sarah Accountant', email: 'accountant@logiforce.com', password: 'Account@123', roleId: roles.accountant._id, isActive: true, activatedAt: new Date() },
     { name: 'James Operations', email: 'ops@logiforce.com', password: 'Ops@123', roleId: roles.ops._id, isActive: true, activatedAt: new Date() },
     { name: 'Layla Compliance', email: 'compliance@logiforce.com', password: 'Compliance@123', roleId: roles.compliance._id, isActive: true, activatedAt: new Date() },
