@@ -214,6 +214,12 @@ module.exports = {
 
 };
 
+// Unique module names used by PERMISSIONS, in first-seen order. The platform
+// tenant registry validates Tenant.enabledModules against this list.
+module.exports.MODULES = Object.freeze([
+  ...new Set(Object.values(module.exports.PERMISSIONS).map((p) => p.module)),
+]);
+
 // Legacy permission keys that were renamed — map old → new
 module.exports.LEGACY_KEY_MAP = {
   'advances.issue':        'advances.approve',
