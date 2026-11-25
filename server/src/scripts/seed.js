@@ -10,6 +10,7 @@ const {
   AttendanceBatch,
   AttendanceRecord,
   SalaryRun,
+  DriverLedger,
   Project,
   ProjectContract,
   DriverProjectAssignment,
@@ -29,6 +30,7 @@ const seed = async () => {
     AttendanceBatch.deleteMany({}),
     AttendanceRecord.deleteMany({}),
     SalaryRun.deleteMany({}),
+    DriverLedger.deleteMany({}),
     Project.deleteMany({}),
     ProjectContract.deleteMany({}),
     DriverProjectAssignment.deleteMany({}),
@@ -258,6 +260,8 @@ const seed = async () => {
 
   // --- Drivers ---
   console.log('Creating drivers...');
+  // baseSalary is a monthly amount, so drivers are MONTHLY_FIXED (salary is
+  // prorated by working days). DAILY_RATE would multiply it by working days.
   const driverData = [
     // Amazon drivers (8)
     ...Array.from({ length: 8 }, (_, i) => ({
@@ -265,7 +269,7 @@ const seed = async () => {
       nationality: ['Pakistan', 'India', 'India', 'Bangladesh', 'India', 'India', 'Pakistan', 'India'][i],
       phoneUae: `+97150${String(1000000 + i)}`,
       baseSalary: 3000 + (i * 100),
-      payStructure: 'DAILY_RATE',
+      payStructure: 'MONTHLY_FIXED',
       status: 'active',
       clientId: amazon._id,
       joinDate: new Date('2024-01-15'),
@@ -277,7 +281,7 @@ const seed = async () => {
       nationality: ['Pakistan', 'India', 'India', 'India', 'Pakistan', 'India', 'Pakistan', 'Pakistan'][i],
       phoneUae: `+97155${String(1000000 + i)}`,
       baseSalary: [2800, 2900, 3000, 3100, 3200, 3300, 3400, 2400][i],
-      payStructure: 'DAILY_RATE',
+      payStructure: 'MONTHLY_FIXED',
       status: 'active',
       clientId: noon._id,
       joinDate: new Date('2024-02-01'),
@@ -289,7 +293,7 @@ const seed = async () => {
       nationality: ['Pakistan', 'India', 'Pakistan', 'India', 'Bangladesh'][i],
       phoneUae: `+97156${String(1000000 + i)}`,
       baseSalary: 2700 + (i * 100),
-      payStructure: 'DAILY_RATE',
+      payStructure: 'MONTHLY_FIXED',
       status: 'active',
       clientId: talabat._id,
       joinDate: new Date('2024-03-01'),
@@ -307,6 +311,9 @@ const seed = async () => {
   const noonDrivers = drivers.filter((d) => d.clientId.toString() === noon._id.toString());
   const talabatDrivers = drivers.filter((d) => d.clientId.toString() === talabat._id.toString());
 
+  // driverId -> active assignment (carries the contract rate snapshot)
+  const assignmentByDriver = new Map();
+
   // Assignment helper
   const assignDriver = async (driver, project) => {
     const contract = contracts[project._id.toString()];
@@ -323,6 +330,7 @@ const seed = async () => {
     driver.projectId = project._id;
     driver.currentProjectAssignmentId = assignment._id;
     await driver.save();
+    assignmentByDriver.set(driver._id.toString(), assignment);
   };
 
   // First 8 Amazon drivers → Amazon Project 1
@@ -348,115 +356,162 @@ const seed = async () => {
   console.log('  Assigned all drivers to projects');
 
   // --- 3 Months of Attendance & Salary Data ---
+  // One regular attendance batch per staffed project per month, following the
+  // app's workflow (attendance.routes.js upload → attendanceApproval.service.js
+  // → salary.service.js runPayroll / approvals / processSalaryRun). Each month
+  // sits at a different stage so every screen has something to act on:
+  //   Feb 2026 — attendance approved, payroll run, salaries processed and paid
+  //   Mar 2026 — attendance approved, payroll run, salaries awaiting ops approval
+  //   Apr 2026 — attendance uploaded, awaiting Sales and Ops review
+  // All months fall inside each project's contract term and after the drivers'
+  // 15 Jan 2026 project assignments.
   const periods = [
-    { year: 2025, month: 11 },
-    { year: 2025, month: 12 },
-    { year: 2026, month: 1 },
+    { year: 2026, month: 2, batchStatus: 'processed', salaryStatus: 'paid' },
+    { year: 2026, month: 3, batchStatus: 'processed', salaryStatus: 'draft' },
+    { year: 2026, month: 4, batchStatus: 'pending_review', salaryStatus: null },
   ];
+
+  const staffedProjects = [amazonProj1, noonProj1, noonProj2, talabatProj1].map((project) => ({
+    project,
+    contract: contracts[project._id.toString()],
+    drivers: drivers.filter((d) => d.projectId?.toString() === project._id.toString()),
+  }));
+
+  // A day in the month after `period` — when its attendance is uploaded,
+  // approved and paid.
+  const followingMonth = ({ year, month }, day) => new Date(Date.UTC(year, month, day));
+
+  const approvedBy = (user, approvedAt) => ({
+    status: 'approved',
+    approvedBy: user._id,
+    approvedByName: user.name,
+    approvedAt,
+  });
+
+  const ledgerBalance = new Map(); // driverId -> running balance
+  let batchCount = 0;
+  let salaryRunCount = 0;
 
   console.log('Creating attendance and salary data for 3 months...');
 
   for (const period of periods) {
-    const clientGroups = [
-      { client: amazon, drivers: amazonDrivers },
-      { client: noon, drivers: noonDrivers },
-      { client: talabat, drivers: talabatDrivers },
-    ];
+    const { year, month } = period;
+    const label = `${year}-${String(month).padStart(2, '0')}`;
+    const periodStart = new Date(Date.UTC(year, month - 1, 1));
+    const periodEnd = new Date(Date.UTC(year, month, 1));
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const attendanceApproved = period.batchStatus !== 'pending_review';
 
-    for (const { client, drivers: clientDrivers } of clientGroups) {
-      // Create attendance batch
+    for (const { project, contract, drivers: projectDrivers } of staffedProjects) {
+      if (!(contract.startDate <= periodStart && periodEnd <= contract.endDate)) {
+        throw new Error(`${label} is outside the contract term for project "${project.name}"`);
+      }
+
       const batch = await AttendanceBatch.create({
-        clientId: client._id,
-        period,
-        status: 'approved',
-        totalRows: clientDrivers.length,
-        matchedRows: clientDrivers.length,
+        projectId: project._id,
+        clientId: project.clientId,
+        period: { year, month },
+        batchType: 'regular',
+        version: 1,
+        status: period.batchStatus,
+        totalRows: projectDrivers.length,
+        matchedRows: projectDrivers.length,
         warningRows: 0,
         errorRows: 0,
         unmatchedRows: 0,
-        uploadedBy: ops._id,
-        approvedBy: accountant._id,
-        approvedAt: new Date(),
+        uploadedBy: accountant._id,
+        uploadedByName: accountant.name,
+        notificationSentAt: followingMonth(period, 2),
+        ...(attendanceApproved && {
+          salesApproval: approvedBy(sales, followingMonth(period, 3)),
+          opsApproval: approvedBy(ops, followingMonth(period, 4)),
+        }),
       });
+      batchCount++;
 
-      for (const driver of clientDrivers) {
-        // Random working days between 20-26
-        const workingDays = 20 + Math.floor(Math.random() * 7);
-        const overtimeHours = Math.floor(Math.random() * 15);
-
-        // Attendance record
-        await AttendanceRecord.create({
+      const records = await AttendanceRecord.insertMany(
+        projectDrivers.map((driver, i) => ({
           batchId: batch._id,
           driverId: driver._id,
-          clientId: client._id,
-          period,
-          workingDays,
-          overtimeHours,
+          clientId: project.clientId,
+          projectId: project._id,
+          period: { year, month },
+          workingDays: 20 + ((i * 3 + month) % 7), // 20–26, below the 26-day over_limit flag
+          overtimeHours: 0, // OT is uploaded as a separate 'overtime' batch
           rawEmployeeCode: driver.employeeCode,
           status: 'valid',
-        });
+        }))
+      );
 
-        // Salary run — mirrors salary.service.js calculation
-        const baseSalary = driver.baseSalary;
-        const daysInMonth = new Date(period.year, period.month, 0).getDate();
-        const STANDARD_HOURS_PER_DAY = 8;
-        const OT_MULTIPLIER = 1.25;
-        const TRANSPORT_ALLOWANCE = 200;
-        const FOOD_ALLOWANCE_RATE = 0.056;
-        const TELECOM_SIM_MONTHLY_CHARGE = 100;
+      if (!period.salaryStatus) continue;
 
-        const proratedSalary = Math.round(Math.min((baseSalary / daysInMonth) * workingDays, baseSalary) * 100) / 100;
-        const overtimePay = Math.round(overtimeHours * (baseSalary / daysInMonth / STANDARD_HOURS_PER_DAY) * OT_MULTIPLIER * 100) / 100;
-        const foodAllowance = Math.round(baseSalary * FOOD_ALLOWANCE_RATE * 100) / 100;
-        const allowances = [
-          { type: 'transport', amount: TRANSPORT_ALLOWANCE },
-          { type: 'food', amount: foodAllowance },
-        ];
-        const totalAllowances = TRANSPORT_ALLOWANCE + foodAllowance;
-        const grossSalary = Math.round((proratedSalary + overtimePay + totalAllowances) * 100) / 100;
+      const paid = period.salaryStatus === 'paid';
 
-        // Deductions: telecom SIM for all drivers
-        const deductions = [
-          { type: 'telecom_sim', amount: TELECOM_SIM_MONTHLY_CHARGE, description: 'Monthly telecom SIM charge', status: 'applied' },
-        ];
-        const totalDeductions = TELECOM_SIM_MONTHLY_CHARGE;
-        const netSalary = Math.round((grossSalary - totalDeductions) * 100) / 100;
+      for (const [i, driver] of projectDrivers.entries()) {
+        const record = records[i];
+        const assignment = assignmentByDriver.get(driver._id.toString());
 
-        // Find the driver's project assignment rate
-        const projectId = driver.projectId || null;
-        let projectRatePerDriver = null;
-        if (driver.currentProjectAssignmentId) {
-          const assignment = await DriverProjectAssignment.findById(
-            driver.currentProjectAssignmentId
-          );
-          if (assignment) projectRatePerDriver = assignment.ratePerDriver;
-        }
+        // MONTHLY_FIXED calculation from salary.service.js calculateDriverSalary.
+        // OT and allowances are not auto-added there, and these drivers have no
+        // SIM, leased vehicle or advance, so there are no deductions.
+        const grossSalary = Math.round(
+          Math.min((driver.baseSalary / daysInMonth) * record.workingDays, driver.baseSalary) * 100
+        ) / 100;
 
-        await SalaryRun.create({
+        const run = await SalaryRun.create({
           driverId: driver._id,
-          clientId: client._id,
-          projectId: projectId || undefined,
-          projectRatePerDriver: projectRatePerDriver || undefined,
-          period,
-          workingDays,
-          overtimeHours,
-          baseSalary,
-          proratedSalary,
-          overtimePay,
-          allowances,
+          clientId: project.clientId,
+          projectId: project._id,
+          projectRatePerDriver: assignment.ratePerDriver,
+          attendanceBatchId: batch._id,
+          attendanceRecordId: record._id,
+          period: { year, month },
+          workingDays: record.workingDays,
+          overtimeHours: record.overtimeHours,
+          baseSalary: driver.baseSalary,
+          proratedSalary: grossSalary,
+          overtimePay: 0,
+          allowances: [],
           grossSalary,
-          deductions,
-          totalDeductions,
-          netSalary,
-          status: 'approved',
+          deductions: [],
+          totalDeductions: 0,
+          netSalary: grossSalary,
+          status: period.salaryStatus,
           processedBy: accountant._id,
-          approvedBy: admin._id,
-          approvedAt: new Date(),
+          ...(paid && {
+            approvals: [
+              { stage: 'salary.approve_ops', approvedBy: ops._id, approvedAt: followingMonth(period, 6) },
+              { stage: 'salary.approve_compliance', approvedBy: compliance._id, approvedAt: followingMonth(period, 7) },
+              { stage: 'salary.approve_accounts', approvedBy: accountant._id, approvedAt: followingMonth(period, 8) },
+            ],
+            processedAt: followingMonth(period, 9),
+            paidAt: followingMonth(period, project.salaryReleaseDay),
+          }),
         });
+        salaryRunCount++;
+
+        // Processing posts the salary credit to the driver ledger
+        // (salary.service.js postLedgerEntries).
+        if (paid) {
+          const runningBalance = (ledgerBalance.get(driver._id.toString()) || 0) + run.netSalary;
+          ledgerBalance.set(driver._id.toString(), runningBalance);
+          await DriverLedger.create({
+            driverId: driver._id,
+            salaryRunId: run._id,
+            entryType: 'salary_credit',
+            debit: 0,
+            credit: run.netSalary,
+            runningBalance,
+            description: `Salary credit for ${label}`,
+            referenceId: run.runId,
+            period: run.period,
+            createdBy: accountant._id,
+          });
+        }
       }
     }
 
-    console.log(`  Created data for ${period.year}-${String(period.month).padStart(2, '0')}`);
+    console.log(`  Created data for ${label} (attendance: ${period.batchStatus}, salaries: ${period.salaryStatus || 'not run'})`);
   }
 
   console.log('\nSeed completed successfully!');
@@ -475,6 +530,8 @@ const seed = async () => {
   console.log('Projects created: 6 (3 Amazon UAE, 2 Noon, 1 Talabat)');
   console.log('Driver assignments: 21 drivers assigned to projects');
   console.log('Contracts active: 6');
+  console.log(`Attendance batches: ${batchCount} (Feb–Apr 2026 across ${staffedProjects.length} staffed projects)`);
+  console.log(`Salary runs: ${salaryRunCount} (Feb 2026 paid, Mar 2026 draft)`);
 
   process.exit(0);
 };
