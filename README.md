@@ -193,7 +193,13 @@ cd server
 npm run seed
 ```
 
-Creates 3 users, 3 clients, 3 suppliers, 20 drivers, and 3 months of attendance + salary data.
+Seeds the database at `MONGODB_URI` (the `logi-force` tenant's database unless `MONGODB_URI_MAIN` or `MONGODB_BASE_URI` points it elsewhere), replacing any existing users, roles, clients, suppliers, projects, drivers, attendance, salary runs and driver ledger entries, with 6 users, 3 clients, 3 suppliers, 6 projects with contracts, 21 drivers assigned to 4 of those projects, and Feb–Apr 2026 attendance + salary data at different workflow stages:
+
+| Period   | Attendance batches                  | Salary runs                          |
+|----------|-------------------------------------|--------------------------------------|
+| Feb 2026 | Approved by Sales + Ops, processed  | Processed and paid (ledger credited) |
+| Mar 2026 | Approved by Sales + Ops, processed  | Draft, awaiting Operations approval  |
+| Apr 2026 | Pending Sales + Ops review          | Not run yet                          |
 
 ## Environment Variables
 
