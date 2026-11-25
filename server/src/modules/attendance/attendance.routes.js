@@ -239,7 +239,7 @@ router.put('/records/:id/override', requirePermission('attendance.override'), va
 });
 
 // POST /api/attendance/batches/:id/approve — Sales or Ops approves a batch
-router.post('/batches/:id/approve', requireAnyPermission(['attendance.approve_sales', 'attendance.approve_ops']), async (req, res) => {
+router.post('/batches/:id/approve', requireAnyPermission(['attendance.approve_sales', 'attendance.approve_ops', 'attendance.approve_any']), async (req, res) => {
   const result = await approveAttendance(
     req,
     req.params.id,

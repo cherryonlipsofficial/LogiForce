@@ -241,6 +241,23 @@ module.exports.tenantCeiling = (tenant) => new Set(
       (module.exports.CORE_MODULES.includes(p.module) || (tenant.enabledModules || []).includes(p.module)))
     .map(([key]) => key));
 
+// The one place a company user's permissions are worked out: the role's
+// permissions (none if the role is switched off), then the user's overrides,
+// then cut down to the tenant's ceiling. Every access decision uses this.
+// user.roleId must be populated with at least `permissions` and `isActive`;
+// User#loadRole() does that.
+module.exports.getEffectivePermissions = (tenant, user) => {
+  if (!tenant) throw new Error('getEffectivePermissions requires a tenant');
+  const role = user.roleId;
+  if (role && !Array.isArray(role.permissions)) {
+    throw new Error('getEffectivePermissions requires user.roleId to be populated with its permissions');
+  }
+  const perms = new Set(role && role.isActive !== false ? role.permissions : []);
+  for (const o of user.permissionOverrides || []) o.granted ? perms.add(o.key) : perms.delete(o.key);
+  const ceiling = module.exports.tenantCeiling(tenant);
+  return [...perms].filter((k) => ceiling.has(k));
+};
+
 module.exports.isPlatformPermission = (key) => module.exports.PERMISSIONS[key]?.scope === 'platform';
 
 // Legacy permission keys that were renamed — map old → new

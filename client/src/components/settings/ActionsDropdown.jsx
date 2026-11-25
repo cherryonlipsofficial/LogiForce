@@ -114,7 +114,7 @@ export default function ActionsDropdown({
         </button>
       </PermissionGate>
 
-      <PermissionGate permission="roles.manage">
+      <PermissionGate permission="users.manage_access">
         <button
           style={itemStyle}
           onClick={() => handleItem(onPermissions)}

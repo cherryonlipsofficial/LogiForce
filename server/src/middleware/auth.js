@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { getModel } = require('../config/modelRegistry');
+const { getEffectivePermissions } = require('../config/permissions');
 const { TENANT_TOKEN_AUDIENCE } = require('../modules/shared/auth.service');
 const logger = require('../utils/logger');
 
@@ -32,7 +33,7 @@ const protect = async (req, res, next) => {
     }
 
     const User = getModel(req, 'User');
-    const user = await User.findById(decoded.id).populate('roleId', 'permissions name isSystemRole displayName');
+    const user = await User.findById(decoded.id).populate('roleId', User.ROLE_ACCESS_FIELDS);
     if (!user || !user.isActive) {
       return res.status(401).json({ success: false, message: 'User not found or inactive' });
     }
@@ -41,6 +42,17 @@ const protect = async (req, res, next) => {
   } catch (error) {
     res.status(401).json({ success: false, message: 'Token is not valid' });
   }
+};
+
+/**
+ * Works out req.userPermissions for the signed-in user with the shared
+ * getEffectivePermissions (role + overrides, cut to the tenant's ceiling).
+ * There is no admin bypass and no wildcard: an admin is a role like any other.
+ */
+const resolvePermissions = async (req) => {
+  await req.user.loadRole();
+  req.userPermissions = getEffectivePermissions(req.tenant, req.user);
+  return req.userPermissions;
 };
 
 /**
@@ -54,37 +66,14 @@ const requirePermission = (permissionKey) => {
         return res.status(401).json({ success: false, message: 'Not authenticated' });
       }
 
-      const User = getModel(req, 'User');
-      const user = await User.findById(req.user._id)
-        .populate('roleId', 'permissions name isSystemRole');
-
-      if (!user) {
-        return res.status(401).json({ success: false, message: 'User not found' });
-      }
-
-      // ── ADMIN BYPASS ──
-      // System admin always passes all permission checks
-      if (user.roleId?.isSystemRole === true) {
-        req.userPermissions = ['*'];
-        return next();
-      }
-
-      // Build effective permission set: role permissions + user overrides
-      const rolePerms = new Set(user.roleId?.permissions || []);
-      for (const override of user.permissionOverrides || []) {
-        if (override.granted) rolePerms.add(override.key);
-        else rolePerms.delete(override.key);
-      }
-
-      if (!rolePerms.has(permissionKey)) {
+      const perms = await resolvePermissions(req);
+      if (!perms.includes(permissionKey)) {
         return res.status(403).json({
           success: false,
           message: `Access denied. Required permission: ${permissionKey}`,
           requiredPermission: permissionKey,
         });
       }
-
-      req.userPermissions = [...rolePerms];
       next();
     } catch (err) {
       next(err);
@@ -93,21 +82,17 @@ const requirePermission = (permissionKey) => {
 };
 
 /**
- * Attaches the user's effective permissions to req.userPermissions without blocking.
- * Useful for routes that need to check permissions conditionally in the handler.
+ * Attaches the user's effective permissions to req.userPermissions without
+ * blocking. For routes that check permissions conditionally in the handler.
  */
 const attachPermissions = async (req, res, next) => {
   if (!req.user) return next();
   try {
-    if (!req.user.roleId || typeof req.user.roleId === 'string') {
-      await req.user.populate('roleId', 'permissions name isSystemRole');
-    }
-    const perms = await req.user.getPermissions();
-    req.userPermissions = perms;
-  } catch {
-    // Non-blocking — continue even if permission resolution fails
+    await resolvePermissions(req);
+    next();
+  } catch (err) {
+    next(err);
   }
-  next();
 };
 
 /**
@@ -121,35 +106,14 @@ const requireAnyPermission = (permissionKeys) => {
         return res.status(401).json({ success: false, message: 'Not authenticated' });
       }
 
-      const User = getModel(req, 'User');
-      const user = await User.findById(req.user._id)
-        .populate('roleId', 'permissions name isSystemRole');
-
-      if (!user) {
-        return res.status(401).json({ success: false, message: 'User not found' });
-      }
-
-      if (user.roleId?.isSystemRole === true) {
-        req.userPermissions = ['*'];
-        return next();
-      }
-
-      const rolePerms = new Set(user.roleId?.permissions || []);
-      for (const override of user.permissionOverrides || []) {
-        if (override.granted) rolePerms.add(override.key);
-        else rolePerms.delete(override.key);
-      }
-
-      const hasAny = permissionKeys.some((key) => rolePerms.has(key));
-      if (!hasAny) {
+      const perms = await resolvePermissions(req);
+      if (!permissionKeys.some((key) => perms.includes(key))) {
         return res.status(403).json({
           success: false,
           message: `Access denied. Requires one of: ${permissionKeys.join(', ')}`,
           requiredPermissions: permissionKeys,
         });
       }
-
-      req.userPermissions = [...rolePerms];
       next();
     } catch (err) {
       next(err);

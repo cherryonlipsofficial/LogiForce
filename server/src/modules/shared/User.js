@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const { getEffectivePermissions } = require('../../config/permissions');
 
 const userSchema = new mongoose.Schema(
   {
@@ -116,23 +117,33 @@ userSchema.methods.comparePassword = async function (plaintext) {
   return bcrypt.compare(plaintext, this.password);
 };
 
-userSchema.methods.getPermissions = async function () {
-  await this.populate('roleId');
-  const rolePerms = new Set(this.roleId?.permissions || []);
+// Role fields every access decision needs (see config/permissions.js
+// getEffectivePermissions) plus the ones responses show.
+const ROLE_ACCESS_FIELDS = 'name displayName description permissions isActive templateKey assignableByTenant';
+userSchema.statics.ROLE_ACCESS_FIELDS = ROLE_ACCESS_FIELDS;
 
-  // Apply overrides
-  for (const override of this.permissionOverrides || []) {
-    if (override.granted) {
-      rolePerms.add(override.key);
-    } else {
-      rolePerms.delete(override.key);
-    }
-  }
-  return [...rolePerms];
+// Make sure roleId is populated with the fields getEffectivePermissions reads.
+// Re-populates when roleId was populated with a narrower select.
+userSchema.methods.loadRole = async function () {
+  const role = this.roleId;
+  if (!role) return this;
+  if (Array.isArray(role.permissions) && role.isActive !== undefined) return this;
+  if (this.populated('roleId')) this.depopulate('roleId');
+  await this.populate({ path: 'roleId', select: ROLE_ACCESS_FIELDS });
+  return this;
 };
 
-userSchema.methods.hasPermission = async function (permissionKey) {
-  const perms = await this.getPermissions();
+// Effective permissions within `tenant` (req.tenant). Thin wrapper over the
+// shared getEffectivePermissions so services that hold a user document use the
+// exact same rule as the middleware.
+userSchema.methods.getPermissions = async function (tenant) {
+  if (!tenant) throw new Error('User#getPermissions requires a tenant');
+  await this.loadRole();
+  return getEffectivePermissions(tenant, this);
+};
+
+userSchema.methods.hasPermission = async function (tenant, permissionKey) {
+  const perms = await this.getPermissions(tenant);
   return perms.includes(permissionKey);
 };
 

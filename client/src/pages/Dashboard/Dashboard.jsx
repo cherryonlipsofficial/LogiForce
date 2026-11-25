@@ -68,7 +68,8 @@ const Dashboard = () => {
   const { isMobile, isTablet } = useBreakpoint();
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
-  const isAdmin = hasPermission('roles.manage');
+  const canApproveExtensions = hasPermission('guarantee_passports.approve_extension');
+  const canActivateUsers = hasPermission('users.view') && hasPermission('users.edit');
   const now = new Date();
   const { data: summaryData, isLoading: summaryLoading } = useQuery({
     queryKey: ['payrollSummary', now.getFullYear(), now.getMonth() + 1],
@@ -125,7 +126,7 @@ const Dashboard = () => {
   const { data: pendingExtensions } = useQuery({
     queryKey: ['pending-extensions'],
     queryFn: () => getPendingExtensions().then(r => r.data?.data || r.data || []),
-    enabled: isAdmin,
+    enabled: canApproveExtensions,
     refetchInterval: 5 * 60 * 1000,
   });
 
@@ -138,7 +139,7 @@ const Dashboard = () => {
   const { data: inactiveUsersData } = useQuery({
     queryKey: ['inactive-users-count'],
     queryFn:  () => getInactiveUsers().then(r => r.data),
-    enabled:  isAdmin,
+    enabled:  canActivateUsers,
   });
   const pendingActivationCount = inactiveUsersData?.count || 0;
 

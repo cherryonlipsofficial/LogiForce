@@ -1,7 +1,7 @@
 module.exports = {
   // ROLES constant removed — role names are dynamic.
   // All access control uses permission keys from config/permissions.js.
-  // Use isSystemRole flag for admin bypass, never a role name.
+  // There is no admin bypass: access is getEffectivePermissions() only.
   PAGINATION: {
     DEFAULT_PAGE: 1,
     DEFAULT_LIMIT: 20,

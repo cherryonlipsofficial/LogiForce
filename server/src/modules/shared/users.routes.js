@@ -3,6 +3,13 @@ const router = express.Router();
 const { protect, requirePermission } = require('../../middleware/auth');
 const { getModel } = require('../../config/modelRegistry');
 const { PERMISSIONS } = require('../../config/permissions');
+const {
+  httpError,
+  assertCanAssignRole,
+  assertCanChangeAccessOf,
+  assertCanOverrideKey,
+  assertSeatAvailable,
+} = require('../../utils/accessGuards');
 const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseHelper');
 const { PAGINATION } = require('../../config/constants');
 const logger = require('../../utils/logger');
@@ -59,14 +66,16 @@ router.post('/', requirePermission('users.create'), async (req, res) => {
     return sendError(res, 'name, email, password, and roleId are required');
   }
 
-  // Validate roleId exists
+  // Validate roleId exists and the caller may hand it out
   const role = await Role.findById(roleId);
   if (!role) return sendError(res, 'Role not found', 404);
+  assertCanAssignRole(req, role);
 
   // Check email uniqueness
   const existing = await User.findOne({ email: email.toLowerCase() });
   if (existing) return sendError(res, 'A user with this email already exists', 409);
 
+  // Created inactive, so it takes no seat until /:id/activate.
   const user = await User.create({
     name,
     email,
@@ -100,6 +109,7 @@ router.put('/:id/activate', requirePermission('users.edit'), async (req, res) =>
   const user = await User.findById(req.params.id);
   if (!user) return res.status(404).json({ message: 'User not found' });
   if (user.isActive) return res.status(400).json({ message: 'User is already active' });
+  await assertSeatAvailable(req, User);
 
   user.isActive = true;
   user.activatedBy = req.user._id;
@@ -183,7 +193,7 @@ router.put('/:id/deactivate', requirePermission('users.edit'), async (req, res) 
 router.get('/:id', requirePermission('users.view'), async (req, res) => {
   const User = getModel(req, 'User');
   const user = await User.findById(req.params.id)
-    .populate('roleId', 'name displayName permissions isSystemRole')
+    .populate('roleId', 'name displayName permissions templateKey')
     .populate('permissionOverrides.grantedBy', 'name');
 
   if (!user) return sendError(res, 'User not found', 404);
@@ -195,29 +205,33 @@ router.get('/:id', requirePermission('users.view'), async (req, res) => {
 router.put('/:id', requirePermission('users.edit'), async (req, res) => {
   const User = getModel(req, 'User');
   const Role = getModel(req, 'Role');
-  const user = await User.findById(req.params.id);
+  const user = await User.findById(req.params.id).populate('roleId', User.ROLE_ACCESS_FIELDS);
   if (!user) return sendError(res, 'User not found', 404);
 
   const { name, email, roleId, isActive } = req.body;
   const isSelf = req.user._id.toString() === req.params.id;
-
-  // Cannot change own roleId (prevent self-lockout)
-  if (isSelf && roleId && roleId !== user.roleId.toString()) {
-    return sendError(res, 'Cannot change your own role');
-  }
 
   // Cannot deactivate own account
   if (isSelf && isActive === false) {
     return sendError(res, 'Cannot deactivate your own account');
   }
 
-  // Validate roleId if provided
-  if (roleId) {
+  // A role change is an access change: same checks as PUT /:id/role.
+  const roleChanges = roleId && String(roleId) !== String(user.roleId?._id ?? user.roleId);
+  if (roleChanges) {
+    if (!req.userPermissions.includes('users.manage_access')) {
+      throw httpError(403, 'Access denied. Required permission: users.manage_access');
+    }
+    assertCanChangeAccessOf(req, user);
     const role = await Role.findById(roleId);
     if (!role) return sendError(res, 'Role not found', 404);
-    user.roleId = roleId;
+    assertCanAssignRole(req, role);
   }
 
+  // Inactive → active takes a seat
+  if (isActive === true && !user.isActive) await assertSeatAvailable(req, User);
+
+  if (roleChanges) user.roleId = roleId;
   if (name) user.name = name;
   if (email) user.email = email;
   if (isActive !== undefined) user.isActive = isActive;
@@ -247,21 +261,20 @@ router.delete('/:id', requirePermission('users.delete'), async (req, res) => {
 // ─── Role assignment ────────────────────────────────────────────────────────
 
 // PUT /api/users/:id/role — change a user's role
-router.put('/:id/role', requirePermission('users.edit'), async (req, res) => {
+router.put('/:id/role', requirePermission('users.manage_access'), async (req, res) => {
   const User = getModel(req, 'User');
   const Role = getModel(req, 'Role');
-  if (req.user._id.toString() === req.params.id) {
-    return sendError(res, 'Cannot change your own role');
-  }
 
   const { roleId } = req.body;
   if (!roleId) return sendError(res, 'roleId is required');
 
+  const user = await User.findById(req.params.id).populate('roleId', User.ROLE_ACCESS_FIELDS);
+  if (!user) return sendError(res, 'User not found', 404);
+  assertCanChangeAccessOf(req, user);
+
   const role = await Role.findById(roleId);
   if (!role) return sendError(res, 'Role not found', 404);
-
-  const user = await User.findById(req.params.id);
-  if (!user) return sendError(res, 'User not found', 404);
+  assertCanAssignRole(req, role);
 
   user.roleId = roleId;
   await user.save();
@@ -276,14 +289,14 @@ router.put('/:id/role', requirePermission('users.edit'), async (req, res) => {
 router.get('/:id/permissions', requirePermission('users.view'), async (req, res) => {
   const User = getModel(req, 'User');
   const user = await User.findById(req.params.id)
-    .populate('roleId', 'name displayName permissions')
+    .populate('roleId', User.ROLE_ACCESS_FIELDS)
     .populate('permissionOverrides.grantedBy', 'name');
 
   if (!user) return sendError(res, 'User not found', 404);
 
   const rolePermissions = user.roleId?.permissions || [];
   const overrides = user.permissionOverrides || [];
-  const effectivePermissions = await user.getPermissions();
+  const effectivePermissions = await user.getPermissions(req.tenant);
 
   sendSuccess(res, {
     rolePermissions,
@@ -293,7 +306,7 @@ router.get('/:id/permissions', requirePermission('users.view'), async (req, res)
 });
 
 // POST /api/users/:id/permissions/override — add or update a permission override
-router.post('/:id/permissions/override', requirePermission('roles.manage'), async (req, res) => {
+router.post('/:id/permissions/override', requirePermission('users.manage_access'), async (req, res) => {
   const User = getModel(req, 'User');
   const { key, granted, reason } = req.body;
 
@@ -306,13 +319,12 @@ router.post('/:id/permissions/override', requirePermission('roles.manage'), asyn
     return sendError(res, `"${key}" is not a valid permission key`);
   }
 
-  // Cannot override roles.manage (prevent privilege escalation)
-  if (key === 'roles.manage') {
-    return sendError(res, 'Cannot override the roles.manage permission');
-  }
+  // Only keys within the company's ceiling, and only grants the caller holds
+  assertCanOverrideKey(req, key, Boolean(granted));
 
-  const user = await User.findById(req.params.id);
+  const user = await User.findById(req.params.id).populate('roleId', User.ROLE_ACCESS_FIELDS);
   if (!user) return sendError(res, 'User not found', 404);
+  assertCanChangeAccessOf(req, user);
 
   // Upsert: find existing override for this key, or push new one
   const existingIdx = user.permissionOverrides.findIndex(o => o.key === key);
@@ -333,9 +345,8 @@ router.post('/:id/permissions/override', requirePermission('roles.manage'), asyn
   await user.save();
 
   // Return updated permissions
-  await user.populate('roleId', 'name displayName permissions');
   await user.populate('permissionOverrides.grantedBy', 'name');
-  const effectivePermissions = await user.getPermissions();
+  const effectivePermissions = await user.getPermissions(req.tenant);
 
   sendSuccess(res, {
     rolePermissions: user.roleId?.permissions || [],
@@ -345,12 +356,17 @@ router.post('/:id/permissions/override', requirePermission('roles.manage'), asyn
 });
 
 // DELETE /api/users/:id/permissions/override/:key — remove a permission override
-router.delete('/:id/permissions/override/:key', requirePermission('roles.manage'), async (req, res) => {
+router.delete('/:id/permissions/override/:key', requirePermission('users.manage_access'), async (req, res) => {
   const User = getModel(req, 'User');
   const { key } = req.params;
 
-  const user = await User.findById(req.params.id);
+  const user = await User.findById(req.params.id).populate('roleId', User.ROLE_ACCESS_FIELDS);
   if (!user) return sendError(res, 'User not found', 404);
+  assertCanChangeAccessOf(req, user);
+
+  // Removing a deny override hands the key back, so it counts as a grant.
+  const existing = user.permissionOverrides.find((o) => o.key === key);
+  assertCanOverrideKey(req, key, existing ? existing.granted === false : false);
 
   const beforeLen = user.permissionOverrides.length;
   user.permissionOverrides = user.permissionOverrides.filter(o => o.key !== key);
@@ -362,8 +378,7 @@ router.delete('/:id/permissions/override/:key', requirePermission('roles.manage'
   await user.save();
 
   // Return updated permissions
-  await user.populate('roleId', 'name displayName permissions');
-  const effectivePermissions = await user.getPermissions();
+  const effectivePermissions = await user.getPermissions(req.tenant);
 
   sendSuccess(res, {
     rolePermissions: user.roleId?.permissions || [],

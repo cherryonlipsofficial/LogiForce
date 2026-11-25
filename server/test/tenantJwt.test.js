@@ -21,6 +21,7 @@ const { spawnSync } = require('child_process');
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
+const { getEffectivePermissions } = require('../src/config/permissions');
 
 // ── Fake platform DB: must be in place before config/tenants.js loads ──
 
@@ -48,7 +49,8 @@ const query = (resolve) => {
   return q;
 };
 
-const adminRole = { _id: new mongoose.Types.ObjectId(), name: 'admin', displayName: 'Admin', isSystemRole: true, permissions: [] };
+// An ordinary role: there is no admin bypass, so it holds what /register needs.
+const adminRole = { _id: new mongoose.Types.ObjectId(), name: 'tenant_admin', displayName: 'Admin', templateKey: 'tenant_admin', isActive: true, permissions: ['users.view', 'users.create'] };
 
 const makeUser = (fields) => {
   const user = {
@@ -59,7 +61,13 @@ const makeUser = (fields) => {
     async comparePassword(candidate) { return candidate === this.password; },
     async save() { return this; },
     async populate() { return this; },
-    async getPermissions() { return []; },
+    async loadRole() { // populate roleId, as User#loadRole does
+      if (this.roleId && !Array.isArray(this.roleId.permissions)) {
+        this.roleId = String(this.roleId) === String(adminRole._id) ? adminRole : null;
+      }
+      return this;
+    },
+    async getPermissions(tenant) { await this.loadRole(); return getEffectivePermissions(tenant, this); },
   };
   user.id = String(user._id);
   return user;
@@ -82,7 +90,11 @@ const users = {
   bravo: [makeUser({ _id: SHARED_USER_ID, name: 'Bravo Admin', email: 'admin@bravo.test', password: PASSWORD, roleId: adminRole })],
 };
 const connections = Object.fromEntries(Object.keys(tenantRecords).map((key) => [key, {
-  models: { User: makeUserModel(users[key]), AuditLog: { create: async () => ({}) } },
+  models: {
+    User: makeUserModel(users[key]),
+    Role: { findById: (id) => query(() => (String(id) === String(adminRole._id) ? adminRole : null)) },
+    AuditLog: { create: async () => ({}) },
+  },
 }]));
 
 const connectionManager = require('../src/config/connectionManager');
@@ -222,9 +234,10 @@ describe('tenant-bound JWTs', () => {
     assert.deepEqual(await me('bravo', token), { status: 401, body: WRONG_COMPANY });
   });
 
-  test('register issues a token bound to the company', async () => {
+  test('register (signed in, users.create) issues a token bound to the company', async () => {
     const res = await api('POST', '/api/auth/register', {
       tenant: 'alpha',
+      token: alphaToken,
       body: { name: 'New Person', email: 'new@alpha.test', password: 'password123', roleId: String(adminRole._id) },
     });
     assert.equal(res.body?.success, true, JSON.stringify(res.body));
@@ -234,21 +247,17 @@ describe('tenant-bound JWTs', () => {
     assert.deepEqual(await me('bravo', token), { status: 401, body: WRONG_COMPANY });
   });
 
-  test('register in production (protect called inline) rejects an admin token from another company', async () => {
-    const previous = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'production';
-    try {
-      const body = { name: 'Prod Person', email: 'prod@alpha.test', password: 'password123', roleId: String(adminRole._id) };
-      assert.deepEqual(await api('POST', '/api/auth/register', { tenant: 'alpha', token: bravoToken, body }),
-        { status: 401, body: WRONG_COMPANY });
-      assert.equal(users.alpha.some((u) => u.email === 'prod@alpha.test'), false, 'user was created');
+  test('register needs a token for this company: none → 401, another company\'s → 401', async () => {
+    const body = { name: 'Other Person', email: 'other@alpha.test', password: 'password123', roleId: String(adminRole._id) };
+    assert.deepEqual(await api('POST', '/api/auth/register', { tenant: 'alpha', body }),
+      { status: 401, body: { success: false, message: 'No token, authorization denied' } });
+    assert.deepEqual(await api('POST', '/api/auth/register', { tenant: 'alpha', token: bravoToken, body }),
+      { status: 401, body: WRONG_COMPANY });
+    assert.equal(users.alpha.some((u) => u.email === 'other@alpha.test'), false, 'user was created');
 
-      const ok = await api('POST', '/api/auth/register', { tenant: 'alpha', token: alphaToken, body });
-      assert.equal(ok.body?.success, true, JSON.stringify(ok.body));
-      assert.equal(jwt.decode(ok.body.data.token).tid, 'alpha');
-    } finally {
-      process.env.NODE_ENV = previous;
-    }
+    const ok = await api('POST', '/api/auth/register', { tenant: 'alpha', token: alphaToken, body });
+    assert.equal(ok.body?.success, true, JSON.stringify(ok.body));
+    assert.equal(jwt.decode(ok.body.data.token).tid, 'alpha');
   });
 });
 

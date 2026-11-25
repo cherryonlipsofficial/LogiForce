@@ -6,8 +6,7 @@ import { useAuth } from '../context/AuthContext';
  * Returns boolean.
  */
 export const usePermission = (key) => {
-  const { hasPermission, isAdmin } = useAuth();
-  if (isAdmin) return true;
+  const { hasPermission } = useAuth();
   return hasPermission(key);
 };
 
@@ -17,14 +16,14 @@ export const usePermission = (key) => {
  * @returns {Object} — e.g. { canCreate: true, canEdit: false }
  */
 export const usePermissions = (keyMap) => {
-  const { permissions, isAdmin } = useAuth();
+  const { permissions } = useAuth();
   return useMemo(() => {
     const result = {};
     for (const [alias, key] of Object.entries(keyMap)) {
-      result[alias] = isAdmin || permissions.includes(key);
+      result[alias] = permissions.includes(key);
     }
     return result;
-  }, [permissions, isAdmin, keyMap]);
+  }, [permissions, keyMap]);
 };
 
 /**

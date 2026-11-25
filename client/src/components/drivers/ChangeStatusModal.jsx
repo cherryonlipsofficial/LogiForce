@@ -41,7 +41,8 @@ const REQUIRES_LAST_WORKING_DAY = ['resigned', 'offboarded'];
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 const ChangeStatusModal = ({ driver, presetStatus, onClose, onSuccess }) => {
-  const { isAdmin } = useAuth();
+  const { hasPermission } = useAuth();
+  const canForceStatus = hasPermission('drivers.force_status');
   const [newStatus, setNewStatus] = useState(presetStatus || '');
   const [reason, setReason] = useState('');
   const [reasonError, setReasonError] = useState('');
@@ -59,10 +60,10 @@ const ChangeStatusModal = ({ driver, presetStatus, onClose, onSuccess }) => {
   // Determine available statuses
   // Non-admin (Operations) users can only change status from Active/On Leave/Suspended/Onboarding
   // Early stages (Draft, Pending KYC, Pending Verify) are not changeable by Operations
-  // Only admin can see all statuses and force transitions
+  // Only drivers.force_status can see all statuses and force transitions
   const NON_ADMIN_STATUSES = ['active', 'on_leave', 'suspended', 'resigned', 'offboarded'];
   let availableStatuses;
-  if (isAdmin) {
+  if (canForceStatus) {
     availableStatuses = ALL_STATUSES.filter((s) => s.value !== currentStatus);
   } else {
     const allowed = OPS_TRANSITIONS[currentStatus] || [];
@@ -71,7 +72,7 @@ const ChangeStatusModal = ({ driver, presetStatus, onClose, onSuccess }) => {
     );
   }
 
-  const isAdminOverride = isAdmin && EARLY_STAGES.includes(newStatus);
+  const isForceOverride = canForceStatus && EARLY_STAGES.includes(newStatus);
   const isDestructive = DESTRUCTIVE_STATUSES.includes(newStatus);
   const buttonText = BUTTON_TEXT[newStatus] || 'Change status';
   const buttonVariant = isDestructive ? 'danger' : 'primary';
@@ -185,7 +186,7 @@ const ChangeStatusModal = ({ driver, presetStatus, onClose, onSuccess }) => {
           {reasonError && <div style={errorStyle}>{reasonError}</div>}
         </div>
 
-        {isAdminOverride && (
+        {isForceOverride && (
           <div style={{
             background: 'rgba(248,113,113,0.08)',
             border: '1px solid rgba(248,113,113,0.25)',

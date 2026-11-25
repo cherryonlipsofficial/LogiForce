@@ -9,9 +9,9 @@ async function getPendingApprovalsSummary(req, user) {
   const SalaryRun = getModel(req, 'SalaryRun');
   const DriverAdvance = getModel(req, 'DriverAdvance');
   const GuaranteePassport = getModel(req, 'GuaranteePassport');
-  const permissions = await user.getPermissions();
+  const permissions = await user.getPermissions(req.tenant);
   const permSet = new Set(permissions);
-  const isSystemAdmin = user.roleId?.isSystemRole === true;
+  const canApproveAnyAttendance = permSet.has('attendance.approve_any');
 
   const summary = {
     attendance: 0,
@@ -27,23 +27,23 @@ async function getPendingApprovalsSummary(req, user) {
   const promises = [];
 
   // 1. Attendance approvals — check specific attendance approve permissions
-  if (isSystemAdmin || permSet.has('attendance.approve_sales') || permSet.has('attendance.approve_ops')) {
+  if (canApproveAnyAttendance || permSet.has('attendance.approve_sales') || permSet.has('attendance.approve_ops')) {
     let attendanceFilter;
 
-    if (permSet.has('attendance.approve_sales') && !permSet.has('attendance.approve_ops') && !isSystemAdmin) {
+    if (permSet.has('attendance.approve_sales') && !permSet.has('attendance.approve_ops') && !canApproveAnyAttendance) {
       // User can only do sales approval
       attendanceFilter = {
         status: { $in: ['pending_review', 'ops_approved', 'dispute_responded'] },
         'salesApproval.status': { $ne: 'approved' },
       };
-    } else if (permSet.has('attendance.approve_ops') && !permSet.has('attendance.approve_sales') && !isSystemAdmin) {
+    } else if (permSet.has('attendance.approve_ops') && !permSet.has('attendance.approve_sales') && !canApproveAnyAttendance) {
       // User can only do ops approval
       attendanceFilter = {
         status: { $in: ['pending_review', 'sales_approved', 'dispute_responded'] },
         'opsApproval.status': { $ne: 'approved' },
       };
     } else {
-      // Admin or user with both permissions
+      // attendance.approve_any, or both sides
       attendanceFilter = {
         status: { $in: ['pending_review', 'sales_approved', 'ops_approved', 'dispute_responded'] },
       };
@@ -57,7 +57,7 @@ async function getPendingApprovalsSummary(req, user) {
   }
 
   // 1b. Disputed attendance batches — for users who can respond to disputes
-  if (isSystemAdmin || permSet.has('attendance.respond_dispute')) {
+  if (permSet.has('attendance.respond_dispute')) {
     promises.push(
       AttendanceBatch.countDocuments({ status: 'disputed' }).then(count => {
         summary.attendanceDisputes = count;
@@ -66,17 +66,17 @@ async function getPendingApprovalsSummary(req, user) {
   }
 
   // 2. Salary run approvals — check specific salary approve permissions
-  if (isSystemAdmin || permSet.has('salary.approve_ops') || permSet.has('salary.approve_compliance') || permSet.has('salary.approve_accounts')) {
+  if (permSet.has('salary.approve_ops') || permSet.has('salary.approve_compliance') || permSet.has('salary.approve_accounts')) {
     let salaryFilter;
 
-    if (permSet.has('salary.approve_ops') && !permSet.has('salary.approve_compliance') && !permSet.has('salary.approve_accounts') && !isSystemAdmin) {
+    if (permSet.has('salary.approve_ops') && !permSet.has('salary.approve_compliance') && !permSet.has('salary.approve_accounts')) {
       salaryFilter = { status: 'draft', isDeleted: { $ne: true } };
-    } else if (permSet.has('salary.approve_compliance') && !permSet.has('salary.approve_ops') && !permSet.has('salary.approve_accounts') && !isSystemAdmin) {
+    } else if (permSet.has('salary.approve_compliance') && !permSet.has('salary.approve_ops') && !permSet.has('salary.approve_accounts')) {
       salaryFilter = { status: 'ops_approved', isDeleted: { $ne: true } };
-    } else if (permSet.has('salary.approve_accounts') && !permSet.has('salary.approve_ops') && !permSet.has('salary.approve_compliance') && !isSystemAdmin) {
+    } else if (permSet.has('salary.approve_accounts') && !permSet.has('salary.approve_ops') && !permSet.has('salary.approve_compliance')) {
       salaryFilter = { status: 'compliance_approved', isDeleted: { $ne: true } };
     } else {
-      // Admin or user with multiple permissions — show all pending at any stage
+      // User with multiple permissions — show all pending at any stage
       salaryFilter = {
         status: { $in: ['draft', 'ops_approved', 'compliance_approved'] },
         isDeleted: { $ne: true },
@@ -91,7 +91,7 @@ async function getPendingApprovalsSummary(req, user) {
   }
 
   // 3. Advance approvals — for users with advances.approve permission
-  if (isSystemAdmin || permSet.has('advances.approve')) {
+  if (permSet.has('advances.approve')) {
     promises.push(
       DriverAdvance.countDocuments({ status: 'pending' }).then(count => {
         summary.advances = count;
@@ -99,8 +99,8 @@ async function getPendingApprovalsSummary(req, user) {
     );
   }
 
-  // 4. Guarantee extension approvals — for admins / roles.manage
-  if (isSystemAdmin || permSet.has('roles.manage')) {
+  // 4. Guarantee extension approvals
+  if (permSet.has('guarantee_passports.approve_extension')) {
     promises.push(
       GuaranteePassport.countDocuments({ 'extensionRequest.status': 'pending' }).then(count => {
         summary.guaranteeExtensions = count;
