@@ -1,5 +1,10 @@
 module.exports = {
 
+  // Each entry: { label, module, description, scope? }
+  //   scope: 'platform' — held only by platform staff. Never part of a company's
+  //                       ceiling (see tenantCeiling below), so a company role or
+  //                       user override can never be given it.
+  //   scope: 'tenant'   — a company permission. Missing scope means 'tenant'.
   PERMISSIONS: {
 
     // ── DRIVERS ──
@@ -11,6 +16,7 @@ module.exports = {
     'drivers.view_ledger':     { label: 'View driver ledger',      module: 'Drivers',    description: 'See full financial ledger per driver' },
     'drivers.manage_docs':     { label: 'Manage documents',        module: 'Drivers',    description: 'Upload and verify driver documents' },
     'drivers.change_status':   { label: 'Change driver status',    module: 'Drivers',    description: 'Suspend, activate, put on leave' },
+    'drivers.force_status':    { label: 'Force driver status',     module: 'Drivers',    description: 'Change driver status outside the normal workflow, including force-activating a driver before KYC is complete' },
     'drivers.activate':        { label: 'Activate driver',          module: 'Drivers',    description: 'Activate a driver from Pending Verify status' },
     'drivers.update_client_id': { label: 'Update Client User ID',   module: 'Drivers',    description: 'Set or update the Client User ID on active drivers' },
     'drivers.manage_passport': { label: 'Manage passport submission', module: 'Drivers', description: 'Record passport submission, guarantee passports, request extensions' },
@@ -24,6 +30,7 @@ module.exports = {
 
     // ── COMPLIANCE ──
     'guarantee_passports.view':  { label: 'View guarantee passports',  module: 'Compliance', description: 'View all guarantee passports and their status' },
+    'guarantee_passports.approve_extension': { label: 'Approve passport extensions', module: 'Compliance', description: 'View pending guarantee passport extension requests and approve or reject them' },
     'expired_documents.view':    { label: 'View expired documents',    module: 'Compliance', description: 'View drivers with expired documents across all document types' },
 
     // ── CLIENTS ──
@@ -64,6 +71,7 @@ module.exports = {
     'attendance.upload':       { label: 'Upload attendance',       module: 'Attendance', description: 'Upload CSV/Excel attendance files' },
     'attendance.approve_sales': { label: 'Approve attendance (sales)', module: 'Attendance', description: 'Sales team attendance approval' },
     'attendance.approve_ops':  { label: 'Approve attendance (ops)', module: 'Attendance', description: 'Operations team attendance approval' },
+    'attendance.approve_any':  { label: 'Approve attendance (any side)', module: 'Attendance', description: 'Approve whichever side of an attendance batch (sales or ops) still needs approval' },
     'attendance.reject':       { label: 'Reject attendance',       module: 'Attendance', description: 'Reject attendance batches' },
     'attendance.dispute':      { label: 'Raise attendance dispute', module: 'Attendance', description: 'Raise a dispute on an uploaded attendance batch' },
     'attendance.respond_dispute': { label: 'Respond to dispute',   module: 'Attendance', description: 'Respond to disputes raised on attendance (Accounts)' },
@@ -208,7 +216,9 @@ module.exports = {
     'users.create':            { label: 'Create users',            module: 'Users',      description: 'Add new user accounts' },
     'users.edit':              { label: 'Edit users',              module: 'Users',      description: 'Update user details and roles' },
     'users.delete':            { label: 'Delete users',            module: 'Users',      description: 'Remove user accounts' },
-    'roles.manage':            { label: 'Manage roles & permissions', module: 'Users',   description: 'Create roles and configure permissions — super admin only' },
+    'users.manage_access':     { label: 'Manage user access',      module: 'Users',      description: 'Change a user\'s role and permission overrides' },
+    'roles.view':              { label: 'View roles',              module: 'Users',      description: 'Read-only access to the roles list and role details' },
+    'roles.manage':            { label: 'Manage roles & permissions', module: 'Users',   scope: 'platform', description: 'Create roles and configure permissions — super admin only' },
     'activity_log.view':       { label: 'View activity log',       module: 'Users',      description: 'View system-wide activity log showing who did what across the platform — super admin only' },
   },
 
@@ -219,6 +229,19 @@ module.exports = {
 module.exports.MODULES = Object.freeze([
   ...new Set(Object.values(module.exports.PERMISSIONS).map((p) => p.module)),
 ]);
+
+// Modules every company has, whatever Tenant.enabledModules says.
+module.exports.CORE_MODULES = Object.freeze(['Users', 'Settings', 'Notifications', 'Dashboard']);
+
+// The most a company can hold: every tenant-scope permission in a core module or
+// in one of the tenant's enabled modules. Platform-scope permissions are never in it.
+module.exports.tenantCeiling = (tenant) => new Set(
+  Object.entries(module.exports.PERMISSIONS)
+    .filter(([, p]) => p.scope !== 'platform' &&
+      (module.exports.CORE_MODULES.includes(p.module) || (tenant.enabledModules || []).includes(p.module)))
+    .map(([key]) => key));
+
+module.exports.isPlatformPermission = (key) => module.exports.PERMISSIONS[key]?.scope === 'platform';
 
 // Legacy permission keys that were renamed — map old → new
 module.exports.LEGACY_KEY_MAP = {
