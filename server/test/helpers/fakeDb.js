@@ -1,14 +1,16 @@
 /**
  * Minimal in-memory stand-ins for Mongoose models, for tests that must not need
  * MongoDB. Supports the filters and updates the platform code uses: equality
- * (arrays: "contains"), dotted paths, $ne, $in, $nin, $gt, $lt; $set,
- * $setOnInsert, $inc; upsert. Reads return deep copies (like .lean()).
+ * (arrays: "contains"), RegExp values, dotted paths, $or, $ne, $in, $nin, $gt,
+ * $gte, $lt, $lte, $regex (+ $options); $set, $setOnInsert, $inc; upsert.
+ * Queries support .sort() (one or more fields), .skip(), .limit().
+ * Reads return deep copies (like .lean()).
  */
 const mongoose = require('mongoose');
 
 const clone = (value) => {
   if (Array.isArray(value)) return value.map(clone);
-  if (value instanceof mongoose.Types.ObjectId || value instanceof Date) return value;
+  if (value instanceof mongoose.Types.ObjectId || value instanceof Date || value instanceof RegExp) return value;
   if (value && typeof value === 'object') {
     return Object.fromEntries(Object.entries(value).filter(([, v]) => typeof v !== 'function').map(([k, v]) => [k, clone(v)]));
   }
@@ -33,6 +35,7 @@ const isOperatorObject = (cond) => cond && typeof cond === 'object' && !Array.is
 
 const eq = (actual, expected) => {
   if (expected === null) return actual === null || actual === undefined;
+  if (expected instanceof RegExp) return typeof actual === 'string' && expected.test(actual);
   if (Array.isArray(actual) && !Array.isArray(expected)) return actual.some((a) => idEq(a, expected));
   if (actual instanceof Date && expected instanceof Date) return actual.getTime() === expected.getTime();
   return actual !== undefined && idEq(actual, expected);
@@ -46,13 +49,27 @@ const matchesValue = (actual, cond) => {
       case '$in': return v.some((x) => eq(actual, x));
       case '$nin': return !v.some((x) => eq(actual, x));
       case '$gt': return actual != null && actual > v;
+      case '$gte': return actual != null && actual >= v;
       case '$lt': return actual != null && actual < v;
+      case '$lte': return actual != null && actual <= v;
+      case '$regex': return typeof actual === 'string' && new RegExp(v, cond.$options || '').test(actual);
+      case '$options': return true;
       default: throw new Error(`fakeDb: unsupported operator ${op}`);
     }
   });
 };
 
-const matches = (doc, filter = {}) => Object.entries(filter).every(([path, cond]) => matchesValue(getPath(doc, path), cond));
+const matches = (doc, filter = {}) => Object.entries(filter).every(([path, cond]) => (path === '$or'
+  ? cond.some((f) => matches(doc, f))
+  : matchesValue(getPath(doc, path), cond)));
+
+const compare = (a, b) => {
+  if (a === b) return 0;
+  if (a === undefined || a === null) return -1;
+  if (b === undefined || b === null) return 1;
+  if (a instanceof Date || b instanceof Date) return new Date(a) - new Date(b);
+  return String(a) < String(b) ? -1 : (String(a) > String(b) ? 1 : 0);
+};
 
 const applyUpdate = (doc, update, inserting) => {
   for (const [path, value] of Object.entries(update.$set || {})) setPath(doc, path, clone(value));
@@ -60,13 +77,39 @@ const applyUpdate = (doc, update, inserting) => {
   for (const [path, value] of Object.entries(update.$inc || {})) setPath(doc, path, (getPath(doc, path) || 0) + value);
 };
 
-/** A query that can be awaited directly or through .lean(); .select/.sort are accepted and ignored. */
+/**
+ * A query that can be awaited directly or through .lean(). .select is
+ * accepted and ignored; .sort/.skip/.limit apply when the result is a list.
+ */
 const query = (fn) => {
+  let sortSpec = null;
+  let skipN = 0;
+  let limitN = 0;
+  const run = () => {
+    let result = fn();
+    if (!Array.isArray(result)) return clone(result);
+    result = [...result];
+    if (sortSpec) {
+      const fields = Object.entries(sortSpec);
+      result.sort((a, b) => {
+        for (const [field, dir] of fields) {
+          const c = compare(getPath(a, field), getPath(b, field));
+          if (c !== 0) return dir < 0 ? -c : c;
+        }
+        return 0;
+      });
+    }
+    if (skipN) result = result.slice(skipN);
+    if (limitN) result = result.slice(0, limitN);
+    return clone(result);
+  };
   const chain = {
     select: () => chain,
-    sort: () => chain,
-    lean: async () => clone(fn()),
-    then: (resolve, reject) => Promise.resolve().then(() => clone(fn())).then(resolve, reject),
+    sort: (spec) => { sortSpec = spec; return chain; },
+    skip: (n) => { skipN = n; return chain; },
+    limit: (n) => { limitN = n; return chain; },
+    lean: async () => run(),
+    then: (resolve, reject) => Promise.resolve().then(run).then(resolve, reject),
   };
   return chain;
 };
@@ -106,6 +149,7 @@ const makeModel = (docs = [], { unique = [], onCreate } = {}) => {
     findOne: (filter) => query(() => model.docs.find((d) => matches(d, filter)) ?? null),
     findById: (id) => query(() => model.docs.find((d) => idEq(d._id, id)) ?? null),
     countDocuments: async (filter) => model.docs.filter((d) => matches(d, filter)).length,
+    distinct: async (field) => [...new Set(model.docs.map((d) => getPath(d, field)).filter((v) => v !== undefined))],
     create: async (input) => {
       maybeFail('create');
       const doc = { _id: new mongoose.Types.ObjectId(), ...clone(input) };

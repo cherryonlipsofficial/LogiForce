@@ -38,6 +38,8 @@ const resetTenant = () => {
   tenantRecords.acme = {
     _id: new ObjectId(), key: 'acme', name: 'Acme LLC', dbName: 'logiforce_acme', status: 'active',
     enabledModules: ['Drivers', 'Compliance', 'Attendance', 'Salary', 'Advances'],
+    // The roles the platform offers this company (fixture roles are linked by name).
+    roleTemplateKeys: ['tenant_admin', 'manager', 'driver_desk', 'finance', 'hidden', 'retired', 'hr'],
     limits: { maxUsers: null },
     allowSelfSignup: false,
   };
@@ -222,7 +224,7 @@ let users;
 const tokenFor = (user) => generateToken(user._id, 'acme');
 
 const addRole = (fields) => {
-  const role = { _id: new ObjectId(), isActive: true, assignableByTenant: true, templateKey: null, managedBy: 'tenant', isSystemRole: false, ...fields };
+  const role = { _id: new ObjectId(), isActive: true, assignableByTenant: true, templateKey: fields.name ?? null, managedBy: 'platform', isSystemRole: false, ...fields };
   db.Role.push(role);
   return role;
 };
@@ -242,7 +244,7 @@ beforeEach(() => {
   roles = {
     tenantAdmin: addRole({ name: 'tenant_admin', displayName: 'Company Admin', templateKey: 'tenant_admin', managedBy: 'platform', assignableByTenant: false, permissions: [...template('tenant_admin').permissions] }),
     // The old system admin role: every key, roles.manage included, isSystemRole true.
-    legacyAdmin: addRole({ name: 'admin', displayName: 'Administrator', isSystemRole: true, permissions: [...ALL_KEYS] }),
+    legacyAdmin: addRole({ name: 'admin', displayName: 'Administrator', isSystemRole: true, templateKey: null, managedBy: 'tenant', permissions: [...ALL_KEYS] }),
     // Can manage access, but only holds driver/attendance basics.
     manager: addRole({ name: 'manager', displayName: 'Manager', permissions: ['users.view', 'users.create', 'users.edit', 'users.manage_access', 'drivers.view', 'drivers.edit', 'attendance.view'] }),
     drivers: addRole({ name: 'driver_desk', displayName: 'Driver desk', permissions: ['drivers.view', 'drivers.edit'] }),
@@ -518,6 +520,75 @@ describe('user management guards', () => {
   });
 });
 
+// ── Step 13: grantable permissions and the company's allowed roles ──
+
+describe('grantable permissions and allowed roles', () => {
+  test('GET /users/grantable-permissions: held by the caller AND within the company limit; needs users.manage_access', async () => {
+    assert.equal((await api('GET', '/api/users/grantable-permissions', { token: tokenFor(users.hr) })).status, 403);
+    assert.equal((await api('GET', '/api/users/grantable-permissions', { token: tokenFor(users.staff) })).status, 403);
+
+    const asManager = await api('GET', '/api/users/grantable-permissions', { token: tokenFor(users.manager) });
+    assert.equal(asManager.status, 200, JSON.stringify(asManager.body));
+    assert.deepEqual([...asManager.body.data.keys].sort(), [...roles.manager.permissions].sort());
+    const entry = asManager.body.data.permissions.find((p) => p.key === 'drivers.view');
+    assert.deepEqual(Object.keys(entry).sort(), ['description', 'key', 'label', 'module']);
+
+    // The admin template holds invoices.*, but the company hasn't enabled Invoices.
+    const asAdmin = (await api('GET', '/api/users/grantable-permissions', { token: tokenFor(users.admin) })).body.data.keys;
+    const ceiling = tenantCeiling(await tenantConfig());
+    assert.ok(asAdmin.length > 0);
+    assert.ok(asAdmin.every((k) => ceiling.has(k)), 'everything is within the ceiling');
+    assert.ok(!asAdmin.includes('invoices.view'));
+    assert.ok(!asAdmin.includes('roles.manage'));
+    assert.ok(asAdmin.includes('salary.view'));
+
+    // Switching a module off shrinks the list at once.
+    tenantRecords.acme.enabledModules = ['Drivers'];
+    const shrunk = (await api('GET', '/api/users/grantable-permissions', { token: tokenFor(users.admin) })).body.data.keys;
+    assert.ok(!shrunk.includes('salary.view'));
+    assert.ok(shrunk.includes('drivers.view'));
+  });
+
+  test('every key outside the grantable list is refused as a grant', async () => {
+    const token = tokenFor(users.manager);
+    const grantable = new Set((await api('GET', '/api/users/grantable-permissions', { token })).body.data.keys);
+    const route = `/api/users/${users.staff._id}/permissions/override`;
+    for (const key of ['salary.view', 'invoices.view', 'roles.manage', 'settings.manage', 'users.delete']) {
+      assert.ok(!grantable.has(key), `fixture: ${key} is not grantable`);
+      const res = await api('POST', route, { token, body: { key, granted: true, reason: 'test' } });
+      assert.equal(res.status, 403, key);
+    }
+    for (const key of grantable) {
+      if (key.startsWith('users.')) continue; // staff → manager-level access; fine, but not needed here
+      const res = await api('POST', route, { token, body: { key, granted: true, reason: 'test' } });
+      assert.equal(res.status, 200, `${key}: ${JSON.stringify(res.body)}`);
+    }
+  });
+
+  test('/roles/assignable and role assignment only offer roles in the company\'s allowed set', async () => {
+    const outside = addRole({ name: 'outsider', displayName: 'Not offered', templateKey: 'outsider', permissions: ['drivers.view'] });
+    const unlinked = addRole({ name: 'homemade', displayName: 'Company-made', templateKey: null, managedBy: 'tenant', permissions: ['drivers.view'] });
+
+    const names = (await api('GET', '/api/roles/assignable', { token: tokenFor(users.admin) })).body.data.map((r) => r.name);
+    assert.ok(names.includes('driver_desk'));
+    assert.ok(!names.includes('outsider'), 'template not in Tenant.roleTemplateKeys');
+    assert.ok(!names.includes('homemade'), 'no template link');
+
+    for (const role of [outside, unlinked]) {
+      const put = await api('PUT', `/api/users/${users.staff._id}/role`, { token: tokenFor(users.admin), body: { roleId: String(role._id) } });
+      assert.deepEqual(put, { status: 403, body: { success: false, message: 'This role is not offered to this company' } });
+      const post = await api('POST', '/api/users', { token: tokenFor(users.admin), body: { name: 'N', email: `${role.name}@acme.test`, password: 'password1', roleId: String(role._id) } });
+      assert.equal(post.status, 403);
+    }
+    assert.equal(String(stored('User', users.staff._id).roleId), String(roles.drivers._id));
+
+    // Offering the template to the company makes it assignable.
+    tenantRecords.acme.roleTemplateKeys = [...tenantRecords.acme.roleTemplateKeys, 'outsider'];
+    const after = (await api('GET', '/api/roles/assignable', { token: tokenFor(users.admin) })).body.data.map((r) => r.name);
+    assert.ok(after.includes('outsider'));
+  });
+});
+
 // ── 10: business rules moved off isSystemRole / roles.manage ──
 
 describe('business rules use the new permissions', () => {
@@ -631,6 +702,10 @@ describe('no access shortcuts left in src', () => {
     const allowedIsSystemRole = new Set([
       'modules/shared/Role.js', 'config/db.js', 'config/defaultRoles.js',
       'platform/services/roleSync.service.js', 'scripts/migratePermissions.js', 'scripts/migrateRoleNames.js',
+      // finds the old admin role to turn it into tenant_admin
+      'scripts/migrateToPlatform.js',
+      // writes isSystemRole: false on the roles it seeds
+      'scripts/seedRoles.js',
     ]);
     for (const file of files) {
       const rel = path.relative(srcDir, file).split(path.sep).join('/');

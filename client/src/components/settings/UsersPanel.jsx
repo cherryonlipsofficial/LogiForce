@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { getUsers, createUser, updateUser, deleteUser, getUserPermissions, addPermissionOverride, removePermissionOverride } from '../../api/usersApi';
+import { getUsers, createUser, updateUser, deleteUser, getUserPermissions, addPermissionOverride, removePermissionOverride, getGrantablePermissions } from '../../api/usersApi';
 import { getRoles, getPermissionsList } from '../../api/rolesApi';
 import PageHeader from '../ui/PageHeader';
 import Btn from '../ui/Btn';
@@ -231,6 +231,11 @@ const UserPermissionsModal = ({ user, onClose }) => {
     queryFn: getPermissionsList,
   });
 
+  const { data: grantableData } = useQuery({
+    queryKey: ['grantable-permissions'],
+    queryFn: () => getGrantablePermissions().then((r) => r.data),
+  });
+
   const addOverride = useMutation({
     mutationFn: (data) => addPermissionOverride(user._id, data),
     onSuccess: () => {
@@ -269,8 +274,10 @@ const UserPermissionsModal = ({ user, onClose }) => {
   const rolePermKeys = rolePerms.map((p) => (typeof p === 'string' ? p : p.key));
   const overrideKeys = overrides.map((o) => o.key);
 
+  // Only what the signed-in user may grant (company modules ∩ their own permissions)
+  const grantableKeys = grantableData?.keys || [];
   const grantablePerms = allPermsList.filter(
-    (p) => !rolePermKeys.includes(p.key) && !overrideKeys.includes(p.key)
+    (p) => grantableKeys.includes(p.key) && !rolePermKeys.includes(p.key) && !overrideKeys.includes(p.key)
   );
   const deniablePerms = allPermsList.filter(
     (p) => rolePermKeys.includes(p.key) && !overrideKeys.includes(p.key)

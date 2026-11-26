@@ -31,10 +31,13 @@ const errorStyle = {
   marginTop: 4,
 };
 
-export default function EditUserModal({ user, onClose, onSuccess, roles }) {
+export default function EditUserModal({ user, onClose, onSuccess }) {
   const queryClient = useQueryClient();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, hasPermission } = useAuth();
   const isSelf = currentUser?._id === user._id;
+  // Changing a role is an access change: it needs users.manage_access, and
+  // nobody changes their own (the server enforces both).
+  const canChangeRole = hasPermission('users.manage_access') && !isSelf;
 
   const {
     register,
@@ -158,7 +161,8 @@ export default function EditUserModal({ user, onClose, onSuccess, roles }) {
                   <RoleSelect
                     value={field.value}
                     onChange={field.onChange}
-                    roles={roles}
+                    currentRole={user.roleId}
+                    disabled={!canChangeRole}
                   />
                 )}
               />

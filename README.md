@@ -115,6 +115,18 @@ Routes for LogiForce staff, not company users. They live under `/api/platform`, 
 | POST   | /api/platform/auth/set-password  | `token` + `password` (12+ chars) → password set; the link works once | Public (rate limited) |
 | POST   | /api/platform/tenants            | Provision a company: `{ key, name, adminName, adminEmail, enabledModules, roleTemplateKeys }`. Creates the record, its database indexes, roles (always `tenant_admin`), blank company settings and the admin user, and emails the admin a set-password link to `https://<key>.logiforce.app`. On failure the company is `failed` with `provisioningError`; send the same request again to resume | Platform owner |
 | POST   | /api/platform/tenants/:key/resend-invite | New set-password link for the company admin (`{ email }` optional; defaults to the admin from provisioning) | Platform owner |
+| GET    | /api/platform/tenants            | Companies (`?status=` `&search=` on key or name), newest first | Owner or support |
+| GET    | /api/platform/tenants/:key       | Company detail, with its admins read from its own database | Owner or support |
+| PATCH  | /api/platform/tenants/:key       | `{ name?, enabledModules?, roleTemplateKeys? }` (`tenant_admin` is always kept). Audited as `tenant.update`; a module or role change then runs the role sync and returns its result as `roleSync` | Platform owner |
+| POST   | /api/platform/tenants/:key/suspend, /reactivate | `{ reason? }`. active ↔ suspended; audited as `tenant.suspend` / `tenant.reactivate` | Platform owner |
+| POST   | /api/platform/tenants/:key/sync-roles | Run the role sync again (e.g. after it failed) | Platform owner |
+| GET    | /api/platform/role-templates     | Every role template, with the companies that use it | Owner or support |
+| PATCH  | /api/platform/role-templates/:key | `{ displayName?, description?, permissions?, assignableByTenant?, version? }`. Audited as `roleTemplate.update`, then synced into every company using it (`sync: { ok, failed }`). A stale `version` → 409 `TEMPLATE_STALE` | Platform owner |
+| GET    | /api/platform/audit-logs         | Paged (`page`, `limit` ≤ 100), filters `action`, `targetType`, `targetKey`, `actor`, `from`, `to` | Owner or support |
+| GET    | /api/platform/audit-logs/actions | Distinct actions and target types, for the filter | Owner or support |
+| GET    | /api/platform/meta               | Modules, core modules and the permission catalogue (no platform-only keys) | Owner or support |
+
+The **platform console** is the web UI for these, at `/platform` in the client app and at `https://admin.logiforce.app` (a reserved subdomain: every path there opens the console). It has its own login (password + emailed code), keeps its token under `platformToken` in local storage, and never sends `x-tenant-id`; signing in or out of it doesn't affect a company login in the same browser. Set `PLATFORM_CONSOLE_URL=https://admin.logiforce.app` so set-password links open it.
 
 Tenant keys are the subdomain: 3–31 lowercase letters, digits or hyphens, not starting or ending with a hyphen, and not one of `RESERVED_TENANT_KEYS` (`server/src/platform/models/Tenant.js`). Each new company needs a DNS record for `<key>.logiforce.app` (a wildcard `*.logiforce.app` covers them all).
 
@@ -134,6 +146,15 @@ npm run migrate:platform                                  # dry run
 npm run migrate:platform -- --csv unmatched-roles.csv     # dry run + report as CSV
 npm run migrate:platform -- --apply                       # make the changes
 ```
+
+### Users and roles (company)
+
+| Method | Endpoint                          | Description                                        | Permission |
+|--------|-----------------------------------|----------------------------------------------------|------------|
+| GET    | /api/roles, /api/roles/:id        | Roles, read-only (managed by LogiForce)            | roles.view |
+| GET    | /api/roles/assignable             | Roles the caller may give someone: active, offered to the company (`Tenant.roleTemplateKeys`), and no permission the caller lacks | users.manage_access or users.create |
+| GET    | /api/users/grantable-permissions  | Permissions the caller may grant through an override: within the company's enabled modules and held by the caller. Grants outside this list are refused | users.manage_access |
+| PUT    | /api/users/:id/role, POST/DELETE /api/users/:id/permissions/override | Change a user's access | users.manage_access |
 
 ### Drivers
 
@@ -225,6 +246,8 @@ npm run migrate:platform -- --apply                       # make the changes
 
 ## Seeding
 
+`npm run platform:seed` creates any missing role template but leaves existing ones alone, since they're edited in the platform console (it prints a note for any that differ from the code defaults). `npm run platform:seed -- --reset-templates` puts them back to the code defaults; run `npm run platform:sync-roles` afterwards to copy them into the companies.
+
 ```bash
 cd server
 npm run seed
@@ -253,7 +276,7 @@ Seeds the database at `MONGODB_URI` (the `logi-force` tenant's database unless `
 | PLATFORM_DB_NAME    | Platform database name (always passed explicitly, never taken from the URI path) | logiforce_platform |
 | PLATFORM_OWNER_EMAIL / PLATFORM_OWNER_NAME / PLATFORM_OWNER_PASSWORD | First platform owner, created by `npm run platform:seed` if the email doesn't exist yet. Password ≥ 12 chars; an existing account is never changed. `npm run platform:create-owner` also reads `PLATFORM_OWNER_PASSWORD` when stdin isn't a terminal | (optional — read only by those scripts) |
 | PLATFORM_ADMIN_EMAIL / PLATFORM_ADMIN_NAME | Your platform account, created by `npm run migrate:platform` without a password; you get an emailed set-password link | (optional — read only by that script) |
-| PLATFORM_CONSOLE_URL | Base URL of the platform console; set-password links go to `<PLATFORM_CONSOLE_URL>/set-password/<token>` | (required when a platform set-password link is sent) |
+| PLATFORM_CONSOLE_URL | Base URL of the platform console (e.g. `https://admin.logiforce.app`); set-password links go to `<PLATFORM_CONSOLE_URL>/set-password/<token>`, which the console redirects to `/platform/set-password/<token>` | (required when a platform set-password link is sent) |
 | PLATFORM_JWT_SECRET | Signs platform (product-owner) login tokens. At least 32 characters and different from `JWT_SECRET` (`openssl rand -hex 32`); changing it signs out every platform session | (required — server exits on startup without it) |
 | PLATFORM_JWT_EXPIRES_IN | Platform token lifetime | 8h |
 | PORT                | Server port                    | 5000                             |

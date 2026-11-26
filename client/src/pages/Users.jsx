@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { getUsers, updateUser, activateUser, deactivateUser, getInactiveUsers } from '../api/usersApi';
-import { getRoles, getAssignableRoles } from '../api/rolesApi';
+import { getRoles } from '../api/rolesApi';
 import { getAvatarColor, getInitials } from '../utils/avatarColor';
 import { formatRelativeTime, formatShortDate } from '../utils/formatters';
 import Card from '../components/ui/Card';
@@ -154,9 +154,6 @@ export default function UsersPage() {
 
   const { data: rolesData } =
     useQuery({ queryKey: ['roles'], queryFn: getRoles });
-  // Add / edit dropdowns only offer roles this user may hand out
-  const { data: assignableRolesData } =
-    useQuery({ queryKey: ['roles', 'assignable'], queryFn: getAssignableRoles });
 
   const { data: inactiveData } = useQuery({
     queryKey: ['inactive-users'],
@@ -166,7 +163,6 @@ export default function UsersPage() {
 
   const users = usersData?.data || [];
   const roles = rolesData?.data || [];
-  const assignableRoles = assignableRolesData?.data || [];
   const inactiveUsers = inactiveData?.data || [];
 
   // Filter users client-side
@@ -532,7 +528,6 @@ export default function UsersPage() {
       {/* Add / Edit user modals */}
       {addUserOpen && (
         <AddUserModal
-          roles={assignableRoles}
           onClose={() => setAddUserOpen(false)}
           onSuccess={() => setAddUserOpen(false)}
         />
@@ -540,11 +535,6 @@ export default function UsersPage() {
       {editUser && (
         <EditUserModal
           user={editUser}
-          // Keep the user's current role visible even when it isn't one this
-          // user may assign; leaving it selected doesn't change the role.
-          roles={editUser.roleId?._id && !assignableRoles.some(r => r._id === editUser.roleId._id)
-            ? [editUser.roleId, ...assignableRoles]
-            : assignableRoles}
           onClose={() => setEditUser(null)}
           onSuccess={() => setEditUser(null)}
         />

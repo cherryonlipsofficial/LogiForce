@@ -54,7 +54,8 @@ router.get('/', requirePermission('roles.view'), async (req, res) => {
 });
 
 // GET /api/roles/assignable — roles the caller may give someone: active,
-// assignableByTenant, and no permission the caller lacks. Same rule as
+// assignableByTenant, in the company's allowed set (copied from one of
+// Tenant.roleTemplateKeys), and no permission the caller lacks. Same rule as
 // assertCanAssignRole (utils/accessGuards.js). Must stay above /:id.
 router.get('/assignable', requireAnyPermission(['users.manage_access', 'users.create']), async (req, res) => {
   const Role = getModel(req, 'Role');

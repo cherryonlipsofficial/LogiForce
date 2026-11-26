@@ -64,7 +64,7 @@ import {
 export const TABS = [
   { id: 'ops', label: 'Operations', icon: '⚙️' },
   { id: 'sales', label: 'Sales', icon: '📈' },
-  { id: 'finance', label: 'Finance', icon: '💰', altPerm: 'reports.finance_view' },
+  { id: 'finance', label: 'Finance', icon: '💰', altPerm: 'reports.financial' },
   { id: 'accounts', label: 'Accounts', icon: '🧾' },
   { id: 'fleet', label: 'Fleet', icon: '🚗' },
   { id: 'compliance', label: 'Compliance', icon: '✅' },
@@ -385,7 +385,7 @@ export const REPORT_CARDS = [
     name: 'Payroll Summary',
     description: 'Gross, net, deductions breakdown by client',
     frequency: 'Monthly',
-    permission: 'reports.finance_payroll',
+    permission: 'reports.financial',
     fetchFn: getPayrollSummary,
     filters: ['year', 'month', 'projectId'],
     columns: [
@@ -402,7 +402,7 @@ export const REPORT_CARDS = [
     name: 'Invoice Aging',
     description: 'Outstanding invoices by aging bucket',
     frequency: 'Weekly',
-    permission: 'reports.finance_invoice_aging',
+    permission: 'reports.financial',
     fetchFn: getInvoiceAging,
     filters: [],
     flattenData: (data) => {
@@ -427,7 +427,7 @@ export const REPORT_CARDS = [
     name: 'Cost per Driver',
     description: 'Average cost per driver by client',
     frequency: 'Monthly',
-    permission: 'reports.finance_cost_per_driver',
+    permission: 'reports.financial',
     fetchFn: getCostPerDriver,
     filters: ['year'],
     columns: [
@@ -443,7 +443,7 @@ export const REPORT_CARDS = [
     name: 'Advance Outstanding',
     description: 'Outstanding salary advances by driver',
     frequency: 'Weekly',
-    permission: 'reports.finance_advance_outstanding',
+    permission: 'reports.financial',
     fetchFn: getAdvanceOutstanding,
     filters: ['clientId'],
     columns: [
@@ -459,7 +459,7 @@ export const REPORT_CARDS = [
     name: 'Vehicle Cost per Driver',
     description: 'Monthly vehicle deduction by driver + client',
     frequency: 'Monthly',
-    permission: 'reports.finance_vehicle_cost',
+    permission: 'reports.financial',
     fetchFn: getVehicleCostPerDriver,
     filters: ['year', 'month'],
     columns: [
@@ -475,7 +475,7 @@ export const REPORT_CARDS = [
     name: 'Statement of Accounts',
     description: 'Client account statements with balances',
     frequency: 'Monthly',
-    permission: 'reports.finance_statement',
+    permission: 'reports.statement_of_accounts',
     fetchFn: getStatementOfAccounts,
     filters: ['year', 'month', 'clientId'],
     columns: [
@@ -491,7 +491,7 @@ export const REPORT_CARDS = [
     name: 'Profit & Loss',
     description: 'Revenue vs expenses summary',
     frequency: 'Monthly',
-    permission: 'reports.finance_profit_loss',
+    permission: 'reports.finance_pnl',
     fetchFn: getProfitLoss,
     filters: ['year', 'month'],
     columns: [
@@ -551,7 +551,7 @@ export const REPORT_CARDS = [
     name: 'CN Financial Impact',
     description: 'Credit note impact on revenue',
     frequency: 'Monthly',
-    permission: 'reports.finance_cn_impact',
+    permission: 'reports.finance_cn_financial',
     fetchFn: getCnFinancialImpact,
     filters: ['year', 'month'],
     columns: [
@@ -764,7 +764,7 @@ export const REPORT_CARDS = [
     name: 'Fleet Utilisation',
     description: '% of vehicles assigned vs idle per supplier',
     frequency: 'Daily',
-    permission: 'reports.fleet_utilisation',
+    permission: 'reports.view',
     fetchFn: getFleetUtilisation,
     filters: [],
     flattenData: (data) => {
@@ -794,7 +794,7 @@ export const REPORT_CARDS = [
     name: 'Document Expiry',
     description: 'Driver documents expiring soon',
     frequency: 'Weekly',
-    permission: 'reports.fleet_document_expiry',
+    permission: 'reports.view',
     fetchFn: getDocumentExpiry,
     filters: ['days'],
     columns: [
@@ -848,7 +848,7 @@ export const REPORT_CARDS = [
     name: 'Workforce Headcount',
     description: 'Active workforce count by nationality/visa',
     frequency: 'Monthly',
-    permission: 'reports.compliance_workforce_headcount',
+    permission: 'reports.compliance_headcount',
     fetchFn: getWorkforceHeadcount,
     filters: [],
     columns: [
@@ -863,7 +863,7 @@ export const REPORT_CARDS = [
     name: 'Verification Audit',
     description: 'Driver verification status audit',
     frequency: 'Weekly',
-    permission: 'reports.compliance_verification_audit',
+    permission: 'reports.compliance_verification',
     fetchFn: getVerificationAudit,
     filters: ['clientId'],
     columns: [
@@ -879,7 +879,7 @@ export const REPORT_CARDS = [
     name: 'Expired Document Violations',
     description: 'Drivers with expired required documents',
     frequency: 'Daily',
-    permission: 'reports.compliance_expired_docs',
+    permission: 'reports.compliance_expired_action',
     fetchFn: getExpiredDocViolations,
     filters: ['clientId'],
     columns: [
@@ -895,7 +895,7 @@ export const REPORT_CARDS = [
     name: 'SIM Compliance',
     description: 'SIM registration and compliance status',
     frequency: 'Weekly',
-    permission: 'reports.compliance_sim',
+    permission: 'reports.compliance_sim_compliance',
     fetchFn: getSimCompliance,
     filters: [],
     columns: [

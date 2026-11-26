@@ -3,11 +3,14 @@
  *
  * Safe to run any number of times. Each run:
  *   1. connects and syncs indexes for every platform model;
- *   2. creates/updates one RoleTemplate per entry in ROLE_TEMPLATES
+ *   2. creates any missing RoleTemplate from ROLE_TEMPLATES
  *      (config/defaultRoles.js: the default roles without platform-scope
- *      permissions, plus tenant_admin), through doc.save() so a permissions
- *      change bumps `version`. It never syncs the templates into companies:
- *      run `npm run platform:sync-roles` for that;
+ *      permissions, plus tenant_admin). An existing template is left alone,
+ *      because templates are edited in the platform console; one that differs
+ *      from the code defaults is reported. With --reset-templates, existing
+ *      templates are put back to the code defaults through doc.save() so a
+ *      permissions change bumps `version`. It never syncs the templates into
+ *      companies: run `npm run platform:sync-roles` for that;
  *   3. creates the first owner account from PLATFORM_OWNER_* through
  *      services/platformUser.service.js (never touches an existing account or
  *      its password);
@@ -88,7 +91,7 @@ const syncAllIndexes = async (models, log) => {
 };
 
 // ── Step 2 ──
-const seedRoleTemplates = async ({ RoleTemplate, PlatformAuditLog }, counts, log) => {
+const seedRoleTemplates = async ({ RoleTemplate, PlatformAuditLog }, counts, log, { resetTemplates = false } = {}) => {
   for (const template of ROLE_TEMPLATES) {
     // Run the wanted values through the schema's setters (trim, lowercase, ...)
     // so comparisons below are like for like.
@@ -120,6 +123,14 @@ const seedRoleTemplates = async ({ RoleTemplate, PlatformAuditLog }, counts, log
 
     if (changed.length === 0) {
       counts.RoleTemplate.skipped += 1;
+      continue;
+    }
+
+    if (!resetTemplates) {
+      // Edited in the platform console: keep it.
+      counts.RoleTemplate.skipped += 1;
+      log(`  role template ${existing.key}: differs from the code defaults (${changed.join(', ')}); kept. `
+        + 'Run with --reset-templates to overwrite it.');
       continue;
     }
 
@@ -255,7 +266,7 @@ const seedLegacyTenants = async ({ Tenant, RoleTemplate, PlatformAuditLog }, cou
  * Run steps 1–4 on an already-open platform connection.
  * @returns {Record<string, {created: number, updated: number, skipped: number}>}
  */
-const seedPlatform = async ({ log = console.log } = {}) => {
+const seedPlatform = async ({ log = console.log, resetTemplates = false } = {}) => {
   const models = getPlatformModels();
   const counts = {
     RoleTemplate: { created: 0, updated: 0, skipped: 0 },
@@ -267,7 +278,7 @@ const seedPlatform = async ({ log = console.log } = {}) => {
   log('Syncing indexes...');
   await syncAllIndexes(models, log);
   log('Role templates...');
-  await seedRoleTemplates(models, counts, log);
+  await seedRoleTemplates(models, counts, log, { resetTemplates });
   log('Owner account...');
   await seedOwner(models, counts, log);
   log('Existing tenants (legacyTenants.js)...');
@@ -292,7 +303,7 @@ if (require.main === module) {
   (async () => {
     try {
       await connectPlatformDb();
-      const counts = await seedPlatform();
+      const counts = await seedPlatform({ resetTemplates: process.argv.includes('--reset-templates') });
       printSummary(counts);
       await closePlatformDb();
       process.exit(0);

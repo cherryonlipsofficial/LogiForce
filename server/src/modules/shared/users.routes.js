@@ -9,6 +9,7 @@ const {
   assertCanChangeAccessOf,
   assertCanOverrideKey,
   assertSeatAvailable,
+  grantablePermissionKeys,
 } = require('../../utils/accessGuards');
 const { sendSuccess, sendError, sendPaginated } = require('../../utils/responseHelper');
 const { PAGINATION } = require('../../config/constants');
@@ -89,6 +90,19 @@ router.post('/', requirePermission('users.create'), async (req, res) => {
   logger.info('New user created (inactive)', { email: user.email, createdBy: req.user.email });
 
   sendSuccess(res, user.toJSON(), 'User created', 201);
+});
+
+// GET /api/users/grantable-permissions — what the caller may grant someone
+// through an override: within the company's limit (enabled modules) and held
+// by the caller. Same rule as assertCanOverrideKey, which rejects anything
+// else. Must stay above /:id.
+router.get('/grantable-permissions', requirePermission('users.manage_access'), async (req, res) => {
+  const keys = grantablePermissionKeys(req);
+  const permissions = keys.map((key) => {
+    const { label, module, description } = PERMISSIONS[key];
+    return { key, label, module, description };
+  });
+  sendSuccess(res, { keys, permissions });
 });
 
 // GET /api/users/inactive — list all inactive users

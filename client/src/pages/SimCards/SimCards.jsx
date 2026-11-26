@@ -691,7 +691,7 @@ const SimCards = () => {
   const canAssign = usePermission('simcards.assign');
   const canBulkImport = usePermission('simcards.bulk_import');
   const canImport = usePermission('simcards.import_bills');
-  const canViewBills = usePermission('simcards.view_bills');
+  const canViewBills = usePermission('simcards.view');
 
   const [view, setView] = useState('sims');
   const [showAddModal, setShowAddModal] = useState(false);
