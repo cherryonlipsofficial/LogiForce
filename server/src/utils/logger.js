@@ -22,23 +22,30 @@ const logger = winston.createLogger({
   ],
 });
 
-// Add file transport in production
-if (process.env.NODE_ENV === 'production') {
+// Add file transport in production. On hosts like Render the filesystem may be
+// read-only or ephemeral, so file logging is best-effort: set LOG_TO_FILE=false
+// to disable it, or LOG_DIR to change the location. Console logging always works.
+if (process.env.NODE_ENV === 'production' && process.env.LOG_TO_FILE !== 'false') {
   const fs = require('fs');
-  const logDir = path.join(__dirname, '../../logs');
-  if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+  const logDir = process.env.LOG_DIR || path.join(__dirname, '../../logs');
+  try {
+    fs.mkdirSync(logDir, { recursive: true });
+    fs.accessSync(logDir, fs.constants.W_OK);
 
-  logger.add(new winston.transports.File({
-    filename: path.join(logDir, 'error.log'),
-    level: 'error',
-    maxsize: 5242880, // 5MB
-    maxFiles: 5,
-  }));
-  logger.add(new winston.transports.File({
-    filename: path.join(logDir, 'combined.log'),
-    maxsize: 5242880,
-    maxFiles: 5,
-  }));
+    logger.add(new winston.transports.File({
+      filename: path.join(logDir, 'error.log'),
+      level: 'error',
+      maxsize: 5242880, // 5MB
+      maxFiles: 5,
+    }));
+    logger.add(new winston.transports.File({
+      filename: path.join(logDir, 'combined.log'),
+      maxsize: 5242880,
+      maxFiles: 5,
+    }));
+  } catch (err) {
+    logger.warn(`File logging disabled: cannot write to ${logDir} (${err.code || err.message}). Logging to console only.`);
+  }
 }
 
 module.exports = logger;

@@ -10,7 +10,9 @@ COPY server.js ./
 COPY src/ ./src/
 
 # Security: run as non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
+  && mkdir -p /app/logs /app/src/uploads \
+  && chown -R appuser:appgroup /app/logs /app/src/uploads
 USER appuser
 
 EXPOSE 5000
