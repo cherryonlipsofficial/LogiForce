@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -56,6 +57,12 @@ import DriverClearance from './pages/DriverClearance/DriverClearance';
 import DriverVisas from './pages/DriverVisas/DriverVisas';
 import ActivityLog from './pages/ActivityLog';
 import NotFound from './pages/NotFound';
+import LoadingSpinner from './components/ui/LoadingSpinner';
+import { isPlatformHost } from './platform/platformHost';
+
+// The platform (LogiForce staff) console: its own login, token and API client.
+// Loaded only when someone opens /platform.
+const PlatformApp = lazy(() => import('./platform/PlatformApp'));
 
 const queryClient = new QueryClient();
 
@@ -72,70 +79,60 @@ const DashboardSwitch = () => {
   return <Dashboard />;
 };
 
+// Company app routes. Rendered under the top-level "*" route, so paths are
+// matched from the site root as before.
 const RouterContent = () => (
-  <>
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/verify-otp" element={<VerifyOtp />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password/:token" element={<ResetPassword />} />
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<ProtectedPage><DashboardSwitch /></ProtectedPage>} />
-        <Route path="/drivers" element={<ProtectedPage permission="drivers.view"><Drivers /></ProtectedPage>} />
-        <Route path="/attendance" element={<ProtectedPage permission="attendance.view"><Attendance /></ProtectedPage>} />
-        <Route path="/salary" element={<ProtectedPage permission="salary.view"><Salary /></ProtectedPage>} />
-        <Route path="/driver-clearance" element={<ProtectedPage permission="clearance.view"><DriverClearance /></ProtectedPage>} />
-        <Route path="/invoices" element={<ProtectedPage permission="invoices.view"><Invoices /></ProtectedPage>} />
-        <Route path="/credit-notes" element={<ProtectedPage permission="credit_notes.view"><CreditNotes /></ProtectedPage>} />
-        <Route path="/advances" element={<ProtectedPage permission="advances.view"><Advances /></ProtectedPage>} />
-        <Route path="/clients" element={<ProtectedPage permission="clients.view"><Clients /></ProtectedPage>} />
-        <Route path="/projects" element={<ProtectedPage permission="projects.view"><Projects /></ProtectedPage>} />
-        <Route path="/suppliers" element={<ProtectedPage permission="suppliers.view"><Suppliers /></ProtectedPage>} />
-        <Route path="/vehicles" element={<ProtectedPage permission="vehicles.view"><VehiclesPage /></ProtectedPage>} />
-        <Route path="/simcards" element={<ProtectedPage permission="simcards.view"><SimCards /></ProtectedPage>} />
-        <Route path="/driver-visas" element={<ProtectedPage permission="driver_visas.view"><DriverVisas /></ProtectedPage>} />
-        <Route path="/reports" element={<ProtectedPage permission="reports.view"><Reports /></ProtectedPage>} />
-        <Route path="/reports/ops/driver-availability" element={<ProtectedPage permission="reports.ops_driver_availability"><OpsDriverAvailability /></ProtectedPage>} />
-        <Route path="/reports/ops/attendance-tracker" element={<ProtectedPage permission="reports.ops_attendance_tracker"><OpsAttendanceTracker /></ProtectedPage>} />
-        <Route path="/reports/ops/dispute-log" element={<ProtectedPage permission="reports.ops_dispute_log"><OpsDisputeLog /></ProtectedPage>} />
-        <Route path="/reports/ops/assignment-history" element={<ProtectedPage permission="reports.ops_assignment_history"><OpsAssignmentHistory /></ProtectedPage>} />
-        <Route path="/reports/ops/vehicle-utilization" element={<ProtectedPage permission="reports.ops_vehicle_utilization"><OpsVehicleUtilization /></ProtectedPage>} />
-        <Route path="/reports/ops/vehicle-return" element={<ProtectedPage permission="reports.ops_vehicle_return"><OpsVehicleReturn /></ProtectedPage>} />
-        <Route path="/reports/ops/onboarding-pipeline" element={<ProtectedPage permission="reports.ops_onboarding_pipeline"><OpsOnboardingPipeline /></ProtectedPage>} />
-        <Route path="/reports/ops/sim-allocation" element={<ProtectedPage permission="reports.ops_sim_allocation"><OpsSimAllocation /></ProtectedPage>} />
-        <Route path="/reports/ops/salary-pipeline" element={<ProtectedPage permission="reports.ops_salary_pipeline"><OpsSalaryPipeline /></ProtectedPage>} />
-        <Route path="/reports/ops/headcount-vs-plan" element={<ProtectedPage permission="reports.ops_headcount_vs_plan"><OpsHeadcountVsPlan /></ProtectedPage>} />
-        <Route path="/reports/sales/revenue-by-client" element={<ProtectedPage permission="reports.sales_revenue_by_client"><SalesRevenueByClient /></ProtectedPage>} />
-        <Route path="/reports/sales/client-profitability" element={<ProtectedPage permission="reports.sales_client_profitability"><SalesClientProfitability /></ProtectedPage>} />
-        <Route path="/reports/sales/credit-note-impact" element={<ProtectedPage permission="reports.sales_credit_note_impact"><SalesCreditNoteImpact /></ProtectedPage>} />
-        <Route path="/reports/sales/contract-pipeline" element={<ProtectedPage permission="reports.sales_contract_pipeline"><SalesContractPipeline /></ProtectedPage>} />
-        <Route path="/reports/sales/fill-rate" element={<ProtectedPage permission="reports.sales_fill_rate"><SalesFillRate /></ProtectedPage>} />
-        <Route path="/reports/sales/new-drivers" element={<ProtectedPage permission="reports.sales_new_drivers"><SalesNewDrivers /></ProtectedPage>} />
-        <Route path="/reports/sales/rate-comparison" element={<ProtectedPage permission="reports.sales_rate_comparison"><SalesRateComparison /></ProtectedPage>} />
-        <Route path="/statement-of-accounts" element={<ProtectedPage permission="reports.statement_of_accounts"><StatementOfAccounts /></ProtectedPage>} />
-        <Route path="/settings" element={<ProtectedPage permission="settings.view"><Settings /></ProtectedPage>} />
-        <Route path="/users" element={<ProtectedPage permission="users.view"><UsersPage /></ProtectedPage>} />
-        <Route path="/roles" element={<ProtectedPage permission="roles.view"><RolesPage /></ProtectedPage>} />
-        <Route path="/guarantee-extensions" element={<ProtectedPage permission="guarantee_passports.approve_extension"><GuaranteeExtensions /></ProtectedPage>} />
-        <Route path="/guarantee-passports" element={<ProtectedPage permission="guarantee_passports.view"><GuaranteePassports /></ProtectedPage>} />
-        <Route path="/expired-documents" element={<ProtectedPage permission="expired_documents.view"><ExpiredDocuments /></ProtectedPage>} />
-        <Route path="/activity-log" element={<ProtectedPage permission="activity_log.view"><ActivityLog /></ProtectedPage>} />
-        <Route path="/profile" element={<ProtectedPage><ProfilePage /></ProtectedPage>} />
-        <Route path="/notifications" element={<ProtectedPage><NotificationsPage /></ProtectedPage>} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </BrowserRouter>
-    <Toaster
-      position="top-right"
-      toastOptions={{
-        duration: 5000,
-        success: { duration: 5000 },
-        error: { duration: 6000 },
-      }}
-    />
-  </>
+  <Routes>
+    <Route path="/login" element={<Login />} />
+    <Route path="/register" element={<Register />} />
+    <Route path="/verify-otp" element={<VerifyOtp />} />
+    <Route path="/forgot-password" element={<ForgotPassword />} />
+    <Route path="/reset-password/:token" element={<ResetPassword />} />
+    <Route path="/" element={<Navigate to="/dashboard" replace />} />
+    <Route path="/dashboard" element={<ProtectedPage><DashboardSwitch /></ProtectedPage>} />
+    <Route path="/drivers" element={<ProtectedPage permission="drivers.view"><Drivers /></ProtectedPage>} />
+    <Route path="/attendance" element={<ProtectedPage permission="attendance.view"><Attendance /></ProtectedPage>} />
+    <Route path="/salary" element={<ProtectedPage permission="salary.view"><Salary /></ProtectedPage>} />
+    <Route path="/driver-clearance" element={<ProtectedPage permission="clearance.view"><DriverClearance /></ProtectedPage>} />
+    <Route path="/invoices" element={<ProtectedPage permission="invoices.view"><Invoices /></ProtectedPage>} />
+    <Route path="/credit-notes" element={<ProtectedPage permission="credit_notes.view"><CreditNotes /></ProtectedPage>} />
+    <Route path="/advances" element={<ProtectedPage permission="advances.view"><Advances /></ProtectedPage>} />
+    <Route path="/clients" element={<ProtectedPage permission="clients.view"><Clients /></ProtectedPage>} />
+    <Route path="/projects" element={<ProtectedPage permission="projects.view"><Projects /></ProtectedPage>} />
+    <Route path="/suppliers" element={<ProtectedPage permission="suppliers.view"><Suppliers /></ProtectedPage>} />
+    <Route path="/vehicles" element={<ProtectedPage permission="vehicles.view"><VehiclesPage /></ProtectedPage>} />
+    <Route path="/simcards" element={<ProtectedPage permission="simcards.view"><SimCards /></ProtectedPage>} />
+    <Route path="/driver-visas" element={<ProtectedPage permission="driver_visas.view"><DriverVisas /></ProtectedPage>} />
+    <Route path="/reports" element={<ProtectedPage permission="reports.view"><Reports /></ProtectedPage>} />
+    <Route path="/reports/ops/driver-availability" element={<ProtectedPage permission="reports.ops_driver_availability"><OpsDriverAvailability /></ProtectedPage>} />
+    <Route path="/reports/ops/attendance-tracker" element={<ProtectedPage permission="reports.ops_attendance_tracker"><OpsAttendanceTracker /></ProtectedPage>} />
+    <Route path="/reports/ops/dispute-log" element={<ProtectedPage permission="reports.ops_dispute_log"><OpsDisputeLog /></ProtectedPage>} />
+    <Route path="/reports/ops/assignment-history" element={<ProtectedPage permission="reports.ops_assignment_history"><OpsAssignmentHistory /></ProtectedPage>} />
+    <Route path="/reports/ops/vehicle-utilization" element={<ProtectedPage permission="reports.ops_vehicle_utilization"><OpsVehicleUtilization /></ProtectedPage>} />
+    <Route path="/reports/ops/vehicle-return" element={<ProtectedPage permission="reports.ops_vehicle_return"><OpsVehicleReturn /></ProtectedPage>} />
+    <Route path="/reports/ops/onboarding-pipeline" element={<ProtectedPage permission="reports.ops_onboarding_pipeline"><OpsOnboardingPipeline /></ProtectedPage>} />
+    <Route path="/reports/ops/sim-allocation" element={<ProtectedPage permission="reports.ops_sim_allocation"><OpsSimAllocation /></ProtectedPage>} />
+    <Route path="/reports/ops/salary-pipeline" element={<ProtectedPage permission="reports.ops_salary_pipeline"><OpsSalaryPipeline /></ProtectedPage>} />
+    <Route path="/reports/ops/headcount-vs-plan" element={<ProtectedPage permission="reports.ops_headcount_vs_plan"><OpsHeadcountVsPlan /></ProtectedPage>} />
+    <Route path="/reports/sales/revenue-by-client" element={<ProtectedPage permission="reports.sales_revenue_by_client"><SalesRevenueByClient /></ProtectedPage>} />
+    <Route path="/reports/sales/client-profitability" element={<ProtectedPage permission="reports.sales_client_profitability"><SalesClientProfitability /></ProtectedPage>} />
+    <Route path="/reports/sales/credit-note-impact" element={<ProtectedPage permission="reports.sales_credit_note_impact"><SalesCreditNoteImpact /></ProtectedPage>} />
+    <Route path="/reports/sales/contract-pipeline" element={<ProtectedPage permission="reports.sales_contract_pipeline"><SalesContractPipeline /></ProtectedPage>} />
+    <Route path="/reports/sales/fill-rate" element={<ProtectedPage permission="reports.sales_fill_rate"><SalesFillRate /></ProtectedPage>} />
+    <Route path="/reports/sales/new-drivers" element={<ProtectedPage permission="reports.sales_new_drivers"><SalesNewDrivers /></ProtectedPage>} />
+    <Route path="/reports/sales/rate-comparison" element={<ProtectedPage permission="reports.sales_rate_comparison"><SalesRateComparison /></ProtectedPage>} />
+    <Route path="/statement-of-accounts" element={<ProtectedPage permission="reports.statement_of_accounts"><StatementOfAccounts /></ProtectedPage>} />
+    <Route path="/settings" element={<ProtectedPage permission="settings.view"><Settings /></ProtectedPage>} />
+    <Route path="/users" element={<ProtectedPage permission="users.view"><UsersPage /></ProtectedPage>} />
+    <Route path="/roles" element={<ProtectedPage permission="roles.view"><RolesPage /></ProtectedPage>} />
+    <Route path="/guarantee-extensions" element={<ProtectedPage permission="guarantee_passports.approve_extension"><GuaranteeExtensions /></ProtectedPage>} />
+    <Route path="/guarantee-passports" element={<ProtectedPage permission="guarantee_passports.view"><GuaranteePassports /></ProtectedPage>} />
+    <Route path="/expired-documents" element={<ProtectedPage permission="expired_documents.view"><ExpiredDocuments /></ProtectedPage>} />
+    <Route path="/activity-log" element={<ProtectedPage permission="activity_log.view"><ActivityLog /></ProtectedPage>} />
+    <Route path="/profile" element={<ProtectedPage><ProfilePage /></ProtectedPage>} />
+    <Route path="/notifications" element={<ProtectedPage><NotificationsPage /></ProtectedPage>} />
+    <Route path="*" element={<NotFound />} />
+  </Routes>
 );
 
 const AppWithAuth = () => {
@@ -164,14 +161,48 @@ const AppWithAuth = () => {
   return <RouterContent />;
 };
 
+// The company app, with the company login (AuthProvider, token 'token').
+const TenantApp = () => (
+  <AuthProvider>
+    <AppWithAuth />
+  </AuthProvider>
+);
+
+// Platform set-password emails link to <PLATFORM_CONSOLE_URL>/set-password/<token>.
+const PlatformSetPasswordRedirect = () => {
+  const { token } = useParams();
+  return <Navigate to={`/platform/set-password/${encodeURIComponent(token)}`} replace />;
+};
+
 const App = () => {
+  // admin.logiforce.app serves only the platform console.
+  const platformHost = isPlatformHost();
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <UserPrefsProvider>
-        <AuthProvider>
-          <AppWithAuth />
-        </AuthProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route
+                path="/platform/*"
+                element={(
+                  <Suspense fallback={<LoadingSpinner style={{ minHeight: '100vh' }} />}>
+                    <PlatformApp />
+                  </Suspense>
+                )}
+              />
+              <Route path="/set-password/:token" element={<PlatformSetPasswordRedirect />} />
+              <Route path="*" element={platformHost ? <Navigate to="/platform" replace /> : <TenantApp />} />
+            </Routes>
+          </BrowserRouter>
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              duration: 5000,
+              success: { duration: 5000 },
+              error: { duration: 6000 },
+            }}
+          />
         </UserPrefsProvider>
       </QueryClientProvider>
     </ErrorBoundary>

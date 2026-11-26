@@ -18,6 +18,11 @@ export const deleteUser = (id) =>
 export const changeUserRole = (id, roleId) =>
   axiosInstance.put(`/users/${id}/role`, { roleId }).then(r => r.data);
 
+// Permissions the signed-in user may grant someone: within the company's
+// enabled modules and held by the signed-in user. The server refuses others.
+export const getGrantablePermissions = () =>
+  axiosInstance.get('/users/grantable-permissions').then(r => r.data);
+
 export const getUserPermissions = (id) =>
   axiosInstance.get(`/users/${id}/permissions`).then(r => r.data);
 

@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { getUserPermissions, addPermissionOverride, removePermissionOverride } from '../../api/usersApi';
+import { getUserPermissions, addPermissionOverride, removePermissionOverride, getGrantablePermissions } from '../../api/usersApi';
 import { getPermissionsList } from '../../api/rolesApi';
 import { getAvatarColor, getInitials } from '../../utils/avatarColor';
 import Btn from '../ui/Btn';
@@ -34,6 +34,13 @@ export default function UserPermissionsModal({ user, onClose }) {
     queryKey: ['permissions-list'],
     queryFn: () => getPermissionsList().then(r => r.data),
   });
+
+  // What this admin may grant: within the company's modules and held by them.
+  const { data: grantableData } = useQuery({
+    queryKey: ['grantable-permissions'],
+    queryFn: () => getGrantablePermissions().then(r => r.data),
+  });
+  const grantableKeys = grantableData?.keys || [];
 
   const avatarColor = getAvatarColor(user.name);
   const initials = getInitials(user.name);
@@ -148,6 +155,7 @@ export default function UserPermissionsModal({ user, onClose }) {
                     type="grant"
                     userId={user._id}
                     permsList={permsList}
+                    grantableKeys={grantableKeys}
                     effectivePermissions={effectivePermissions}
                     refetch={refetch}
                     onClose={() => setShowGrantForm(false)}
@@ -165,6 +173,9 @@ export default function UserPermissionsModal({ user, onClose }) {
               badgeBg="rgba(239,68,68,0.15)"
               removeLabel="Restore"
               removeDanger={false}
+              canRemove={(key) => grantableKeys.includes(key)}
+              cannotRemoveTitle="Restoring gives the permission back, and you can only give permissions you have"
+
               userId={user._id}
               refetch={refetch}
               showForm={showDenyForm}
@@ -236,6 +247,7 @@ function OverrideSection({
   title, overrides, emptyText, badgeColor, badgeBg,
   removeLabel, removeDanger, userId, refetch,
   showForm, onToggleForm, addBtnLabel, form,
+  canRemove = () => true, cannotRemoveTitle,
 }) {
   const removeMutation = useMutation({
     mutationFn: (key) => removePermissionOverride(userId, key),
@@ -288,14 +300,16 @@ function OverrideSection({
                   </div>
                 )}
               </div>
-              <Btn
-                small
-                variant={removeDanger ? 'danger' : 'ghost'}
-                disabled={removeMutation.isPending}
-                onClick={() => removeMutation.mutate(o.key)}
-              >
-                {removeLabel}
-              </Btn>
+              <span title={canRemove(o.key) ? undefined : cannotRemoveTitle}>
+                <Btn
+                  small
+                  variant={removeDanger ? 'danger' : 'ghost'}
+                  disabled={removeMutation.isPending || !canRemove(o.key)}
+                  onClick={() => removeMutation.mutate(o.key)}
+                >
+                  {removeLabel}
+                </Btn>
+              </span>
             </div>
           ))}
         </div>
@@ -310,7 +324,7 @@ function OverrideSection({
 
 /* ── Inline Permission Form (grant / deny) ── */
 
-function InlinePermForm({ type, userId, permsList, effectivePermissions, refetch, onClose }) {
+function InlinePermForm({ type, userId, permsList, grantableKeys = [], effectivePermissions, refetch, onClose }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedKey, setSelectedKey] = useState(null);
   const [selectedLabel, setSelectedLabel] = useState('');
@@ -331,8 +345,9 @@ function InlinePermForm({ type, userId, permsList, effectivePermissions, refetch
     }
     return allPerms.filter(p => {
       if (isGrant) {
-        // Only show permissions NOT already effective
-        return !effectivePermissions.includes(p.key);
+        // Only permissions this admin may grant (GET /users/grantable-permissions)
+        // that the user doesn't already have
+        return grantableKeys.includes(p.key) && !effectivePermissions.includes(p.key);
       } else {
         // Only show permissions currently effective (can only deny what they have)
         return effectivePermissions.includes(p.key);
@@ -342,7 +357,7 @@ function InlinePermForm({ type, userId, permsList, effectivePermissions, refetch
       const q = searchTerm.toLowerCase();
       return p.label?.toLowerCase().includes(q) || p.key.toLowerCase().includes(q);
     });
-  }, [permsList, effectivePermissions, searchTerm, isGrant]);
+  }, [permsList, grantableKeys, effectivePermissions, searchTerm, isGrant]);
 
   const mutation = useMutation({
     mutationFn: (data) => addPermissionOverride(userId, data),

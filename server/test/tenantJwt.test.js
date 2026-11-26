@@ -26,8 +26,8 @@ const { getEffectivePermissions } = require('../src/config/permissions');
 // ── Fake platform DB: must be in place before config/tenants.js loads ──
 
 const tenantRecords = {
-  alpha: { _id: new mongoose.Types.ObjectId(), key: 'alpha', name: 'Alpha LLC', dbName: 'logiforce_alpha', status: 'active' },
-  bravo: { _id: new mongoose.Types.ObjectId(), key: 'bravo', name: 'Bravo LLC', dbName: 'logiforce_bravo', status: 'active' },
+  alpha: { _id: new mongoose.Types.ObjectId(), key: 'alpha', name: 'Alpha LLC', dbName: 'logiforce_alpha', status: 'active', roleTemplateKeys: ['tenant_admin'] },
+  bravo: { _id: new mongoose.Types.ObjectId(), key: 'bravo', name: 'Bravo LLC', dbName: 'logiforce_bravo', status: 'active', roleTemplateKeys: ['tenant_admin'] },
 };
 const platformModels = require('../src/platform/models');
 platformModels.getPlatformModels = () => ({

@@ -33,7 +33,7 @@ const errorStyle = {
   marginTop: 4,
 };
 
-export default function AddUserModal({ onClose, onSuccess, roles }) {
+export default function AddUserModal({ onClose, onSuccess }) {
   const queryClient = useQueryClient();
   const [showPw, setShowPw] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -152,7 +152,6 @@ export default function AddUserModal({ onClose, onSuccess, roles }) {
               <RoleSelect
                 value={watchedRoleId}
                 onChange={(id) => setValue('roleId', id, { shouldValidate: true })}
-                roles={roles}
               />
               {errors.roleId && <div style={errorStyle}>{errors.roleId.message}</div>}
             </div>

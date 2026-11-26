@@ -3,7 +3,7 @@ import CompanyPanel from '../../components/settings/CompanyPanel';
 
 const Settings = () => {
   return (
-    <PermissionGate permission="settings.edit">
+    <PermissionGate permission="settings.manage">
       <CompanyPanel />
     </PermissionGate>
   );

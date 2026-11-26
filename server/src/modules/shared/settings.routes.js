@@ -25,8 +25,8 @@ router.get('/company', async (req, res) => {
   sendSuccess(res, settings);
 });
 
-// PUT /api/settings/company — update company settings (admin only)
-router.put('/company', requirePermission('settings.edit'), async (req, res) => {
+// PUT /api/settings/company — update company settings (settings.manage)
+router.put('/company', requirePermission('settings.manage'), async (req, res) => {
   const CompanySettings = getModel(req, 'CompanySettings');
   const allowedFields = [
     'companyName', 'addressLine1', 'addressLine2', 'country', 'email', 'trn', 'phone',
@@ -47,7 +47,7 @@ router.put('/company', requirePermission('settings.edit'), async (req, res) => {
 });
 
 // POST /api/settings/company/logo — upload logo image
-router.post('/company/logo', requirePermission('settings.edit'), upload.single('logo'), async (req, res) => {
+router.post('/company/logo', requirePermission('settings.manage'), upload.single('logo'), async (req, res) => {
   if (!req.file) return sendError(res, 'No image file provided', 400);
 
   const CompanySettings = getModel(req, 'CompanySettings');
@@ -59,7 +59,7 @@ router.post('/company/logo', requirePermission('settings.edit'), upload.single('
 });
 
 // POST /api/settings/company/stamp — upload stamp image
-router.post('/company/stamp', requirePermission('settings.edit'), upload.single('stamp'), async (req, res) => {
+router.post('/company/stamp', requirePermission('settings.manage'), upload.single('stamp'), async (req, res) => {
   if (!req.file) return sendError(res, 'No image file provided', 400);
 
   const CompanySettings = getModel(req, 'CompanySettings');
@@ -71,7 +71,7 @@ router.post('/company/stamp', requirePermission('settings.edit'), upload.single(
 });
 
 // POST /api/settings/company/signature — upload signature image
-router.post('/company/signature', requirePermission('settings.edit'), upload.single('signature'), async (req, res) => {
+router.post('/company/signature', requirePermission('settings.manage'), upload.single('signature'), async (req, res) => {
   if (!req.file) return sendError(res, 'No image file provided', 400);
 
   const CompanySettings = getModel(req, 'CompanySettings');

@@ -11,6 +11,10 @@ const logger = require('../utils/logger');
 const platformAuth = require('./services/platformAuth.service');
 const platformUsers = require('./services/platformUser.service');
 const { TenantProvisioningError } = require('./services/tenantProvisioning.service');
+const { PlatformRequestError } = require('./errors');
+const platformAudit = require('./services/platformAudit.service');
+const { MODULES, CORE_MODULES, getByModule, isPlatformPermission } = require('../config/permissions');
+const { TENANT_ADMIN_TEMPLATE, RETIRED_TEMPLATE_KEYS } = require('../config/defaultRoles');
 const { protectPlatform, requirePlatformRole } = require('./middleware/protectPlatform');
 const {
   loginIpLimiter, loginIpEmailLimiter, otpLimiter, setPasswordLimiter,
@@ -21,7 +25,8 @@ const router = express.Router();
 // Errors whose status, code and message are meant for the client.
 const isClientError = (err) => err instanceof platformAuth.PlatformAuthError
   || err instanceof platformUsers.PasswordSetError
-  || err instanceof TenantProvisioningError;
+  || err instanceof TenantProvisioningError
+  || err instanceof PlatformRequestError;
 
 const sendClientError = (res, err) => res.status(err.status).json({
   success: false, message: err.message, code: err.code, ...err.extra,
@@ -66,13 +71,34 @@ router.use(protectPlatform);
 
 router.get('/auth/me', (req, res) => res.json({ success: true, user: req.platformUser }));
 
-router.use('/tenants', requirePlatformRole('owner'), require('./routes/tenants.routes'));
+const canRead = requirePlatformRole('owner', 'support');
 
-// Coming in later steps:
-// router.use('/role-templates', requirePlatformRole('owner'), require('./routes/roleTemplates.routes'));
-// It must call syncTenantsUsingTemplate (services/roleSync.service.js) after a
-// template is edited; a change to a company's enabledModules/roleTemplateKeys
-// must call syncTenantRoles.
+// GET /api/platform/meta — what the console needs to draw module switches and
+// the permission grid. Platform-scope permissions are left out: they can never
+// be in a company's role.
+router.get('/meta', canRead, (req, res) => {
+  const permissionsByModule = Object.fromEntries(
+    Object.entries(getByModule())
+      .map(([mod, perms]) => [mod, perms.filter((p) => !isPlatformPermission(p.key))])
+      .filter(([, perms]) => perms.length > 0)
+  );
+  res.json({
+    success: true,
+    modules: MODULES,
+    coreModules: CORE_MODULES,
+    permissionsByModule,
+    tenantAdminTemplateKey: TENANT_ADMIN_TEMPLATE.key,
+    retiredTemplateKeys: RETIRED_TEMPLATE_KEYS,
+  });
+});
+
+// Reads: owner or support. Changes: owner only (checked per route).
+router.use('/tenants', require('./routes/tenants.routes'));
+router.use('/role-templates', require('./routes/roleTemplates.routes'));
+
+// GET /api/platform/audit-logs?page=&limit=&action=&targetType=&targetKey=&actor=&from=&to=
+router.get('/audit-logs', canRead, handle((req) => platformAudit.listAuditLogs(req.query)));
+router.get('/audit-logs/actions', canRead, handle(() => platformAudit.listAuditActions()));
 
 // ── Unknown paths and errors stay inside the platform router ──
 
