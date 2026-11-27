@@ -3,6 +3,7 @@
  * Schema validation only; no MongoDB (an unopened connection validates fine).
  */
 process.env.NODE_ENV = 'test';
+process.env.APP_DOMAIN = 'logiforce.test';
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const mongoose = require('mongoose');

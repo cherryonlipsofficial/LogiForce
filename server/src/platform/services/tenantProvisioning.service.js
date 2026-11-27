@@ -24,6 +24,7 @@ const email = require('../../utils/email');
 const connectionManager = require('../../config/connectionManager');
 const { getModelForConnection, schemas } = require('../../config/modelRegistry');
 const { mapTenantRecord, redactUris, invalidateTenantCache } = require('../../config/tenants');
+const { tenantAppUrl, requireAppDomain } = require('../../config/appDomain');
 const { MODULES } = require('../../config/permissions');
 const { TENANT_ADMIN_TEMPLATE, RETIRED_TEMPLATE_KEYS } = require('../../config/defaultRoles');
 const {
@@ -36,7 +37,6 @@ const { tenantKeyProblem } = require('../models/Tenant');
 const roleSync = require('./roleSync.service');
 const { SYSTEM_ACTOR, normalizeEmail } = require('./platformUser.service');
 
-const TENANT_APP_DOMAIN = 'logiforce.app';
 const TENANT_ADMIN_KEY = TENANT_ADMIN_TEMPLATE.key;
 
 // A 'provisioning' tenant whose last attempt started longer ago than this is
@@ -45,12 +45,9 @@ const PROVISIONING_LOCK_MS = 5 * 60 * 1000;
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** https://<key>.logiforce.app — where the company's users sign in. */
-const tenantAppUrl = (key) => `https://${key}.${TENANT_APP_DOMAIN}`;
 
-// CompanySettings' schema defaults are one real company's details (name, TRN,
-// bank account, invoice prefix). A new company starts with its own name and
-// these fields empty; its admin fills them in under Settings.
+// A new company starts with its own name and every other detail empty; its
+// admin fills them in under Settings.
 const initialCompanySettings = (companyName) => ({
   companyName,
   addressLine1: '',
@@ -208,7 +205,7 @@ const ensureAdminUser = async (conn, { adminName, adminEmail }, roleId) => {
 
 /**
  * Step 6's email: a password-reset token on the user and the standard reset
- * email, pointing at https://<key>.logiforce.app/reset-password/<token>. The
+ * email, pointing at https://<key>.<APP_DOMAIN>/reset-password/<token>. The
  * token is removed again if the email can't be sent. Also used by resend-invite.
  *
  * @returns {Promise<{ email: string, expiresAt: Date }>}
@@ -367,6 +364,11 @@ const pick = (obj, fields) => Object.fromEntries(Object.keys(fields).map((k) => 
 const provisionTenant = async ({ body, actor = SYSTEM_ACTOR, req } = {}) => {
   const input = validateProvisionInput(body);
   if (!email.isEmailConfigured()) throw emailNotConfigured();
+  try {
+    requireAppDomain(); // the admin's link goes to https://<key>.<APP_DOMAIN>
+  } catch (err) {
+    throw new TenantProvisioningError(503, 'APP_DOMAIN_NOT_CONFIGURED', `${err.message} Nothing was created.`);
+  }
 
   const { tenant: claimed, resumed } = await claimTenant(input, actor, req);
   const { Tenant, PlatformAuditLog } = platformModels.getPlatformModels();
@@ -537,7 +539,6 @@ const resendAdminInvite = async ({ key, email: requestedEmail, actor = SYSTEM_AC
 };
 
 module.exports = {
-  TENANT_APP_DOMAIN,
   PROVISIONING_LOCK_MS,
   TenantProvisioningError,
   tenantAppUrl,

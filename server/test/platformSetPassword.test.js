@@ -39,7 +39,7 @@ beforeEach(() => {
   platform.PlatformAuditLog = { entries: [], record: async ({ req, ...e }) => { platform.PlatformAuditLog.entries.push(clone(e)); } };
   mail.sent = [];
   mail.failNext = false;
-  process.env.PLATFORM_CONSOLE_URL = 'https://platform.logiforce.app/';
+  process.env.PLATFORM_CONSOLE_URL = 'https://platform.logiforce.test/';
 });
 
 describe('set-password link', () => {
@@ -50,7 +50,7 @@ describe('set-password link', () => {
 
     const { expiresAt } = await users.sendPlatformSetPasswordLink({ userId: user._id });
     assert.equal(mail.sent.length, 1);
-    assert.match(mail.sent[0].url, /^https:\/\/platform\.logiforce\.app\/set-password\/[a-f0-9]{64}$/);
+    assert.match(mail.sent[0].url, /^https:\/\/platform\.logiforce\.test\/set-password\/[a-f0-9]{64}$/);
     assert.ok(expiresAt - Date.now() > 23 * 3600 * 1000);
     const token = tokenFrom(mail.sent[0].url);
     assert.notEqual(platform.PlatformUser.docs[0].passwordSetTokenHash, token, 'token stored in clear');

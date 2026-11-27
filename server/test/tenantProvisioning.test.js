@@ -7,6 +7,7 @@
  * is stubbed. The same flow still needs one run against a real test database.
  */
 process.env.NODE_ENV = 'test';
+process.env.APP_DOMAIN = 'logiforce.test';
 process.env.MONGODB_BASE_URI = 'mongodb://tenant-db.invalid'; // only to build URIs; never opened
 process.env.JWT_SECRET = 'tenant-secret-for-tests-only-000000000000';
 process.env.PLATFORM_JWT_SECRET = 'platform-secret-for-tests-only-11111111111';
@@ -166,8 +167,8 @@ describe('buildResetPasswordUrl', () => {
     const saved = process.env.CLIENT_URL;
     process.env.CLIENT_URL = 'https://one.example, https://two.example';
     try {
-      assert.equal(buildResetPasswordUrl({ headers: { origin: 'https://x.logiforce.app' } }, token), `https://x.logiforce.app/reset-password/${token}`);
-      assert.equal(buildResetPasswordUrl({ headers: { referer: 'https://y.logiforce.app/login?a=1' } }, token), `https://y.logiforce.app/reset-password/${token}`);
+      assert.equal(buildResetPasswordUrl({ headers: { origin: 'https://x.logiforce.test' } }, token), `https://x.logiforce.test/reset-password/${token}`);
+      assert.equal(buildResetPasswordUrl({ headers: { referer: 'https://y.logiforce.test/login?a=1' } }, token), `https://y.logiforce.test/reset-password/${token}`);
       assert.equal(buildResetPasswordUrl({ headers: {} }, token), `https://one.example/reset-password/${token}`);
     } finally {
       if (saved === undefined) delete process.env.CLIENT_URL; else process.env.CLIENT_URL = saved;
@@ -175,10 +176,10 @@ describe('buildResetPasswordUrl', () => {
   });
   test('baseUrl wins over the request', () => {
     assert.equal(
-      buildResetPasswordUrl({ headers: { origin: 'https://platform.logiforce.app' } }, token, 'https://acme.logiforce.app/'),
-      `https://acme.logiforce.app/reset-password/${token}`,
+      buildResetPasswordUrl({ headers: { origin: 'https://platform.logiforce.test' } }, token, 'https://acme.logiforce.test/'),
+      `https://acme.logiforce.test/reset-password/${token}`,
     );
-    assert.equal(buildResetPasswordUrl(null, token, 'https://acme.logiforce.app'), `https://acme.logiforce.app/reset-password/${token}`);
+    assert.equal(buildResetPasswordUrl(null, token, 'https://acme.logiforce.test'), `https://acme.logiforce.test/reset-password/${token}`);
   });
 });
 
@@ -187,7 +188,7 @@ describe('provisionTenant', () => {
     const result = await provisionTenant({ body: BODY, actor: ACTOR });
     assert.equal(result.resumed, false);
     assert.equal(result.tenant.status, 'active');
-    assert.equal(result.tenant.url, 'https://acme-co.logiforce.app');
+    assert.equal(result.tenant.url, 'https://acme-co.logiforce.test');
 
     const tenant = tenantNamed('acme-co');
     assert.equal(tenant.status, 'active');
@@ -218,7 +219,7 @@ describe('provisionTenant', () => {
     const [message] = mail.sent;
     assert.equal(message.to, 'ada@acme.test');
     assert.equal(message.tenantName, 'Acme Co');
-    assert.match(message.resetUrl, /^https:\/\/acme-co\.logiforce\.app\/reset-password\/[a-f0-9]{64}$/);
+    assert.match(message.resetUrl, /^https:\/\/acme-co\.logiforce\.test\/reset-password\/[a-f0-9]{64}$/);
     assert.equal(user.passwordResetTokenHash, hashResetToken(tokenFrom(message.resetUrl)));
     assert.ok(user.passwordResetExpires > new Date());
 
@@ -324,7 +325,7 @@ describe('resendAdminInvite', () => {
     assert.equal(mail.sent.length, 2);
     const second = tokenFrom(mail.sent[1].resetUrl);
     assert.notEqual(first, second);
-    assert.match(mail.sent[1].resetUrl, /^https:\/\/acme-co\.logiforce\.app\/reset-password\//);
+    assert.match(mail.sent[1].resetUrl, /^https:\/\/acme-co\.logiforce\.test\/reset-password\//);
     const user = companyDbs.get('logiforce_acme_co').User.docs[0];
     assert.equal(user.passwordResetTokenHash, hashResetToken(second));
     assert.equal(actions().at(-1), 'tenant.adminInviteSent');

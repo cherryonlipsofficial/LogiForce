@@ -11,6 +11,7 @@
  * should be and that its result or failure is reported.
  */
 process.env.NODE_ENV = 'test';
+process.env.APP_DOMAIN = 'logiforce.test';
 process.env.MONGODB_BASE_URI = 'mongodb://tenant-db.invalid'; // only to build URIs; never opened
 process.env.JWT_SECRET = 'tenant-secret-for-tests-only-000000000000';
 process.env.PLATFORM_JWT_SECRET = 'platform-secret-for-tests-only-11111111111';
@@ -191,7 +192,7 @@ describe('companies', () => {
     assert.equal(acme.name, 'Acme');
     assert.equal(acme.status, 'active');
     assert.ok(acme.createdAt);
-    assert.equal(acme.url, 'https://acme.logiforce.app');
+    assert.equal(acme.url, 'https://acme.logiforce.test');
     assert.ok(!('dbUriEnv' in acme) && !('dbName' in acme), 'the list stays small');
 
     assert.deepEqual((await call('GET', '/tenants?status=suspended')).body.tenants.map((t) => t.key), ['bolt']);

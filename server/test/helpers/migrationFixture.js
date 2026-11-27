@@ -14,7 +14,10 @@ const role = (name, extra = {}) => ({
 });
 const adminRole = () => role('admin', { displayName: 'Administrator', isSystemRole: true, permissions: ALL_KEYS });
 
-/** The world the scenario starts from (what platform:seed + Phase 2 left behind). */
+/**
+ * The world the scenario starts from: three registered companies (alpha is the
+ * template source) and one still provisioning, which is left alone.
+ */
 const buildWorld = () => {
   const templates = [
     ...ROLE_TEMPLATES.map((t) => ({ _id: oid(), ...clone({ ...t, permissions: [...t.permissions] }), version: 1 })),
@@ -24,14 +27,16 @@ const buildWorld = () => {
   const allTemplateKeys = templates.map((t) => t.key);
 
   const tenants = [
-    { _id: oid(), key: 'logi-force', name: 'LogiForce', dbName: 'logiforce', dbUriEnv: 'MONGODB_URI', status: 'active', enabledModules: [...MODULES], roleTemplateKeys: [...allTemplateKeys] },
-    { _id: oid(), key: 'clienta', name: 'Client A Transport LLC', dbName: 'logiforce_clienta', dbUriEnv: 'MONGODB_URI_CLIENTA', status: 'active', enabledModules: [...MODULES], roleTemplateKeys: [...allTemplateKeys] },
+    { _id: oid(), key: 'alpha', name: 'Alpha Freight', dbName: 'alpha_db', status: 'active', enabledModules: [...MODULES], roleTemplateKeys: [...allTemplateKeys] },
+    { _id: oid(), key: 'beta', name: 'Beta Transport', dbName: 'logiforce_beta', status: 'active', enabledModules: [...MODULES], roleTemplateKeys: [...allTemplateKeys] },
+    { _id: oid(), key: 'gamma', name: 'Gamma Logistics', dbName: 'logiforce_gamma', status: 'suspended', enabledModules: [...MODULES], roleTemplateKeys: [] },
+    { _id: oid(), key: 'delta', name: 'Delta Co', dbName: 'logiforce_delta', status: 'provisioning', enabledModules: [], roleTemplateKeys: ['tenant_admin'] },
   ];
 
-  const lfAdmin = adminRole();
-  const lf = {
+  const alphaAdmin = adminRole();
+  const alpha = {
     roles: [
-      lfAdmin,
+      alphaAdmin,
       role('accountant'),
       role('Ops Lead', { templateKey: 'ops', managedBy: 'platform' }), // linked by an earlier sync, different name
       role(' Sales  '),
@@ -40,16 +45,16 @@ const buildWorld = () => {
     ],
     users: [],
   };
-  lf.users = [
-    ...[1, 2, 3].map((i) => ({ _id: oid(), email: `admin${i}@lf.test`, roleId: lfAdmin._id })),
-    { _id: oid(), email: 'd1@lf.test', roleId: lf.roles[4]._id },
-    { _id: oid(), email: 'd2@lf.test', roleId: lf.roles[4]._id },
+  alpha.users = [
+    ...[1, 2, 3].map((i) => ({ _id: oid(), email: `admin${i}@alpha.test`, roleId: alphaAdmin._id })),
+    { _id: oid(), email: 'd1@alpha.test', roleId: alpha.roles[4]._id },
+    { _id: oid(), email: 'd2@alpha.test', roleId: alpha.roles[4]._id },
   ];
 
-  const caAdmin = adminRole();
-  const ca = {
+  const betaAdmin = adminRole();
+  const beta = {
     roles: [
-      caAdmin,
+      betaAdmin,
       role('tenant_admin', { templateKey: 'tenant_admin', managedBy: 'platform' }), // from an earlier role sync, unused
       role('OPS'),
       role('Night  shift'),           // matches the new night_shift template? no: names differ (space vs _)
@@ -59,63 +64,38 @@ const buildWorld = () => {
     ],
     users: [],
   };
-  ca.users = [{ _id: oid(), email: 'a@ca.test', roleId: caAdmin._id }, { _id: oid(), email: 'f@ca.test', roleId: ca.roles[4]._id }];
+  beta.users = [{ _id: oid(), email: 'a@beta.test', roleId: betaAdmin._id }, { _id: oid(), email: 'f@beta.test', roleId: beta.roles[4]._id }];
 
-  const cbAdmin = adminRole();
-  const cbTenantAdmin = role('tenant_admin', { templateKey: 'tenant_admin', managedBy: 'platform' });
-  const cb = {
-    roles: [cbAdmin, cbTenantAdmin, role('sales')],
-    users: [{ _id: oid(), email: 'x@cb.test', roleId: cbTenantAdmin._id }], // the leftover tenant_admin is in use
+  const gammaAdmin = adminRole();
+  const gammaTenantAdmin = role('tenant_admin', { templateKey: 'tenant_admin', managedBy: 'platform' });
+  const gamma = {
+    roles: [gammaAdmin, gammaTenantAdmin, role('sales')],
+    users: [{ _id: oid(), email: 'x@gamma.test', roleId: gammaTenantAdmin._id }], // the leftover tenant_admin is in use
   };
 
-  return { templates, tenants, companies: { logiforce: lf, logiforce_clienta: ca, logiforce_clientb: cb } };
+  return { templates, tenants, companies: { alpha_db: alpha, logiforce_beta: beta, logiforce_gamma: gamma } };
 };
 
 const makeDeps = (world, overrides = {}) => {
   const models = {
     RoleTemplate: makeModel(world.templates, { unique: ['key'] }),
     Tenant: makeModel(world.tenants, { unique: ['key', 'dbName'] }),
-    PlatformUser: makeModel(world.platformUsers || [], { unique: ['email'] }),
     PlatformAuditLog: { entries: [], record: async (e) => { models.PlatformAuditLog.entries.push(clone(e)); } },
   };
   const companyModels = new Map(Object.entries(world.companies).map(([dbName, c]) => [dbName, {
     Role: makeModel(c.roles, { unique: ['name'] }),
     User: makeModel(c.users),
   }]));
-  const sent = [];
   const deps = {
     models,
     companyModels,
-    sent,
     platformDbName: 'logiforce_platform',
-    legacyTenants: {
-      'logi-force': { name: 'LogiForce', dbName: 'logiforce_main' },
-      clienta: { name: 'Client A Transport LLC', dbName: 'logiforce_clienta' },
-      clientb: { name: 'Client B Logistics', dbName: 'logiforce_clientb' },
-      clientc: { name: 'Client C Freight Co', dbName: 'logiforce_clientc' },
-    },
-    resolveLegacyTenant: (key) => ({
-      clientb: { dbName: 'logiforce_clientb', dbUriEnv: 'MONGODB_URI_CLIENTB' },
-    }[key] || { dbName: null, dbUriEnv: null }),
-    newId: oid,
     redact: (m) => String(m),
     openCompany: async (record) => {
       const c = companyModels.get(record.dbName);
       if (!c) throw new Error(`cannot reach database ${record.dbName}`);
       return { ...c, close: async () => {} };
     },
-    platformAccount: { email: 'owner@platform.test', name: 'Platform Owner' },
-    platformUsers: {
-      createInvited: async ({ email, name, role: r }) => models.PlatformUser.create({ email, name, role: r, passwordHash: null }),
-      sendLink: async ({ userId }) => {
-        const expiresAt = new Date(Date.now() + 86400000);
-        await models.PlatformUser.updateOne({ _id: userId }, { $set: { passwordSetTokenHash: 'h', passwordSetExpires: expiresAt } });
-        sent.push(String(userId));
-        return { expiresAt };
-      },
-      consoleUrlProblem: () => null,
-    },
-    emailConfigured: () => true,
     ...overrides,
   };
   return deps;

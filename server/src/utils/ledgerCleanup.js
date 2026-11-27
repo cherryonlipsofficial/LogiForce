@@ -22,10 +22,8 @@ const cleanupOrphanedLedgerEntries = async (reqOrConn) => {
     DriverLedger = getModelForConnection(reqOrConn, 'DriverLedger');
     SalaryRun = getModelForConnection(reqOrConn, 'SalaryRun');
   } else {
-    // Fallback: use default mongoose connection (legacy / single-tenant)
-    const mongoose = require('mongoose');
-    DriverLedger = mongoose.model('DriverLedger');
-    SalaryRun = mongoose.model('SalaryRun');
+    // There is no default database: every company has its own.
+    throw new Error('cleanupOrphanedLedgerEntries needs a request or a company database connection');
   }
 
   // 1. Find all distinct salaryRunIds referenced by non-deleted ledger entries

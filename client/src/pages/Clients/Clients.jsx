@@ -18,6 +18,13 @@ import { useFormatters } from '../../hooks/useFormatters';
 import Pagination from '../../components/ui/Pagination';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 import { downloadBlob } from '../../utils/downloadBlob';
+import { currentTenantKey } from '../../config/appDomain';
+
+// Raw fetch (for blobs) needs the same company header axiosInstance sends.
+const tenantHeaders = (token) => {
+  const tenantKey = currentTenantKey();
+  return { Authorization: `Bearer ${token}`, ...(tenantKey ? { 'x-tenant-id': tenantKey } : {}) };
+};
 
 const isClientActive = (c) => c.isActive !== undefined ? c.isActive : c.status === 'active';
 
@@ -223,7 +230,7 @@ const ClientDetail = ({ client, onClose, onEdit, onDelete, hasPermission }) => {
     const token = localStorage.getItem('token');
     const base = import.meta.env.VITE_API_URL || 'https://logiforce.onrender.com/api';
     const url = `${base}/clients/${client._id}/contract`;
-    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(url, { headers: tenantHeaders(token) })
       .then(res => {
         if (!res.ok) throw new Error('Failed to fetch');
         return res.blob();
@@ -239,7 +246,7 @@ const ClientDetail = ({ client, onClose, onEdit, onDelete, hasPermission }) => {
     const token = localStorage.getItem('token');
     const base = import.meta.env.VITE_API_URL || 'https://logiforce.onrender.com/api';
     const url = `${base}/clients/${client._id}/contract?download=true`;
-    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(url, { headers: tenantHeaders(token) })
       .then(res => {
         if (!res.ok) throw new Error('Failed to fetch');
         return res.blob();

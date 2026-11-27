@@ -7,10 +7,11 @@ import { platformErrorMessage } from '../api/platformAxios';
 import Modal from '../../components/ui/Modal';
 import Btn from '../../components/ui/Btn';
 import { inputStyle, labelStyle, errorBox, noteBox } from '../components/styles';
+import { tenantUrl } from '../../config/appDomain';
 
-// Same rule as the server (platform/models/Tenant.js): 3–31 lowercase letters,
-// digits or hyphens, no hyphen at either end. The server also refuses reserved keys.
-const KEY_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,29})[a-z0-9]$/;
+// Same rule as the server (platform/models/Tenant.js): a lowercase letter, then
+// 2–30 lowercase letters, digits or hyphens. The server also refuses reserved keys.
+const KEY_PATTERN = /^[a-z][a-z0-9-]{2,30}$/;
 
 const Checkbox = ({ checked, onChange, disabled, children, hint }) => (
   <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.7 : 1 }}>
@@ -43,7 +44,7 @@ export default function NewCompanyModal({ onClose }) {
   const toggleIn = (list, value, on) => (on ? [...new Set([...list, value])] : list.filter((v) => v !== value));
 
   const keyProblem = form.key && !KEY_PATTERN.test(form.key)
-    ? '3–31 lowercase letters, digits or hyphens; no hyphen at the start or end' : '';
+    ? '3–31 characters: a lowercase letter, then lowercase letters, digits or hyphens' : '';
 
   const mutation = useMutation({
     mutationFn: () => createTenant({
@@ -82,7 +83,7 @@ export default function NewCompanyModal({ onClose }) {
             <label style={labelStyle} htmlFor="nc-key">Key (subdomain)</label>
             <input id="nc-key" value={form.key} onChange={set('key')} required placeholder="acme" style={{ ...inputStyle, fontFamily: 'var(--mono)' }} />
             <div style={{ fontSize: 11, color: keyProblem ? '#f87171' : 'var(--text3)', marginTop: 4 }}>
-              {keyProblem || (form.key ? `https://${form.key}.logiforce.app` : 'Cannot be changed later')}
+              {keyProblem || (form.key ? (tenantUrl(form.key) || form.key) : 'Cannot be changed later')}
             </div>
           </div>
           <div>

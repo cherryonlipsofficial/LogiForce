@@ -1,20 +1,22 @@
 const mongoose = require('mongoose');
 
+// Defaults are blank: no company's details are built in. Each company's admin
+// fills them in under Settings (provisioning starts them with the company name).
 const companySettingsSchema = new mongoose.Schema(
   {
-    companyName: { type: String, default: 'HAYAT AL MADINA DELIVERY SERVICES' },
-    addressLine1: { type: String, default: 'P.O.Box 39819, A-36, Al Nayli Building' },
-    addressLine2: { type: String, default: 'Industrial Area 13, Sharjah' },
+    companyName: { type: String, default: '' },
+    addressLine1: { type: String, default: '' },
+    addressLine2: { type: String, default: '' },
     country: { type: String, default: 'United Arab Emirates' },
-    email: { type: String, default: 'accounts@hayatalmadina.net' },
-    trn: { type: String, default: '104235095700003' },
+    email: { type: String, default: '' },
+    trn: { type: String, default: '' },
     phone: { type: String, default: '' },
 
     // Bank details
-    bankAccountName: { type: String, default: 'Hayat Al Madina Delivery Services' },
-    bankName: { type: String, default: 'RAK Bank' },
-    bankAccountNo: { type: String, default: '8373194769901' },
-    bankIban: { type: String, default: 'AE600400008373194769901' },
+    bankAccountName: { type: String, default: '' },
+    bankName: { type: String, default: '' },
+    bankAccountNo: { type: String, default: '' },
+    bankIban: { type: String, default: '' },
 
     // Branding
     logoBase64: { type: String, default: '' },
@@ -22,7 +24,7 @@ const companySettingsSchema = new mongoose.Schema(
     signatureBase64: { type: String, default: '' },
 
     // Invoice settings
-    invoicePrefix: { type: String, default: 'HM' },
+    invoicePrefix: { type: String, default: 'INV' },
     invoiceNumberFormat: { type: String, default: '{prefix}-{seq}-{mmdd}' },
     disputeNoticeDays: { type: Number, default: 7 },
     vatRate: { type: Number, default: 0.05 },

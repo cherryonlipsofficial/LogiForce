@@ -12,6 +12,7 @@
  * fields, so a narrow populate really does leave `permissions` out.
  */
 process.env.NODE_ENV = 'test';
+process.env.APP_DOMAIN = 'logiforce.test';
 process.env.JWT_SECRET = 'test-jwt-secret-for-access-control';
 process.env.MONGODB_BASE_URI = 'mongodb://tenant-db.invalid'; // only to build each company's URI; never opened
 process.env.TENANT_CACHE_TTL_MS = '0'; // tests change tenant settings between requests

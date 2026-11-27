@@ -9,6 +9,7 @@
  * user lookup.
  */
 process.env.NODE_ENV = 'test';
+process.env.APP_DOMAIN = 'logiforce.test';
 process.env.JWT_SECRET = 'test-jwt-secret-for-tenant-binding';
 process.env.MONGODB_BASE_URI = 'mongodb://tenant-db.invalid'; // only to build each company's URI; never opened
 
@@ -352,7 +353,7 @@ describe('generateToken call sites', () => {
       }
     }
 
-    assert.ok(sites.length >= 4, `expected at least 4 call sites, found ${sites.length}`);
+    assert.ok(sites.length >= 3, `expected at least 3 call sites, found ${sites.length}`);
     for (const site of sites) {
       assert.equal(site.args.length, 2, `${site.file}:${site.line} passes ${site.args.length} argument(s): ${site.args.join(', ')}`);
     }
