@@ -44,7 +44,6 @@ export default function PlatformAuthProvider({ children }) {
     user: state.user,
     isLoading: state.isLoading,
     isAuthenticated: Boolean(state.user),
-    isOwner: state.user?.role === 'owner',
     startLogin,
     verifyCode,
     resendCode,
