@@ -1,20 +1,24 @@
 /**
- * Create a platform user, or reset a platform user's password.
+ * Create the first Platform Owner.   (run once, on a fresh install)
  *
- *   npm run platform:create-owner -- --email you@x.com --name "Your Name" [--role owner|support]
- *   npm run platform:create-owner -- --email you@x.com --reset-password
+ *   npm run platform:create-owner -- --email you@x.com --name "Your Name"
+ *   npm run platform:create-owner -- --email you@x.com --name "Your Name" --link
  *
- * The password is never a command-line argument (it would land in shell
- * history). On a terminal it is asked for twice, without echo. When stdin is
- * not a terminal it is read from PLATFORM_OWNER_PASSWORD. At least 12 characters.
+ * - Refuses if an active Platform Owner already exists. Further Owners (and
+ *   all other platform users) are added from the platform console.
+ * - First makes sure the platform roles (platform_owner, platform_support) and
+ *   the default role templates exist (the same idempotent steps as
+ *   `npm run platform:seed`). It creates no company and no business data.
+ * - No password is ever in code, arguments or env. On a terminal you are asked
+ *   for it twice, without echo. With --link, or when stdin is not a terminal,
+ *   the account is created without a password and a one-time set-password link
+ *   (valid 24 hours) is printed instead; open it to choose the password.
+ * - Audited as actor 'system' ('platformUser.create' and 'platform.ownerBootstrap').
  *
- * - New email: creates the user (role defaults to 'owner', status 'active') and
- *   audits 'platformUser.create' as actor 'system'.
- * - Existing email without --reset-password: prints "already exists", exits 1,
- *   changes nothing.
- * - --reset-password: sets the new password, increments tokenVersion (every
- *   existing platform session stops working) and audits
- *   'platformUser.password_reset'. Role and status are not changed.
+ * Recovery, when the only Owner is locked out:
+ *   npm run platform:create-owner -- --email owner@x.com --reset-password [--link]
+ * sets a new password (or prints a set-password link) for that existing Owner
+ * and signs out their sessions.
  *
  * Exits 0 on success, 1 on any error. Never prints a password.
  */
@@ -22,38 +26,28 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.e
 
 const readline = require('readline');
 const { connectPlatformDb, closePlatformDb } = require('../db');
-const { getPlatformModels } = require('../models');
-const {
-  createPlatformUser,
-  resetPlatformUserPassword,
-  findPlatformUserByEmail,
-  normalizeEmail,
-  SYSTEM_ACTOR,
-} = require('../services/platformUser.service');
+const platformModels = require('../models');
+const platformUsers = require('../services/platformUser.service');
 const { MIN_PASSWORD_LENGTH } = require('../models/PlatformUser');
+const { PLATFORM_OWNER_ROLE_KEY } = require('../../config/platformPermissions');
 
-const ROLES = ['owner', 'support'];
-const USAGE = 'Usage: npm run platform:create-owner -- --email you@x.com --name "Your Name" '
-  + '[--role owner|support] [--reset-password]';
+const { SYSTEM_ACTOR } = platformUsers;
+const USAGE = 'Usage: npm run platform:create-owner -- --email you@x.com --name "Your Name" [--link]\n'
+  + '       npm run platform:create-owner -- --email owner@x.com --reset-password [--link]';
 
 class UsageError extends Error {}
 
 const parseArgs = (argv) => {
-  const opts = { resetPassword: false };
-  const valueFlags = { '--email': 'email', '--name': 'name', '--role': 'role' };
+  const opts = { resetPassword: false, link: false };
+  const valueFlags = { '--email': 'email', '--name': 'name' };
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === '--reset-password') {
-      opts.resetPassword = true;
-      continue;
-    }
-    if (arg === '--help' || arg === '-h') {
-      opts.help = true;
-      continue;
-    }
+    if (arg === '--reset-password') { opts.resetPassword = true; continue; }
+    if (arg === '--link') { opts.link = true; continue; }
+    if (arg === '--help' || arg === '-h') { opts.help = true; continue; }
     if (arg.toLowerCase().startsWith('--password')) {
-      throw new UsageError('The password is never taken as an argument; you will be asked for it.');
+      throw new UsageError('The password is never taken as an argument; you will be asked for it (or use --link).');
     }
     const [flag, inline] = arg.split(/=(.*)/s, 2);
     const key = valueFlags[flag];
@@ -96,18 +90,108 @@ const askHidden = (question) => new Promise((resolve, reject) => {
   stdin.on('keypress', onKeypress);
 });
 
-const readPassword = async () => {
-  if (!process.stdin.isTTY) {
-    const fromEnv = process.env.PLATFORM_OWNER_PASSWORD;
-    if (!fromEnv) {
-      throw new Error('stdin is not a terminal, so the password is read from PLATFORM_OWNER_PASSWORD, which is not set.');
-    }
-    return fromEnv;
-  }
+const askPassword = async () => {
   const first = await askHidden(`Password (at least ${MIN_PASSWORD_LENGTH} characters): `);
   const second = await askHidden('Repeat password: ');
   if (first !== second) throw new Error('The passwords do not match. Nothing was changed.');
   return first;
+};
+
+/** Ensure platform roles and role templates (idempotent; same as platform:seed). */
+const defaultEnsureRoles = async (log) => {
+  const { seedPlatform } = require('./seedPlatform');
+  await seedPlatform({ log: (line) => log(line) });
+};
+
+/**
+ * Create the first Owner. Everything the command line does except reading
+ * argv and connecting, so it can be tested.
+ *
+ * @param {object} o
+ * @param {string} o.email
+ * @param {string} o.name
+ * @param {boolean} o.useLink           print a set-password link instead of asking for a password
+ * @param {() => Promise<string>} [o.readPassword]
+ * @param {(log) => Promise<void>} [o.ensureRoles]
+ * @param {(line: string) => void} [o.log]
+ * @returns {Promise<{ user: object, link: { url: string, expiresAt: Date } | null }>}
+ */
+const bootstrapOwner = async ({
+  email: rawEmail, name: rawName, useLink, readPassword = askPassword, ensureRoles = defaultEnsureRoles, log = console.log,
+}) => {
+  const email = platformUsers.normalizeEmail(rawEmail);
+  const name = String(rawName || '').trim();
+  if (!email) throw new UsageError('--email is required');
+  if (!name) throw new UsageError('--name is required');
+
+  const { PlatformUser, PlatformRole, PlatformAuditLog } = platformModels.getPlatformModels();
+  const activeOwners = await PlatformUser.countDocuments({ roleKey: PLATFORM_OWNER_ROLE_KEY, isActive: true });
+  if (activeOwners > 0) {
+    throw new Error('An active Platform Owner already exists. Add more Owners from the platform console '
+      + '(Platform users). Nothing was changed.');
+  }
+  if (await platformUsers.findPlatformUserByEmail(email)) {
+    throw new Error(`A platform user ${email} already exists. Nothing was changed.`);
+  }
+
+  await ensureRoles(log);
+  if (!(await PlatformRole.findOne({ key: PLATFORM_OWNER_ROLE_KEY }).lean())) {
+    throw new Error(`The ${PLATFORM_OWNER_ROLE_KEY} role is missing after seeding. Nothing was created.`);
+  }
+
+  let user;
+  let link = null;
+  if (useLink) {
+    user = await platformUsers.createInvitedPlatformUser({ email, name, roleKey: PLATFORM_OWNER_ROLE_KEY, actor: SYSTEM_ACTOR });
+    const issued = await platformUsers.issuePlatformSetPasswordLink({ userId: user._id });
+    link = { url: issued.url, expiresAt: issued.expiresAt };
+  } else {
+    const password = await readPassword();
+    user = await platformUsers.createPlatformUser({ email, name, password, roleKey: PLATFORM_OWNER_ROLE_KEY, actor: SYSTEM_ACTOR });
+  }
+
+  await PlatformAuditLog.record({
+    actor: SYSTEM_ACTOR,
+    action: 'platform.ownerBootstrap',
+    targetType: 'PlatformUser',
+    targetId: user._id,
+    targetKey: email,
+    after: { roleKey: PLATFORM_OWNER_ROLE_KEY, method: useLink ? 'set-password link' : 'password prompt' },
+  });
+  return { user, link };
+};
+
+/** Recovery for an existing Owner: new password (prompt) or a set-password link. */
+const recoverOwner = async ({ email: rawEmail, useLink, readPassword = askPassword }) => {
+  const email = platformUsers.normalizeEmail(rawEmail);
+  if (!email) throw new UsageError('--email is required');
+  const user = await platformUsers.findPlatformUserByEmail(email);
+  if (!user) throw new Error(`No platform user with email ${email}.`);
+  if (user.roleKey !== PLATFORM_OWNER_ROLE_KEY) {
+    throw new Error(`${email} is not a Platform Owner. Other users are managed from the platform console.`);
+  }
+  if (useLink) {
+    const { PlatformUser, PlatformAuditLog } = platformModels.getPlatformModels();
+    await PlatformUser.updateOne({ _id: user._id }, { $inc: { tokenVersion: 1 } }); // sign out every session
+    const issued = await platformUsers.issuePlatformSetPasswordLink({ userId: user._id });
+    await PlatformAuditLog.record({
+      actor: SYSTEM_ACTOR,
+      action: 'platformUser.set_password_link_issued',
+      targetType: 'PlatformUser',
+      targetId: user._id,
+      targetKey: email,
+      after: { expiresAt: issued.expiresAt },
+    });
+    return { link: { url: issued.url, expiresAt: issued.expiresAt } };
+  }
+  await platformUsers.resetPlatformUserPassword({ userId: user._id, password: await readPassword(), actor: SYSTEM_ACTOR });
+  return { link: null };
+};
+
+const printLink = (link) => {
+  console.log('\nOne-time set-password link (valid until ' + link.expiresAt.toISOString() + '):');
+  console.log(`  ${link.url}`);
+  console.log('Open it to choose the password. Do not share it; it is shown only this once.');
 };
 
 const main = async () => {
@@ -116,45 +200,22 @@ const main = async () => {
     console.log(USAGE);
     return;
   }
-
-  const email = normalizeEmail(opts.email);
-  if (!email) throw new UsageError('--email is required');
-  if (opts.role !== undefined && !ROLES.includes(opts.role)) {
-    throw new UsageError(`--role must be one of: ${ROLES.join(', ')}`);
-  }
+  const useLink = opts.link || !process.stdin.isTTY;
+  if (!opts.link && useLink) console.log('stdin is not a terminal: printing a set-password link instead of asking.');
 
   await connectPlatformDb();
-  const { PlatformUser, PlatformAuditLog, PlatformLoginChallenge } = getPlatformModels();
-  // Make sure the unique email index exists before relying on it.
-  await Promise.all([PlatformUser.init(), PlatformAuditLog.init(), PlatformLoginChallenge.init()]);
-
-  const existing = await findPlatformUserByEmail(email);
 
   if (opts.resetPassword) {
-    if (!existing) {
-      throw new Error(`No platform user with email ${email}. Run without --reset-password to create one.`);
-    }
-    if (opts.role !== undefined || opts.name !== undefined) {
-      console.log('Note: --role and --name are ignored with --reset-password; role and name stay as they are.');
-    }
-    const password = await readPassword();
-    await resetPlatformUserPassword({ userId: existing._id, password, actor: SYSTEM_ACTOR });
-    console.log(`Password reset for ${existing.email}. Every existing platform session for this user is signed out.`);
+    const { link } = await recoverOwner({ email: opts.email, useLink });
+    console.log(`Sessions of ${platformUsers.normalizeEmail(opts.email)} are signed out.`);
+    if (link) printLink(link); else console.log('Password changed.');
     return;
   }
 
-  if (existing) {
-    throw new Error(`Platform user ${email} already exists. Nothing was changed. `
-      + 'Use --reset-password to set a new password.');
-  }
-
-  const name = (opts.name || '').trim();
-  if (!name) throw new UsageError('--name is required to create a user');
-
-  const role = opts.role || 'owner';
-  const password = await readPassword();
-  const user = await createPlatformUser({ email, name, password, role, status: 'active', actor: SYSTEM_ACTOR });
-  console.log(`Created platform ${user.role} ${user.email}.`);
+  const { user, link } = await bootstrapOwner({ email: opts.email, name: opts.name, useLink });
+  console.log(`\nCreated Platform Owner ${user.email}.`);
+  if (link) printLink(link);
+  console.log('Sign in to the platform console, then add companies and platform users there.');
 };
 
 if (require.main === module) {
@@ -171,4 +232,4 @@ if (require.main === module) {
   })();
 }
 
-module.exports = { parseArgs };
+module.exports = { parseArgs, bootstrapOwner, recoverOwner };
