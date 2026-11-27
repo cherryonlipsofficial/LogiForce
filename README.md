@@ -111,6 +111,19 @@ npm run platform:sync-roles -- --tenant acme           # dry run, then add --app
 
 `register-tenant` only reads the company database (it must exist on `MONGODB_BASE_URI`'s cluster and hold data), refuses a key or database that is already registered, and records it `active` with every module on. `migrate:platform` needs `--source` (the company whose custom roles become shared templates) and only touches registered companies.
 
+### Removing companies created by an old `platform:seed`
+
+`npm run platform:seed` creates no companies: it only syncs indexes, role templates and platform roles. Older versions of it registered a hardcoded list (`logi-force`, `clienta`, `clientb`, `clientc`). To remove those records from a platform database that ran the old seed:
+
+```bash
+cd server
+npm run platform:remove-seeded-tenants                   # dry run: lists them
+npm run platform:remove-seeded-tenants -- --apply        # removes the ones whose database is missing or empty
+npm run platform:remove-seeded-tenants -- --apply --key logi-force   # also removes a named one that holds data
+```
+
+It only touches companies the audit log shows were created by the seed (never one created in the console or with `register-tenant`), removes only the platform record (the company database is never written or dropped), and audits each removal as `tenant.delete`. If one of them is a real company you want to keep, leave it out of `--key`, or remove it and register it again with `register-tenant`.
+
 If you had platform users from before platform roles existed, run `npm run platform:migrate-users` (dry run; add `--apply`) once, after `npm run platform:seed`.
 
 ## Quick start (Docker)
