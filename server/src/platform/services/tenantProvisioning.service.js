@@ -122,6 +122,29 @@ const validateProvisionInput = (body = {}) => {
     if (!roleTemplateKeys.includes(TENANT_ADMIN_KEY)) roleTemplateKeys.unshift(TENANT_ADMIN_KEY);
   }
 
+  const contact = { name: '', email: '', phone: '' };
+  if (body.contact !== undefined && body.contact !== null) {
+    if (typeof body.contact !== 'object' || Array.isArray(body.contact)) {
+      errors.contact = 'contact must be an object { name, email, phone }';
+    } else {
+      for (const field of ['name', 'email', 'phone']) {
+        const v = body.contact[field];
+        if (v === undefined || v === null) continue;
+        if (typeof v !== 'string') errors.contact = `contact.${field} must be text`;
+        else contact[field] = v.trim();
+      }
+      contact.email = contact.email.toLowerCase();
+      if (contact.email && !EMAIL_PATTERN.test(contact.email)) errors.contact = 'contact.email is not a valid email address';
+    }
+  }
+
+  let maxUsers = null;
+  const rawMax = body.limits?.maxUsers;
+  if (rawMax !== undefined && rawMax !== null && rawMax !== '') {
+    maxUsers = Number(rawMax);
+    if (!Number.isInteger(maxUsers) || maxUsers < 1) errors.limits = 'limits.maxUsers must be a whole number of at least 1';
+  }
+
   if (Object.keys(errors).length) {
     throw badRequest(`Invalid request: ${Object.values(errors).join('; ')}`, errors);
   }
@@ -133,6 +156,8 @@ const validateProvisionInput = (body = {}) => {
     adminEmail,
     enabledModules,
     roleTemplateKeys,
+    contact,
+    limits: { maxUsers },
   };
 };
 
@@ -249,6 +274,8 @@ const publicTenant = (t) => ({
   _id: t._id,
   key: t.key,
   name: t.name,
+  contact: t.contact ?? null,
+  limits: t.limits ?? null,
   dbName: t.dbName,
   status: t.status,
   enabledModules: t.enabledModules,
@@ -280,6 +307,8 @@ const claimTenant = async (input, actor, req) => {
     adminEmail: input.adminEmail,
     enabledModules: input.enabledModules,
     roleTemplateKeys: input.roleTemplateKeys,
+    contact: input.contact,
+    limits: input.limits,
   };
 
   const existing = await Tenant.findOne({ key: input.key }).lean();
@@ -483,52 +512,71 @@ const provisionTenant = async ({ body, actor = SYSTEM_ACTOR, req } = {}) => {
   }
 };
 
-/**
- * POST /api/platform/tenants/:key/resend-invite — send the company admin a new
- * set-password link (step 6's email). `email` defaults to the admin recorded at
- * provisioning; the user must be on the tenant_admin role.
- */
-const resendAdminInvite = async ({ key, email: requestedEmail, actor = SYSTEM_ACTOR, req } = {}) => {
-  const { Tenant, PlatformAuditLog } = platformModels.getPlatformModels();
+// ── Company admins, after provisioning ──
+
+const findActiveTenantOrThrow = async (key, purpose) => {
+  const { Tenant } = platformModels.getPlatformModels();
   const tenantKey = String(key || '').trim().toLowerCase();
   const tenant = await Tenant.findOne({ key: tenantKey }).lean();
   if (!tenant) throw new TenantProvisioningError(404, 'TENANT_NOT_FOUND', `No company with key "${tenantKey}"`);
   if (tenant.status !== 'active') {
     throw new TenantProvisioningError(409, 'TENANT_NOT_ACTIVE',
-      `"${tenant.key}" is ${tenant.status}. The link only works for an active company`
+      `"${tenant.key}" is ${tenant.status}. ${purpose} only works for an active company`
       + (tenant.status === 'provisioning' ? '; retry POST /api/platform/tenants to finish provisioning (it sends the invite).' : '.'));
   }
+  return tenant;
+};
 
-  const target = normalizeEmail(requestedEmail || tenant.adminEmail);
-  if (!target) {
-    throw badRequest('This company has no admin email on record; pass { "email": "..." }', {
-      email: 'required for this company',
-    });
-  }
-  if (!EMAIL_PATTERN.test(target)) throw badRequest('email is not a valid email address', { email: 'not valid' });
-  if (!email.isEmailConfigured()) throw emailNotConfigured();
+const requireEmail = (raw, field = 'email') => {
+  const value = normalizeEmail(raw);
+  if (!value) throw badRequest(`${field} is required`, { [field]: 'required' });
+  if (!EMAIL_PATTERN.test(value)) throw badRequest(`${field} is not a valid email address`, { [field]: 'not valid' });
+  return value;
+};
 
-  const conn = await connectionManager.getConnectionForTenant(mapTenantRecord(tenant));
+/** The company user `email`, who must be on the tenant_admin role. */
+const findCompanyAdmin = async (tenant, conn, email) => {
   const User = getModelForConnection(conn, 'User');
   const Role = getModelForConnection(conn, 'Role');
-  const user = await User.findOne({ email: target });
-  if (!user) throw new TenantProvisioningError(404, 'ADMIN_NOT_FOUND', `No user ${target} in "${tenant.key}"`);
+  const user = await User.findOne({ email });
+  if (!user) throw new TenantProvisioningError(404, 'ADMIN_NOT_FOUND', `No user ${email} in "${tenant.key}"`);
   const role = await Role.findById(user.roleId).select('templateKey').lean();
   if (role?.templateKey !== TENANT_ADMIN_KEY) {
     throw new TenantProvisioningError(409, 'NOT_COMPANY_ADMIN',
-      `${target} is not on the company admin role (${TENANT_ADMIN_KEY}) in "${tenant.key}"`);
+      `${email} is not on the company admin role (${TENANT_ADMIN_KEY}) in "${tenant.key}"`);
   }
+  return user;
+};
 
-  let invite;
+const sendLinkOrThrow = async (args) => {
   try {
-    invite = await sendTenantAdminInvite({ tenant, conn, user });
+    return await sendTenantAdminInvite(args);
   } catch (err) {
     throw new TenantProvisioningError(502, 'EMAIL_SEND_FAILED', redactUris(err.message));
   }
+};
 
+/**
+ * Email a company admin a set-password link (the same link the provisioning
+ * invite sends). Shared by resend-invite and reset-password, which differ only
+ * in their permission and audit action. Nobody ever sees a password.
+ */
+const sendAdminLink = async ({ key, email: requestedEmail, action, purpose, actor, req }) => {
+  const tenant = await findActiveTenantOrThrow(key, purpose);
+  const target = requireEmail(requestedEmail || tenant.adminEmail);
+  if (!email.isEmailConfigured()) throw emailNotConfigured();
+
+  const conn = await connectionManager.getConnectionForTenant(mapTenantRecord(tenant));
+  const user = await findCompanyAdmin(tenant, conn, target);
+  if (user.isActive === false) {
+    throw new TenantProvisioningError(409, 'ADMIN_INACTIVE', `${target} is deactivated in "${tenant.key}"`);
+  }
+  const invite = await sendLinkOrThrow({ tenant, conn, user });
+
+  const { PlatformAuditLog } = platformModels.getPlatformModels();
   await PlatformAuditLog.record({
     actor,
-    action: 'tenant.adminInviteSent',
+    action,
     targetType: 'Tenant',
     targetId: tenant._id,
     targetKey: tenant.key,
@@ -536,6 +584,75 @@ const resendAdminInvite = async ({ key, email: requestedEmail, actor = SYSTEM_AC
     req,
   });
   return { tenantKey: tenant.key, invite };
+};
+
+/**
+ * POST /api/platform/tenants/:key/resend-invite — { email? } defaults to the
+ * admin recorded at provisioning. (platform.tenant_admins.resend_invite)
+ */
+const resendAdminInvite = ({ key, email: requestedEmail, actor = SYSTEM_ACTOR, req } = {}) => sendAdminLink({
+  key, email: requestedEmail, action: 'tenant.adminInviteSent', purpose: 'The link', actor, req,
+});
+
+/**
+ * POST /api/platform/tenants/:key/admins/reset-password — { email }: email that
+ * company admin a password-reset link. (platform.tenant_admins.reset_password)
+ */
+const resetAdminPassword = async ({ key, email: requestedEmail, actor = SYSTEM_ACTOR, req } = {}) => {
+  if (!requestedEmail) throw badRequest('email is required', { email: 'required' });
+  return sendAdminLink({
+    key, email: requestedEmail, action: 'tenant.adminPasswordReset', purpose: 'A password reset', actor, req,
+  });
+};
+
+/**
+ * POST /api/platform/tenants/:key/admins — { name, email }: add another
+ * company admin on the tenant_admin role and email them a set-password link.
+ * An email already used by a company user is refused (that user's access is
+ * the company's own business). (platform.tenant_admins.invite)
+ */
+const inviteTenantAdmin = async ({ key, body = {}, actor = SYSTEM_ACTOR, req } = {}) => {
+  const tenant = await findActiveTenantOrThrow(key, 'Inviting an admin');
+  const adminEmail = requireEmail(body.email);
+  const adminName = typeof body.name === 'string' ? body.name.trim() : '';
+  if (!adminName) throw badRequest('name is required', { name: 'required' });
+  if (!email.isEmailConfigured()) throw emailNotConfigured();
+
+  const conn = await connectionManager.getConnectionForTenant(mapTenantRecord(tenant));
+  const User = getModelForConnection(conn, 'User');
+  const Role = getModelForConnection(conn, 'Role');
+  if (await User.findOne({ email: adminEmail }).lean()) {
+    throw new TenantProvisioningError(409, 'USER_EXISTS',
+      `${adminEmail} already has an account in "${tenant.key}". Its admins manage existing users.`);
+  }
+  if (tenant.limits?.maxUsers) {
+    const active = await User.countDocuments({ isActive: true });
+    if (active + 1 > tenant.limits.maxUsers) {
+      throw new TenantProvisioningError(409, 'USER_LIMIT', `"${tenant.key}" is at its user limit (${tenant.limits.maxUsers})`);
+    }
+  }
+  const adminRole = await Role.findOne({ templateKey: TENANT_ADMIN_KEY, isActive: { $ne: false } }).lean();
+  if (!adminRole) throw new TenantProvisioningError(409, 'NO_ADMIN_ROLE', `"${tenant.key}" has no active ${TENANT_ADMIN_KEY} role; sync its roles first`);
+
+  const { user } = await ensureAdminUser(conn, { adminName, adminEmail }, adminRole._id);
+  let invite;
+  try {
+    invite = { ...(await sendTenantAdminInvite({ tenant, conn, user })), sent: true };
+  } catch (err) {
+    invite = { sent: false, error: redactUris(err.message) };
+  }
+
+  const { PlatformAuditLog } = platformModels.getPlatformModels();
+  await PlatformAuditLog.record({
+    actor,
+    action: 'tenant.adminInvited',
+    targetType: 'Tenant',
+    targetId: tenant._id,
+    targetKey: tenant.key,
+    after: { email: adminEmail, name: adminName, userId: user._id, inviteSent: invite.sent },
+    req,
+  });
+  return { tenantKey: tenant.key, admin: { _id: user._id, name: adminName, email: adminEmail }, invite };
 };
 
 module.exports = {
@@ -547,4 +664,6 @@ module.exports = {
   sendTenantAdminInvite,
   provisionTenant,
   resendAdminInvite,
+  resetAdminPassword,
+  inviteTenantAdmin,
 };

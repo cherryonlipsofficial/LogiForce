@@ -75,6 +75,15 @@ router.post('/:key/reactivate', requirePlatformPermission('platform.tenants.susp
   res.json({ success: true, ...result });
 });
 
+// POST /api/platform/tenants/:key/archive — body { reason? }. Blocks access, keeps the data.
+// There is no delete: companies are never removed through the API.
+router.post('/:key/archive', requirePlatformPermission('platform.tenants.suspend'), async (req, res) => {
+  const result = await tenantAdmin.setTenantStatus({
+    key: req.params.key, to: 'archived', reason: req.body?.reason, actor: actorOf(req), req,
+  });
+  res.json({ success: true, ...result });
+});
+
 // POST /api/platform/tenants/:key/sync-roles — copy the role templates into the company again
 router.post('/:key/sync-roles', requirePlatformPermission('platform.tenants.manage_modules'), async (req, res) => {
   res.json({ success: true, ...(await tenantAdmin.resyncTenantRoles({ key: req.params.key, actor: actorOf(req) })) });
@@ -88,6 +97,18 @@ router.post('/:key/resend-invite', requirePlatformPermission('platform.tenant_ad
     actor: actorOf(req),
     req,
   });
+  res.json({ success: true, ...result });
+});
+
+// POST /api/platform/tenants/:key/admins — { name, email }: another company admin
+router.post('/:key/admins', requirePlatformPermission('platform.tenant_admins.invite'), async (req, res) => {
+  const result = await provisioning.inviteTenantAdmin({ key: req.params.key, body: req.body || {}, actor: actorOf(req), req });
+  res.status(201).json({ success: true, ...result });
+});
+
+// POST /api/platform/tenants/:key/admins/reset-password — { email }: emails a reset link
+router.post('/:key/admins/reset-password', requirePlatformPermission('platform.tenant_admins.reset_password'), async (req, res) => {
+  const result = await provisioning.resetAdminPassword({ key: req.params.key, email: req.body?.email, actor: actorOf(req), req });
   res.json({ success: true, ...result });
 });
 

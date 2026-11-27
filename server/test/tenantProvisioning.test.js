@@ -34,7 +34,9 @@ const { buildResetPasswordUrl, hashResetToken } = require('../src/modules/shared
 const provisioning = require('../src/platform/services/tenantProvisioning.service');
 const { signPlatformToken } = require('../src/platform/services/platformAuth.service');
 
-const { validateProvisionInput, provisionTenant, resendAdminInvite, TenantProvisioningError } = provisioning;
+const {
+  validateProvisionInput, provisionTenant, resendAdminInvite, resetAdminPassword, inviteTenantAdmin, TenantProvisioningError,
+} = provisioning;
 
 const ACTOR = { userId: new mongoose.Types.ObjectId(), email: 'owner@platform.test' };
 const BODY = Object.freeze({
@@ -344,6 +346,41 @@ describe('resendAdminInvite', () => {
   });
 });
 
+describe('company admins after provisioning', () => {
+  test('contact and user limit given at provisioning are stored', async () => {
+    await provisionTenant({ body: { ...BODY, contact: { name: 'Ana', email: 'ANA@acme.test', phone: '1' }, limits: { maxUsers: 10 } }, actor: ACTOR });
+    const t = tenantNamed('acme-co');
+    assert.deepEqual(t.contact, { name: 'Ana', email: 'ana@acme.test', phone: '1' });
+    assert.equal(t.limits.maxUsers, 10);
+    assert.throws(() => validateProvisionInput({ ...BODY, contact: { email: 'x' } }), (err) => 'contact' in err.extra.errors);
+    assert.throws(() => validateProvisionInput({ ...BODY, limits: { maxUsers: 0 } }), (err) => 'limits' in err.extra.errors);
+  });
+
+  test('invite another admin: created on tenant_admin with a random password and emailed a link', async () => {
+    await provisionTenant({ body: BODY, actor: ACTOR });
+    const result = await inviteTenantAdmin({ key: 'acme-co', body: { name: 'Bo', email: 'BO@acme.test' }, actor: ACTOR });
+    assert.equal(result.invite.sent, true);
+    const db = companyDbs.get('logiforce_acme_co');
+    const bo = db.User.docs.find((u) => u.email === 'bo@acme.test');
+    const adminRole = db.Role.docs.find((r) => r.templateKey === 'tenant_admin');
+    assert.equal(String(bo.roleId), String(adminRole._id));
+    assert.match(mail.sent.at(-1).resetUrl, /^https:\/\/acme-co\.logiforce\.test\/reset-password\/[a-f0-9]{64}$/);
+    assert.equal(actions().at(-1), 'tenant.adminInvited');
+    // an existing company user is never taken over
+    await assert.rejects(inviteTenantAdmin({ key: 'acme-co', body: { name: 'Bo', email: 'bo@acme.test' }, actor: ACTOR }),
+      (err) => err.code === 'USER_EXISTS');
+  });
+
+  test('reset password: emails a reset link to a company admin; never returns a password', async () => {
+    await provisionTenant({ body: BODY, actor: ACTOR });
+    const result = await resetAdminPassword({ key: 'acme-co', email: 'ada@acme.test', actor: ACTOR });
+    assert.equal(result.invite.email, 'ada@acme.test');
+    assert.ok(!JSON.stringify(result).match(/password"\s*:/i), 'no password in the response');
+    assert.equal(actions().at(-1), 'tenant.adminPasswordReset');
+    await assert.rejects(resetAdminPassword({ key: 'acme-co', actor: ACTOR }), (err) => err.status === 400);
+  });
+});
+
 describe('HTTP: platform auth only', () => {
   let server;
   let base;
@@ -388,6 +425,15 @@ describe('HTTP: platform auth only', () => {
     assert.equal(json.success, false);
     assert.equal(json.code, 'VALIDATION_ERROR');
     assert.match(json.errors.key, /reserved/);
+  });
+
+  test('Support may resend an invite and reset an admin password, but not invite a new admin', async () => {
+    await post('/tenants', BODY, signPlatformToken(owner));
+    const asSupport = signPlatformToken(support);
+    assert.equal((await post('/tenants/acme-co/resend-invite', {}, asSupport)).status, 200);
+    assert.equal((await post('/tenants/acme-co/admins/reset-password', { email: 'ada@acme.test' }, asSupport)).status, 200);
+    assert.equal((await post('/tenants/acme-co/admins', { name: 'X', email: 'x@acme.test' }, asSupport)).status, 403);
+    assert.equal((await post('/tenants/acme-co/admins', { name: 'X', email: 'x@acme.test' }, signPlatformToken(owner))).status, 201);
   });
 
   test('POST /tenants/:key/resend-invite', async () => {
