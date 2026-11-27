@@ -11,6 +11,7 @@
     "platform:create-owner": "node src/platform/scripts/createPlatformOwner.js",
     "platform:seed": "node src/platform/scripts/seedPlatform.js",
     "platform:migrate-users": "node src/platform/scripts/migratePlatformUsers.js",
+    "platform:register-tenant": "node src/platform/scripts/registerExistingTenant.js",
     "platform:sync-roles": "node src/platform/scripts/syncTenantRoles.js",
     "migrate:platform": "node src/scripts/migrateToPlatform.js"
   },
