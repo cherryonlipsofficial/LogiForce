@@ -1,16 +1,15 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { usePlatformAuth } from '../auth/platformAuthContext';
+import { usePlatformCan } from '../hooks/usePlatformPermission';
+import { NAV } from './nav';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 import Badge from '../../components/ui/Badge';
 
-const NAV = [
-  { to: '/platform/companies', label: 'Companies', icon: '▦' },
-  { to: '/platform/roles', label: 'Roles', icon: '◈' },
-  { to: '/platform/audit', label: 'Audit log', icon: '◉' },
-];
 
 export default function PlatformLayout() {
   const { user, logout } = usePlatformAuth();
+  const can = usePlatformCan();
+  const nav = NAV.filter((item) => item.any.some(can));
   const navigate = useNavigate();
   const { isMobile } = useBreakpoint();
 
@@ -35,7 +34,7 @@ export default function PlatformLayout() {
             <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>Platform console</div>
           </div>
         )}
-        {NAV.map((item) => (
+        {nav.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -59,7 +58,7 @@ export default function PlatformLayout() {
           {!isMobile && (
             <>
               <div style={{ fontSize: 12, color: 'var(--text)', wordBreak: 'break-all' }}>{user?.email}</div>
-              <Badge variant={user?.role === 'owner' ? 'purple' : 'default'}>{user?.role}</Badge>
+              <Badge variant={user?.roleKey === 'platform_owner' ? 'purple' : 'default'}>{user?.roleName || user?.roleKey}</Badge>
             </>
           )}
           <button

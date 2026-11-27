@@ -35,21 +35,22 @@ const roleTemplateSchema = new Schema(
     description: String,
     permissions: {
       type: [String],
+      // Platform check first, so a platform key is named as such rather than as unknown.
       validate: [
+        {
+          // Templates are copied into companies; platform permissions
+          // (config/platformPermissions.js) are never given to a company role.
+          validator: (values) => !values.some(isPlatformPermission),
+          message: (props) => {
+            const bad = (props.value || []).filter(isPlatformPermission);
+            return `Platform permission(s) cannot be in a role template: ${bad.join(', ')}`;
+          },
+        },
         {
           validator: (values) => values.every(isPermissionKey),
           message: (props) => {
             const bad = (props.value || []).filter((p) => !isPermissionKey(p));
             return `Unknown permission(s): ${bad.join(', ')}`;
-          },
-        },
-        {
-          // Templates are copied into companies; platform-scope permissions
-          // (e.g. roles.manage) are never given to a company role.
-          validator: (values) => !values.some(isPlatformPermission),
-          message: (props) => {
-            const bad = (props.value || []).filter(isPlatformPermission);
-            return `Platform permission(s) cannot be in a role template: ${bad.join(', ')}`;
           },
         },
       ],

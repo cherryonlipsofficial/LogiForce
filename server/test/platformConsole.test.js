@@ -11,6 +11,7 @@
  * should be and that its result or failure is reported.
  */
 process.env.NODE_ENV = 'test';
+process.env.APP_DOMAIN = 'logiforce.test';
 process.env.MONGODB_BASE_URI = 'mongodb://tenant-db.invalid'; // only to build URIs; never opened
 process.env.JWT_SECRET = 'tenant-secret-for-tests-only-000000000000';
 process.env.PLATFORM_JWT_SECRET = 'platform-secret-for-tests-only-11111111111';
@@ -20,6 +21,7 @@ const { test, describe, beforeEach, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
 const { makeModel, clone, idEq } = require('./helpers/fakeDb');
+const { systemRoleDocs, platformUserDoc } = require('./helpers/platformRoles');
 
 const platformModels = require('../src/platform/models');
 const platform = {};
@@ -68,13 +70,14 @@ const resetPlatform = () => {
   platform.Tenant = makeModel([
     { _id: new ObjectId(), key: 'acme', name: 'Acme', dbName: 'logiforce_acme', status: 'active', enabledModules: ['Drivers'], roleTemplateKeys: ['tenant_admin', 'viewer'], adminEmail: 'ada@acme.test', createdAt: new Date('2026-10-01') },
     { _id: new ObjectId(), key: 'bolt', name: 'Bolt', dbName: 'logiforce_bolt', status: 'suspended', enabledModules: [], roleTemplateKeys: ['tenant_admin'], createdAt: new Date('2026-10-02') },
-    { _id: new ObjectId(), key: 'crumb', name: 'Crumb', dbName: 'logiforce_crumb', status: 'failed', enabledModules: [], roleTemplateKeys: ['tenant_admin'], createdAt: new Date('2026-10-03') },
+    { _id: new ObjectId(), key: 'crumb', name: 'Crumb', dbName: 'logiforce_crumb', status: 'provisioning', provisioningError: { step: 'invite', message: 'x', at: new Date('2026-10-03') }, enabledModules: [], roleTemplateKeys: ['tenant_admin'], createdAt: new Date('2026-10-03') },
   ], { unique: ['key'] });
   platform.RoleTemplate = makeRoleTemplateModel([
     ...ROLE_TEMPLATES.map((t) => ({ _id: new ObjectId(), ...clone({ ...t, permissions: [...t.permissions] }), version: 1 })),
     { _id: new ObjectId(), key: 'admin', displayName: 'Old admin', permissions: [], assignableByTenant: true, version: 3 },
   ]);
   platform.PlatformUser = makeModel([]);
+  platform.PlatformRole = makeModel(systemRoleDocs());
   platform.PlatformAuditLog = makeModel([]);
   platform.PlatformAuditLog.record = async ({ req, ...e }) => {
     clock += 1000;
@@ -120,8 +123,8 @@ roleSync.syncTenantsUsingTemplate = async (key, { actor }) => {
 
 // ── HTTP harness ──
 
-const owner = { _id: new ObjectId(), email: 'owner@platform.test', name: 'O', role: 'owner', status: 'active', tokenVersion: 0 };
-const support = { _id: new ObjectId(), email: 'support@platform.test', name: 'S', role: 'support', status: 'active', tokenVersion: 0 };
+const owner = platformUserDoc('platform_owner', { email: 'owner@platform.test', name: 'O' });
+const support = platformUserDoc('platform_support', { email: 'support@platform.test', name: 'S' });
 let server;
 let base;
 const call = async (method, path, { body, as = owner } = {}) => {
@@ -158,7 +161,7 @@ beforeEach(() => {
 // ── Access ──
 
 describe('who can do what', () => {
-  test('no token → 401; support reads but cannot change anything', async () => {
+  test('no token → 401; support reads but cannot change companies or templates', async () => {
     assert.equal((await call('GET', '/tenants', { as: null })).status, 401);
     for (const path of ['/tenants', '/tenants/acme', '/role-templates', '/audit-logs', '/audit-logs/actions', '/meta']) {
       assert.equal((await call('GET', path, { as: support })).status, 200, path);
@@ -168,7 +171,6 @@ describe('who can do what', () => {
       ['POST', '/tenants/acme/suspend', {}],
       ['POST', '/tenants/bolt/reactivate', {}],
       ['POST', '/tenants/acme/sync-roles', {}],
-      ['POST', '/tenants/acme/resend-invite', {}],
       ['PATCH', '/role-templates/viewer', { displayName: 'X' }],
     ];
     for (const [method, path, body] of writes) {
@@ -190,7 +192,7 @@ describe('companies', () => {
     assert.equal(acme.name, 'Acme');
     assert.equal(acme.status, 'active');
     assert.ok(acme.createdAt);
-    assert.equal(acme.url, 'https://acme.logiforce.app');
+    assert.equal(acme.url, 'https://acme.logiforce.test');
     assert.ok(!('dbUriEnv' in acme) && !('dbName' in acme), 'the list stays small');
 
     assert.deepEqual((await call('GET', '/tenants?status=suspended')).body.tenants.map((t) => t.key), ['bolt']);
@@ -301,7 +303,43 @@ describe('companies', () => {
     assert.equal(r.body.tenant.status, 'active');
     assert.equal(audit('tenant.reactivate').length, 1);
 
-    assert.equal((await call('POST', '/tenants/crumb/reactivate')).status, 409, 'a failed company is not reactivated');
+    assert.equal((await call('POST', '/tenants/crumb/reactivate')).status, 409, 'a company still provisioning is not reactivated');
+  });
+
+  test('archive: from active or suspended; blocks edits; reactivate brings it back; nothing is deleted', async () => {
+    const before = platform.Tenant.docs.length;
+    const a = await call('POST', '/tenants/bolt/archive', { body: { reason: 'Contract ended' } });
+    assert.equal(a.status, 200, JSON.stringify(a.body));
+    assert.equal(a.body.tenant.status, 'archived');
+    assert.deepEqual(audit('tenant.archive')[0].after, { status: 'archived', reason: 'Contract ended' });
+    assert.equal((await call('PATCH', '/tenants/bolt', { body: { name: 'B' } })).body.code, 'TENANT_NOT_EDITABLE');
+    assert.equal((await call('POST', '/tenants/bolt/archive')).status, 409, 'already archived');
+    assert.equal((await call('POST', '/tenants/crumb/archive')).status, 409, 'not while provisioning');
+    assert.equal((await call('POST', '/tenants/bolt/reactivate')).body.tenant.status, 'active');
+    assert.equal(platform.Tenant.docs.length, before);
+    assert.equal((await call('DELETE', '/tenants/bolt')).status, 404, 'there is no delete route');
+  });
+
+  test('details: contact, user limit and self signup are saved and audited as nested values', async () => {
+    const res = await call('PATCH', '/tenants/acme', {
+      body: { contact: { name: 'Ana', email: 'Ana@Acme.test', phone: '+971 4 000' }, limits: { maxUsers: 25 }, allowSelfSignup: true },
+    });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    const acme = platform.Tenant.docs.find((t) => t.key === 'acme');
+    assert.deepEqual(acme.contact, { name: 'Ana', email: 'ana@acme.test', phone: '+971 4 000' });
+    assert.equal(acme.limits.maxUsers, 25);
+    assert.equal(acme.allowSelfSignup, true);
+    assert.equal(res.body.roleSync, null, 'details do not trigger a role sync');
+    assert.deepEqual(audit('tenant.update')[0].after.contact, { name: 'Ana', email: 'ana@acme.test', phone: '+971 4 000' });
+    assert.equal(res.body.tenant.contact.email, 'ana@acme.test');
+
+    const unlimited = await call('PATCH', '/tenants/acme', { body: { limits: { maxUsers: null } } });
+    assert.equal(unlimited.status, 200);
+    assert.equal(platform.Tenant.docs.find((t) => t.key === 'acme').limits.maxUsers, null);
+
+    for (const body of [{ contact: { email: 'nope' } }, { limits: { maxUsers: 0 } }, { allowSelfSignup: 'yes' }, { contact: { fax: '1' } }]) {
+      assert.equal((await call('PATCH', '/tenants/acme', { body })).status, 400, JSON.stringify(body));
+    }
   });
 });
 

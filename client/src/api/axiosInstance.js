@@ -1,24 +1,5 @@
 import axios from 'axios';
-
-// Extract tenant from current subdomain
-// clienta.logiforce.app → "clienta"
-// logi-force.vercel.app → fallback to env variable (platform domain, not tenant)
-// localhost:5173 → fallback to env variable
-const getTenantId = () => {
-  const hostname = window.location.hostname;
-  const parts = hostname.split('.');
-
-  // Only extract tenant from our own app domain (e.g. clienta.logiforce.app)
-  // Platform domains like *.vercel.app, *.netlify.app, etc. are NOT tenant subdomains
-  if (parts.length >= 3) {
-    const baseDomain = parts.slice(-2).join('.');
-    if (baseDomain === 'logiforce.app') {
-      return parts[0];
-    }
-  }
-
-  return import.meta.env.VITE_TENANT_ID || 'logi-force';
-};
+import { currentTenantKey } from '../config/appDomain';
 
 const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'https://logiforce.onrender.com/api',
@@ -29,7 +10,10 @@ const axiosInstance = axios.create({
 });
 
 axiosInstance.interceptors.request.use((config) => {
-  config.headers['x-tenant-id'] = getTenantId();
+  // The company comes from the subdomain (or VITE_DEV_TENANT locally). With
+  // neither, no header is sent and the server answers 400.
+  const tenantKey = currentTenantKey();
+  if (tenantKey) config.headers['x-tenant-id'] = tenantKey;
 
   const token = localStorage.getItem('token');
   if (token) {

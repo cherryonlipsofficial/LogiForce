@@ -3,10 +3,12 @@
  *
  *   listTenants      GET  /api/platform/tenants
  *   getTenantDetail  GET  /api/platform/tenants/:key
- *   updateTenant     PATCH /api/platform/tenants/:key   (name, enabledModules, roleTemplateKeys)
- *   setTenantStatus  POST /api/platform/tenants/:key/suspend | /reactivate
+ *   updateTenant     PATCH /api/platform/tenants/:key   (name, contact, limits, allowSelfSignup,
+ *                                                       enabledModules, roleTemplateKeys)
+ *   setTenantStatus  POST /api/platform/tenants/:key/suspend | /reactivate | /archive
  *   resyncTenantRoles POST /api/platform/tenants/:key/sync-roles
  *
+ * Companies are never deleted here: archiving blocks access and keeps the data.
  * Every change is written to the platform audit log. A change to
  * enabledModules or roleTemplateKeys runs syncTenantRoles for that company
  * afterwards (roleSync.service.js, moment 2). The tenant cache is invalidated
@@ -23,13 +25,14 @@ const { TENANT_ADMIN_TEMPLATE, RETIRED_TEMPLATE_KEYS } = require('../../config/d
 const platformModels = require('../models');
 const roleSync = require('./roleSync.service');
 const { SYSTEM_ACTOR } = require('./platformUser.service');
-const { tenantAppUrl } = require('./tenantProvisioning.service');
+const { tenantAppUrl } = require('../../config/appDomain');
 const { notFound, badRequest, conflict } = require('../errors');
 
 const TENANT_ADMIN_KEY = TENANT_ADMIN_TEMPLATE.key;
 
-// Companies whose settings can be changed. A 'provisioning' or 'failed' company
-// is finished (or retried) through POST /api/platform/tenants instead.
+// Companies whose settings can be changed. A 'provisioning' company is
+// finished (or retried) through POST /api/platform/tenants instead; an
+// archived one must be reactivated first.
 const EDITABLE_STATUSES = Object.freeze(['active', 'suspended']);
 
 const normaliseKey = (key) => String(key || '').trim().toLowerCase();
@@ -46,6 +49,7 @@ const tenantSummary = (t) => ({
   name: t.name,
   status: t.status,
   adminEmail: t.adminEmail ?? null,
+  contact: { name: t.contact?.name || '', email: t.contact?.email || '', phone: t.contact?.phone || '' },
   enabledModules: t.enabledModules || [],
   roleTemplateKeys: t.roleTemplateKeys || [],
   url: tenantAppUrl(t.key),
@@ -126,20 +130,70 @@ const getTenantDetail = async (key) => {
   return { tenant: { ...tenantDetail(tenant), activeUsers }, admins, adminsError };
 };
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** { name, email, phone } from a request body, or an error message. */
+const parseContact = (contact) => {
+  if (contact === null || typeof contact !== 'object' || Array.isArray(contact)) return { error: 'contact must be an object' };
+  const unknown = Object.keys(contact).filter((k) => !['name', 'email', 'phone'].includes(k));
+  if (unknown.length) return { error: `Unknown contact field(s): ${unknown.join(', ')}` };
+  const out = {};
+  for (const field of ['name', 'email', 'phone']) {
+    if (contact[field] === undefined) continue;
+    if (typeof contact[field] !== 'string') return { error: `contact.${field} must be text` };
+    out[field] = contact[field].trim();
+  }
+  if (out.email) {
+    out.email = out.email.toLowerCase();
+    if (!EMAIL_PATTERN.test(out.email)) return { error: 'contact.email is not a valid email address' };
+  }
+  return { value: out };
+};
+
+/** maxUsers: null (unlimited) or a whole number ≥ 1. */
+const parseLimits = (limits) => {
+  if (limits === null || typeof limits !== 'object' || Array.isArray(limits)) return { error: 'limits must be an object' };
+  const unknown = Object.keys(limits).filter((k) => k !== 'maxUsers');
+  if (unknown.length) return { error: `Unknown limit(s): ${unknown.join(', ')}` };
+  if (limits.maxUsers === undefined) return { value: {} };
+  if (limits.maxUsers === null || limits.maxUsers === '') return { value: { maxUsers: null } };
+  const n = Number(limits.maxUsers);
+  if (!Number.isInteger(n) || n < 1) return { error: 'limits.maxUsers must be a whole number of at least 1, or null for no limit' };
+  return { value: { maxUsers: n } };
+};
+
 /**
- * Check and normalise a PATCH body. Only name, enabledModules and
- * roleTemplateKeys can change here.
+ * Check and normalise a PATCH body. Company details (name, contact, limits,
+ * allowSelfSignup) and access (enabledModules, roleTemplateKeys) can change
+ * here; the route checks the permission for each kind.
  */
 const validateUpdate = async (body = {}) => {
   const errors = {};
   const update = {};
-  const allowed = ['name', 'enabledModules', 'roleTemplateKeys'];
+  const allowed = ['name', 'contact', 'limits', 'allowSelfSignup', 'enabledModules', 'roleTemplateKeys'];
   const unknownFields = Object.keys(body).filter((k) => !allowed.includes(k));
   if (unknownFields.length) errors.body = `Unknown field(s): ${unknownFields.join(', ')}. Allowed: ${allowed.join(', ')}`;
 
   if (body.name !== undefined) {
     if (typeof body.name !== 'string' || !body.name.trim()) errors.name = 'Company name cannot be empty';
     else update.name = body.name.trim();
+  }
+
+  if (body.contact !== undefined) {
+    const { value, error } = parseContact(body.contact);
+    if (error) errors.contact = error;
+    else for (const [k, v] of Object.entries(value)) update[`contact.${k}`] = v;
+  }
+
+  if (body.limits !== undefined) {
+    const { value, error } = parseLimits(body.limits);
+    if (error) errors.limits = error;
+    else if ('maxUsers' in value) update['limits.maxUsers'] = value.maxUsers;
+  }
+
+  if (body.allowSelfSignup !== undefined) {
+    if (typeof body.allowSelfSignup !== 'boolean') errors.allowSelfSignup = 'allowSelfSignup must be true or false';
+    else update.allowSelfSignup = body.allowSelfSignup;
   }
 
   if (body.enabledModules !== undefined) {
@@ -179,6 +233,18 @@ const validateUpdate = async (body = {}) => {
   return update;
 };
 
+/** { 'contact.email': x } → { contact: { email: x } }, for audit snapshots. */
+const nest = (flat) => {
+  const out = {};
+  for (const [path, value] of Object.entries(flat)) {
+    const keys = path.split('.');
+    let cur = out;
+    for (const k of keys.slice(0, -1)) cur = (cur[k] ||= {});
+    cur[keys.at(-1)] = value;
+  }
+  return out;
+};
+
 /** Run syncTenantRoles and report its outcome instead of throwing. */
 const syncRolesReport = async (tenant, actor) => {
   try {
@@ -213,9 +279,10 @@ const updateTenant = async ({ key, body, actor = SYSTEM_ACTOR, req } = {}) => {
   }
   const update = await validateUpdate(body);
 
+  const current = (field) => field.split('.').reduce((v, k) => (v == null ? undefined : v[k]), tenant);
   const changed = Object.keys(update).filter((field) => (Array.isArray(update[field])
-    ? !sameSet(tenant[field], update[field])
-    : tenant[field] !== update[field]));
+    ? !sameSet(current(field), update[field])
+    : (current(field) ?? null) !== (update[field] ?? null)));
   if (changed.length === 0) return { tenant: tenantDetail(tenant), changed: [], roleSync: null };
 
   const set = Object.fromEntries(changed.map((f) => [f, update[f]]));
@@ -234,8 +301,8 @@ const updateTenant = async ({ key, body, actor = SYSTEM_ACTOR, req } = {}) => {
     targetType: 'Tenant',
     targetId: saved._id,
     targetKey: saved.key,
-    before: Object.fromEntries(changed.map((f) => [f, tenant[f]])),
-    after: set,
+    before: nest(Object.fromEntries(changed.map((f) => [f, current(f) ?? null]))),
+    after: nest(set),
     req,
   });
 
@@ -245,28 +312,31 @@ const updateTenant = async ({ key, body, actor = SYSTEM_ACTOR, req } = {}) => {
 };
 
 const STATUS_CHANGES = Object.freeze({
-  suspended: { from: 'active', action: 'tenant.suspend' },
-  active: { from: 'suspended', action: 'tenant.reactivate' },
+  suspended: { from: ['active'], action: 'tenant.suspend', verb: 'suspended' },
+  active: { from: ['suspended', 'archived'], action: 'tenant.reactivate', verb: 'reactivated' },
+  archived: { from: ['active', 'suspended'], action: 'tenant.archive', verb: 'archived' },
 });
 
 /**
- * POST /api/platform/tenants/:key/suspend → to 'suspended' (from 'active')
- * POST /api/platform/tenants/:key/reactivate → to 'active' (from 'suspended')
- * A suspended company's requests are refused by resolveTenant (403 TENANT_SUSPENDED).
+ * POST /api/platform/tenants/:key/suspend    → 'suspended' (from active)
+ * POST /api/platform/tenants/:key/reactivate → 'active'    (from suspended or archived)
+ * POST /api/platform/tenants/:key/archive    → 'archived'  (from active or suspended)
+ * resolveTenant refuses a suspended or archived company's requests (403) and
+ * the scheduled jobs skip it. Nothing is deleted: its database is kept as is.
  */
 const setTenantStatus = async ({ key, to, reason, actor = SYSTEM_ACTOR, req } = {}) => {
   const change = STATUS_CHANGES[to];
   if (!change) throw badRequest(`Unknown status "${to}"`);
   const { Tenant, PlatformAuditLog } = platformModels.getPlatformModels();
   const tenant = await findTenantOr404(key);
-  if (tenant.status !== change.from) {
-    throw conflict('TENANT_STATUS', `"${tenant.key}" is ${tenant.status}; only a ${change.from} company can be `
-      + `${to === 'suspended' ? 'suspended' : 'reactivated'}.`);
+  if (!change.from.includes(tenant.status)) {
+    throw conflict('TENANT_STATUS', `"${tenant.key}" is ${tenant.status}; only a ${change.from.join(' or ')} company `
+      + `can be ${change.verb}.`);
   }
   const note = typeof reason === 'string' ? reason.trim().slice(0, 500) : '';
 
   const saved = await Tenant.findOneAndUpdate(
-    { _id: tenant._id, status: change.from },
+    { _id: tenant._id, status: tenant.status },
     { $set: { status: to } },
     { new: true }
   ).lean();

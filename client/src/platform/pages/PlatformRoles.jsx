@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { getPlatformMeta, listRoleTemplates, updateRoleTemplate } from '../api/platformApi';
 import { platformErrorMessage } from '../api/platformAxios';
-import { usePlatformAuth } from '../auth/platformAuthContext';
+import { usePlatformPermission } from '../hooks/usePlatformPermission';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 import Btn from '../../components/ui/Btn';
 import Badge from '../../components/ui/Badge';
@@ -117,7 +117,7 @@ function SyncResult({ result }) {
 }
 
 export default function PlatformRoles() {
-  const { isOwner } = usePlatformAuth();
+  const canManage = usePlatformPermission('platform.role_templates.manage');
   const { isMobile } = useBreakpoint();
   const queryClient = useQueryClient();
   const { data: meta, isLoading: metaLoading } = useQuery({ queryKey: ['platform', 'meta'], queryFn: getPlatformMeta, staleTime: Infinity });
@@ -180,7 +180,7 @@ export default function PlatformRoles() {
   if (isLoading || metaLoading) return <LoadingSpinner />;
   if (error) return <div style={errorBox}>{platformErrorMessage(error, 'Could not load roles')}</div>;
 
-  const readOnly = !isOwner;
+  const readOnly = !canManage;
 
   return (
     <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 16, alignItems: 'flex-start' }}>

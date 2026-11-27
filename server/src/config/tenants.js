@@ -18,8 +18,8 @@ const logger = require('../utils/logger');
 const { getPlatformModels } = require('../platform/models');
 const { TENANT_KEY_PATTERN } = require('../platform/models/Tenant');
 
-const ATLAS_BASE_URI = process.env.MONGODB_BASE_URI;
-// e.g. "mongodb+srv://user:pass@cluster0.xxxxx.mongodb.net"
+// MONGODB_BASE_URI, e.g. "mongodb+srv://user:pass@cluster0.xxxxx.mongodb.net",
+// is read on every call so tests and scripts can set it late.
 
 const DEFAULT_CACHE_TTL_MS = 60000; // found records; override with TENANT_CACHE_TTL_MS
 const NOT_FOUND_TTL_MS = 10000;     // unknown keys, so a new company shows up quickly
@@ -30,17 +30,20 @@ const MAX_NOT_FOUND_ENTRIES = 1000; // past this, expired "not found" entries ar
 const isMongoUri = (uri) => uri.startsWith('mongodb://') || uri.startsWith('mongodb+srv://');
 
 /**
- * URI for a database on the shared cluster. If `tenantEnvVar` is given and that
- * env var is set, its value wins (legacy behaviour, used by
- * platform/scripts/legacyTenants.js). Returns null when no valid URI can be built.
+ * URI for a company database on the shared cluster: MONGODB_BASE_URI/<dbName>.
+ * Returns null when MONGODB_BASE_URI is missing or not a MongoDB URI.
+ * Every company lives on that one cluster; there are no per-company env vars.
  */
-const buildDbUri = (tenantEnvVar, dbName) => {
-  const uri = (tenantEnvVar && process.env[tenantEnvVar]) || (ATLAS_BASE_URI ? `${ATLAS_BASE_URI}/${dbName}` : null);
-  if (uri && !isMongoUri(uri)) {
-    console.error(`[CONFIG] Invalid MongoDB URI for ${dbName}: URI must start with "mongodb://" or "mongodb+srv://"`);
+const buildDbUri = (dbName) => {
+  const base = (process.env.MONGODB_BASE_URI || '').trim();
+  if (!base) return null;
+  if (!isMongoUri(base)) {
+    console.error('[CONFIG] MONGODB_BASE_URI must start with "mongodb://" or "mongodb+srv://"');
     return null;
   }
-  return uri;
+  // Keep any query string (e.g. ?retryWrites=true) after the database name.
+  const [hostPart, query] = base.split('?');
+  return `${hostPart.replace(/\/+$/, '')}/${dbName}${query ? `?${query}` : ''}`;
 };
 
 /** Replace anything that looks like a MongoDB connection string. For log lines. */
@@ -60,16 +63,7 @@ const normaliseTenantKey = (subdomain) => {
 };
 
 const resolveDbUri = (record) => {
-  if (record.dbUriEnv) {
-    const uri = (process.env[record.dbUriEnv] || '').trim();
-    // Never fall back to the shared cluster here: the company would see an empty database.
-    if (!uri) throw new Error(`Tenant ${record.key}: env ${record.dbUriEnv} is not set`);
-    if (!isMongoUri(uri)) {
-      throw new Error(`Tenant ${record.key}: env ${record.dbUriEnv} must start with "mongodb://" or "mongodb+srv://"`);
-    }
-    return uri;
-  }
-  const uri = buildDbUri(null, record.dbName);
+  const uri = buildDbUri(record.dbName);
   if (!uri) throw new Error(`Tenant ${record.key}: no MongoDB URI (MONGODB_BASE_URI is not set or not valid)`);
   return uri;
 };

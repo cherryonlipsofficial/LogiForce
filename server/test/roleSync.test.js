@@ -8,6 +8,7 @@
  * The same scenarios still need a run against a real test company database.
  */
 process.env.NODE_ENV = 'test';
+process.env.APP_DOMAIN = 'logiforce.test';
 process.env.MONGODB_BASE_URI = 'mongodb://tenant-db.invalid'; // only to build each company's URI; never opened
 
 const { test, describe, beforeEach } = require('node:test');

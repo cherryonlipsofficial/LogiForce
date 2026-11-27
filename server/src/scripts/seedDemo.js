@@ -1,62 +1,111 @@
+/**
+ * Demo data for local development.   npm run seed:demo -- --tenant=<key>
+ *
+ * Fills ONE existing company with sample clients, suppliers, projects,
+ * drivers, attendance and salary runs, plus five demo users (one per business
+ * role). It:
+ *   - refuses to run when NODE_ENV=production;
+ *   - never creates the company: <key> must already exist and be active
+ *     (create it in the platform console first);
+ *   - never creates roles: it uses the roles the platform synced into the
+ *     company (tenant_admin, accountant, ops, compliance, sales, viewer must be
+ *     among its allowed roles);
+ *   - never deletes anything, and refuses if the company already has clients,
+ *     suppliers, projects or drivers;
+ *   - gives each demo user a random password, printed once at the end. No
+ *     password is stored in this file.
+ *
+ * Nothing runs it on startup or deploy.
+ */
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
-const mongoose = require('mongoose');
-const connectDB = require('../config/db');
-const {
-  User,
-  Role,
-  Client,
-  Supplier,
-  Driver,
-  AttendanceBatch,
-  AttendanceRecord,
-  SalaryRun,
-  DriverLedger,
-  Project,
-  ProjectContract,
-  DriverProjectAssignment,
-} = require('../models');
-const { seedRoles } = require('./seedRoles');
+const crypto = require('crypto');
+const { connectPlatformDb, closePlatformDb } = require('../platform/db');
+const { getTenantBySubdomain } = require('../config/tenants');
+const { getConnectionForTenant, closeAllConnections } = require('../config/connectionManager');
+const { getModelForConnection } = require('../config/modelRegistry');
+
+const USAGE = 'Usage: npm run seed:demo -- --tenant=<key>';
+const DEMO_ROLE_KEYS = ['tenant_admin', 'accountant', 'ops', 'compliance', 'sales', 'viewer'];
+
+const parseTenantArg = (argv) => {
+  for (let i = 0; i < argv.length; i += 1) {
+    const [flag, inline] = argv[i].split(/=(.*)/s, 2);
+    if (flag === '--tenant') return (inline ?? argv[i + 1] ?? '').trim().toLowerCase();
+  }
+  return '';
+};
+
+const randomPassword = () => crypto.randomBytes(12).toString('base64url');
 
 const seed = async () => {
-  await connectDB();
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('seed:demo refuses to run with NODE_ENV=production');
+  }
+  const key = parseTenantArg(process.argv.slice(2));
+  if (!key) throw new Error(USAGE);
 
-  console.log('Clearing existing data...');
-  await Promise.all([
-    User.deleteMany({}),
-    Role.deleteMany({}),
-    Client.deleteMany({}),
-    Supplier.deleteMany({}),
-    Driver.deleteMany({}),
-    AttendanceBatch.deleteMany({}),
-    AttendanceRecord.deleteMany({}),
-    SalaryRun.deleteMany({}),
-    DriverLedger.deleteMany({}),
-    Project.deleteMany({}),
-    ProjectContract.deleteMany({}),
-    DriverProjectAssignment.deleteMany({}),
-  ]);
+  await connectPlatformDb();
+  const tenant = await getTenantBySubdomain(key);
+  if (!tenant) throw new Error(`No company "${key}". Create it in the platform console first; this script never creates one.`);
+  if (tenant.status !== 'active') throw new Error(`Company "${key}" is ${tenant.status}; it must be active.`);
 
-  // Reset counters
-  const Counter = mongoose.models.Counter || mongoose.model('Counter',
-    new mongoose.Schema({ _id: { type: String }, seq: { type: Number, default: 0 } })
-  );
-  await Counter.deleteMany({});
+  const conn = await getConnectionForTenant(tenant);
+  const model = (name) => getModelForConnection(conn, name);
+  const User = model('User');
+  const Role = model('Role');
+  const Client = model('Client');
+  const Supplier = model('Supplier');
+  const Driver = model('Driver');
+  const AttendanceBatch = model('AttendanceBatch');
+  const AttendanceRecord = model('AttendanceRecord');
+  const SalaryRun = model('SalaryRun');
+  const DriverLedger = model('DriverLedger');
+  const Project = model('Project');
+  const ProjectContract = model('ProjectContract');
+  const DriverProjectAssignment = model('DriverProjectAssignment');
 
-  // --- Roles ---
-  const roles = await seedRoles();
+  for (const [name, M] of [['clients', Client], ['suppliers', Supplier], ['projects', Project], ['drivers', Driver]]) {
+    if ((await M.countDocuments({})) > 0) {
+      throw new Error(`Company "${key}" already has ${name}. seed:demo only fills an empty company and never deletes data.`);
+    }
+  }
+
+  // --- Roles (synced by the platform; never created here) ---
+  const roles = {};
+  for (const templateKey of DEMO_ROLE_KEYS) {
+    roles[templateKey] = await Role.findOne({ templateKey, isActive: { $ne: false } }).lean();
+  }
+  const missing = DEMO_ROLE_KEYS.filter((k) => !roles[k]);
+  if (missing.length) {
+    throw new Error(`Company "${key}" has no ${missing.join(', ')} role. Allow those role templates for it in the `
+      + 'platform console (or run npm run platform:sync-roles -- --tenant ' + key + ' --apply) and try again.');
+  }
 
   // --- Users ---
-  console.log('Creating users...');
-  const [admin, accountant, ops, compliance, sales, viewer] = await User.create([
-    { name: 'System Admin', email: 'admin@logiforce.com', password: 'Admin@123', roleId: roles.tenant_admin._id, isActive: true, activatedAt: new Date() },
-    { name: 'Sarah Accountant', email: 'accountant@logiforce.com', password: 'Account@123', roleId: roles.accountant._id, isActive: true, activatedAt: new Date() },
-    { name: 'James Operations', email: 'ops@logiforce.com', password: 'Ops@123', roleId: roles.ops._id, isActive: true, activatedAt: new Date() },
-    { name: 'Layla Compliance', email: 'compliance@logiforce.com', password: 'Compliance@123', roleId: roles.compliance._id, isActive: true, activatedAt: new Date() },
-    { name: 'Nadia Sales', email: 'sales@logiforce.com', password: 'Sales@123', roleId: roles.sales._id, isActive: true, activatedAt: new Date() },
-    { name: 'Test Viewer', email: 'viewer@logiforce.com', password: 'Viewer@123', roleId: roles.viewer._id, isActive: true, activatedAt: new Date() },
-  ]);
+  console.log('Creating demo users...');
+  const emailDomain = `${key}.demo.invalid`;
+  const credentials = [];
+  const demoUser = async (name, local, roleKey) => {
+    const email = `${local}@${emailDomain}`;
+    const existing = await User.findOne({ email });
+    if (existing) return existing;
+    const password = randomPassword();
+    const user = await User.create({
+      name, email, password, roleId: roles[roleKey]._id, isActive: true, activatedAt: new Date(),
+    });
+    credentials.push({ email, password });
+    return user;
+  };
+  // The company's own admin when it has one, otherwise a demo admin.
+  const admin = (await User.findOne({ roleId: roles.tenant_admin._id, isActive: true }))
+    || await demoUser('Demo Admin', 'admin', 'tenant_admin');
+  const accountant = await demoUser('Sarah Accountant', 'accountant', 'accountant');
+  const ops = await demoUser('James Operations', 'ops', 'ops');
+  const compliance = await demoUser('Layla Compliance', 'compliance', 'compliance');
+  await demoUser('Nadia Sales', 'sales', 'sales');
+  await demoUser('Test Viewer', 'viewer', 'viewer');
 
-  // Add permission override on accountant: grant drivers.create
+  // Example permission override on the accountant: grant drivers.create
   accountant.permissionOverrides = [{
     key: 'drivers.create',
     granted: true,
@@ -65,8 +114,6 @@ const seed = async () => {
     grantedAt: new Date(),
   }];
   await accountant.save();
-
-  console.log('  Created 6 users (with roles assigned)');
 
   // --- Clients ---
   console.log('Creating clients...');
@@ -514,29 +561,25 @@ const seed = async () => {
     console.log(`  Created data for ${label} (attendance: ${period.batchStatus}, salaries: ${period.salaryStatus || 'not run'})`);
   }
 
-  console.log('\nSeed completed successfully!');
-  console.log('---');
-  console.log('Login credentials:');
-  console.log('  Admin:      admin@logiforce.com / Admin@123');
-  console.log('  Accountant: accountant@logiforce.com / Account@123');
-  console.log('  Ops:        ops@logiforce.com / Ops@123');
-  console.log('  Compliance: compliance@logiforce.com / Compliance@123');
-  console.log('  Sales:      sales@logiforce.com / Sales@123');
-  console.log('  Viewer:     viewer@logiforce.com / Viewer@123');
-  console.log('---');
-  console.log('Roles seeded: admin, accountant, ops, compliance, sales, viewer');
-  console.log('Users seeded: 6 (with roles assigned)');
-  console.log('Permission overrides: 1 example override on accountant user (drivers.create)');
-  console.log('Projects created: 6 (3 Amazon UAE, 2 Noon, 1 Talabat)');
-  console.log('Driver assignments: 21 drivers assigned to projects');
-  console.log('Contracts active: 6');
-  console.log(`Attendance batches: ${batchCount} (Feb–Apr 2026 across ${staffedProjects.length} staffed projects)`);
-  console.log(`Salary runs: ${salaryRunCount} (Feb 2026 paid, Mar 2026 draft)`);
-
-  process.exit(0);
+  console.log(`\nDemo data added to company "${key}".`);
+  if (credentials.length) {
+    console.log('---');
+    console.log('Demo users (passwords are shown once; they are not stored anywhere else):');
+    for (const c of credentials) console.log(`  ${c.email}  ${c.password}`);
+    console.log('---');
+  }
+  console.log(`Attendance batches: ${batchCount}, salary runs: ${salaryRunCount}`);
 };
 
-seed().catch((err) => {
-  console.error('Seed failed:', err);
-  process.exit(1);
-});
+seed()
+  .then(async () => {
+    await closeAllConnections();
+    await closePlatformDb();
+    process.exit(0);
+  })
+  .catch(async (err) => {
+    console.error(`seed:demo failed: ${err.message}`);
+    await closeAllConnections().catch(() => {});
+    await closePlatformDb().catch(() => {});
+    process.exit(1);
+  });

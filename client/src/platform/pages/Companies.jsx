@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { listTenants } from '../api/platformApi';
 import { platformErrorMessage } from '../api/platformAxios';
-import { usePlatformAuth } from '../auth/platformAuthContext';
+import { usePlatformPermission } from '../hooks/usePlatformPermission';
 import PageHeader from '../../components/ui/PageHeader';
 import Btn from '../../components/ui/Btn';
 import Card from '../../components/ui/Card';
@@ -13,10 +13,11 @@ import TenantStatusBadge from '../components/TenantStatusBadge';
 import NewCompanyModal from './NewCompanyModal';
 import { inputStyle, tableStyle, thStyle, tdStyle, errorBox, formatDate } from '../components/styles';
 
-const STATUSES = ['', 'active', 'suspended', 'provisioning', 'failed'];
+const STATUSES = ['', 'active', 'suspended', 'provisioning', 'archived'];
 
 export default function Companies() {
-  const { isOwner } = usePlatformAuth();
+  // Support (and anyone else without platform.tenants.create) sees no "New company" button.
+  const canCreate = usePlatformPermission('platform.tenants.create');
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
@@ -33,7 +34,7 @@ export default function Companies() {
       <PageHeader
         title="Companies"
         subtitle="Every company on LogiForce"
-        action={isOwner && <Btn variant="primary" onClick={() => setCreating(true)}>New company</Btn>}
+        action={canCreate && <Btn variant="primary" onClick={() => setCreating(true)}>New company</Btn>}
       />
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -52,7 +53,7 @@ export default function Companies() {
 
       <Card style={{ padding: 0, overflowX: 'auto' }}>
         {isLoading ? <LoadingSpinner /> : tenants.length === 0 ? (
-          <EmptyState icon="" title="No companies" message={search || status ? 'Nothing matches these filters.' : 'Create the first one with "New company".'} />
+          <EmptyState icon="" title="No companies" message={search || status ? 'Nothing matches these filters.' : (canCreate ? 'Create the first one with "New company".' : 'No company has been created yet.')} />
         ) : (
           <table style={tableStyle}>
             <thead>

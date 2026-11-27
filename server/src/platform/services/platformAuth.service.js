@@ -12,6 +12,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const logger = require('../../utils/logger');
+const { loadPlatformAccess } = require('./platformAccess.service');
 const { getPlatformModels } = require('../models');
 const {
   getPlatformJwtSecret,
@@ -78,12 +79,18 @@ const requestMeta = (req) => ({
   userAgent: typeof req?.get === 'function' ? req.get('user-agent') : undefined,
 });
 
-const publicUser = (user) => ({ _id: user._id, email: user.email, name: user.name, role: user.role });
+const publicUser = (user, access) => ({
+  _id: user._id,
+  email: user.email,
+  name: user.name,
+  roleKey: user.roleKey,
+  ...(access ? { roleName: access.roleName, permissions: access.permissions } : {}),
+});
 
 const userActor = (user) => ({ userId: user._id, email: user.email });
 
 const signPlatformToken = (user) => jwt.sign(
-  { sub: String(user._id), role: user.role, tv: user.tokenVersion ?? 0 },
+  { sub: String(user._id), tv: user.tokenVersion ?? 0 },
   getPlatformJwtSecret(),
   {
     algorithm: PLATFORM_JWT_ALGORITHM,
@@ -146,7 +153,7 @@ const login = async ({ email, password, req }) => {
 
   // Always one bcrypt comparison, whether or not the email exists.
   const passwordOk = await bcrypt.compare(password, user?.passwordHash || DUMMY_PASSWORD_HASH);
-  if (!user || !passwordOk || user.status !== 'active') {
+  if (!user || !passwordOk || user.isActive !== true) {
     logger.warn('Platform login failed', { email: emailNorm, ip: req?.ip });
     throw invalidCredentials();
   }
@@ -238,7 +245,7 @@ const verifyOtp = async ({ challengeToken, code, req }) => {
   if (!consumed) throw otpInvalid(); // already used
 
   const user = await PlatformUser.findById(challenge.userId);
-  if (!user || user.status !== 'active') throw otpInvalid();
+  if (!user || user.isActive !== true) throw otpInvalid();
 
   await PlatformUser.updateOne({ _id: user._id }, { $set: { lastLoginAt: now } });
   user.lastLoginAt = now;
@@ -252,7 +259,7 @@ const verifyOtp = async ({ challengeToken, code, req }) => {
     req,
   });
 
-  return { token: signPlatformToken(user), user: publicUser(user) };
+  return { token: signPlatformToken(user), user: publicUser(user, await loadPlatformAccess(user)) };
 };
 
 /**
@@ -287,7 +294,7 @@ const resendOtp = async ({ challengeToken, req }) => {
   }
 
   const user = await PlatformUser.findById(challenge.userId);
-  if (!user || user.status !== 'active') {
+  if (!user || user.isActive !== true) {
     await PlatformLoginChallenge.deleteOne({ _id: challenge._id });
     throw otpInvalid();
   }

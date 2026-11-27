@@ -1,6 +1,8 @@
 /**
  * Seed the platform database.  npm run platform:seed
  *
+ * Run by hand (never on server start or deploy). `npm run platform:create-owner`
+ * runs the same steps first, so a fresh install only needs that command.
  * Safe to run any number of times. Each run:
  *   1. connects and syncs indexes for every platform model;
  *   2. creates any missing RoleTemplate from ROLE_TEMPLATES
@@ -11,13 +13,12 @@
  *      templates are put back to the code defaults through doc.save() so a
  *      permissions change bumps `version`. It never syncs the templates into
  *      companies: run `npm run platform:sync-roles` for that;
- *   3. creates the first owner account from PLATFORM_OWNER_* through
- *      services/platformUser.service.js (never touches an existing account or
- *      its password);
- *   4. registers the tenants that were hardcoded in config/tenants.js (now
- *      scripts/legacyTenants.js), recording the
- *      database each one actually uses today;
- *   5. prints created / updated / skipped per collection.
+ *   3. creates the platform roles from SYSTEM_PLATFORM_ROLES
+ *      (config/platformPermissions.js) that are missing. The locked
+ *      platform_owner role's stored permission list is refreshed to the code
+ *      list; platform_support is never changed once it exists (Owners edit it);
+ *   4. prints created / updated / skipped per collection.
+ * It creates no company, no user and no business data.
  * Every create/update is written to platform_audit_logs as actor 'system'.
  *
  * Never prints a URI or a password.
@@ -26,49 +27,15 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.e
 
 const { connectPlatformDb, closePlatformDb, getPlatformDbName } = require('../db');
 const { getPlatformModels, PLATFORM_MODELS } = require('../models');
-const { MODULES } = require('../../config/permissions');
-const { ROLE_TEMPLATES, RETIRED_TEMPLATE_KEYS } = require('../../config/defaultRoles');
-const { createPlatformUser, SYSTEM_ACTOR } = require('../services/platformUser.service');
+const { ROLE_TEMPLATES } = require('../../config/defaultRoles');
+const { SYSTEM_PLATFORM_ROLES, isLockedPlatformRole } = require('../../config/platformPermissions');
 
-// Env vars that can supply each legacy tenant's URI (see legacyTenants.js).
-// Used to record which one is actually in use (Tenant.dbUriEnv). null means the
-// URI is derived from MONGODB_BASE_URI + database name.
-const LEGACY_URI_ENV_CANDIDATES = Object.freeze({
-  'logi-force': ['MONGODB_URI_MAIN', 'MONGODB_URI'],
-  clienta: ['MONGODB_URI_CLIENTA'],
-  clientb: ['MONGODB_URI_CLIENTB'],
-  clientc: ['MONGODB_URI_CLIENTC'],
-});
+const SYSTEM_ACTOR = Object.freeze({ userId: null, email: 'system' });
 
 const sameSet = (a = [], b = []) => {
   const setA = new Set(a);
   const setB = new Set(b);
   return setA.size === setB.size && [...setA].every((x) => setB.has(x));
-};
-
-/**
- * Database a URI connects to when no dbName option is passed (which is how the
- * tenant connection manager connects today): the URI path, else the driver's
- * default 'test'.
- */
-const dbNameFromUri = (uri) => {
-  const match = /^mongodb(?:\+srv)?:\/\/[^/?#]+\/([^?#]*)/.exec(uri || '');
-  const name = match ? decodeURIComponent(match[1]) : '';
-  return name || 'test';
-};
-
-/**
- * What a hardcoded tenant really uses today, worked out from the URI that
- * legacyTenants.js resolves in this environment.
- */
-const resolveLegacyTenant = (key, tenantConfig) => {
-  const uri = tenantConfig.dbUri;
-  if (!uri) return { dbName: null, dbUriEnv: null };
-  const candidates = LEGACY_URI_ENV_CANDIDATES[key] || [];
-  return {
-    dbName: dbNameFromUri(uri),
-    dbUriEnv: candidates.find((name) => process.env[name] && process.env[name] === uri) || null,
-  };
 };
 
 const templateSnapshot = (doc) => ({
@@ -156,122 +123,74 @@ const seedRoleTemplates = async ({ RoleTemplate, PlatformAuditLog }, counts, log
 };
 
 // ── Step 3 ──
-const seedOwner = async ({ PlatformUser }, counts, log) => {
-  const email = (process.env.PLATFORM_OWNER_EMAIL || '').trim();
-  const password = process.env.PLATFORM_OWNER_PASSWORD || '';
-  const name = (process.env.PLATFORM_OWNER_NAME || '').trim() || 'Platform Owner';
+const platformRoleSnapshot = (doc) => ({
+  key: doc.key,
+  displayName: doc.displayName,
+  permissions: [...(doc.permissions || [])],
+  isSystem: doc.isSystem,
+});
 
-  if (email && password) {
-    const existing = await PlatformUser.findOne({ email: email.toLowerCase() });
-    if (existing) {
-      counts.PlatformUser.skipped += 1;
-      log('  owner exists, skipped');
-      return;
-    }
-
-    const user = await createPlatformUser({
-      email, name, password, role: 'owner', status: 'active', actor: SYSTEM_ACTOR,
-    });
-    counts.PlatformUser.created += 1;
-    counts.PlatformAuditLog.created += 1;
-    log(`  owner created: ${user.email}`);
-    return;
-  }
-
-  if (email || password) {
-    log('  WARNING: PLATFORM_OWNER_EMAIL and PLATFORM_OWNER_PASSWORD must both be set to create the owner account.');
-  }
-  const owners = await PlatformUser.countDocuments({ role: 'owner' });
-  if (owners === 0) {
-    log('  WARNING: there is no platform owner account. Set PLATFORM_OWNER_EMAIL, PLATFORM_OWNER_NAME and '
-      + 'PLATFORM_OWNER_PASSWORD (12+ characters), then run this seed again.');
-  }
-};
-
-// ── Step 4 ──
-const seedLegacyTenants = async ({ Tenant, RoleTemplate, PlatformAuditLog }, counts, log) => {
-  const { tenants } = require('./legacyTenants');
-  const entries = Object.entries(tenants || {});
-  if (entries.length === 0) {
-    log('  no hardcoded tenant list found, skipped');
-    return;
-  }
-
-  const roleTemplateKeys = (await RoleTemplate.distinct('key'))
-    .filter((key) => !RETIRED_TEMPLATE_KEYS.includes(key))
-    .sort();
-
-  for (const [rawKey, tenantConfig] of entries) {
-    const key = rawKey.toLowerCase();
-
-    if (await Tenant.exists({ key })) {
-      counts.Tenant.skipped += 1;
-      continue;
-    }
-
-    const live = resolveLegacyTenant(key, tenantConfig);
-    if (!live.dbName) {
-      counts.Tenant.skipped += 1;
-      log(`  WARNING: tenant ${key} skipped: no MongoDB URI is configured for it in this environment, so the `
-        + 'database it uses cannot be determined. Run the seed with the same env as the server to register it.');
-      continue;
-    }
-
-    if (live.dbName !== tenantConfig.dbName) {
-      log(`  NOTE: tenant ${key} is labelled "${tenantConfig.dbName}" in legacyTenants.js, but its URI points at `
-        + `database "${live.dbName}". Recording "${live.dbName}" (the database it uses today).`);
-    }
-
-    const clash = await Tenant.findOne({ dbName: live.dbName }, { key: 1 }).lean();
-    if (clash) {
-      counts.Tenant.skipped += 1;
-      log(`  WARNING: tenant ${key} skipped: database "${live.dbName}" is already registered to tenant ${clash.key}.`);
-      continue;
-    }
-
-    let doc;
-    try {
-      doc = await Tenant.create({
-        key,
-        name: tenantConfig.name,
-        dbName: live.dbName,
-        dbUriEnv: live.dbUriEnv,
-        status: 'active',
-        enabledModules: [...MODULES],
-        roleTemplateKeys,
-        limits: { maxUsers: null },
-        allowSelfSignup: false,
-        createdBy: null,
+const seedPlatformRoles = async ({ PlatformRole, PlatformAuditLog }, counts, log) => {
+  for (const def of Object.values(SYSTEM_PLATFORM_ROLES)) {
+    const existing = await PlatformRole.findOne({ key: def.key });
+    if (!existing) {
+      const doc = await PlatformRole.create({
+        key: def.key,
+        displayName: def.displayName,
+        description: def.description,
+        permissions: [...def.permissions],
+        isSystem: def.isSystem,
       });
-    } catch (err) {
-      throw new Error(`tenant ${key}: ${err.message}`);
+      await PlatformAuditLog.record({
+        actor: SYSTEM_ACTOR,
+        action: 'platformRole.create',
+        targetType: 'PlatformRole',
+        targetId: doc._id,
+        targetKey: doc.key,
+        before: null,
+        after: platformRoleSnapshot(doc),
+      });
+      counts.PlatformRole.created += 1;
+      counts.PlatformAuditLog.created += 1;
+      log(`  platform role ${doc.key}: created`);
+      continue;
     }
 
-    await PlatformAuditLog.record({
-      actor: SYSTEM_ACTOR,
-      action: 'tenant.create',
-      targetType: 'Tenant',
-      targetId: doc._id,
-      targetKey: doc.key,
-      before: null,
-      after: doc.toObject(),
-    });
-    counts.Tenant.created += 1;
-    counts.PlatformAuditLog.created += 1;
-    log(`  tenant ${doc.key}: created (database ${doc.dbName}, URI from ${doc.dbUriEnv || 'MONGODB_BASE_URI'})`);
+    // Only the locked role follows the code. Its access comes from the code
+    // list anyway; this keeps the stored copy readable.
+    if (isLockedPlatformRole(def.key)
+      && (!sameSet(existing.permissions, def.permissions) || existing.isSystem !== true)) {
+      const before = platformRoleSnapshot(existing);
+      existing.permissions = [...def.permissions];
+      existing.isSystem = true;
+      await existing.save();
+      await PlatformAuditLog.record({
+        actor: SYSTEM_ACTOR,
+        action: 'platformRole.update',
+        targetType: 'PlatformRole',
+        targetId: existing._id,
+        targetKey: existing.key,
+        before,
+        after: platformRoleSnapshot(existing),
+      });
+      counts.PlatformRole.updated += 1;
+      counts.PlatformAuditLog.created += 1;
+      log(`  platform role ${existing.key}: permission list refreshed from the code`);
+      continue;
+    }
+    counts.PlatformRole.skipped += 1;
   }
 };
 
 /**
- * Run steps 1–4 on an already-open platform connection.
+ * Run steps 1–3 on an already-open platform connection.
  * @returns {Record<string, {created: number, updated: number, skipped: number}>}
  */
 const seedPlatform = async ({ log = console.log, resetTemplates = false } = {}) => {
   const models = getPlatformModels();
   const counts = {
     RoleTemplate: { created: 0, updated: 0, skipped: 0 },
-    PlatformUser: { created: 0, updated: 0, skipped: 0 },
-    Tenant: { created: 0, updated: 0, skipped: 0 },
+    PlatformRole: { created: 0, updated: 0, skipped: 0 },
     PlatformAuditLog: { created: 0, updated: 0, skipped: 0 },
   };
 
@@ -279,10 +198,8 @@ const seedPlatform = async ({ log = console.log, resetTemplates = false } = {}) 
   await syncAllIndexes(models, log);
   log('Role templates...');
   await seedRoleTemplates(models, counts, log, { resetTemplates });
-  log('Owner account...');
-  await seedOwner(models, counts, log);
-  log('Existing tenants (legacyTenants.js)...');
-  await seedLegacyTenants(models, counts, log);
+  log('Platform roles...');
+  await seedPlatformRoles(models, counts, log);
 
   return counts;
 };
@@ -315,4 +232,4 @@ if (require.main === module) {
   })();
 }
 
-module.exports = { seedPlatform, printSummary, dbNameFromUri, resolveLegacyTenant };
+module.exports = { seedPlatform, printSummary };

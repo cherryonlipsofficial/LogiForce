@@ -30,13 +30,33 @@ export const reactivateTenant = (key, reason) =>
   platformAxios.post(`/tenants/${encodeURIComponent(key)}/reactivate`, { reason }).then(data);
 export const resyncTenantRoles = (key) =>
   platformAxios.post(`/tenants/${encodeURIComponent(key)}/sync-roles`).then(data);
+export const archiveTenant = (key, reason) =>
+  platformAxios.post(`/tenants/${encodeURIComponent(key)}/archive`, { reason }).then(data);
 export const resendTenantInvite = (key, email) =>
   platformAxios.post(`/tenants/${encodeURIComponent(key)}/resend-invite`, email ? { email } : {}).then(data);
+export const inviteTenantAdmin = (key, body) =>
+  platformAxios.post(`/tenants/${encodeURIComponent(key)}/admins`, body).then(data);
+export const resetTenantAdminPassword = (key, email) =>
+  platformAxios.post(`/tenants/${encodeURIComponent(key)}/admins/reset-password`, { email }).then(data);
 
 // ── Role templates ──
 export const listRoleTemplates = () => platformAxios.get('/role-templates').then(data);
 export const updateRoleTemplate = (key, body) =>
   platformAxios.patch(`/role-templates/${encodeURIComponent(key)}`, body).then(data);
+
+// ── Platform users and platform roles ──
+export const listPlatformUsers = () => platformAxios.get('/users').then(data);
+export const invitePlatformUser = (body) => platformAxios.post('/users', body).then(data);
+export const changePlatformUserRole = (id, roleKey) =>
+  platformAxios.patch(`/users/${encodeURIComponent(id)}/role`, { roleKey }).then(data);
+export const deactivatePlatformUser = (id) => platformAxios.post(`/users/${encodeURIComponent(id)}/deactivate`).then(data);
+export const reactivatePlatformUser = (id) => platformAxios.post(`/users/${encodeURIComponent(id)}/reactivate`).then(data);
+export const resendPlatformInvite = (id) => platformAxios.post(`/users/${encodeURIComponent(id)}/resend-invite`).then(data);
+export const listPlatformRoles = () => platformAxios.get('/roles').then(data);
+export const createPlatformRole = (body) => platformAxios.post('/roles', body).then(data);
+export const updatePlatformRole = (key, body) =>
+  platformAxios.patch(`/roles/${encodeURIComponent(key)}`, body).then(data);
+export const deletePlatformRole = (key) => platformAxios.delete(`/roles/${encodeURIComponent(key)}`).then(data);
 
 // ── Audit log ──
 export const listAuditLogs = (params) => platformAxios.get('/audit-logs', { params }).then(data);

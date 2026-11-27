@@ -32,6 +32,7 @@ const toDate = (value, field, errors, endOfDay = false) => {
  *   action      exact, e.g. 'tenant.suspend'
  *   targetType  'Tenant' | 'RoleTemplate' | 'PlatformUser'
  *   targetKey   tenant key, role key or email (contains, case-insensitive)
+ *   tenantKey   exact company key: every entry about that company
  *   actor       actor email (contains, case-insensitive)
  *   from, to    createdAt range (ISO date or YYYY-MM-DD, inclusive)
  */
@@ -44,6 +45,7 @@ const buildFilter = (query = {}) => {
     else filter.targetType = query.targetType;
   }
   if (query.targetKey) filter.targetKey = { $regex: escapeRegex(String(query.targetKey).trim()), $options: 'i' };
+  if (query.tenantKey) filter.tenantKey = String(query.tenantKey).trim().toLowerCase();
   if (query.actor) filter['actor.email'] = { $regex: escapeRegex(String(query.actor).trim()), $options: 'i' };
   const from = toDate(query.from, 'from', errors);
   const to = toDate(query.to, 'to', errors, true);

@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { getAppDomain, tenantAppUrl } = require('../../config/appDomain');
 
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
 const EMAIL_OTP_TTL_MS = 10 * 60 * 1000;       // 10 minutes
@@ -28,11 +29,12 @@ const hashEmailOtp = (code) =>
 /**
  * Build a tenant-aware reset URL. Prefers the request Origin/Referer so the
  * link sends the user back to the same subdomain they were on. Falls back to
- * CLIENT_URL env var, then to a sensible default.
+ * the company's own address (https://<req.tenantKey>.<APP_DOMAIN>), then to
+ * the first CLIENT_URL. Throws when none is known.
  *
- * `baseUrl` (optional) replaces all of that, e.g. 'https://acme.logiforce.app'
+ * `baseUrl` (optional) replaces all of that, e.g. https://acme.<APP_DOMAIN>
  * when the platform console sends the link: its request comes from the console,
- * not from the company's subdomain. Without it the behaviour is unchanged.
+ * not from the company's subdomain.
  */
 const buildResetPasswordUrl = (req, token, baseUrl) => {
   if (baseUrl) return `${String(baseUrl).replace(/\/$/, '')}/reset-password/${token}`;
@@ -43,8 +45,10 @@ const buildResetPasswordUrl = (req, token, baseUrl) => {
     try { return new URL(ref).origin; } catch { return null; }
   })();
 
+  const fromTenant = req.tenantKey && getAppDomain() ? tenantAppUrl(req.tenantKey) : null;
   const fromEnv = (process.env.CLIENT_URL || '').split(',').map(s => s.trim()).filter(Boolean)[0];
-  const base = fromHeader || fromEnv || 'https://logi-force.vercel.app';
+  const base = fromHeader || fromTenant || fromEnv;
+  if (!base) throw new Error('Cannot build the reset link: set APP_DOMAIN (or CLIENT_URL)');
 
   return `${base.replace(/\/$/, '')}/reset-password/${token}`;
 };

@@ -7,6 +7,7 @@
  * is stubbed. The same flow still needs one run against a real test database.
  */
 process.env.NODE_ENV = 'test';
+process.env.APP_DOMAIN = 'logiforce.test';
 process.env.MONGODB_BASE_URI = 'mongodb://tenant-db.invalid'; // only to build URIs; never opened
 process.env.JWT_SECRET = 'tenant-secret-for-tests-only-000000000000';
 process.env.PLATFORM_JWT_SECRET = 'platform-secret-for-tests-only-11111111111';
@@ -17,6 +18,7 @@ const { test, describe, beforeEach, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
 const { makeModel, clone, idEq } = require('./helpers/fakeDb');
+const { systemRoleDocs, platformUserDoc } = require('./helpers/platformRoles');
 
 // Stub the platform models BEFORE anything that destructures getPlatformModels at require time.
 const platformModels = require('../src/platform/models');
@@ -32,7 +34,9 @@ const { buildResetPasswordUrl, hashResetToken } = require('../src/modules/shared
 const provisioning = require('../src/platform/services/tenantProvisioning.service');
 const { signPlatformToken } = require('../src/platform/services/platformAuth.service');
 
-const { validateProvisionInput, provisionTenant, resendAdminInvite, TenantProvisioningError } = provisioning;
+const {
+  validateProvisionInput, provisionTenant, resendAdminInvite, resetAdminPassword, inviteTenantAdmin, TenantProvisioningError,
+} = provisioning;
 
 const ACTOR = { userId: new mongoose.Types.ObjectId(), email: 'owner@platform.test' };
 const BODY = Object.freeze({
@@ -57,6 +61,7 @@ const resetPlatform = () => {
   });
   platform.RoleTemplate = makeModel(ROLE_TEMPLATES.map((t) => ({ ...clone({ ...t, permissions: [...t.permissions] }), version: 1 })));
   platform.PlatformUser = makeModel([]);
+  platform.PlatformRole = makeModel(systemRoleDocs());
   // Like the real record(): keeps only ip / user-agent from req.
   platform.PlatformAuditLog = {
     entries: [],
@@ -132,9 +137,9 @@ describe('validateProvisionInput', () => {
     assert.deepEqual(input.roleTemplateKeys, ['tenant_admin', 'viewer']);
   });
 
-  test('key rule: 3–31 lowercase letters, digits or hyphens, no hyphen at either end', () => {
-    for (const key of ['abc', '1st-freight', 'a-b', 'a'.repeat(31)]) assert.equal(validateProvisionInput({ ...BODY, key }).key, key);
-    for (const key of ['ab', '-abc', 'abc-', 'a_b', 'a.b', 'a'.repeat(32), '', 'ab c']) {
+  test('key rule: a lowercase letter, then 2–30 lowercase letters, digits or hyphens', () => {
+    for (const key of ['abc', 'first-freight', 'a-b', 'a1-', 'a'.repeat(31)]) assert.equal(validateProvisionInput({ ...BODY, key }).key, key);
+    for (const key of ['ab', '-abc', '1st', 'a_b', 'a.b', 'a'.repeat(32), '', 'ab c']) {
       assert.throws(() => validateProvisionInput({ ...BODY, key }), (err) => err.status === 400 && 'key' in err.extra.errors, key);
     }
   });
@@ -164,8 +169,8 @@ describe('buildResetPasswordUrl', () => {
     const saved = process.env.CLIENT_URL;
     process.env.CLIENT_URL = 'https://one.example, https://two.example';
     try {
-      assert.equal(buildResetPasswordUrl({ headers: { origin: 'https://x.logiforce.app' } }, token), `https://x.logiforce.app/reset-password/${token}`);
-      assert.equal(buildResetPasswordUrl({ headers: { referer: 'https://y.logiforce.app/login?a=1' } }, token), `https://y.logiforce.app/reset-password/${token}`);
+      assert.equal(buildResetPasswordUrl({ headers: { origin: 'https://x.logiforce.test' } }, token), `https://x.logiforce.test/reset-password/${token}`);
+      assert.equal(buildResetPasswordUrl({ headers: { referer: 'https://y.logiforce.test/login?a=1' } }, token), `https://y.logiforce.test/reset-password/${token}`);
       assert.equal(buildResetPasswordUrl({ headers: {} }, token), `https://one.example/reset-password/${token}`);
     } finally {
       if (saved === undefined) delete process.env.CLIENT_URL; else process.env.CLIENT_URL = saved;
@@ -173,10 +178,10 @@ describe('buildResetPasswordUrl', () => {
   });
   test('baseUrl wins over the request', () => {
     assert.equal(
-      buildResetPasswordUrl({ headers: { origin: 'https://platform.logiforce.app' } }, token, 'https://acme.logiforce.app/'),
-      `https://acme.logiforce.app/reset-password/${token}`,
+      buildResetPasswordUrl({ headers: { origin: 'https://platform.logiforce.test' } }, token, 'https://acme.logiforce.test/'),
+      `https://acme.logiforce.test/reset-password/${token}`,
     );
-    assert.equal(buildResetPasswordUrl(null, token, 'https://acme.logiforce.app'), `https://acme.logiforce.app/reset-password/${token}`);
+    assert.equal(buildResetPasswordUrl(null, token, 'https://acme.logiforce.test'), `https://acme.logiforce.test/reset-password/${token}`);
   });
 });
 
@@ -185,7 +190,7 @@ describe('provisionTenant', () => {
     const result = await provisionTenant({ body: BODY, actor: ACTOR });
     assert.equal(result.resumed, false);
     assert.equal(result.tenant.status, 'active');
-    assert.equal(result.tenant.url, 'https://acme-co.logiforce.app');
+    assert.equal(result.tenant.url, 'https://acme-co.logiforce.test');
 
     const tenant = tenantNamed('acme-co');
     assert.equal(tenant.status, 'active');
@@ -216,7 +221,7 @@ describe('provisionTenant', () => {
     const [message] = mail.sent;
     assert.equal(message.to, 'ada@acme.test');
     assert.equal(message.tenantName, 'Acme Co');
-    assert.match(message.resetUrl, /^https:\/\/acme-co\.logiforce\.app\/reset-password\/[a-f0-9]{64}$/);
+    assert.match(message.resetUrl, /^https:\/\/acme-co\.logiforce\.test\/reset-password\/[a-f0-9]{64}$/);
     assert.equal(user.passwordResetTokenHash, hashResetToken(tokenFrom(message.resetUrl)));
     assert.ok(user.passwordResetExpires > new Date());
 
@@ -240,7 +245,7 @@ describe('provisionTenant', () => {
     assert.equal(platform.Tenant.docs.length, 0);
   });
 
-  test('failure part-way: status failed, error stored and audited; the same call resumes it', async () => {
+  test('failure part-way: stays provisioning, error stored and audited; the same call resumes it', async () => {
     // Make the role sync's first write fail once.
     const realGet = connectionManager.getConnectionForTenant;
     connectionManager.getConnectionForTenant = async (cfg) => {
@@ -261,7 +266,7 @@ describe('provisionTenant', () => {
       connectionManager.getConnectionForTenant = realGet;
     }
     let tenant = tenantNamed('acme-co');
-    assert.equal(tenant.status, 'failed');
+    assert.equal(tenant.status, 'provisioning', 'a failed attempt never leaves the company active');
     assert.equal(tenant.provisioningError.step, 'roles');
     assert.match(tenant.provisioningError.message, /simulated write failure/);
     assert.ok(actions().includes('tenant.provisionFailed'));
@@ -287,7 +292,7 @@ describe('provisionTenant', () => {
     const db = companyDbs.get('logiforce_acme_co');
     assert.equal(db.User.docs.length, 1);
     assert.equal(db.User.docs[0].passwordResetTokenHash, null);
-    assert.equal(tenantNamed('acme-co').status, 'failed');
+    assert.equal(tenantNamed('acme-co').status, 'provisioning');
 
     await provisionTenant({ body: BODY, actor: ACTOR });
     assert.equal(db.User.docs.length, 1);
@@ -304,7 +309,7 @@ describe('provisionTenant', () => {
     });
     const db = companyDbs.get('logiforce_acme_co');
     assert.equal(db.Role.docs.length + db.User.docs.length + db.CompanySettings.docs.length, 0);
-    assert.equal(tenantNamed('acme-co').status, 'failed');
+    assert.equal(tenantNamed('acme-co').status, 'provisioning');
   });
 
   test('a provisioning attempt started moments ago is not run twice', async () => {
@@ -322,7 +327,7 @@ describe('resendAdminInvite', () => {
     assert.equal(mail.sent.length, 2);
     const second = tokenFrom(mail.sent[1].resetUrl);
     assert.notEqual(first, second);
-    assert.match(mail.sent[1].resetUrl, /^https:\/\/acme-co\.logiforce\.app\/reset-password\//);
+    assert.match(mail.sent[1].resetUrl, /^https:\/\/acme-co\.logiforce\.test\/reset-password\//);
     const user = companyDbs.get('logiforce_acme_co').User.docs[0];
     assert.equal(user.passwordResetTokenHash, hashResetToken(second));
     assert.equal(actions().at(-1), 'tenant.adminInviteSent');
@@ -341,11 +346,46 @@ describe('resendAdminInvite', () => {
   });
 });
 
+describe('company admins after provisioning', () => {
+  test('contact and user limit given at provisioning are stored', async () => {
+    await provisionTenant({ body: { ...BODY, contact: { name: 'Ana', email: 'ANA@acme.test', phone: '1' }, limits: { maxUsers: 10 } }, actor: ACTOR });
+    const t = tenantNamed('acme-co');
+    assert.deepEqual(t.contact, { name: 'Ana', email: 'ana@acme.test', phone: '1' });
+    assert.equal(t.limits.maxUsers, 10);
+    assert.throws(() => validateProvisionInput({ ...BODY, contact: { email: 'x' } }), (err) => 'contact' in err.extra.errors);
+    assert.throws(() => validateProvisionInput({ ...BODY, limits: { maxUsers: 0 } }), (err) => 'limits' in err.extra.errors);
+  });
+
+  test('invite another admin: created on tenant_admin with a random password and emailed a link', async () => {
+    await provisionTenant({ body: BODY, actor: ACTOR });
+    const result = await inviteTenantAdmin({ key: 'acme-co', body: { name: 'Bo', email: 'BO@acme.test' }, actor: ACTOR });
+    assert.equal(result.invite.sent, true);
+    const db = companyDbs.get('logiforce_acme_co');
+    const bo = db.User.docs.find((u) => u.email === 'bo@acme.test');
+    const adminRole = db.Role.docs.find((r) => r.templateKey === 'tenant_admin');
+    assert.equal(String(bo.roleId), String(adminRole._id));
+    assert.match(mail.sent.at(-1).resetUrl, /^https:\/\/acme-co\.logiforce\.test\/reset-password\/[a-f0-9]{64}$/);
+    assert.equal(actions().at(-1), 'tenant.adminInvited');
+    // an existing company user is never taken over
+    await assert.rejects(inviteTenantAdmin({ key: 'acme-co', body: { name: 'Bo', email: 'bo@acme.test' }, actor: ACTOR }),
+      (err) => err.code === 'USER_EXISTS');
+  });
+
+  test('reset password: emails a reset link to a company admin; never returns a password', async () => {
+    await provisionTenant({ body: BODY, actor: ACTOR });
+    const result = await resetAdminPassword({ key: 'acme-co', email: 'ada@acme.test', actor: ACTOR });
+    assert.equal(result.invite.email, 'ada@acme.test');
+    assert.ok(!JSON.stringify(result).match(/password"\s*:/i), 'no password in the response');
+    assert.equal(actions().at(-1), 'tenant.adminPasswordReset');
+    await assert.rejects(resetAdminPassword({ key: 'acme-co', actor: ACTOR }), (err) => err.status === 400);
+  });
+});
+
 describe('HTTP: platform auth only', () => {
   let server;
   let base;
-  const owner = { _id: new mongoose.Types.ObjectId(), email: 'owner@platform.test', name: 'O', role: 'owner', status: 'active', tokenVersion: 0 };
-  const support = { _id: new mongoose.Types.ObjectId(), email: 'support@platform.test', name: 'S', role: 'support', status: 'active', tokenVersion: 0 };
+  const owner = platformUserDoc('platform_owner', { email: 'owner@platform.test', name: 'O' });
+  const support = platformUserDoc('platform_support', { email: 'support@platform.test', name: 'S' });
 
   before(async () => {
     const express = require('express');
@@ -385,6 +425,15 @@ describe('HTTP: platform auth only', () => {
     assert.equal(json.success, false);
     assert.equal(json.code, 'VALIDATION_ERROR');
     assert.match(json.errors.key, /reserved/);
+  });
+
+  test('Support may resend an invite and reset an admin password, but not invite a new admin', async () => {
+    await post('/tenants', BODY, signPlatformToken(owner));
+    const asSupport = signPlatformToken(support);
+    assert.equal((await post('/tenants/acme-co/resend-invite', {}, asSupport)).status, 200);
+    assert.equal((await post('/tenants/acme-co/admins/reset-password', { email: 'ada@acme.test' }, asSupport)).status, 200);
+    assert.equal((await post('/tenants/acme-co/admins', { name: 'X', email: 'x@acme.test' }, asSupport)).status, 403);
+    assert.equal((await post('/tenants/acme-co/admins', { name: 'X', email: 'x@acme.test' }, signPlatformToken(owner))).status, 201);
   });
 
   test('POST /tenants/:key/resend-invite', async () => {

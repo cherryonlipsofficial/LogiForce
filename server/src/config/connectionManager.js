@@ -36,6 +36,32 @@ const migrateDriverUniqueIndexes = async (conn) => {
   await conn.models.Driver.syncIndexes();
 };
 
+// Attendance batches used to be unique per (project, period) and then per
+// (project, period, version). Drop those old indexes and backfill the fields
+// the current (project, period, version, batchType) index needs. This used to
+// run against the default MONGODB_URI connection only; now it runs for every
+// company database the first time it is opened. Idempotent.
+const ATTENDANCE_LEGACY_INDEXES = [
+  'projectId_1_period.year_1_period.month_1',
+  'projectId_1_period.year_1_period.month_1_version_1',
+];
+
+const migrateAttendanceBatchIndexes = async (conn) => {
+  const collections = await conn.db.listCollections({ name: 'attendancebatches' }).toArray();
+  if (collections.length === 0) return;
+  const collection = conn.collection('attendancebatches');
+  for (const indexName of ATTENDANCE_LEGACY_INDEXES) {
+    try {
+      await collection.dropIndex(indexName);
+    } catch (err) {
+      if (err.codeName !== 'IndexNotFound' && err.code !== 27) throw err;
+    }
+  }
+  await collection.updateMany({ version: { $exists: false } }, { $set: { version: 1 } });
+  await collection.updateMany({ batchType: { $exists: false } }, { $set: { batchType: 'regular' } });
+  await conn.models.AttendanceBatch.syncIndexes();
+};
+
 /**
  * Maintains a pool of Mongoose connections — one per tenant.
  * Connections are created lazily on first request and cached.
@@ -49,7 +75,7 @@ const connections = new Map();
 
 const requireDbUri = ({ dbName, dbUri }) => {
   if (!dbUri) {
-    throw new Error(`No valid MongoDB URI configured for tenant "${dbName}". Check MONGODB_BASE_URI or tenant-specific env vars.`);
+    throw new Error(`No valid MongoDB URI configured for tenant "${dbName}". Check MONGODB_BASE_URI.`);
   }
   return dbUri;
 };
@@ -91,6 +117,11 @@ const getConnectionForTenant = async (tenantConfig) => {
     await migrateDriverUniqueIndexes(conn);
   } catch (err) {
     console.error(`[DB] Driver index migration failed for ${dbName}:`, err.message);
+  }
+  try {
+    await migrateAttendanceBatchIndexes(conn);
+  } catch (err) {
+    console.error(`[DB] Attendance batch index migration failed for ${dbName}:`, err.message);
   }
 
   console.log(`[DB] Connected to tenant database: ${dbName}`);

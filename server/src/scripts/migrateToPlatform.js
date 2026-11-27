@@ -1,23 +1,25 @@
 /**
- * Move the existing companies onto the platform.   npm run migrate:platform
+ * Link existing companies' roles to platform role templates.   npm run migrate:platform
  *
- *   npm run migrate:platform                 dry run (the default): prints every change, writes nothing
- *   npm run migrate:platform -- --apply      makes the changes
- *   options: --source <key>   company whose roles seed the shared templates (default logi-force)
+ *   npm run migrate:platform -- --source <key>             dry run (the default): prints every change, writes nothing
+ *   npm run migrate:platform -- --source <key> --apply     makes the changes
+ *   options: --source <key>   REQUIRED: registered company whose roles seed the shared templates
  *            --csv <file>     also write the unmatched-roles report as CSV
+ *
+ * Only companies already registered in the platform database are touched
+ * (register one with `npm run platform:register-tenant`). There is no
+ * built-in list of companies.
  *
  * Safe to run any number of times: every step checks what is already there.
  *
  *   1. Role templates from code (config/defaultRoles.js): missing ones are
  *      created, existing ones are left exactly as they are.
- *   2. Role templates from the source company's roles (logi-force; its real
- *      database comes from its Tenant record, or from legacyTenants.js): every
- *      role that isn't the admin role and has no template of the same name yet
- *      becomes a template (platform-only and unknown permissions dropped).
- *   3. A Tenant record, status 'active' with every module, for each company in
- *      the old hardcoded list (platform/scripts/legacyTenants.js) that has none.
- *      Existing records are not changed here.
- *   4. In each company database:
+ *   2. Role templates from the source company's roles (its database comes from
+ *      its Tenant record): every role that isn't the admin role and has no
+ *      template of the same name yet becomes a template (platform-only and
+ *      unknown permissions dropped).
+ *   3. Lists the registered companies (active or suspended); nothing is created.
+ *   4. In each of those company databases:
  *      - the admin role (isSystemRole true) is updated in place: templateKey
  *        'tenant_admin', managedBy 'platform', isSystemRole false. Same _id, so
  *        users keep it. A separate role already linked to tenant_admin is
@@ -32,11 +34,8 @@
  *      The company's roleTemplateKeys gain 'tenant_admin' and every linked
  *      template, and lose 'admin'.
  *   5. The retired 'admin' template is deleted once no company lists it.
- *   6. Your platform account from PLATFORM_ADMIN_EMAIL / PLATFORM_ADMIN_NAME:
- *      created without a password, and emailed a set-password link to
- *      PLATFORM_CONSOLE_URL/set-password/<token>. An account that already has a
- *      password is left alone; one without gets a new link only when its last
- *      link has expired.
+ * It creates no company and no platform user (`npm run platform:create-owner`
+ * creates the first Owner).
  *
  * Every platform change is written to platform_audit_logs as actor 'system';
  * company role changes as one 'tenant.rolesMigrated' entry per company.
@@ -52,10 +51,9 @@ const { PERMISSIONS, MODULES, isPlatformPermission } = require('../config/permis
 const { ROLE_TEMPLATES, RETIRED_TEMPLATE_KEYS, TENANT_ADMIN_TEMPLATE } = require('../config/defaultRoles');
 
 const TENANT_ADMIN_KEY = TENANT_ADMIN_TEMPLATE.key;
-const DEFAULT_SOURCE_KEY = 'logi-force';
 const SYSTEM_ACTOR = Object.freeze({ userId: null, email: 'system' });
 const TEMPLATE_KEY_PATTERN = /^[a-z][a-z0-9_]{1,40}$/; // models/RoleTemplate.js
-const USAGE = 'Usage: npm run migrate:platform -- [--dry-run | --apply] [--source <company key>] [--csv <file>]';
+const USAGE = 'Usage: npm run migrate:platform -- --source <company key> [--dry-run | --apply] [--csv <file>]';
 
 // ── Pure helpers ──
 
@@ -276,12 +274,12 @@ const listChanges = (before, after) => ({
 /**
  * Build the whole plan. Reads the platform DB and every company DB; writes nothing.
  *
- * deps: { models, openCompany(record) → {Role, User, close}, legacyTenants,
- *         resolveLegacyTenant, platformAccount: {email, name}, newId() }
+ * deps: { models, openCompany(record) → {Role, User, close}, redact(text) }
  */
-const buildPlan = async (deps, { sourceKey = DEFAULT_SOURCE_KEY } = {}) => {
-  const { Tenant, RoleTemplate, PlatformUser } = deps.models;
-  const plan = { sourceKey, templates: {}, tenants: {}, companies: [], retire: [], platformUser: null, warnings: [] };
+const buildPlan = async (deps, { sourceKey } = {}) => {
+  if (!sourceKey) throw new Error(`--source <company key> is required. ${USAGE}`);
+  const { Tenant, RoleTemplate } = deps.models;
+  const plan = { sourceKey, templates: {}, tenants: {}, companies: [], retire: [], warnings: [] };
 
   // Step 1: templates from code
   const existingTemplates = await RoleTemplate.find({}).lean();
@@ -298,51 +296,18 @@ const buildPlan = async (deps, { sourceKey = DEFAULT_SOURCE_KEY } = {}) => {
   // Step 3 (planned before 2: the source company's database comes from its record)
   const tenantRecords = await Tenant.find({}).lean();
   const byKey = new Map(tenantRecords.map((t) => [t.key, t]));
-  plan.tenants.existing = [];
-  plan.tenants.create = [];
-  for (const [rawKey, legacy] of Object.entries(deps.legacyTenants || {})) {
-    const key = rawKey.toLowerCase();
-    const existing = byKey.get(key);
-    if (existing) {
-      const notes = [];
-      if (existing.status !== 'active') notes.push(`status is "${existing.status}", left as is`);
-      const missing = MODULES.filter((m) => !(existing.enabledModules || []).includes(m));
-      if (missing.length) notes.push(`modules not enabled: ${missing.join(', ')} (left as is)`);
-      plan.tenants.existing.push({ key, dbName: existing.dbName, status: existing.status, notes });
-      continue;
-    }
-    const live = deps.resolveLegacyTenant(key, legacy);
-    if (!live.dbName) {
-      plan.warnings.push(`company ${key}: no MongoDB URI is configured for it in this environment, so its database `
-        + 'is unknown. Skipped; run with the same env as the server.');
-      continue;
-    }
-    const clash = tenantRecords.find((t) => t.dbName === live.dbName);
-    if (clash) {
-      plan.warnings.push(`company ${key}: database "${live.dbName}" is already registered to ${clash.key}. Skipped.`);
-      continue;
-    }
-    const record = {
-      _id: deps.newId(),
-      key,
-      name: legacy.name,
-      dbName: live.dbName,
-      dbUriEnv: live.dbUriEnv,
-      status: 'active',
-      enabledModules: [...MODULES],
-      roleTemplateKeys: ROLE_TEMPLATES.map((t) => t.key),
-      limits: { maxUsers: null },
-      allowSelfSignup: false,
-      createdBy: null,
-    };
-    plan.tenants.create.push({ record, labelledDbName: legacy.dbName });
-    byKey.set(key, record);
-  }
+  plan.tenants.existing = tenantRecords.map((t) => {
+    const notes = [];
+    if (!['active', 'suspended'].includes(t.status)) notes.push(`status is "${t.status}", skipped`);
+    const missing = MODULES.filter((m) => !(t.enabledModules || []).includes(m));
+    if (missing.length) notes.push(`modules not enabled: ${missing.join(', ')} (left as is)`);
+    return { key: t.key, dbName: t.dbName, status: t.status, notes };
+  }).sort((a, b) => a.key.localeCompare(b.key));
 
-  // Companies whose roles are migrated: every registered (or about to be) company
-  // except one still being provisioned through the new endpoint.
-  const companies = [...byKey.values()]
-    .filter((t) => !['provisioning', 'failed'].includes(t.status))
+  // Companies whose roles are migrated: registered and in use (active or
+  // suspended). One still provisioning, or archived, is left alone.
+  const companies = tenantRecords
+    .filter((t) => ['active', 'suspended'].includes(t.status))
     .sort((a, b) => a.key.localeCompare(b.key));
 
   const roleData = new Map(); // key → { roles, userCounts } | { error }
@@ -364,7 +329,10 @@ const buildPlan = async (deps, { sourceKey = DEFAULT_SOURCE_KEY } = {}) => {
   // Step 2: templates from the source company's roles
   const source = byKey.get(sourceKey);
   const sourceData = roleData.get(sourceKey);
-  if (!source) throw new Error(`source company "${sourceKey}" is not registered and not in legacyTenants.js`);
+  if (!source) {
+    throw new Error(`source company "${sourceKey}" is not registered. Register it first: `
+      + 'npm run platform:register-tenant -- --key <key> --db <dbName> --name "<name>"');
+  }
   if (!sourceData || sourceData.error) {
     throw new Error(`cannot read the roles of source company "${sourceKey}": ${sourceData?.error || 'not processed'}`);
   }
@@ -405,20 +373,6 @@ const buildPlan = async (deps, { sourceKey = DEFAULT_SOURCE_KEY } = {}) => {
     plan.retire.push({ key, id: doc._id, blockedBy: [...stillListed, ...otherTenants.map((t) => t.key)] });
   }
 
-  // Step 6: platform account
-  const { email, name } = deps.platformAccount;
-  if (!email || !name) {
-    plan.platformUser = { action: 'skip', reason: 'PLATFORM_ADMIN_EMAIL and PLATFORM_ADMIN_NAME must both be set' };
-  } else {
-    const user = await PlatformUser.findOne({ email })
-      .select('+passwordHash +passwordSetTokenHash +passwordSetExpires').lean();
-    if (!user) plan.platformUser = { action: 'create', email, name };
-    else if (user.passwordHash) plan.platformUser = { action: 'skip', email, reason: 'exists and has a password' };
-    else if (user.passwordSetTokenHash && user.passwordSetExpires > new Date()) {
-      plan.platformUser = { action: 'skip', email, reason: `a set-password link was sent; valid until ${user.passwordSetExpires.toISOString()}` };
-    } else plan.platformUser = { action: 'sendLink', email, id: user._id, reason: 'exists without a password; its link is used up or expired' };
-  }
-
   return plan;
 };
 
@@ -442,16 +396,10 @@ const printPlan = (plan, log, { apply }) => {
   }
   for (const s of src.skipped) log(`   ! "${s.roleName}": not made a template: ${s.reason}`);
 
-  log('\n3. Company records (platform tenants)');
+  log('\n3. Registered companies (nothing is created here)');
+  if (!plan.tenants.existing.length) log('   none: register companies with npm run platform:register-tenant');
   for (const t of plan.tenants.existing) {
     log(`   = ${t.key}: registered (database ${t.dbName}, ${t.status})${t.notes.length ? `; ${t.notes.join('; ')}` : ''}`);
-  }
-  for (const { record, labelledDbName } of plan.tenants.create) {
-    log(`   + ${record.key}: ${will}create "${record.name}", active, database ${record.dbName} `
-      + `(URI from ${record.dbUriEnv || 'MONGODB_BASE_URI'}), all ${record.enabledModules.length} modules`);
-    if (labelledDbName && labelledDbName !== record.dbName) {
-      log(`       note: labelled "${labelledDbName}" in legacyTenants.js; "${record.dbName}" is the database its URI uses`);
-    }
   }
   for (const w of plan.warnings) log(`   ! ${w}`);
 
@@ -491,11 +439,6 @@ const printPlan = (plan, log, { apply }) => {
       : `   - ${r.key}: ${will}delete (no company lists it any more)`);
   }
 
-  log('\n6. Platform account');
-  const p = plan.platformUser;
-  if (p.action === 'skip') log(`   = ${p.email ? `${p.email}: ` : ''}skipped: ${p.reason}`);
-  if (p.action === 'create') log(`   + ${p.email} ("${p.name}", owner): ${will}create without a password and email a set-password link`);
-  if (p.action === 'sendLink') log(`   ~ ${p.email}: ${will}email a new set-password link (${p.reason})`);
 };
 
 const unmatchedRows = (plan) => plan.companies.flatMap((c) => (c.unmatched || []).map((u) => ({ company: c.tenant.key, ...u })));
@@ -539,17 +482,6 @@ const applyPlan = async (plan, deps, log) => {
   for (const t of plan.templates.fromSource.create) {
     const { dropped, sourceRoleName, ...doc } = t;
     await createTemplate(doc, `migrateToPlatform (role "${sourceRoleName}" of ${plan.sourceKey})`);
-  }
-
-  for (const { record } of plan.tenants.create) {
-    if (await Tenant.findOne({ key: record.key }).lean()) {
-      log(`   = tenant ${record.key}: appeared meanwhile, left as is`);
-      continue;
-    }
-    const { _id, ...fields } = record;
-    const doc = await Tenant.create({ _id, ...fields });
-    await audit({ action: 'tenant.create', targetType: 'Tenant', targetId: doc._id, targetKey: doc.key, after: doc.toObject() });
-    log(`   + tenant ${doc.key}: created`);
   }
 
   const failed = [];
@@ -614,42 +546,11 @@ const applyPlan = async (plan, deps, log) => {
     log(`   - template ${r.key}: deleted`);
   }
 
-  const p = plan.platformUser;
-  if (p.action === 'create' || p.action === 'sendLink') {
-    try {
-      const id = p.action === 'create'
-        ? (await deps.platformUsers.createInvited({ email: p.email, name: p.name, role: 'owner', actor: SYSTEM_ACTOR }))._id
-        : p.id;
-      const { expiresAt } = await deps.platformUsers.sendLink({ userId: id, actor: SYSTEM_ACTOR });
-      log(`   + platform account ${p.email}: ${p.action === 'create' ? 'created; ' : ''}set-password link sent `
-        + `(valid until ${expiresAt.toISOString()})`);
-    } catch (err) {
-      failed.push(`platform account ${p.email}`);
-      log(`   ! platform account ${p.email}: FAILED: ${deps.redact(err?.message)}. Run again to retry.`);
-    }
-  }
   return { failed };
 };
 
-/**
- * Checks that must pass before --apply writes anything.
- * @returns {string[]} problems
- */
-const preflight = (plan, deps) => {
-  const problems = [];
-  const p = plan.platformUser;
-  if (p.action === 'create' || p.action === 'sendLink') {
-    const urlProblem = deps.platformUsers.consoleUrlProblem();
-    if (urlProblem) problems.push(urlProblem);
-    if (!deps.emailConfigured()) {
-      problems.push('Email is not configured (RESEND_API_KEY), so the set-password link cannot be sent.');
-    }
-  }
-  return problems;
-};
-
 /** Plan, print, and with apply: true, write. */
-const migrate = async (deps, { apply = false, sourceKey = DEFAULT_SOURCE_KEY, csvPath = null, log = console.log } = {}) => {
+const migrate = async (deps, { apply = false, sourceKey, csvPath = null, log = console.log } = {}) => {
   log(apply
     ? 'MIGRATION — APPLY: the changes below are written.'
     : 'MIGRATION — DRY RUN: nothing is written. Re-run with --apply to make these changes.');
@@ -668,11 +569,6 @@ const migrate = async (deps, { apply = false, sourceKey = DEFAULT_SOURCE_KEY, cs
     return { plan, failed: [] };
   }
 
-  const problems = preflight(plan, deps);
-  if (problems.length) {
-    problems.forEach((m) => log(`! ${m}`));
-    throw new Error('Nothing was written: fix the problems above and run again.');
-  }
   const { failed } = await applyPlan(plan, deps, log);
   log(failed.length ? `\nDone with failures: ${failed.join(', ')}. Fix and run again.` : '\nDone.');
   log('Next: npm run platform:sync-roles -- --all   (dry run; then add --apply) to give the linked roles '
@@ -681,7 +577,7 @@ const migrate = async (deps, { apply = false, sourceKey = DEFAULT_SOURCE_KEY, cs
 };
 
 const parseArgs = (argv) => {
-  const args = { apply: false, dryRunFlag: false, sourceKey: DEFAULT_SOURCE_KEY, csvPath: null };
+  const args = { apply: false, dryRunFlag: false, sourceKey: null, csvPath: null };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--apply') args.apply = true;
@@ -696,6 +592,7 @@ const parseArgs = (argv) => {
     else throw new Error(`Unknown argument: ${arg}`);
   }
   if (args.apply && args.dryRunFlag) throw new Error('Pass either --dry-run or --apply, not both');
+  if (!args.help && !args.sourceKey) throw new Error('--source <company key> is required');
   return args;
 };
 
@@ -717,16 +614,11 @@ if (require.main === module) {
   }
 
   (async () => {
-    const mongoose = require('mongoose');
     const { connectPlatformDb, closePlatformDb, getPlatformDbName } = require('../platform/db');
     const { getPlatformModels } = require('../platform/models');
     const { openUncachedConnection } = require('../config/connectionManager');
     const { getModelForConnection } = require('../config/modelRegistry');
     const { mapTenantRecord, redactUris } = require('../config/tenants');
-    const { tenants: legacyTenants } = require('../platform/scripts/legacyTenants');
-    const { resolveLegacyTenant } = require('../platform/scripts/seedPlatform');
-    const platformUsers = require('../platform/services/platformUser.service');
-    const { isEmailConfigured } = require('../utils/email');
 
     let code = 0;
     try {
@@ -734,9 +626,6 @@ if (require.main === module) {
       const deps = {
         models: getPlatformModels(),
         platformDbName: getPlatformDbName(),
-        legacyTenants,
-        resolveLegacyTenant,
-        newId: () => new mongoose.Types.ObjectId(),
         redact: redactUris,
         openCompany: async (record) => {
           const conn = await openUncachedConnection(mapTenantRecord(record));
@@ -746,23 +635,6 @@ if (require.main === module) {
             close: () => conn.close(),
           };
         },
-        platformAccount: {
-          email: platformUsers.normalizeEmail(process.env.PLATFORM_ADMIN_EMAIL),
-          name: (process.env.PLATFORM_ADMIN_NAME || '').trim(),
-        },
-        platformUsers: {
-          createInvited: platformUsers.createInvitedPlatformUser,
-          sendLink: platformUsers.sendPlatformSetPasswordLink,
-          consoleUrlProblem: () => {
-            try {
-              platformUsers.buildPlatformSetPasswordUrl('0'.repeat(64));
-              return null;
-            } catch (err) {
-              return err.message;
-            }
-          },
-        },
-        emailConfigured: isEmailConfigured,
       };
       const { failed } = await migrate(deps, args);
       code = failed.length ? 1 : 0;

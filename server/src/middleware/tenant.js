@@ -1,48 +1,55 @@
 const { getTenantBySubdomain, redactUris } = require('../config/tenants');
-// Called through the module object so platform:verify can observe it.
+const { tenantKeyFromHostname } = require('../config/appDomain');
+// Called through the module object so tests can observe it.
 const connectionManager = require('../config/connectionManager');
 
 /**
  * Tenant resolution middleware.
  *
- * Reads the tenant from:
- *   1. `x-tenant-id` header (for API calls from frontend)
- *   2. Origin/Referer hostname subdomain (fallback)
+ * Reads the tenant key from:
+ *   1. the `x-tenant-id` header (sent by the frontend), else
+ *   2. the subdomain of the Origin/Referer, when it is <key>.<APP_DOMAIN>
  *
- * and looks it up in the platform database (config/tenants.js, cached).
+ * and looks it up in the platform database (config/tenants.js, cached 60s).
+ * There is no built-in list of companies: a company exists when its Tenant
+ * record does, so a new one works without a restart.
  *
  * Responses before any route runs:
- *   400 no tenant key · 404 unknown tenant · 403 TENANT_SUSPENDED (status is not
- *   'active') · 503 platform lookup failed · 500 tenant DB connection failed
+ *   400 no tenant key
+ *   404 unknown tenant
+ *   503 TENANT_PROVISIONING   still being set up
+ *   403 TENANT_SUSPENDED / TENANT_ARCHIVED
+ *   503 platform lookup failed · 500 tenant DB connection failed
  *
  * Sets:
- *   req.tenant     — tenant config object
- *   req.tenantKey  — the company's canonical key (tenant.key from the platform
- *                    record, lower-case), not the raw header. Tenant JWTs are
- *                    bound to it (`tid`).
- *   req.dbConnection — Mongoose connection to tenant's database
+ *   req.tenant       — tenant config object
+ *   req.tenantKey    — the company's canonical key (tenant.key from the platform
+ *                      record, lower-case), not the raw header. Tenant JWTs are
+ *                      bound to it (`tid`).
+ *   req.dbConnection — Mongoose connection to the tenant's database
  *
  * Every path ends in a response or next(); no rejection escapes.
  */
+const STATUS_RESPONSES = Object.freeze({
+  provisioning: { status: 503, code: 'TENANT_PROVISIONING', message: 'This account is still being set up. Please try again shortly.' },
+  suspended: { status: 403, code: 'TENANT_SUSPENDED', message: 'Account suspended' },
+  archived: { status: 403, code: 'TENANT_ARCHIVED', message: 'This account is no longer active' },
+});
+
+const tenantKeyFromRequest = (req) => {
+  const header = req.headers['x-tenant-id'];
+  if (header) return header;
+  const origin = req.headers.origin || req.headers.referer || '';
+  try {
+    return tenantKeyFromHostname(new URL(origin).hostname);
+  } catch {
+    return null; // invalid URL
+  }
+};
+
 const resolveTenant = async (req, res, next) => {
   try {
-    // 1. Try explicit header first (frontend will send this)
-    let tenantKey = req.headers['x-tenant-id'];
-
-    // 2. Fallback: extract from Origin or Referer
-    if (!tenantKey) {
-      const origin = req.headers.origin || req.headers.referer || '';
-      try {
-        const hostname = new URL(origin).hostname; // e.g. "clienta.logiforce.app"
-        const parts = hostname.split('.');
-        if (parts.length >= 3) {
-          tenantKey = parts[0]; // "clienta"
-        }
-      } catch {
-        // invalid URL, skip
-      }
-    }
-
+    const tenantKey = tenantKeyFromRequest(req);
     if (!tenantKey) {
       return res.status(400).json({
         success: false,
@@ -61,21 +68,18 @@ const resolveTenant = async (req, res, next) => {
     if (!tenant) {
       return res.status(404).json({
         success: false,
-        message: `Unknown tenant: ${tenantKey}`,
+        message: `Unknown tenant: ${String(tenantKey).slice(0, 64)}`,
+        code: 'TENANT_NOT_FOUND',
       });
     }
 
-    // Before opening any connection: a suspended (or still provisioning)
-    // company never touches its database.
+    // Before opening any connection: a company that isn't active never
+    // touches its database.
     if (tenant.status !== 'active') {
-      return res.status(403).json({
-        success: false,
-        message: 'Account suspended',
-        code: 'TENANT_SUSPENDED',
-      });
+      const r = STATUS_RESPONSES[tenant.status] || STATUS_RESPONSES.suspended;
+      return res.status(r.status).json({ success: false, message: r.message, code: r.code });
     }
 
-    // Get (or create) the DB connection for this tenant
     const dbConnection = await connectionManager.getConnectionForTenant(tenant);
 
     req.tenant = tenant;
@@ -92,4 +96,4 @@ const resolveTenant = async (req, res, next) => {
   return next();
 };
 
-module.exports = { resolveTenant };
+module.exports = { resolveTenant, STATUS_RESPONSES };

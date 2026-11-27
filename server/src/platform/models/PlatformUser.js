@@ -41,15 +41,25 @@ const platformUserSchema = new Schema(
     // the emailed token is stored.
     passwordSetTokenHash: { type: String, default: null, select: false },
     passwordSetExpires: { type: Date, default: null, select: false },
-    role: {
+    // PlatformRole.key. What the user may do comes only from that role's
+    // permissions (protectPlatform loads it on every request).
+    roleKey: {
       type: String,
-      enum: ['owner', 'support'],
-      default: 'support',
+      required: [true, 'Role is required'],
+      lowercase: true,
+      trim: true,
+      index: true,
     },
-    status: {
-      type: String,
-      enum: ['active', 'disabled'],
-      default: 'active',
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
+    // The platform user who invited this one; null for the bootstrap Owner.
+    invitedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'PlatformUser',
+      default: null,
     },
     lastLoginAt: Date,
     // Copied into every platform JWT as `tv`. protectPlatform rejects a token

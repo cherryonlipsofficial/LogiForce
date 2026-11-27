@@ -4,10 +4,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import {
   getTenant, getPlatformMeta, listRoleTemplates, updateTenant,
-  suspendTenant, reactivateTenant, resyncTenantRoles, resendTenantInvite,
+  suspendTenant, reactivateTenant, archiveTenant, resyncTenantRoles, resendTenantInvite,
+  inviteTenantAdmin, resetTenantAdminPassword,
 } from '../api/platformApi';
 import { platformErrorMessage } from '../api/platformAxios';
-import { usePlatformAuth } from '../auth/platformAuthContext';
+import { usePlatformCan } from '../hooks/usePlatformPermission';
 import Card from '../../components/ui/Card';
 import Btn from '../../components/ui/Btn';
 import Badge from '../../components/ui/Badge';
@@ -46,34 +47,48 @@ function RoleSyncResult({ result }) {
   );
 }
 
-/** Suspend / reactivate with an optional reason for the audit log. */
-function StatusModal({ tenant, onClose, onDone }) {
-  const suspending = tenant.status === 'active';
+const STATUS_ACTIONS = {
+  suspend: {
+    title: (t) => `Suspend ${t.name}?`,
+    text: 'Nobody at this company can use LogiForce while it is suspended: every request is refused and its nightly jobs stop. Nothing is deleted.',
+    button: 'Suspend', variant: 'danger', run: suspendTenant, done: (t) => `${t.name} is suspended`,
+  },
+  archive: {
+    title: (t) => `Archive ${t.name}?`,
+    text: 'An archived company is closed: its users are refused and its jobs stop. All its data is kept, and it can be reactivated later. Companies are never deleted.',
+    button: 'Archive', variant: 'danger', run: archiveTenant, done: (t) => `${t.name} is archived`,
+  },
+  reactivate: {
+    title: (t) => `Reactivate ${t.name}?`,
+    text: 'The company’s users can sign in and work again.',
+    button: 'Reactivate', variant: 'success', run: reactivateTenant, done: (t) => `${t.name} is active again`,
+  },
+};
+
+/** Suspend / archive / reactivate with an optional reason for the audit log. */
+function StatusModal({ tenant, action, onClose, onDone }) {
+  const cfg = STATUS_ACTIONS[action];
   const [reason, setReason] = useState('');
   const mutation = useMutation({
-    mutationFn: () => (suspending ? suspendTenant(tenant.key, reason) : reactivateTenant(tenant.key, reason)),
+    mutationFn: () => cfg.run(tenant.key, reason),
     onSuccess: (res) => {
-      toast.success(suspending ? `${tenant.name} is suspended` : `${tenant.name} is active again`);
+      toast.success(cfg.done(tenant));
       onDone(res);
     },
     onError: (err) => toast.error(platformErrorMessage(err)),
   });
   return (
-    <Modal title={suspending ? `Suspend ${tenant.name}?` : `Reactivate ${tenant.name}?`} onClose={onClose}>
+    <Modal title={cfg.title(tenant)} onClose={onClose}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6 }}>
-          {suspending
-            ? 'Nobody at this company can use LogiForce while it is suspended: every request is refused and its nightly jobs stop. Nothing is deleted.'
-            : 'The company’s users can sign in and work again.'}
-        </div>
+        <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6 }}>{cfg.text}</div>
         <div>
           <label style={labelStyle} htmlFor="status-reason">Reason (for the audit log)</label>
           <input id="status-reason" value={reason} onChange={(e) => setReason(e.target.value)} style={inputStyle} maxLength={500} />
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <Btn onClick={onClose}>Cancel</Btn>
-          <Btn variant={suspending ? 'danger' : 'success'} disabled={mutation.isPending} onClick={() => mutation.mutate()}>
-            {mutation.isPending ? '…' : suspending ? 'Suspend' : 'Reactivate'}
+          <Btn variant={cfg.variant} disabled={mutation.isPending} onClick={() => mutation.mutate()}>
+            {mutation.isPending ? '…' : cfg.button}
           </Btn>
         </div>
       </div>
@@ -81,9 +96,114 @@ function StatusModal({ tenant, onClose, onDone }) {
   );
 }
 
+/** Add another company admin; they get a set-password link by email. */
+function InviteAdminModal({ tenant, onClose, onDone }) {
+  const [form, setForm] = useState({ name: '', email: '' });
+  const mutation = useMutation({
+    mutationFn: () => inviteTenantAdmin(tenant.key, { name: form.name.trim(), email: form.email.trim() }),
+    onSuccess: (res) => {
+      if (res.invite?.sent) toast.success(`Invite sent to ${res.admin.email}`);
+      else toast.error(`${res.admin.email} was added, but the email failed: ${res.invite?.error}. Use “Resend invite”.`);
+      onDone();
+    },
+    onError: (err) => toast.error(platformErrorMessage(err, 'Could not invite the admin')),
+  });
+  return (
+    <Modal title={`Invite an admin to ${tenant.name}`} onClose={mutation.isPending ? undefined : onClose}>
+      <form
+        onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }}
+        style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+      >
+        <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6 }}>
+          The new admin is added on the Company Admin role and emailed a link to set their own password.
+        </div>
+        <div>
+          <label style={labelStyle} htmlFor="ia-name">Name</label>
+          <input id="ia-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required style={inputStyle} />
+        </div>
+        <div>
+          <label style={labelStyle} htmlFor="ia-email">Email</label>
+          <input id="ia-email" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} required style={inputStyle} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <Btn onClick={onClose} disabled={mutation.isPending}>Cancel</Btn>
+          <Btn type="submit" variant="primary" disabled={mutation.isPending || !form.name.trim() || !form.email.trim()}>
+            {mutation.isPending ? 'Sending…' : 'Send invite'}
+          </Btn>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+const detailsFrom = (t) => ({
+  name: t.name || '',
+  contactName: t.contact?.name || '',
+  contactEmail: t.contact?.email || '',
+  contactPhone: t.contact?.phone || '',
+  maxUsers: t.limits?.maxUsers == null ? '' : String(t.limits.maxUsers),
+  allowSelfSignup: t.allowSelfSignup === true,
+});
+
+/** Name, contact, user limit and self sign-up (platform.tenants.edit). */
+function DetailsCard({ tenant, canEdit, onSaved }) {
+  const saved = detailsFrom(tenant);
+  const [draft, setDraft] = useState(null);
+  const form = draft ?? saved;
+  const dirty = JSON.stringify(form) !== JSON.stringify(saved);
+  const set = (field) => (e) => setDraft({ ...form, [field]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
+
+  const mutation = useMutation({
+    mutationFn: () => updateTenant(tenant.key, {
+      name: form.name.trim(),
+      contact: { name: form.contactName.trim(), email: form.contactEmail.trim(), phone: form.contactPhone.trim() },
+      limits: { maxUsers: form.maxUsers === '' ? null : Number(form.maxUsers) },
+      allowSelfSignup: form.allowSelfSignup,
+    }),
+    onSuccess: (res) => {
+      setDraft(null);
+      toast.success(res.changed.length ? 'Saved' : 'Nothing to change');
+      onSaved(res);
+    },
+    onError: (err) => toast.error(platformErrorMessage(err, 'Could not save')),
+  });
+
+  const field = (id, label, key, props = {}) => (
+    <div>
+      <label style={labelStyle} htmlFor={id}>{label}</label>
+      <input id={id} value={form[key]} onChange={set(key)} disabled={!canEdit} style={inputStyle} {...props} />
+    </div>
+  );
+
+  return (
+    <Card>
+      <div style={sectionTitle}>Details</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+        {field('cd-name', 'Company name', 'name')}
+        {field('cd-contact-name', 'Contact name', 'contactName')}
+        {field('cd-contact-email', 'Contact email', 'contactEmail', { type: 'email' })}
+        {field('cd-contact-phone', 'Contact phone', 'contactPhone')}
+        {field('cd-max-users', 'User limit (empty = none)', 'maxUsers', { type: 'number', min: 1, step: 1 })}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, alignSelf: 'end', paddingBottom: 8 }}>
+          <input type="checkbox" checked={form.allowSelfSignup} onChange={set('allowSelfSignup')} disabled={!canEdit} style={{ width: 'auto', flex: 'none', margin: 0 }} />
+          Allow self sign-up
+        </label>
+      </div>
+      {canEdit && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+          <Btn variant="primary" disabled={!dirty || mutation.isPending} onClick={() => mutation.mutate()}>
+            {mutation.isPending ? 'Saving…' : 'Save details'}
+          </Btn>
+          {dirty && <Btn onClick={() => setDraft(null)}>Discard</Btn>}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default function CompanyDetail() {
   const { key } = useParams();
-  const { isOwner } = usePlatformAuth();
+  const can = usePlatformCan();
   const queryClient = useQueryClient();
 
   const { data, isLoading, error } = useQuery({ queryKey: ['platform', 'tenant', key], queryFn: () => getTenant(key) });
@@ -94,7 +214,8 @@ export default function CompanyDetail() {
   const [modulesDraft, setModulesDraft] = useState(null);
   const [rolesDraft, setRolesDraft] = useState(null);
   const [syncResult, setSyncResult] = useState(null);
-  const [statusModal, setStatusModal] = useState(false);
+  const [statusAction, setStatusAction] = useState(null);
+  const [inviting, setInviting] = useState(false);
 
   const tenant = data?.tenant;
   const refresh = () => {
@@ -129,10 +250,34 @@ export default function CompanyDetail() {
     onError: (err) => toast.error(platformErrorMessage(err, 'Could not send the invite')),
   });
 
+  const resetPassword = useMutation({
+    mutationFn: (email) => resetTenantAdminPassword(key, email),
+    onSuccess: (res) => { toast.success(`Password reset link sent to ${res.invite.email}`); refresh(); },
+    onError: (err) => toast.error(platformErrorMessage(err, 'Could not send the reset link')),
+  });
+
+  const applyTenant = (res) => {
+    queryClient.setQueryData(['platform', 'tenant', key], (old) => (old ? { ...old, tenant: { ...old.tenant, ...res.tenant } } : old));
+    refresh();
+  };
+
   if (isLoading) return <LoadingSpinner />;
   if (error) return <div style={errorBox}>{platformErrorMessage(error, 'Could not load this company')}</div>;
 
-  const editable = isOwner && ['active', 'suspended'].includes(tenant.status);
+  // What this user may do; the server checks each request again.
+  const inUse = ['active', 'suspended'].includes(tenant.status);
+  const editable = can('platform.tenants.manage_modules') && inUse;
+  const canEditDetails = can('platform.tenants.edit') && inUse;
+  const canChangeStatus = can('platform.tenants.suspend');
+  const isActive = tenant.status === 'active';
+  const canInvite = can('platform.tenant_admins.invite') && isActive;
+  const canResend = can('platform.tenant_admins.resend_invite') && isActive;
+  const canReset = can('platform.tenant_admins.reset_password') && isActive;
+  const statusButtons = !canChangeStatus ? [] : {
+    active: ['suspend', 'archive'],
+    suspended: ['reactivate', 'archive'],
+    archived: ['reactivate'],
+  }[tenant.status] || [];
   const coreModules = meta?.coreModules || [];
   const optionalModules = (meta?.modules || []).filter((m) => !coreModules.includes(m));
   const adminKey = meta?.tenantAdminTemplateKey || 'tenant_admin';
@@ -159,11 +304,11 @@ export default function CompanyDetail() {
           <h1 style={{ fontSize: 20, fontWeight: 600 }}>{tenant.name}</h1>
           <TenantStatusBadge status={tenant.status} />
           <div style={{ flex: 1 }} />
-          {isOwner && ['active', 'suspended'].includes(tenant.status) && (
-            <Btn variant={tenant.status === 'active' ? 'danger' : 'success'} onClick={() => setStatusModal(true)}>
-              {tenant.status === 'active' ? 'Suspend' : 'Reactivate'}
+          {statusButtons.map((action) => (
+            <Btn key={action} variant={STATUS_ACTIONS[action].variant} onClick={() => setStatusAction(action)}>
+              {STATUS_ACTIONS[action].button}
             </Btn>
-          )}
+          ))}
         </div>
         <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4, lineHeight: 1.7 }}>
           <span style={{ fontFamily: 'var(--mono)' }}>{tenant.key}</span>
@@ -177,10 +322,13 @@ export default function CompanyDetail() {
       {tenant.provisioningError && (
         <div style={errorBox}>
           Provisioning failed at “{tenant.provisioningError.step}”: {tenant.provisioningError.message}.
-          {' '}Create the company again with the same key to resume.
+          {' '}Create the company again with the same key to resume. Until then nobody can use it.
         </div>
       )}
       {tenant.status === 'suspended' && <div style={noteBox}>This company is suspended. Its users can&apos;t sign in.</div>}
+      {tenant.status === 'archived' && <div style={noteBox}>This company is archived. Its users can&apos;t sign in; its data is kept.</div>}
+
+      <DetailsCard key={`${tenant.updatedAt}`} tenant={tenant} canEdit={canEditDetails} onSaved={applyTenant} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, alignItems: 'start' }}>
         {/* Modules */}
@@ -255,11 +403,12 @@ export default function CompanyDetail() {
         <div style={{ display: 'flex', alignItems: 'center', padding: '16px 20px 8px', gap: 8 }}>
           <div style={{ ...sectionTitle, marginBottom: 0 }}>Company admins</div>
           <div style={{ flex: 1 }} />
-          {isOwner && tenant.status === 'active' && tenant.adminEmail && (
+          {canResend && tenant.adminEmail && (
             <Btn small disabled={invite.isPending} onClick={() => invite.mutate(undefined)}>
               Resend invite to {tenant.adminEmail}
             </Btn>
           )}
+          {canInvite && <Btn small variant="primary" onClick={() => setInviting(true)}>Invite admin</Btn>}
         </div>
         {data.adminsError ? (
           <div style={{ ...errorBox, margin: '0 20px 16px' }}>Could not read the company&apos;s database: {data.adminsError}</div>
@@ -273,7 +422,7 @@ export default function CompanyDetail() {
                 <th style={thStyle}>Email</th>
                 <th style={thStyle}>Status</th>
                 <th style={thStyle}>Last sign-in</th>
-                {isOwner && <th style={thStyle} />}
+                {(canResend || canReset) && <th style={thStyle} />}
               </tr>
             </thead>
             <tbody>
@@ -283,10 +432,22 @@ export default function CompanyDetail() {
                   <td style={tdStyle}>{a.email}</td>
                   <td style={tdStyle}><Badge variant={a.isActive ? 'success' : 'default'}>{a.isActive ? 'active' : 'inactive'}</Badge></td>
                   <td style={{ ...tdStyle, color: 'var(--text2)' }}>{a.lastLogin ? formatDateTime(a.lastLogin) : 'Never'}</td>
-                  {isOwner && (
-                    <td style={{ ...tdStyle, textAlign: 'right' }}>
-                      {tenant.status === 'active' && (
+                  {(canResend || canReset) && (
+                    <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {canResend && a.isActive && !a.lastLogin && (
                         <Btn small disabled={invite.isPending} onClick={() => invite.mutate(a.email)}>Resend invite</Btn>
+                      )}
+                      {canReset && a.isActive && (
+                        <Btn
+                          small
+                          style={{ marginLeft: 6 }}
+                          disabled={resetPassword.isPending}
+                          onClick={() => {
+                            if (window.confirm(`Email ${a.email} a link to set a new password?`)) resetPassword.mutate(a.email);
+                          }}
+                        >
+                          Reset password
+                        </Btn>
                       )}
                     </td>
                   )}
@@ -297,15 +458,22 @@ export default function CompanyDetail() {
         )}
       </Card>
 
-      {statusModal && (
+      {statusAction && (
         <StatusModal
           tenant={tenant}
-          onClose={() => setStatusModal(false)}
+          action={statusAction}
+          onClose={() => setStatusAction(null)}
           onDone={(res) => {
-            setStatusModal(false);
-            queryClient.setQueryData(['platform', 'tenant', key], (old) => (old ? { ...old, tenant: { ...old.tenant, ...res.tenant } } : old));
-            refresh();
+            setStatusAction(null);
+            applyTenant(res);
           }}
+        />
+      )}
+      {inviting && (
+        <InviteAdminModal
+          tenant={tenant}
+          onClose={() => setInviting(false)}
+          onDone={() => { setInviting(false); refresh(); }}
         />
       )}
     </div>

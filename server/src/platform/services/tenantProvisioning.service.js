@@ -9,11 +9,12 @@
  *   6. create the admin user on tenant_admin and email a set-password link
  *   7. status 'active', audit 'tenant.provision'
  *
- * Any failure after step 2 sets status 'failed', stores { step, message } in
- * provisioningError, audits 'tenant.provisionFailed' and throws a
- * TenantProvisioningError. Every step can run again, so the same request
- * resumes a failed company: a 'failed' (or abandoned 'provisioning') tenant with
- * the same key is picked up instead of being reported as taken.
+ * Any failure after step 2 leaves status 'provisioning' (never half-active),
+ * stores { step, message } in provisioningError, releases the attempt lock,
+ * audits 'tenant.provisionFailed' and throws a TenantProvisioningError. Every
+ * step can run again, so the same request resumes the company: a
+ * 'provisioning' tenant with the same key whose last attempt failed (or was
+ * abandoned) is picked up instead of being reported as taken.
  *
  * Never logs or returns a URI.
  */
@@ -23,6 +24,7 @@ const email = require('../../utils/email');
 const connectionManager = require('../../config/connectionManager');
 const { getModelForConnection, schemas } = require('../../config/modelRegistry');
 const { mapTenantRecord, redactUris, invalidateTenantCache } = require('../../config/tenants');
+const { tenantAppUrl, requireAppDomain } = require('../../config/appDomain');
 const { MODULES } = require('../../config/permissions');
 const { TENANT_ADMIN_TEMPLATE, RETIRED_TEMPLATE_KEYS } = require('../../config/defaultRoles');
 const {
@@ -35,7 +37,6 @@ const { tenantKeyProblem } = require('../models/Tenant');
 const roleSync = require('./roleSync.service');
 const { SYSTEM_ACTOR, normalizeEmail } = require('./platformUser.service');
 
-const TENANT_APP_DOMAIN = 'logiforce.app';
 const TENANT_ADMIN_KEY = TENANT_ADMIN_TEMPLATE.key;
 
 // A 'provisioning' tenant whose last attempt started longer ago than this is
@@ -44,12 +45,9 @@ const PROVISIONING_LOCK_MS = 5 * 60 * 1000;
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** https://<key>.logiforce.app — where the company's users sign in. */
-const tenantAppUrl = (key) => `https://${key}.${TENANT_APP_DOMAIN}`;
 
-// CompanySettings' schema defaults are one real company's details (name, TRN,
-// bank account, invoice prefix). A new company starts with its own name and
-// these fields empty; its admin fills them in under Settings.
+// A new company starts with its own name and every other detail empty; its
+// admin fills them in under Settings.
 const initialCompanySettings = (companyName) => ({
   companyName,
   addressLine1: '',
@@ -124,6 +122,29 @@ const validateProvisionInput = (body = {}) => {
     if (!roleTemplateKeys.includes(TENANT_ADMIN_KEY)) roleTemplateKeys.unshift(TENANT_ADMIN_KEY);
   }
 
+  const contact = { name: '', email: '', phone: '' };
+  if (body.contact !== undefined && body.contact !== null) {
+    if (typeof body.contact !== 'object' || Array.isArray(body.contact)) {
+      errors.contact = 'contact must be an object { name, email, phone }';
+    } else {
+      for (const field of ['name', 'email', 'phone']) {
+        const v = body.contact[field];
+        if (v === undefined || v === null) continue;
+        if (typeof v !== 'string') errors.contact = `contact.${field} must be text`;
+        else contact[field] = v.trim();
+      }
+      contact.email = contact.email.toLowerCase();
+      if (contact.email && !EMAIL_PATTERN.test(contact.email)) errors.contact = 'contact.email is not a valid email address';
+    }
+  }
+
+  let maxUsers = null;
+  const rawMax = body.limits?.maxUsers;
+  if (rawMax !== undefined && rawMax !== null && rawMax !== '') {
+    maxUsers = Number(rawMax);
+    if (!Number.isInteger(maxUsers) || maxUsers < 1) errors.limits = 'limits.maxUsers must be a whole number of at least 1';
+  }
+
   if (Object.keys(errors).length) {
     throw badRequest(`Invalid request: ${Object.values(errors).join('; ')}`, errors);
   }
@@ -135,6 +156,8 @@ const validateProvisionInput = (body = {}) => {
     adminEmail,
     enabledModules,
     roleTemplateKeys,
+    contact,
+    limits: { maxUsers },
   };
 };
 
@@ -207,7 +230,7 @@ const ensureAdminUser = async (conn, { adminName, adminEmail }, roleId) => {
 
 /**
  * Step 6's email: a password-reset token on the user and the standard reset
- * email, pointing at https://<key>.logiforce.app/reset-password/<token>. The
+ * email, pointing at https://<key>.<APP_DOMAIN>/reset-password/<token>. The
  * token is removed again if the email can't be sent. Also used by resend-invite.
  *
  * @returns {Promise<{ email: string, expiresAt: Date }>}
@@ -251,6 +274,8 @@ const publicTenant = (t) => ({
   _id: t._id,
   key: t.key,
   name: t.name,
+  contact: t.contact ?? null,
+  limits: t.limits ?? null,
   dbName: t.dbName,
   status: t.status,
   enabledModules: t.enabledModules,
@@ -282,11 +307,14 @@ const claimTenant = async (input, actor, req) => {
     adminEmail: input.adminEmail,
     enabledModules: input.enabledModules,
     roleTemplateKeys: input.roleTemplateKeys,
+    contact: input.contact,
+    limits: input.limits,
   };
 
   const existing = await Tenant.findOne({ key: input.key }).lean();
   if (existing) {
-    if (!['failed', 'provisioning'].includes(existing.status)) {
+    // 'failed' only exists on records written before failures stayed 'provisioning'.
+    if (!['provisioning', 'failed'].includes(existing.status)) {
       throw new TenantProvisioningError(409, 'TENANT_KEY_TAKEN', `The key "${input.key}" is already taken`);
     }
     const startedAt = existing.provisioning?.startedAt || null;
@@ -365,6 +393,11 @@ const pick = (obj, fields) => Object.fromEntries(Object.keys(fields).map((k) => 
 const provisionTenant = async ({ body, actor = SYSTEM_ACTOR, req } = {}) => {
   const input = validateProvisionInput(body);
   if (!email.isEmailConfigured()) throw emailNotConfigured();
+  try {
+    requireAppDomain(); // the admin's link goes to https://<key>.<APP_DOMAIN>
+  } catch (err) {
+    throw new TenantProvisioningError(503, 'APP_DOMAIN_NOT_CONFIGURED', `${err.message} Nothing was created.`);
+  }
 
   const { tenant: claimed, resumed } = await claimTenant(input, actor, req);
   const { Tenant, PlatformAuditLog } = platformModels.getPlatformModels();
@@ -449,7 +482,13 @@ const provisionTenant = async ({ body, actor = SYSTEM_ACTOR, req } = {}) => {
     try {
       await Tenant.updateOne(
         { _id: tenant._id },
-        { $set: { status: 'failed', provisioningError: { step, message, at: new Date() } } }
+        {
+          $set: {
+            status: 'provisioning',
+            'provisioning.startedAt': null, // release the lock: a retry may start at once
+            provisioningError: { step, message, at: new Date() },
+          },
+        }
       );
       invalidateTenantCache(tenant.key);
       await PlatformAuditLog.record({
@@ -459,7 +498,7 @@ const provisionTenant = async ({ body, actor = SYSTEM_ACTOR, req } = {}) => {
         targetId: tenant._id,
         targetKey: tenant.key,
         before: null,
-        after: { status: 'failed', step, error: message },
+        after: { status: 'provisioning', step, error: message },
         req,
       });
     } catch (recordErr) {
@@ -467,58 +506,77 @@ const provisionTenant = async ({ body, actor = SYSTEM_ACTOR, req } = {}) => {
     }
     logger.error(`[Provisioning] ${tenant.key} failed at ${step}: ${message}`);
     throw new TenantProvisioningError(500, 'PROVISIONING_FAILED',
-      `Provisioning "${tenant.key}" failed at step "${step}": ${message}. The company is marked failed; `
-      + 'fix the cause and send the same request again to resume.',
+      `Provisioning "${tenant.key}" failed at step "${step}": ${message}. The company stays in `
+      + 'provisioning and cannot be used; fix the cause and send the same request again to resume.',
       { tenantKey: tenant.key, step, retryable: true });
   }
 };
 
-/**
- * POST /api/platform/tenants/:key/resend-invite — send the company admin a new
- * set-password link (step 6's email). `email` defaults to the admin recorded at
- * provisioning; the user must be on the tenant_admin role.
- */
-const resendAdminInvite = async ({ key, email: requestedEmail, actor = SYSTEM_ACTOR, req } = {}) => {
-  const { Tenant, PlatformAuditLog } = platformModels.getPlatformModels();
+// ── Company admins, after provisioning ──
+
+const findActiveTenantOrThrow = async (key, purpose) => {
+  const { Tenant } = platformModels.getPlatformModels();
   const tenantKey = String(key || '').trim().toLowerCase();
   const tenant = await Tenant.findOne({ key: tenantKey }).lean();
   if (!tenant) throw new TenantProvisioningError(404, 'TENANT_NOT_FOUND', `No company with key "${tenantKey}"`);
   if (tenant.status !== 'active') {
     throw new TenantProvisioningError(409, 'TENANT_NOT_ACTIVE',
-      `"${tenant.key}" is ${tenant.status}. The link only works for an active company`
-      + (tenant.status === 'failed' ? '; retry POST /api/platform/tenants to finish provisioning (it sends the invite).' : '.'));
+      `"${tenant.key}" is ${tenant.status}. ${purpose} only works for an active company`
+      + (tenant.status === 'provisioning' ? '; retry POST /api/platform/tenants to finish provisioning (it sends the invite).' : '.'));
   }
+  return tenant;
+};
 
-  const target = normalizeEmail(requestedEmail || tenant.adminEmail);
-  if (!target) {
-    throw badRequest('This company has no admin email on record; pass { "email": "..." }', {
-      email: 'required for this company',
-    });
-  }
-  if (!EMAIL_PATTERN.test(target)) throw badRequest('email is not a valid email address', { email: 'not valid' });
-  if (!email.isEmailConfigured()) throw emailNotConfigured();
+const requireEmail = (raw, field = 'email') => {
+  const value = normalizeEmail(raw);
+  if (!value) throw badRequest(`${field} is required`, { [field]: 'required' });
+  if (!EMAIL_PATTERN.test(value)) throw badRequest(`${field} is not a valid email address`, { [field]: 'not valid' });
+  return value;
+};
 
-  const conn = await connectionManager.getConnectionForTenant(mapTenantRecord(tenant));
+/** The company user `email`, who must be on the tenant_admin role. */
+const findCompanyAdmin = async (tenant, conn, email) => {
   const User = getModelForConnection(conn, 'User');
   const Role = getModelForConnection(conn, 'Role');
-  const user = await User.findOne({ email: target });
-  if (!user) throw new TenantProvisioningError(404, 'ADMIN_NOT_FOUND', `No user ${target} in "${tenant.key}"`);
+  const user = await User.findOne({ email });
+  if (!user) throw new TenantProvisioningError(404, 'ADMIN_NOT_FOUND', `No user ${email} in "${tenant.key}"`);
   const role = await Role.findById(user.roleId).select('templateKey').lean();
   if (role?.templateKey !== TENANT_ADMIN_KEY) {
     throw new TenantProvisioningError(409, 'NOT_COMPANY_ADMIN',
-      `${target} is not on the company admin role (${TENANT_ADMIN_KEY}) in "${tenant.key}"`);
+      `${email} is not on the company admin role (${TENANT_ADMIN_KEY}) in "${tenant.key}"`);
   }
+  return user;
+};
 
-  let invite;
+const sendLinkOrThrow = async (args) => {
   try {
-    invite = await sendTenantAdminInvite({ tenant, conn, user });
+    return await sendTenantAdminInvite(args);
   } catch (err) {
     throw new TenantProvisioningError(502, 'EMAIL_SEND_FAILED', redactUris(err.message));
   }
+};
 
+/**
+ * Email a company admin a set-password link (the same link the provisioning
+ * invite sends). Shared by resend-invite and reset-password, which differ only
+ * in their permission and audit action. Nobody ever sees a password.
+ */
+const sendAdminLink = async ({ key, email: requestedEmail, action, purpose, actor, req }) => {
+  const tenant = await findActiveTenantOrThrow(key, purpose);
+  const target = requireEmail(requestedEmail || tenant.adminEmail);
+  if (!email.isEmailConfigured()) throw emailNotConfigured();
+
+  const conn = await connectionManager.getConnectionForTenant(mapTenantRecord(tenant));
+  const user = await findCompanyAdmin(tenant, conn, target);
+  if (user.isActive === false) {
+    throw new TenantProvisioningError(409, 'ADMIN_INACTIVE', `${target} is deactivated in "${tenant.key}"`);
+  }
+  const invite = await sendLinkOrThrow({ tenant, conn, user });
+
+  const { PlatformAuditLog } = platformModels.getPlatformModels();
   await PlatformAuditLog.record({
     actor,
-    action: 'tenant.adminInviteSent',
+    action,
     targetType: 'Tenant',
     targetId: tenant._id,
     targetKey: tenant.key,
@@ -528,8 +586,76 @@ const resendAdminInvite = async ({ key, email: requestedEmail, actor = SYSTEM_AC
   return { tenantKey: tenant.key, invite };
 };
 
+/**
+ * POST /api/platform/tenants/:key/resend-invite — { email? } defaults to the
+ * admin recorded at provisioning. (platform.tenant_admins.resend_invite)
+ */
+const resendAdminInvite = ({ key, email: requestedEmail, actor = SYSTEM_ACTOR, req } = {}) => sendAdminLink({
+  key, email: requestedEmail, action: 'tenant.adminInviteSent', purpose: 'The link', actor, req,
+});
+
+/**
+ * POST /api/platform/tenants/:key/admins/reset-password — { email }: email that
+ * company admin a password-reset link. (platform.tenant_admins.reset_password)
+ */
+const resetAdminPassword = async ({ key, email: requestedEmail, actor = SYSTEM_ACTOR, req } = {}) => {
+  if (!requestedEmail) throw badRequest('email is required', { email: 'required' });
+  return sendAdminLink({
+    key, email: requestedEmail, action: 'tenant.adminPasswordReset', purpose: 'A password reset', actor, req,
+  });
+};
+
+/**
+ * POST /api/platform/tenants/:key/admins — { name, email }: add another
+ * company admin on the tenant_admin role and email them a set-password link.
+ * An email already used by a company user is refused (that user's access is
+ * the company's own business). (platform.tenant_admins.invite)
+ */
+const inviteTenantAdmin = async ({ key, body = {}, actor = SYSTEM_ACTOR, req } = {}) => {
+  const tenant = await findActiveTenantOrThrow(key, 'Inviting an admin');
+  const adminEmail = requireEmail(body.email);
+  const adminName = typeof body.name === 'string' ? body.name.trim() : '';
+  if (!adminName) throw badRequest('name is required', { name: 'required' });
+  if (!email.isEmailConfigured()) throw emailNotConfigured();
+
+  const conn = await connectionManager.getConnectionForTenant(mapTenantRecord(tenant));
+  const User = getModelForConnection(conn, 'User');
+  const Role = getModelForConnection(conn, 'Role');
+  if (await User.findOne({ email: adminEmail }).lean()) {
+    throw new TenantProvisioningError(409, 'USER_EXISTS',
+      `${adminEmail} already has an account in "${tenant.key}". Its admins manage existing users.`);
+  }
+  if (tenant.limits?.maxUsers) {
+    const active = await User.countDocuments({ isActive: true });
+    if (active + 1 > tenant.limits.maxUsers) {
+      throw new TenantProvisioningError(409, 'USER_LIMIT', `"${tenant.key}" is at its user limit (${tenant.limits.maxUsers})`);
+    }
+  }
+  const adminRole = await Role.findOne({ templateKey: TENANT_ADMIN_KEY, isActive: { $ne: false } }).lean();
+  if (!adminRole) throw new TenantProvisioningError(409, 'NO_ADMIN_ROLE', `"${tenant.key}" has no active ${TENANT_ADMIN_KEY} role; sync its roles first`);
+
+  const { user } = await ensureAdminUser(conn, { adminName, adminEmail }, adminRole._id);
+  let invite;
+  try {
+    invite = { ...(await sendTenantAdminInvite({ tenant, conn, user })), sent: true };
+  } catch (err) {
+    invite = { sent: false, error: redactUris(err.message) };
+  }
+
+  const { PlatformAuditLog } = platformModels.getPlatformModels();
+  await PlatformAuditLog.record({
+    actor,
+    action: 'tenant.adminInvited',
+    targetType: 'Tenant',
+    targetId: tenant._id,
+    targetKey: tenant.key,
+    after: { email: adminEmail, name: adminName, userId: user._id, inviteSent: invite.sent },
+    req,
+  });
+  return { tenantKey: tenant.key, admin: { _id: user._id, name: adminName, email: adminEmail }, invite };
+};
+
 module.exports = {
-  TENANT_APP_DOMAIN,
   PROVISIONING_LOCK_MS,
   TenantProvisioningError,
   tenantAppUrl,
@@ -538,4 +664,6 @@ module.exports = {
   sendTenantAdminInvite,
   provisionTenant,
   resendAdminInvite,
+  resetAdminPassword,
+  inviteTenantAdmin,
 };

@@ -175,7 +175,7 @@ const PlatformSetPasswordRedirect = () => {
 };
 
 const App = () => {
-  // admin.logiforce.app serves only the platform console.
+  // admin.<VITE_APP_DOMAIN> serves only the platform console.
   const platformHost = isPlatformHost();
   return (
     <ErrorBoundary>

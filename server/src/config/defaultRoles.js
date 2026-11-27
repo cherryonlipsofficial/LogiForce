@@ -1,8 +1,9 @@
 /**
  * Role definitions.
  *
- *   defaultRoles   — the business roles the tenant role seed
- *                    (src/scripts/seedRoles.js) writes into a company database.
+ *   defaultRoles   — the business roles offered to companies (as role
+ *                    templates, below). Nothing writes them into a company
+ *                    database directly; roleSync copies the templates.
  *                    There is no all-permissions admin any more: a company's
  *                    admin is the tenant_admin role (TENANT_ADMIN_TEMPLATE).
  *   ROLE_TEMPLATES — what the platform seed (src/platform/scripts/seedPlatform.js)
