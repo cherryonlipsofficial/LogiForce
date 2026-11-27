@@ -30,11 +30,11 @@ const findPlatformUserByEmail = (email) => {
  * @returns {Promise<import('mongoose').Document>} the saved user (passwordHash not exposed by toJSON)
  */
 const createPlatformUser = async ({
-  email, name, password, role = 'owner', status = 'active', actor = SYSTEM_ACTOR, req,
+  email, name, password, roleKey, invitedBy = null, actor = SYSTEM_ACTOR, req,
 }) => {
   const { PlatformUser, PlatformAuditLog } = getPlatformModels();
 
-  const user = new PlatformUser({ email, name, role, status });
+  const user = new PlatformUser({ email, name, roleKey, isActive: true, invitedBy });
   await user.setPassword(password);
   await user.save();
 
@@ -55,7 +55,7 @@ const createPlatformUser = async ({
 /**
  * Set a new password, increment tokenVersion (every existing platform session
  * stops working) and drop any sign-in still waiting for its emailed code.
- * Audits 'platformUser.password_reset'. Role and status are left alone.
+ * Audits 'platformUser.password_reset'. Role and isActive are left alone.
  *
  * @returns {Promise<{ tokenVersion: number }>}
  */
@@ -100,17 +100,22 @@ class PasswordSetError extends Error {
 }
 
 /**
- * Base URL of the platform console, from PLATFORM_CONSOLE_URL. The emailed
- * link is `${base}/set-password/<token>`; the console page there calls
- * GET and POST /api/platform/auth/set-password.
+ * Base URL of the platform console: PLATFORM_CONSOLE_URL if set, otherwise
+ * https://admin.<APP_DOMAIN>. The link is `${base}/set-password/<token>`; the
+ * console page there calls GET and POST /api/platform/auth/set-password.
  */
-const getPlatformConsoleUrl = () => (process.env.PLATFORM_CONSOLE_URL || '').trim().replace(/\/+$/, '');
+const getPlatformConsoleUrl = () => {
+  const explicit = (process.env.PLATFORM_CONSOLE_URL || '').trim().replace(/\/+$/, '');
+  if (explicit) return explicit;
+  const domain = (process.env.APP_DOMAIN || '').trim().toLowerCase();
+  return domain ? `https://admin.${domain}` : '';
+};
 
 const buildPlatformSetPasswordUrl = (token) => {
   const base = getPlatformConsoleUrl();
   if (!/^https?:\/\/[^\s]+$/i.test(base)) {
-    throw new Error('PLATFORM_CONSOLE_URL is not set (or not an http(s) URL). Set it to the platform console\'s '
-      + 'address, e.g. https://platform.logiforce.app, so the set-password link has somewhere to go.');
+    throw new Error('Neither PLATFORM_CONSOLE_URL nor APP_DOMAIN is set, so the set-password link has nowhere '
+      + 'to go. Set APP_DOMAIN (the console is then https://admin.<APP_DOMAIN>) or PLATFORM_CONSOLE_URL.');
   }
   return `${base}/set-password/${token}`;
 };
@@ -120,10 +125,12 @@ const buildPlatformSetPasswordUrl = (token) => {
  * They can't sign in until they use a link from sendPlatformSetPasswordLink().
  */
 const createInvitedPlatformUser = async ({
-  email, name, role = 'owner', actor = SYSTEM_ACTOR, req,
+  email, name, roleKey, invitedBy = null, actor = SYSTEM_ACTOR, req,
 }) => {
   const { PlatformUser, PlatformAuditLog } = getPlatformModels();
-  const user = await PlatformUser.create({ email, name, role, status: 'active', passwordHash: null });
+  const user = await PlatformUser.create({
+    email, name, roleKey, isActive: true, invitedBy, passwordHash: null,
+  });
   await PlatformAuditLog.record({
     actor,
     action: 'platformUser.create',
@@ -138,17 +145,16 @@ const createInvitedPlatformUser = async ({
 };
 
 /**
- * Issue a one-time set-password token (24h), store its hash and email the link.
- * A new link replaces any earlier one. If the email fails the token is removed
- * again and this throws. Audits 'platformUser.set_password_link_sent'.
+ * Issue a one-time set-password token (24h) and store its hash. A new token
+ * replaces any earlier one. Returns the link; the caller delivers it.
  *
- * @returns {Promise<{ email: string, expiresAt: Date }>}
+ * @returns {Promise<{ user, url: string, tokenHash: string, expiresAt: Date }>}
  */
-const sendPlatformSetPasswordLink = async ({ userId, actor = SYSTEM_ACTOR, req }) => {
-  const { PlatformUser, PlatformAuditLog } = getPlatformModels();
+const issuePlatformSetPasswordLink = async ({ userId }) => {
+  const { PlatformUser } = getPlatformModels();
   const user = await PlatformUser.findById(userId);
   if (!user) throw new Error('Platform user not found');
-  if (user.status !== 'active') throw new Error(`Platform user ${user.email} is ${user.status}`);
+  if (user.isActive !== true) throw new Error(`Platform user ${user.email} is deactivated`);
 
   const { token, tokenHash } = generateResetToken();
   const url = buildPlatformSetPasswordUrl(token); // before storing anything
@@ -157,6 +163,18 @@ const sendPlatformSetPasswordLink = async ({ userId, actor = SYSTEM_ACTOR, req }
     { _id: user._id },
     { $set: { passwordSetTokenHash: tokenHash, passwordSetExpires: expiresAt } }
   );
+  return { user, url, tokenHash, expiresAt };
+};
+
+/**
+ * Issue a set-password link and email it. If the email fails the token is
+ * removed again and this throws. Audits 'platformUser.set_password_link_sent'.
+ *
+ * @returns {Promise<{ email: string, expiresAt: Date }>}
+ */
+const sendPlatformSetPasswordLink = async ({ userId, actor = SYSTEM_ACTOR, req }) => {
+  const { PlatformUser, PlatformAuditLog } = getPlatformModels();
+  const { user, url, tokenHash, expiresAt } = await issuePlatformSetPasswordLink({ userId });
 
   try {
     await platformMailer.sendPlatformSetPasswordEmail({ to: user.email, name: user.name, url, expiresAt });
@@ -191,7 +209,7 @@ const checkPlatformSetPasswordToken = async (token) => {
   const user = await PlatformUser.findOne({
     passwordSetTokenHash: hashResetToken(token),
     passwordSetExpires: { $gt: new Date() },
-    status: 'active',
+    isActive: true,
   }).select('email name passwordSetExpires').lean();
   if (!user) throw invalidLink();
   return { email: user.email, name: user.name, expiresAt: user.passwordSetExpires };
@@ -216,7 +234,7 @@ const setPlatformPasswordWithToken = async ({ token, password, req }) => {
   const now = new Date();
   // One atomic update, so a token can only ever be used once.
   const user = await PlatformUser.findOneAndUpdate(
-    { passwordSetTokenHash: hashResetToken(token), passwordSetExpires: { $gt: now }, status: 'active' },
+    { passwordSetTokenHash: hashResetToken(token), passwordSetExpires: { $gt: now }, isActive: true },
     {
       $set: { passwordHash, passwordSetTokenHash: null, passwordSetExpires: null },
       $inc: { tokenVersion: 1 },
@@ -248,6 +266,7 @@ module.exports = {
   getPlatformConsoleUrl,
   buildPlatformSetPasswordUrl,
   createInvitedPlatformUser,
+  issuePlatformSetPasswordLink,
   sendPlatformSetPasswordLink,
   checkPlatformSetPasswordToken,
   setPlatformPasswordWithToken,

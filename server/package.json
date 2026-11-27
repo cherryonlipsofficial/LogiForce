@@ -17,7 +17,8 @@
     "migrate:permissions": "node src/scripts/migratePermissions.js",
     "migrate:platform": "node src/scripts/migrateToPlatform.js",
     "platform:create-owner": "node src/platform/scripts/createPlatformOwner.js",
-    "platform:verify-auth": "node src/platform/scripts/verifyPlatformAuth.js"
+    "platform:verify-auth": "node src/platform/scripts/verifyPlatformAuth.js",
+    "platform:migrate-users": "node src/platform/scripts/migratePlatformUsers.js"
   },
   "dependencies": {
     "adm-zip": "^0.5.17",

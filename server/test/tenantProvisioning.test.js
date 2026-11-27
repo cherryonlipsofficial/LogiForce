@@ -17,6 +17,7 @@ const { test, describe, beforeEach, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
 const { makeModel, clone, idEq } = require('./helpers/fakeDb');
+const { systemRoleDocs, platformUserDoc } = require('./helpers/platformRoles');
 
 // Stub the platform models BEFORE anything that destructures getPlatformModels at require time.
 const platformModels = require('../src/platform/models');
@@ -57,6 +58,7 @@ const resetPlatform = () => {
   });
   platform.RoleTemplate = makeModel(ROLE_TEMPLATES.map((t) => ({ ...clone({ ...t, permissions: [...t.permissions] }), version: 1 })));
   platform.PlatformUser = makeModel([]);
+  platform.PlatformRole = makeModel(systemRoleDocs());
   // Like the real record(): keeps only ip / user-agent from req.
   platform.PlatformAuditLog = {
     entries: [],
@@ -132,9 +134,9 @@ describe('validateProvisionInput', () => {
     assert.deepEqual(input.roleTemplateKeys, ['tenant_admin', 'viewer']);
   });
 
-  test('key rule: 3–31 lowercase letters, digits or hyphens, no hyphen at either end', () => {
-    for (const key of ['abc', '1st-freight', 'a-b', 'a'.repeat(31)]) assert.equal(validateProvisionInput({ ...BODY, key }).key, key);
-    for (const key of ['ab', '-abc', 'abc-', 'a_b', 'a.b', 'a'.repeat(32), '', 'ab c']) {
+  test('key rule: a lowercase letter, then 2–30 lowercase letters, digits or hyphens', () => {
+    for (const key of ['abc', 'first-freight', 'a-b', 'a1-', 'a'.repeat(31)]) assert.equal(validateProvisionInput({ ...BODY, key }).key, key);
+    for (const key of ['ab', '-abc', '1st', 'a_b', 'a.b', 'a'.repeat(32), '', 'ab c']) {
       assert.throws(() => validateProvisionInput({ ...BODY, key }), (err) => err.status === 400 && 'key' in err.extra.errors, key);
     }
   });
@@ -240,7 +242,7 @@ describe('provisionTenant', () => {
     assert.equal(platform.Tenant.docs.length, 0);
   });
 
-  test('failure part-way: status failed, error stored and audited; the same call resumes it', async () => {
+  test('failure part-way: stays provisioning, error stored and audited; the same call resumes it', async () => {
     // Make the role sync's first write fail once.
     const realGet = connectionManager.getConnectionForTenant;
     connectionManager.getConnectionForTenant = async (cfg) => {
@@ -261,7 +263,7 @@ describe('provisionTenant', () => {
       connectionManager.getConnectionForTenant = realGet;
     }
     let tenant = tenantNamed('acme-co');
-    assert.equal(tenant.status, 'failed');
+    assert.equal(tenant.status, 'provisioning', 'a failed attempt never leaves the company active');
     assert.equal(tenant.provisioningError.step, 'roles');
     assert.match(tenant.provisioningError.message, /simulated write failure/);
     assert.ok(actions().includes('tenant.provisionFailed'));
@@ -287,7 +289,7 @@ describe('provisionTenant', () => {
     const db = companyDbs.get('logiforce_acme_co');
     assert.equal(db.User.docs.length, 1);
     assert.equal(db.User.docs[0].passwordResetTokenHash, null);
-    assert.equal(tenantNamed('acme-co').status, 'failed');
+    assert.equal(tenantNamed('acme-co').status, 'provisioning');
 
     await provisionTenant({ body: BODY, actor: ACTOR });
     assert.equal(db.User.docs.length, 1);
@@ -304,7 +306,7 @@ describe('provisionTenant', () => {
     });
     const db = companyDbs.get('logiforce_acme_co');
     assert.equal(db.Role.docs.length + db.User.docs.length + db.CompanySettings.docs.length, 0);
-    assert.equal(tenantNamed('acme-co').status, 'failed');
+    assert.equal(tenantNamed('acme-co').status, 'provisioning');
   });
 
   test('a provisioning attempt started moments ago is not run twice', async () => {
@@ -344,8 +346,8 @@ describe('resendAdminInvite', () => {
 describe('HTTP: platform auth only', () => {
   let server;
   let base;
-  const owner = { _id: new mongoose.Types.ObjectId(), email: 'owner@platform.test', name: 'O', role: 'owner', status: 'active', tokenVersion: 0 };
-  const support = { _id: new mongoose.Types.ObjectId(), email: 'support@platform.test', name: 'S', role: 'support', status: 'active', tokenVersion: 0 };
+  const owner = platformUserDoc('platform_owner', { email: 'owner@platform.test', name: 'O' });
+  const support = platformUserDoc('platform_support', { email: 'support@platform.test', name: 'S' });
 
   before(async () => {
     const express = require('express');

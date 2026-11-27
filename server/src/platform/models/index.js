@@ -12,6 +12,7 @@ const PLATFORM_MODELS = Object.freeze([
   { name: 'Tenant', schema: require('./Tenant').schema, collection: 'tenants' },
   { name: 'RoleTemplate', schema: require('./RoleTemplate').schema, collection: 'role_templates' },
   { name: 'PlatformUser', schema: require('./PlatformUser').schema, collection: 'platform_users' },
+  { name: 'PlatformRole', schema: require('./PlatformRole').schema, collection: 'platform_roles' },
   { name: 'PlatformAuditLog', schema: require('./PlatformAuditLog').schema, collection: 'platform_audit_logs' },
   {
     name: 'PlatformLoginChallenge',
@@ -22,7 +23,8 @@ const PLATFORM_MODELS = Object.freeze([
 
 /**
  * @returns {{ Tenant: import('mongoose').Model, RoleTemplate: import('mongoose').Model,
- *             PlatformUser: import('mongoose').Model, PlatformAuditLog: import('mongoose').Model,
+ *             PlatformUser: import('mongoose').Model, PlatformRole: import('mongoose').Model,
+ *             PlatformAuditLog: import('mongoose').Model,
  *             PlatformLoginChallenge: import('mongoose').Model }}
  * Throws if the platform DB isn't connected yet (call connectPlatformDb() first).
  */

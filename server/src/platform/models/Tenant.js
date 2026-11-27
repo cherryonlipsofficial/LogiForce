@@ -17,20 +17,28 @@ const RESERVED_TENANT_KEYS = Object.freeze([
 // MongoDB's own system databases.
 const RESERVED_DB_NAMES = Object.freeze(['admin', 'local', 'config']);
 
-// 'failed': provisioning stopped part-way (see provisioningError). The same
-// POST /api/platform/tenants call resumes it.
-const TENANT_STATUSES = Object.freeze(['provisioning', 'active', 'suspended', 'failed']);
+// provisioning: being set up, or set-up stopped part-way (provisioningError
+//               says why; the same POST /api/platform/tenants resumes it).
+//               Its users get 503.
+// active:       in use.
+// suspended:    access blocked (403); data kept; can be reactivated.
+// archived:     access blocked (403); data kept. Companies are never deleted
+//               through the API.
+const TENANT_STATUSES = Object.freeze(['provisioning', 'active', 'suspended', 'archived']);
 
-// A tenant key (the subdomain): 3–31 lowercase letters, digits or hyphens, not
-// starting or ending with a hyphen. One pattern for everything: the schema, the
-// provisioning endpoint and the per-request lookup in config/tenants.js. 31 is
-// the most that keeps the derived database name ('logiforce_' + key) within
-// MongoDB's limit.
+// A tenant key (the subdomain): a lowercase letter, then 2–30 lowercase
+// letters, digits or hyphens. One pattern for everything: the schema, the
+// provisioning endpoint and the per-request lookup in config/tenants.js. 31
+// characters is the most that keeps the derived database name
+// ('logiforce_' + key) within MongoDB's limit.
 const TENANT_KEY_MIN_LENGTH = 3;
 const TENANT_KEY_MAX_LENGTH = 31;
-const TENANT_KEY_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,29})[a-z0-9]$/;
-const TENANT_KEY_RULE = `${TENANT_KEY_MIN_LENGTH}–${TENANT_KEY_MAX_LENGTH} characters: lowercase letters, digits `
-  + 'or hyphens, not starting or ending with a hyphen';
+const TENANT_KEY_PATTERN = /^[a-z][a-z0-9-]{2,30}$/;
+const TENANT_KEY_RULE = `${TENANT_KEY_MIN_LENGTH}–${TENANT_KEY_MAX_LENGTH} characters: a lowercase letter, then `
+  + 'lowercase letters, digits or hyphens';
+
+/** The database a new company gets: 'logiforce_' + key, hyphens as underscores. */
+const dbNameForKey = (key) => `logiforce_${String(key).replace(/-/g, '_')}`;
 
 /**
  * Why `key` can't be a tenant key, or null if it can. Doesn't check whether it
@@ -52,7 +60,7 @@ const isReservedDbName = (name) =>
 
 const tenantSchema = new Schema(
   {
-    // Subdomain, e.g. 'clienta' for clienta.logiforce.app
+    // Subdomain, e.g. 'acme' for acme.<APP_DOMAIN>
     key: {
       type: String,
       required: [true, 'Tenant key is required'],
@@ -85,12 +93,6 @@ const tenantSchema = new Schema(
         message: (props) => `"${props.value}" is a reserved database name`,
       },
     },
-    // The NAME of an env var that holds this tenant's MongoDB URI. Never a URI.
-    dbUriEnv: {
-      type: String,
-      default: null,
-      match: [/^[A-Z][A-Z0-9_]*$/, 'dbUriEnv must be an environment variable name (e.g. MONGODB_URI_CLIENTA), not a URI'],
-    },
     status: {
       type: String,
       enum: TENANT_STATUSES,
@@ -119,6 +121,18 @@ const tenantSchema = new Schema(
       type: Boolean,
       default: false,
     },
+    // Who to talk to at the company (not necessarily a LogiForce user).
+    contact: {
+      name: { type: String, trim: true, default: '' },
+      email: {
+        type: String,
+        trim: true,
+        lowercase: true,
+        default: '',
+        match: [/^$|^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Contact email is not valid'],
+      },
+      phone: { type: String, trim: true, default: '' },
+    },
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: 'PlatformUser',
@@ -138,7 +152,8 @@ const tenantSchema = new Schema(
       dbCheckedAt: { type: Date, default: null }, // the company database was found empty
       completedAt: { type: Date, default: null },
     },
-    // Set when status is 'failed'; cleared when a retry starts. Never holds a URI.
+    // Set when a provisioning attempt failed (status stays 'provisioning');
+    // cleared when a retry starts. Never holds a URI.
     provisioningError: {
       type: new Schema({ step: String, message: String, at: Date }, { _id: false }),
       default: null,
@@ -149,7 +164,7 @@ const tenantSchema = new Schema(
 
 tenantSchema.pre('validate', function () {
   if (!this.dbName && this.key) {
-    this.dbName = `logiforce_${this.key.replace(/-/g, '_')}`;
+    this.dbName = dbNameForKey(this.key);
   }
 
   for (const path of ['enabledModules', 'roleTemplateKeys']) {
@@ -168,4 +183,5 @@ module.exports = {
   TENANT_KEY_MAX_LENGTH,
   TENANT_KEY_RULE,
   tenantKeyProblem,
+  dbNameForKey,
 };

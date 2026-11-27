@@ -44,9 +44,9 @@ beforeEach(() => {
 
 describe('set-password link', () => {
   test('invite → link → set password: one use only, session version bumped, audited', async () => {
-    const user = await users.createInvitedPlatformUser({ email: 'me@platform.test', name: 'Me' });
+    const user = await users.createInvitedPlatformUser({ email: 'me@platform.test', name: 'Me', roleKey: 'platform_owner' });
     assert.equal(platform.PlatformUser.docs[0].passwordHash, null);
-    assert.equal(platform.PlatformUser.docs[0].role, 'owner');
+    assert.equal(platform.PlatformUser.docs[0].roleKey, 'platform_owner');
 
     const { expiresAt } = await users.sendPlatformSetPasswordLink({ userId: user._id });
     assert.equal(mail.sent.length, 1);
@@ -72,21 +72,22 @@ describe('set-password link', () => {
   });
 
   test('an expired link is refused', async () => {
-    const user = await users.createInvitedPlatformUser({ email: 'me@platform.test', name: 'Me' });
+    const user = await users.createInvitedPlatformUser({ email: 'me@platform.test', name: 'Me', roleKey: 'platform_owner' });
     await users.sendPlatformSetPasswordLink({ userId: user._id });
     platform.PlatformUser.docs[0].passwordSetExpires = new Date(Date.now() - 1000);
     await assert.rejects(users.setPlatformPasswordWithToken({ token: tokenFrom(mail.sent[0].url), password: PASSWORD }), /invalid or has expired/);
   });
 
-  test('no PLATFORM_CONSOLE_URL: nothing stored, clear error', async () => {
+  test('no PLATFORM_CONSOLE_URL and no APP_DOMAIN: nothing stored, clear error', async () => {
     delete process.env.PLATFORM_CONSOLE_URL;
-    const user = await users.createInvitedPlatformUser({ email: 'me@platform.test', name: 'Me' });
-    await assert.rejects(users.sendPlatformSetPasswordLink({ userId: user._id }), /PLATFORM_CONSOLE_URL is not set/);
+    delete process.env.APP_DOMAIN;
+    const user = await users.createInvitedPlatformUser({ email: 'me@platform.test', name: 'Me', roleKey: 'platform_owner' });
+    await assert.rejects(users.sendPlatformSetPasswordLink({ userId: user._id }), /Neither PLATFORM_CONSOLE_URL nor APP_DOMAIN is set/);
     assert.equal(platform.PlatformUser.docs[0].passwordSetTokenHash, undefined);
   });
 
   test('a failed email removes the token again', async () => {
-    const user = await users.createInvitedPlatformUser({ email: 'me@platform.test', name: 'Me' });
+    const user = await users.createInvitedPlatformUser({ email: 'me@platform.test', name: 'Me', roleKey: 'platform_owner' });
     mail.failNext = true;
     await assert.rejects(users.sendPlatformSetPasswordLink({ userId: user._id }), /Could not send/);
     assert.equal(platform.PlatformUser.docs[0].passwordSetTokenHash, null);
@@ -107,7 +108,7 @@ describe('HTTP: /api/platform/auth/set-password (public)', () => {
   after(() => new Promise((resolve) => server.close(resolve)));
 
   test('GET checks the link, POST uses it once', async () => {
-    const user = await users.createInvitedPlatformUser({ email: 'me@platform.test', name: 'Me' });
+    const user = await users.createInvitedPlatformUser({ email: 'me@platform.test', name: 'Me', roleKey: 'platform_owner' });
     await users.sendPlatformSetPasswordLink({ userId: user._id });
     const token = tokenFrom(mail.sent[0].url);
 

@@ -12,7 +12,7 @@
 const { Schema } = require('mongoose');
 
 const APPEND_ONLY_MESSAGE = 'Audit log is append-only';
-const TARGET_TYPES = Object.freeze(['Tenant', 'RoleTemplate', 'PlatformUser']);
+const TARGET_TYPES = Object.freeze(['Tenant', 'RoleTemplate', 'PlatformUser', 'PlatformRole']);
 
 // Keys removed from before/after snapshots at any depth: passwordHash, password,
 // token and anything else whose name contains "password" or "token"
@@ -32,6 +32,9 @@ const platformAuditLogSchema = new Schema(
     targetId: { type: Schema.Types.ObjectId, required: [true, 'targetId is required'] },
     // Tenant key, role key or email, so the log reads without a join
     targetKey: String,
+    // The company the change concerns, if any (set for every Tenant target),
+    // so one company's history can be listed.
+    tenantKey: { type: String, default: null },
     before: Schema.Types.Mixed,
     after: Schema.Types.Mixed,
     ip: String,
@@ -43,6 +46,7 @@ const platformAuditLogSchema = new Schema(
 platformAuditLogSchema.index({ createdAt: -1 });
 platformAuditLogSchema.index({ targetType: 1, targetId: 1, createdAt: -1 });
 platformAuditLogSchema.index({ 'actor.userId': 1, createdAt: -1 });
+platformAuditLogSchema.index({ tenantKey: 1, createdAt: -1 });
 
 // ── Append-only enforcement ──
 
@@ -119,12 +123,13 @@ const stripSensitive = (value, seen = new WeakSet()) => {
  * @param {string}  entry.targetType  'Tenant' | 'RoleTemplate' | 'PlatformUser'
  * @param {ObjectId} entry.targetId
  * @param {string}  [entry.targetKey] tenant key, role key or email
+ * @param {string}  [entry.tenantKey] company concerned; defaults to targetKey for a Tenant target
  * @param {*}       [entry.before]    snapshot before the change (sensitive fields stripped)
  * @param {*}       [entry.after]     snapshot after the change (sensitive fields stripped)
  * @param {import('express').Request} [entry.req] source of ip and user-agent
  */
 platformAuditLogSchema.statics.record = function record({
-  actor, action, targetType, targetId, targetKey, before, after, req,
+  actor, action, targetType, targetId, targetKey, tenantKey, before, after, req,
 } = {}) {
   const entry = {
     actor: { userId: actor?.userId ?? null, email: actor?.email },
@@ -132,6 +137,7 @@ platformAuditLogSchema.statics.record = function record({
     targetType,
     targetId,
     targetKey,
+    tenantKey: tenantKey ?? (targetType === 'Tenant' ? targetKey ?? null : null),
     before: stripSensitive(before),
     after: stripSensitive(after),
   };

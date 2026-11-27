@@ -28,8 +28,9 @@ const { notFound, badRequest, conflict } = require('../errors');
 
 const TENANT_ADMIN_KEY = TENANT_ADMIN_TEMPLATE.key;
 
-// Companies whose settings can be changed. A 'provisioning' or 'failed' company
-// is finished (or retried) through POST /api/platform/tenants instead.
+// Companies whose settings can be changed. A 'provisioning' company is
+// finished (or retried) through POST /api/platform/tenants instead; an
+// archived one must be reactivated first.
 const EDITABLE_STATUSES = Object.freeze(['active', 'suspended']);
 
 const normaliseKey = (key) => String(key || '').trim().toLowerCase();

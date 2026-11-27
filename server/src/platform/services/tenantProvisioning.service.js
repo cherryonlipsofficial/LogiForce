@@ -9,11 +9,12 @@
  *   6. create the admin user on tenant_admin and email a set-password link
  *   7. status 'active', audit 'tenant.provision'
  *
- * Any failure after step 2 sets status 'failed', stores { step, message } in
- * provisioningError, audits 'tenant.provisionFailed' and throws a
- * TenantProvisioningError. Every step can run again, so the same request
- * resumes a failed company: a 'failed' (or abandoned 'provisioning') tenant with
- * the same key is picked up instead of being reported as taken.
+ * Any failure after step 2 leaves status 'provisioning' (never half-active),
+ * stores { step, message } in provisioningError, releases the attempt lock,
+ * audits 'tenant.provisionFailed' and throws a TenantProvisioningError. Every
+ * step can run again, so the same request resumes the company: a
+ * 'provisioning' tenant with the same key whose last attempt failed (or was
+ * abandoned) is picked up instead of being reported as taken.
  *
  * Never logs or returns a URI.
  */
@@ -286,7 +287,8 @@ const claimTenant = async (input, actor, req) => {
 
   const existing = await Tenant.findOne({ key: input.key }).lean();
   if (existing) {
-    if (!['failed', 'provisioning'].includes(existing.status)) {
+    // 'failed' only exists on records written before failures stayed 'provisioning'.
+    if (!['provisioning', 'failed'].includes(existing.status)) {
       throw new TenantProvisioningError(409, 'TENANT_KEY_TAKEN', `The key "${input.key}" is already taken`);
     }
     const startedAt = existing.provisioning?.startedAt || null;
@@ -449,7 +451,13 @@ const provisionTenant = async ({ body, actor = SYSTEM_ACTOR, req } = {}) => {
     try {
       await Tenant.updateOne(
         { _id: tenant._id },
-        { $set: { status: 'failed', provisioningError: { step, message, at: new Date() } } }
+        {
+          $set: {
+            status: 'provisioning',
+            'provisioning.startedAt': null, // release the lock: a retry may start at once
+            provisioningError: { step, message, at: new Date() },
+          },
+        }
       );
       invalidateTenantCache(tenant.key);
       await PlatformAuditLog.record({
@@ -459,7 +467,7 @@ const provisionTenant = async ({ body, actor = SYSTEM_ACTOR, req } = {}) => {
         targetId: tenant._id,
         targetKey: tenant.key,
         before: null,
-        after: { status: 'failed', step, error: message },
+        after: { status: 'provisioning', step, error: message },
         req,
       });
     } catch (recordErr) {
@@ -467,8 +475,8 @@ const provisionTenant = async ({ body, actor = SYSTEM_ACTOR, req } = {}) => {
     }
     logger.error(`[Provisioning] ${tenant.key} failed at ${step}: ${message}`);
     throw new TenantProvisioningError(500, 'PROVISIONING_FAILED',
-      `Provisioning "${tenant.key}" failed at step "${step}": ${message}. The company is marked failed; `
-      + 'fix the cause and send the same request again to resume.',
+      `Provisioning "${tenant.key}" failed at step "${step}": ${message}. The company stays in `
+      + 'provisioning and cannot be used; fix the cause and send the same request again to resume.',
       { tenantKey: tenant.key, step, retryable: true });
   }
 };
@@ -486,7 +494,7 @@ const resendAdminInvite = async ({ key, email: requestedEmail, actor = SYSTEM_AC
   if (tenant.status !== 'active') {
     throw new TenantProvisioningError(409, 'TENANT_NOT_ACTIVE',
       `"${tenant.key}" is ${tenant.status}. The link only works for an active company`
-      + (tenant.status === 'failed' ? '; retry POST /api/platform/tenants to finish provisioning (it sends the invite).' : '.'));
+      + (tenant.status === 'provisioning' ? '; retry POST /api/platform/tenants to finish provisioning (it sends the invite).' : '.'));
   }
 
   const target = normalizeEmail(requestedEmail || tenant.adminEmail);

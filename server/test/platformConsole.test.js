@@ -20,6 +20,7 @@ const { test, describe, beforeEach, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
 const { makeModel, clone, idEq } = require('./helpers/fakeDb');
+const { systemRoleDocs, platformUserDoc } = require('./helpers/platformRoles');
 
 const platformModels = require('../src/platform/models');
 const platform = {};
@@ -68,13 +69,14 @@ const resetPlatform = () => {
   platform.Tenant = makeModel([
     { _id: new ObjectId(), key: 'acme', name: 'Acme', dbName: 'logiforce_acme', status: 'active', enabledModules: ['Drivers'], roleTemplateKeys: ['tenant_admin', 'viewer'], adminEmail: 'ada@acme.test', createdAt: new Date('2026-10-01') },
     { _id: new ObjectId(), key: 'bolt', name: 'Bolt', dbName: 'logiforce_bolt', status: 'suspended', enabledModules: [], roleTemplateKeys: ['tenant_admin'], createdAt: new Date('2026-10-02') },
-    { _id: new ObjectId(), key: 'crumb', name: 'Crumb', dbName: 'logiforce_crumb', status: 'failed', enabledModules: [], roleTemplateKeys: ['tenant_admin'], createdAt: new Date('2026-10-03') },
+    { _id: new ObjectId(), key: 'crumb', name: 'Crumb', dbName: 'logiforce_crumb', status: 'provisioning', provisioningError: { step: 'invite', message: 'x', at: new Date('2026-10-03') }, enabledModules: [], roleTemplateKeys: ['tenant_admin'], createdAt: new Date('2026-10-03') },
   ], { unique: ['key'] });
   platform.RoleTemplate = makeRoleTemplateModel([
     ...ROLE_TEMPLATES.map((t) => ({ _id: new ObjectId(), ...clone({ ...t, permissions: [...t.permissions] }), version: 1 })),
     { _id: new ObjectId(), key: 'admin', displayName: 'Old admin', permissions: [], assignableByTenant: true, version: 3 },
   ]);
   platform.PlatformUser = makeModel([]);
+  platform.PlatformRole = makeModel(systemRoleDocs());
   platform.PlatformAuditLog = makeModel([]);
   platform.PlatformAuditLog.record = async ({ req, ...e }) => {
     clock += 1000;
@@ -120,8 +122,8 @@ roleSync.syncTenantsUsingTemplate = async (key, { actor }) => {
 
 // ── HTTP harness ──
 
-const owner = { _id: new ObjectId(), email: 'owner@platform.test', name: 'O', role: 'owner', status: 'active', tokenVersion: 0 };
-const support = { _id: new ObjectId(), email: 'support@platform.test', name: 'S', role: 'support', status: 'active', tokenVersion: 0 };
+const owner = platformUserDoc('platform_owner', { email: 'owner@platform.test', name: 'O' });
+const support = platformUserDoc('platform_support', { email: 'support@platform.test', name: 'S' });
 let server;
 let base;
 const call = async (method, path, { body, as = owner } = {}) => {
@@ -158,7 +160,7 @@ beforeEach(() => {
 // ── Access ──
 
 describe('who can do what', () => {
-  test('no token → 401; support reads but cannot change anything', async () => {
+  test('no token → 401; support reads but cannot change companies or templates', async () => {
     assert.equal((await call('GET', '/tenants', { as: null })).status, 401);
     for (const path of ['/tenants', '/tenants/acme', '/role-templates', '/audit-logs', '/audit-logs/actions', '/meta']) {
       assert.equal((await call('GET', path, { as: support })).status, 200, path);
@@ -168,7 +170,6 @@ describe('who can do what', () => {
       ['POST', '/tenants/acme/suspend', {}],
       ['POST', '/tenants/bolt/reactivate', {}],
       ['POST', '/tenants/acme/sync-roles', {}],
-      ['POST', '/tenants/acme/resend-invite', {}],
       ['PATCH', '/role-templates/viewer', { displayName: 'X' }],
     ];
     for (const [method, path, body] of writes) {
@@ -301,7 +302,7 @@ describe('companies', () => {
     assert.equal(r.body.tenant.status, 'active');
     assert.equal(audit('tenant.reactivate').length, 1);
 
-    assert.equal((await call('POST', '/tenants/crumb/reactivate')).status, 409, 'a failed company is not reactivated');
+    assert.equal((await call('POST', '/tenants/crumb/reactivate')).status, 409, 'a company still provisioning is not reactivated');
   });
 });
 

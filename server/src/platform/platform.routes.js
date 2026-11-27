@@ -15,7 +15,9 @@ const { PlatformRequestError } = require('./errors');
 const platformAudit = require('./services/platformAudit.service');
 const { MODULES, CORE_MODULES, getByModule, isPlatformPermission } = require('../config/permissions');
 const { TENANT_ADMIN_TEMPLATE, RETIRED_TEMPLATE_KEYS } = require('../config/defaultRoles');
-const { protectPlatform, requirePlatformRole } = require('./middleware/protectPlatform');
+const {
+  protectPlatform, requirePlatformPermission, requireAnyPlatformPermission,
+} = require('./middleware/protectPlatform');
 const {
   loginIpLimiter, loginIpEmailLimiter, otpLimiter, setPasswordLimiter,
 } = require('./middleware/rateLimits');
@@ -71,12 +73,13 @@ router.use(protectPlatform);
 
 router.get('/auth/me', (req, res) => res.json({ success: true, user: req.platformUser }));
 
-const canRead = requirePlatformRole('owner', 'support');
+const canReadMeta = requireAnyPlatformPermission(['platform.tenants.view', 'platform.role_templates.view']);
+const canReadAudit = requirePlatformPermission('platform.audit.view');
 
 // GET /api/platform/meta — what the console needs to draw module switches and
 // the permission grid. Platform-scope permissions are left out: they can never
 // be in a company's role.
-router.get('/meta', canRead, (req, res) => {
+router.get('/meta', canReadMeta, (req, res) => {
   const permissionsByModule = Object.fromEntries(
     Object.entries(getByModule())
       .map(([mod, perms]) => [mod, perms.filter((p) => !isPlatformPermission(p.key))])
@@ -92,13 +95,13 @@ router.get('/meta', canRead, (req, res) => {
   });
 });
 
-// Reads: owner or support. Changes: owner only (checked per route).
+// Each route checks its own platform permission.
 router.use('/tenants', require('./routes/tenants.routes'));
 router.use('/role-templates', require('./routes/roleTemplates.routes'));
 
 // GET /api/platform/audit-logs?page=&limit=&action=&targetType=&targetKey=&actor=&from=&to=
-router.get('/audit-logs', canRead, handle((req) => platformAudit.listAuditLogs(req.query)));
-router.get('/audit-logs/actions', canRead, handle(() => platformAudit.listAuditActions()));
+router.get('/audit-logs', canReadAudit, handle((req) => platformAudit.listAuditLogs(req.query)));
+router.get('/audit-logs/actions', canReadAudit, handle(() => platformAudit.listAuditActions()));
 
 // ── Unknown paths and errors stay inside the platform router ──
 

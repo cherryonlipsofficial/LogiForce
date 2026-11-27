@@ -21,6 +21,13 @@ const {
 } = require('./src/platform/tenantJobs');
 const { platformAuthEnvProblem } = require('./src/platform/config');
 
+// The platform database holds the company registry; nothing works without it.
+if (!(process.env.PLATFORM_MONGODB_URI || '').trim()) {
+  console.error('[FATAL] PLATFORM_MONGODB_URI is not set. It is the MongoDB URI of the platform database, '
+    + 'which holds the company list, platform users and the audit log. See server/.env.example.');
+  process.exit(1);
+}
+
 // Platform (product-owner) login signs its tokens with PLATFORM_JWT_SECRET.
 // Refuse to start without a usable one. The message never contains a secret.
 const platformAuthProblem = platformAuthEnvProblem();
