@@ -1,10 +1,8 @@
 module.exports = {
 
-  // Each entry: { label, module, description, scope? }
-  //   scope: 'platform' — held only by platform staff. Never part of a company's
-  //                       ceiling (see tenantCeiling below), so a company role or
-  //                       user override can never be given it.
-  //   scope: 'tenant'   — a company permission. Missing scope means 'tenant'.
+  // Company (tenant) permissions only. Each entry: { label, module, description }.
+  // Platform staff permissions live in config/platformPermissions.js and can
+  // never be granted inside a company (see isPlatformPermission below).
   PERMISSIONS: {
 
     // ── DRIVERS ──
@@ -218,7 +216,6 @@ module.exports = {
     'users.delete':            { label: 'Delete users',            module: 'Users',      description: 'Remove user accounts' },
     'users.manage_access':     { label: 'Manage user access',      module: 'Users',      description: 'Change a user\'s role and permission overrides' },
     'roles.view':              { label: 'View roles',              module: 'Users',      description: 'Read-only access to the roles list and role details' },
-    'roles.manage':            { label: 'Manage roles & permissions', module: 'Users',   scope: 'platform', description: 'Create roles and configure permissions — super admin only' },
     'activity_log.view':       { label: 'View activity log',       module: 'Users',      description: 'View system-wide activity log showing who did what across the platform — super admin only' },
   },
 
@@ -233,11 +230,11 @@ module.exports.MODULES = Object.freeze([
 // Modules every company has, whatever Tenant.enabledModules says.
 module.exports.CORE_MODULES = Object.freeze(['Users', 'Settings', 'Notifications', 'Dashboard']);
 
-// The most a company can hold: every tenant-scope permission in a core module or
-// in one of the tenant's enabled modules. Platform-scope permissions are never in it.
+// The most a company can hold: every company permission in a core module or
+// in one of the tenant's enabled modules. Platform permissions are never in it.
 module.exports.tenantCeiling = (tenant) => new Set(
   Object.entries(module.exports.PERMISSIONS)
-    .filter(([, p]) => p.scope !== 'platform' &&
+    .filter(([key, p]) => !module.exports.isPlatformPermission(key) &&
       (module.exports.CORE_MODULES.includes(p.module) || (tenant.enabledModules || []).includes(p.module)))
     .map(([key]) => key));
 
@@ -258,7 +255,27 @@ module.exports.getEffectivePermissions = (tenant, user) => {
   return [...perms].filter((k) => ceiling.has(k));
 };
 
-module.exports.isPlatformPermission = (key) => module.exports.PERMISSIONS[key]?.scope === 'platform';
+// Keys that once meant platform-level access inside a company database. They
+// may still sit in old roles; they are treated as platform keys and never
+// granted to a company user again. Role editing is now
+// platform.role_templates.manage.
+module.exports.RETIRED_PLATFORM_KEYS = Object.freeze(['roles.manage']);
+
+/**
+ * True for a key that belongs to the platform, not to a company: anything in
+ * config/platformPermissions.js (all start with 'platform.') and the retired
+ * keys above. Such a key can never be in a company role, role template or
+ * user override.
+ */
+module.exports.isPlatformPermission = (key) => typeof key === 'string'
+  && (key.startsWith('platform.') || module.exports.RETIRED_PLATFORM_KEYS.includes(key));
+
+// The two permission sets never overlap.
+for (const key of Object.keys(module.exports.PERMISSIONS)) {
+  if (module.exports.isPlatformPermission(key)) {
+    throw new Error(`config/permissions.js: "${key}" is a platform permission; put it in config/platformPermissions.js`);
+  }
+}
 
 // Legacy permission keys that were renamed — map old → new
 module.exports.LEGACY_KEY_MAP = {

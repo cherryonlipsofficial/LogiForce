@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { protect, requirePermission } = require('../../middleware/auth');
 const { getModel } = require('../../config/modelRegistry');
-const { PERMISSIONS } = require('../../config/permissions');
+const { PERMISSIONS, isPlatformPermission } = require('../../config/permissions');
 const {
   httpError,
   assertCanAssignRole,
@@ -326,6 +326,11 @@ router.post('/:id/permissions/override', requirePermission('users.manage_access'
 
   if (!key || granted === undefined) {
     return sendError(res, 'key and granted are required');
+  }
+
+  // A platform permission is never granted inside a company.
+  if (isPlatformPermission(key)) {
+    return sendError(res, `"${key}" is a platform permission and can't be granted in a company`, 403);
   }
 
   // Validate permission key

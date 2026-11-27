@@ -98,6 +98,9 @@ router.get('/meta', canReadMeta, (req, res) => {
 // Each route checks its own platform permission.
 router.use('/tenants', require('./routes/tenants.routes'));
 router.use('/role-templates', require('./routes/roleTemplates.routes'));
+const platformAccessRoutes = require('./routes/platformUsers.routes');
+router.use('/users', platformAccessRoutes.users);
+router.use('/roles', platformAccessRoutes.roles);
 
 // GET /api/platform/audit-logs?page=&limit=&action=&targetType=&targetKey=&actor=&from=&to=
 router.get('/audit-logs', canReadAudit, handle((req) => platformAudit.listAuditLogs(req.query)));
